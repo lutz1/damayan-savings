@@ -1,8 +1,16 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta http-equiv="refresh" content="0; url=./index.html" />
+    <meta charset="utf-8">
+    <title>Redirecting...</title>
+    <script type="text/javascript">
+      // Redirect any 404s on GitHub Pages back into the React app
+      var pathname = window.location.pathname.replace(/^\/damayan-savings/, "");
+      var redirectTo = "/damayan-savings" + pathname + window.location.search + window.location.hash;
+      window.location.replace(redirectTo);
+    </script>
   </head>
   <body>
+    <p>Redirecting to TCLC-Damayan Savings...</p>
   </body>
 </html>
