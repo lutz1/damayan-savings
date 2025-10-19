@@ -1,22 +1,23 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta charset="utf-8" />
+    <meta charset="utf-8">
     <title>Redirecting...</title>
     <script type="text/javascript">
-      // Only redirect if not already inside the React app
-      var path = window.location.pathname;
-      if (!path.startsWith("/damayan-savings")) {
-        var newUrl =
-          "/damayan-savings" +
-          path +
-          window.location.search +
-          window.location.hash;
-        window.location.replace(newUrl);
-      }
+      // GitHub Pages SPA redirect fix
+      (function() {
+        // Keep your project name in sync with package.json "homepage"
+        var repo = "/damayan-savings";
+        var redirect = sessionStorage.redirect;
+        delete sessionStorage.redirect;
+
+        if (redirect && redirect.startsWith(repo)) {
+          // Redirect directly to the correct route within the app
+          var url = redirect.replace(repo, "");
+          window.history.replaceState(null, null, repo + url);
+        }
+      })();
     </script>
   </head>
-  <body>
-    <p>Redirecting to TCLC-Damayan Savings...</p>
-  </body>
+  <body></body>
 </html>
