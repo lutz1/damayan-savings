@@ -4,20 +4,18 @@
     <meta charset="utf-8">
     <title>Redirecting...</title>
     <script type="text/javascript">
-      // GitHub Pages SPA redirect fix
+      // When a 404 occurs, GitHub Pages serves this file.
+      // We’ll redirect back to the saved route inside the React app.
       (function() {
-        // Keep your project name in sync with package.json "homepage"
         var repo = "/damayan-savings";
         var redirect = sessionStorage.redirect;
-        delete sessionStorage.redirect;
-
-        if (redirect && redirect.startsWith(repo)) {
-          // Redirect directly to the correct route within the app
-          var url = redirect.replace(repo, "");
-          window.history.replaceState(null, null, repo + url);
-        }
+        sessionStorage.removeItem("redirect");
+        var target = repo + (redirect || "/");
+        window.location.replace(target);
       })();
     </script>
   </head>
-  <body></body>
+  <body>
+    <p>Redirecting to TCLC-Damayan Savings...</p>
+  </body>
 </html>
