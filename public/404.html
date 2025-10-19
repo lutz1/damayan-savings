@@ -2,27 +2,19 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Redirecting...</title>
-
-    <!-- ✅ GitHub Pages SPA redirect -->
     <script type="text/javascript">
-      (function () {
-        // Capture the current full path (with query + hash)
+      (function() {
+        // Save current path to sessionStorage
         var redirectPath =
           window.location.pathname +
           window.location.search +
           window.location.hash;
 
-        // Store it temporarily so index.html can restore it
         sessionStorage.setItem("redirect", redirectPath);
-
-        // Redirect to your React app base path
         window.location.replace("/damayan-savings/");
       })();
     </script>
   </head>
-  <body>
-    <noscript>Redirecting...</noscript>
-  </body>
+  <body></body>
 </html>
