@@ -2,37 +2,27 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/tclc-logo1.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-    <meta
-      name="description"
-      content="Web site created using create-react-app"
-    />
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <title>TCLC-Damayan Savings</title>
+    <title>Redirecting...</title>
 
-    <!-- ✅ REDIRECT LOGIC for GitHub Pages SPA fix -->
+    <!-- ✅ GitHub Pages SPA redirect -->
     <script type="text/javascript">
-      (function() {
-        // Save the current path, query, and hash
+      (function () {
+        // Capture the current full path (with query + hash)
         var redirectPath =
           window.location.pathname +
           window.location.search +
           window.location.hash;
 
-        // Save it in sessionStorage for index.html to pick up later
+        // Store it temporarily so index.html can restore it
         sessionStorage.setItem("redirect", redirectPath);
 
-        // Redirect to the app's root index.html
+        // Redirect to your React app base path
         window.location.replace("/damayan-savings/");
       })();
     </script>
   </head>
-
   <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div id="root"></div>
+    <noscript>Redirecting...</noscript>
   </body>
 </html>
