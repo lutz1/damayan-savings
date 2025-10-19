@@ -31,17 +31,16 @@ function App() {
   const [initialized, setInitialized] = useState(false);
   const [role, setRole] = useState(() => localStorage.getItem("userRole"));
 
+  // ✅ Initialize role on mount only
   useEffect(() => {
     const storedRole = localStorage.getItem("userRole");
     if (storedRole) setRole(storedRole);
     setInitialized(true);
-  }, []);
+  }, []); // ✅ Empty dependency to avoid ESLint warnings
 
   if (!initialized) {
     return (
-      <div style={{ textAlign: "center", marginTop: "20%" }}>
-        Loading...
-      </div>
+      <div style={{ textAlign: "center", marginTop: "20%" }}>Loading...</div>
     );
   }
 
@@ -57,17 +56,21 @@ function App() {
   // ✅ Auto-redirect if logged in and visiting root/login
   const AutoRedirect = () => {
     const location = useLocation();
+
     useEffect(() => {
-      const currentPath = location.pathname;
-      const userRole = role?.toUpperCase();
-      if (["/damayan-savings/", "/damayan-savings/login"].includes(currentPath)) {
-        if (userRole === "ADMIN") {
+      const userRole = localStorage.getItem("userRole");
+      const path = location.pathname;
+
+      if (["/damayan-savings/", "/damayan-savings/login"].includes(path)) {
+        const upperRole = userRole?.toUpperCase();
+        if (upperRole === "ADMIN") {
           window.location.replace("/damayan-savings/admin/dashboard");
-        } else if (["MD", "MS", "MI", "AGENT", "MEMBER"].includes(userRole)) {
+        } else if (["MD", "MS", "MI", "AGENT", "MEMBER"].includes(upperRole)) {
           window.location.replace("/damayan-savings/member/dashboard");
         }
       }
-    }, [location, role]);
+    }, [location]); // ✅ only depend on path changes
+
     return null;
   };
 

@@ -1,7 +1,7 @@
 {
   "name": "amayan-savings",
   "version": "0.1.0",
-  "homepage": "https://lutz1.github.io/damayan-savings",
+  "homepage": "https://lutz1.github.io/amayan-savings",
   "private": true,
   "resolutions": {
     "ajv": "6.12.6",
