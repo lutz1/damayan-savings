@@ -1,4 +1,3 @@
-// src/components/Topbar.jsx
 import React, { useState, useEffect } from "react";
 import {
   AppBar,
@@ -22,6 +21,7 @@ import {
   DialogContent,
   DialogActions,
   TextField,
+  MenuItem,
   useMediaQuery,
 } from "@mui/material";
 import {
@@ -35,10 +35,23 @@ import {
   Lock as LockIcon,
   KeyboardArrowRight as CloseIcon,
   Menu as MenuIcon,
+
+  VpnKey as CodeIcon,
 } from "@mui/icons-material";
 import { signOut } from "firebase/auth";
 import { auth, db } from "../firebase";
-import { doc, onSnapshot, getDoc } from "firebase/firestore";
+import {
+  doc,
+  onSnapshot,
+  getDoc,
+  addDoc,
+  updateDoc,
+  collection,
+  query,
+  where,
+  onSnapshot as listenCollection,
+  serverTimestamp,
+} from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "@mui/material/styles";
 import tclcLogo from "../assets/tclc-logo1.png";
@@ -52,12 +65,15 @@ const Topbar = ({ open, onToggleSidebar }) => {
   const [dialog, setDialog] = useState(null);
   const [amount, setAmount] = useState("");
   const [recipient, setRecipient] = useState("");
+  const [codeType, setCodeType] = useState("");
+  const [availableCodes, setAvailableCodes] = useState([]);
 
   const [userData, setUserData] = useState({
     name: "",
     email: "",
     eWallet: 0,
     lockInBalance: 1000,
+    role: "member",
   });
 
   // ✅ Real-time user info listener
@@ -89,17 +105,22 @@ const Topbar = ({ open, onToggleSidebar }) => {
               email: data.email || currentUser.email || "No email",
               eWallet: displayWallet,
               lockInBalance,
+              role: data.role || "member",
             });
-          } else {
-            const serverSnap = await getDoc(userRef);
-            if (!serverSnap.exists()) {
-              setUserData({
-                name: "Unknown User",
-                email: currentUser.email,
-                eWallet: 0,
-                lockInBalance: 0,
-              });
-            }
+
+            // ✅ Listen to available codes
+            const codesRef = collection(db, "purchaseCodes");
+            const q = query(
+              codesRef,
+              where("userId", "==", currentUser.uid),
+              where("used", "==", false)
+            );
+            const unsubCodes = listenCollection(q, (snap) => {
+              const codes = snap.docs.map((d) => d.data());
+              setAvailableCodes(codes);
+            });
+
+            return () => unsubCodes();
           }
         },
         (error) => {
@@ -109,6 +130,7 @@ const Topbar = ({ open, onToggleSidebar }) => {
             email: currentUser?.email || "",
             eWallet: 0,
             lockInBalance: 0,
+            role: "member",
           });
         }
       );
@@ -141,20 +163,71 @@ const Topbar = ({ open, onToggleSidebar }) => {
   };
 
   // ✅ Dialog open/close
-  const handleOpenDialog = (type) => {
-    setDialog(type);
-  };
+  const handleOpenDialog = (type) => setDialog(type);
   const handleCloseDialog = () => {
     setDialog(null);
     setAmount("");
     setRecipient("");
+    setCodeType("");
   };
 
-  const handleSubmitAction = () => {
-    alert(
-      `Action: ${dialog}\nAmount: ₱${amount}\nRecipient: ${recipient || "N/A"}`
-    );
-    handleCloseDialog();
+  // ✅ Handle submit for all dialogs
+  const handleSubmitAction = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return alert("User not authenticated.");
+
+      const userRef = doc(db, "users", user.uid);
+      const snap = await getDoc(userRef);
+      if (!snap.exists()) return alert("User not found in database.");
+
+      const data = snap.data();
+      const currentWallet = Number(data.eWallet) || 0;
+
+      if (dialog === "purchase") {
+        if (!codeType) return alert("Please select a code type to purchase.");
+        if (currentWallet < 500) {
+          alert("Insufficient wallet balance. ₱500 is required to purchase a code.");
+          return;
+        }
+
+        // Deduct ₱500
+        await updateDoc(userRef, {
+          eWallet: currentWallet - 500,
+        });
+
+        // Generate random code
+        const randomCode = `TCLC-${Math.random()
+          .toString(36)
+          .substring(2, 10)
+          .toUpperCase()}`;
+
+        // Save to Firestore
+        await addDoc(collection(db, "purchaseCodes"), {
+          userId: user.uid,
+          name: data.name || "Unknown User",
+          email: data.email || user.email,
+          code: randomCode,
+          type: codeType,
+          used: false,
+          amount: 500,
+          createdAt: serverTimestamp(),
+        });
+
+        alert(
+          `✅ Purchase successful!\nType: ${codeType}\nCode: ${randomCode}\n₱500 has been deducted from your wallet.`
+        );
+      } else {
+        alert(
+          `Action: ${dialog}\nAmount: ₱${amount}\nRecipient: ${recipient || "N/A"}`
+        );
+      }
+
+      handleCloseDialog();
+    } catch (error) {
+      console.error("Transaction failed:", error);
+      alert("Transaction failed. Please try again.");
+    }
   };
 
   return (
@@ -184,11 +257,7 @@ const Topbar = ({ open, onToggleSidebar }) => {
           {/* Left Side */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             {isMobile && (
-              <IconButton
-                color="inherit"
-                onClick={onToggleSidebar}
-                sx={{ mr: 1 }}
-              >
+              <IconButton color="inherit" onClick={onToggleSidebar} sx={{ mr: 1 }}>
                 <MenuIcon />
               </IconButton>
             )}
@@ -202,7 +271,6 @@ const Topbar = ({ open, onToggleSidebar }) => {
 
           {/* Right Side */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-            
             <IconButton color="inherit" onClick={openDrawer}>
               <Avatar
                 alt={userData.name || "User"}
@@ -284,6 +352,7 @@ const Topbar = ({ open, onToggleSidebar }) => {
                 </IconButton>
               </Tooltip>
 
+              {/* User Info */}
               <Box sx={{ textAlign: "center", mb: 2, mt: 4 }}>
                 <Avatar
                   alt={userData.name}
@@ -321,55 +390,95 @@ const Topbar = ({ open, onToggleSidebar }) => {
 
               <Divider sx={{ borderColor: "rgba(255,255,255,0.2)", mb: 2 }} />
 
-              <Box
-                sx={{
-                  background: "rgba(255,255,255,0.08)",
-                  borderRadius: 2,
-                  p: 2,
-                  mb: 2,
-                }}
-              >
-                <Typography
-                  variant="subtitle1"
+              {/* Wallet */}
+              {userData.role !== "admin" && (
+                <Box
                   sx={{
-                    mb: 1,
-                    display: "flex",
-                    alignItems: "center",
-                    fontWeight: 500,
+                    background: "rgba(255,255,255,0.08)",
+                    borderRadius: 2,
+                    p: 2,
+                    mb: 2,
                   }}
                 >
-                  <WalletIcon
-                    fontSize="small"
-                    sx={{ mr: 1, color: "#4CAF50" }}
-                  />
-                  E-Wallet
-                </Typography>
-                <Typography
-                  variant="h5"
-                  sx={{ color: "#4CAF50", fontWeight: 700 }}
-                >
-                  ₱
-                  {userData.eWallet.toLocaleString("en-PH", {
-                    minimumFractionDigits: 2,
-                  })}
-                </Typography>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    mt: 1,
-                    display: "flex",
-                    alignItems: "center",
-                    color: "rgba(255,255,255,0.6)",
-                  }}
-                >
-                  <LockIcon fontSize="small" sx={{ mr: 0.5 }} />
-                  Lock-in Balance: ₱
-                  {userData.lockInBalance.toLocaleString("en-PH", {
-                    minimumFractionDigits: 2,
-                  })}
-                </Typography>
-              </Box>
+                  <Typography
+                    variant="subtitle1"
+                    sx={{
+                      mb: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      fontWeight: 500,
+                    }}
+                  >
+                    <WalletIcon fontSize="small" sx={{ mr: 1, color: "#4CAF50" }} />
+                    E-Wallet
+                  </Typography>
+                  <Typography
+                    variant="h5"
+                    sx={{ color: "#4CAF50", fontWeight: 700 }}
+                  >
+                    ₱
+                    {userData.eWallet.toLocaleString("en-PH", {
+                      minimumFractionDigits: 2,
+                    })}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      mt: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      color: "rgba(255,255,255,0.6)",
+                    }}
+                  >
+                    <LockIcon fontSize="small" sx={{ mr: 0.5 }} />
+                    Lock-in Balance: ₱
+                    {userData.lockInBalance.toLocaleString("en-PH", {
+                      minimumFractionDigits: 2,
+                    })}
+                  </Typography>
+                </Box>
+              )}
 
+              {/* Available Codes */}
+              {availableCodes.length > 0 && (
+                <Box
+                  sx={{
+                    background: "rgba(255,255,255,0.1)",
+                    borderRadius: 2,
+                    p: 2,
+                    mb: 2,
+                  }}
+                >
+                  <Typography
+                    variant="subtitle1"
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      fontWeight: 500,
+                      mb: 1,
+                    }}
+                  >
+                    <CodeIcon fontSize="small" sx={{ mr: 1, color: "#FFD54F" }} />
+                    Available Codes
+                  </Typography>
+                  {availableCodes.map((code, i) => (
+                    <Typography
+                      key={i}
+                      variant="body2"
+                      sx={{
+                        color: "#FFF59D",
+                        fontFamily: "monospace",
+                        ml: 2,
+                        mb: 0.5,
+                      }}
+                    >
+                      {code.type}: {code.code}
+                    </Typography>
+                  ))}
+                </Box>
+              )}
+
+              {/* Drawer List */}
               <List>
                 <ListItem disablePadding>
                   <ListItemButton onClick={() => handleOpenDialog("purchase")}>
@@ -432,9 +541,34 @@ const Topbar = ({ open, onToggleSidebar }) => {
       {/* ✅ Dialog */}
       <Dialog open={Boolean(dialog)} onClose={handleCloseDialog}>
         <DialogTitle sx={{ textTransform: "capitalize" }}>
-          {dialog} Form
+          {dialog === "purchase" ? "Purchase Code" : `${dialog} Form`}
         </DialogTitle>
         <DialogContent dividers>
+          {dialog === "purchase" && (
+            <>
+              <TextField
+                select
+                fullWidth
+                margin="dense"
+                label="Select Code Type"
+                value={codeType}
+                onChange={(e) => setCodeType(e.target.value)}
+              >
+                <MenuItem value="Activate Capital Share">
+                  Activate Capital Share
+                </MenuItem>
+                <MenuItem value="Activate Genealogy Tree">
+                  Activate Genealogy Tree
+                </MenuItem>
+                <MenuItem value="Downline Code">Downline Code</MenuItem>
+              </TextField>
+              <Typography variant="body2" sx={{ mt: 1.5, color: "gray" }}>
+                Each code costs ₱500. Purchased codes will appear under “Available
+                Codes”.
+              </Typography>
+            </>
+          )}
+
           {dialog === "transfer" && (
             <TextField
               fullWidth
@@ -445,15 +579,18 @@ const Topbar = ({ open, onToggleSidebar }) => {
               onChange={(e) => setRecipient(e.target.value)}
             />
           )}
-          <TextField
-            fullWidth
-            margin="dense"
-            label="Amount (₱)"
-            variant="outlined"
-            type="number"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-          />
+
+          {dialog !== "purchase" && (
+            <TextField
+              fullWidth
+              margin="dense"
+              label="Amount (₱)"
+              variant="outlined"
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseDialog}>Cancel</Button>

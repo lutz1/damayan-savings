@@ -367,7 +367,7 @@ const MemberPayback = () => {
           fontWeight={700}
           gutterBottom
         >
-          Member Payback Overview
+          Payback Overview
         </Typography>
 
         {/* Summary Cards */}

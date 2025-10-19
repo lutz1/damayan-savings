@@ -15,15 +15,18 @@ import {
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { useNavigate, useLocation } from "react-router-dom";
-import { ExpandLess, ExpandMore } from "@mui/icons-material";
-import MenuIcon from "@mui/icons-material/Menu";
-import DashboardIcon from "@mui/icons-material/Dashboard";
-import AccountCircleIcon from "@mui/icons-material/AccountCircle";
-import AccountTreeIcon from "@mui/icons-material/AccountTree";
-import MonetizationOnIcon from "@mui/icons-material/MonetizationOn";
-import SavingsIcon from "@mui/icons-material/Savings";
-import PieChartIcon from "@mui/icons-material/PieChart";
-import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
+import {
+  ExpandLess,
+  ExpandMore,
+  Menu as MenuIcon,
+  Dashboard as DashboardIcon,
+  AccountCircle as AccountCircleIcon,
+  AccountTree as AccountTreeIcon,
+  MonetizationOn as MonetizationOnIcon,
+  Savings as SavingsIcon,
+  PieChart as PieChartIcon,
+  SwapHoriz as SwapHorizIcon,
+} from "@mui/icons-material";
 import damayanLogo from "../assets/damayan.png";
 
 const drawerWidth = 240;
@@ -36,8 +39,12 @@ const Sidebar = ({ open, onToggleSidebar }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
+  // ✅ Get user role from localStorage (no unused setter)
   const role = localStorage.getItem("userRole");
 
+  // =====================================================
+  // 🛠️ NAVIGATION ITEMS
+  // =====================================================
   const adminNav = [
     { text: "Dashboard", icon: <DashboardIcon />, path: "/admin/dashboard" },
     {
@@ -81,24 +88,32 @@ const Sidebar = ({ open, onToggleSidebar }) => {
         },
       ],
     },
-    { text: "Genealogy Tree", icon: <AccountTreeIcon />, path: "/member/genealogy" },
+    {
+      text: "Genealogy Tree",
+      icon: <AccountTreeIcon />,
+      path: "/member/genealogy",
+    },
     { text: "Profile", icon: <AccountCircleIcon />, path: "/member/profile" },
   ];
 
-  // ✅ Fix: case-insensitive role matching
-  const navItems = role?.toUpperCase() === "ADMIN" ? adminNav : memberNav;
+  // ✅ Case-insensitive role matching
+  const navItems =
+    role?.toUpperCase() === "ADMIN" ? adminNav : memberNav;
 
-  const handleToggleIncome = () => {
-    setIncomeOpen((prev) => !prev);
-  };
+  // =====================================================
+  // 🧭 HANDLERS
+  // =====================================================
+  const handleToggleIncome = () => setIncomeOpen((prev) => !prev);
 
   const handleNavigate = (path) => {
     navigate(path);
     if (isMobile) onToggleSidebar();
-    // Auto close submenu when navigating to a different page
     setIncomeOpen(false);
   };
 
+  // =====================================================
+  // 🎨 DRAWER CONTENT
+  // =====================================================
   const drawerContent = (
     <>
       {/* ✅ Logo + Toggle Icon */}
@@ -161,7 +176,11 @@ const Sidebar = ({ open, onToggleSidebar }) => {
             if (item.children) {
               return (
                 <Box key={item.text}>
-                  <Tooltip title={open ? "" : item.text} placement="right" arrow>
+                  <Tooltip
+                    title={open ? "" : item.text}
+                    placement="right"
+                    arrow
+                  >
                     <ListItemButton
                       onClick={handleToggleIncome}
                       sx={{
@@ -171,11 +190,17 @@ const Sidebar = ({ open, onToggleSidebar }) => {
                         },
                       }}
                     >
-                      <ListItemIcon sx={{ color: "#fff", minWidth: open ? 40 : "auto" }}>
+                      <ListItemIcon
+                        sx={{
+                          color: "#fff",
+                          minWidth: open ? 40 : "auto",
+                        }}
+                      >
                         {item.icon}
                       </ListItemIcon>
                       {open && <ListItemText primary={item.text} />}
-                      {open && (incomeOpen ? <ExpandLess /> : <ExpandMore />)}
+                      {open &&
+                        (incomeOpen ? <ExpandLess /> : <ExpandMore />)}
                     </ListItemButton>
                   </Tooltip>
 
@@ -197,7 +222,12 @@ const Sidebar = ({ open, onToggleSidebar }) => {
                           }}
                           onClick={() => handleNavigate(child.path)}
                         >
-                          <ListItemIcon sx={{ color: "#fff", minWidth: open ? 40 : "auto" }}>
+                          <ListItemIcon
+                            sx={{
+                              color: "#fff",
+                              minWidth: open ? 40 : "auto",
+                            }}
+                          >
                             {child.icon}
                           </ListItemIcon>
                           {open && <ListItemText primary={child.text} />}
@@ -223,10 +253,17 @@ const Sidebar = ({ open, onToggleSidebar }) => {
                     backgroundColor: isActive
                       ? "rgba(255, 255, 255, 0.25)"
                       : "transparent",
-                    "&:hover": { backgroundColor: "rgba(255, 255, 255, 0.15)" },
+                    "&:hover": {
+                      backgroundColor: "rgba(255, 255, 255, 0.15)",
+                    },
                   }}
                 >
-                  <ListItemIcon sx={{ color: "#fff", minWidth: open ? 40 : "auto" }}>
+                  <ListItemIcon
+                    sx={{
+                      color: "#fff",
+                      minWidth: open ? 40 : "auto",
+                    }}
+                  >
                     {item.icon}
                   </ListItemIcon>
                   {open && <ListItemText primary={item.text} />}
@@ -239,9 +276,12 @@ const Sidebar = ({ open, onToggleSidebar }) => {
     </>
   );
 
+  // =====================================================
+  // 📱 DRAWER WRAPPER
+  // =====================================================
   return (
     <>
-      {/* 👇 Show hamburger icon always on mobile */}
+      {/* 👇 Mobile Hamburger */}
       {isMobile && !open && (
         <IconButton
           onClick={onToggleSidebar}

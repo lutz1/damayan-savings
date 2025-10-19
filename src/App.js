@@ -23,7 +23,8 @@ import AdminTransferTransaction from "./pages/admin/adminTransferTransaction";
 
 // Member pages
 import MemberDashboard from "./pages/member/memberDashboard";
-import MemberCashback from "./pages/member/memberPayback";
+import MemberPayback from "./pages/member/memberPayback";
+import MemberCapitalShare from "./pages/member/memberCapitalShare"; // ✅ NEW
 
 import "leaflet/dist/leaflet.css";
 
@@ -31,12 +32,12 @@ function App() {
   const [initialized, setInitialized] = useState(false);
   const [role, setRole] = useState(() => localStorage.getItem("userRole"));
 
-  // ✅ Initialize role on mount only
+  // ✅ Initialize role only once
   useEffect(() => {
     const storedRole = localStorage.getItem("userRole");
     if (storedRole) setRole(storedRole);
     setInitialized(true);
-  }, []); // ✅ Empty dependency to avoid ESLint warnings
+  }, []); // ✅ empty deps to avoid warning
 
   if (!initialized) {
     return (
@@ -44,47 +45,57 @@ function App() {
     );
   }
 
-  // ✅ Route Guards
+  // =====================================================
+  // 🔐 ROUTE GUARDS
+  // =====================================================
   const AdminRoute = ({ children }) =>
     role?.toUpperCase() === "ADMIN" ? children : <Navigate to="/login" />;
 
   const MemberRoute = ({ children }) =>
-    ["MD", "MS", "MI", "AGENT", "MEMBER"].includes(role?.toUpperCase())
-      ? children
-      : <Navigate to="/login" />;
+    ["MD", "MS", "MI", "AGENT", "MEMBER"].includes(role?.toUpperCase()) ? (
+      children
+    ) : (
+      <Navigate to="/login" />
+    );
 
-  // ✅ Auto-redirect if logged in and visiting root/login
+  // =====================================================
+  // 🔁 AUTO REDIRECT LOGIC
+  // =====================================================
   const AutoRedirect = () => {
     const location = useLocation();
 
     useEffect(() => {
       const userRole = localStorage.getItem("userRole");
       const path = location.pathname;
+      const upperRole = userRole?.toUpperCase();
 
       if (["/damayan-savings/", "/damayan-savings/login"].includes(path)) {
-        const upperRole = userRole?.toUpperCase();
         if (upperRole === "ADMIN") {
           window.location.replace("/damayan-savings/admin/dashboard");
         } else if (["MD", "MS", "MI", "AGENT", "MEMBER"].includes(upperRole)) {
           window.location.replace("/damayan-savings/member/dashboard");
         }
       }
-    }, [location]); // ✅ only depend on path changes
+    }, [location]);
 
     return null;
   };
 
+  // =====================================================
+  // 🧭 ROUTER CONFIG
+  // =====================================================
   return (
     <ParallaxProvider>
       <LocalizationProvider dateAdapter={AdapterMoment}>
         <Router basename="/damayan-savings">
           <AutoRedirect />
+
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<Login />} />
 
-            {/* Admin Routes */}
+            {/* ===================== ADMIN ROUTES ===================== */}
             <Route
               path="/admin/dashboard"
               element={
@@ -134,7 +145,7 @@ function App() {
               }
             />
 
-            {/* Member Routes */}
+            {/* ===================== MEMBER ROUTES ===================== */}
             <Route
               path="/member/dashboard"
               element={
@@ -147,12 +158,20 @@ function App() {
               path="/member/income/payback"
               element={
                 <MemberRoute>
-                  <MemberCashback />
+                  <MemberPayback />
+                </MemberRoute>
+              }
+            />
+            <Route
+              path="/member/income/capital-share"
+              element={
+                <MemberRoute>
+                  <MemberCapitalShare />
                 </MemberRoute>
               }
             />
 
-            {/* Catch-all Route */}
+            {/* Fallback */}
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Router>

@@ -16,8 +16,15 @@ import {
   useTheme,
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
-import { collection, getDocs, updateDoc, doc } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  updateDoc,
+  doc,
+  getDoc,
+} from "firebase/firestore";
 import { db } from "../../firebase";
+import { getAuth } from "firebase/auth";
 import Sidebar from "../../components/Sidebar";
 import Topbar from "../../components/Topbar";
 import bgImage from "../../assets/bg.jpg";
@@ -27,6 +34,7 @@ const AdminApprovalRequest = () => {
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [error, setError] = useState("");
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -36,7 +44,30 @@ const AdminApprovalRequest = () => {
   // ✅ Fetch requests + payback entries
   const fetchRequests = async () => {
     setLoading(true);
+    setError("");
     try {
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+
+      if (!currentUser) {
+        setError("User not signed in.");
+        setLoading(false);
+        return;
+      }
+
+      // 🔍 Verify if current user is admin
+      const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+      const role = userDoc.exists()
+        ? (userDoc.data().role || "").toLowerCase()
+        : "";
+
+      if (role !== "admin") {
+        setError("Access denied: Admins only.");
+        setLoading(false);
+        return;
+      }
+
+      // ✅ Fetch both collections in parallel
       const [reqSnap, paybackSnap] = await Promise.all([
         getDocs(collection(db, "requests")),
         getDocs(collection(db, "paybackEntries")),
@@ -46,6 +77,8 @@ const AdminApprovalRequest = () => {
         id: d.id,
         ...d.data(),
         source: "requests",
+        type: "Admin Request",
+        userName: d.data().userName || "Unknown",
       }));
 
       const paybackData = paybackSnap.docs.map((d) => ({
@@ -59,7 +92,7 @@ const AdminApprovalRequest = () => {
       const filtered = [...reqData, ...paybackData].filter(
         (r) =>
           ["waiting for approval", "waiting", "pending"].includes(
-            r.status?.toLowerCase()
+            (r.status || "").toLowerCase()
           )
       );
 
@@ -72,6 +105,7 @@ const AdminApprovalRequest = () => {
       setRequests(sorted);
     } catch (error) {
       console.error("Error fetching requests:", error);
+      setError(error.message || "Failed to fetch requests.");
     }
     setLoading(false);
   };
@@ -90,6 +124,7 @@ const AdminApprovalRequest = () => {
       setSelected(null);
     } catch (error) {
       console.error("Error updating status:", error);
+      setError("Failed to update status. Check Firestore permissions.");
     }
   };
 
@@ -110,47 +145,31 @@ const AdminApprovalRequest = () => {
           : "—",
     },
     {
-  field: "date",
-  headerName: "Date Submitted",
-  flex: 1.3,
-  minWidth: 180,
-  sortable: true,
-  valueGetter: (params) => {
-    if (!params?.row) return null; // ✅ Prevent crash
-
-    const value =
-      params.row.date ||
-      params.row.createdAt ||
-      params.row.timestamp ||
-      params.row.submittedAt;
-
-    if (!value) return null;
-
-    try {
-      const date = new Date(value);
-      if (isNaN(date.getTime())) return null;
-
-      return date.toISOString(); // store ISO for sorting
-    } catch (e) {
-      console.error("Invalid date:", e);
-      return null;
-    }
-  },
-  renderCell: (params) => {
-    if (!params?.value) return "—";
-    try {
-      const date = new Date(params.value);
-      return date.toLocaleString("en-PH", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      });
-    } catch {
-      return "—";
-    }
-  },
-  sortComparator: (v1, v2) => new Date(v2) - new Date(v1), // ✅ newest first
-},
-
+      field: "date",
+      headerName: "Date Submitted",
+      flex: 1.3,
+      minWidth: 180,
+      sortable: true,
+      valueGetter: (params) => {
+        const value =
+          params.row?.date ||
+          params.row?.createdAt ||
+          params.row?.timestamp ||
+          params.row?.submittedAt;
+        if (!value) return null;
+        const d = new Date(value);
+        return isNaN(d) ? null : d.toISOString();
+      },
+      renderCell: (params) => {
+        if (!params?.value) return "—";
+        const d = new Date(params.value);
+        return d.toLocaleString("en-PH", {
+          dateStyle: "medium",
+          timeStyle: "short",
+        });
+      },
+      sortComparator: (v1, v2) => new Date(v2) - new Date(v1),
+    },
     {
       field: "status",
       headerName: "Status",
@@ -174,7 +193,6 @@ const AdminApprovalRequest = () => {
             sx={{
               fontWeight: 600,
               fontSize: "0.75rem",
-              letterSpacing: "0.5px",
               borderRadius: "8px",
               px: 1,
               backgroundColor: bg,
@@ -200,7 +218,6 @@ const AdminApprovalRequest = () => {
               color: "#90caf9",
               textDecoration: "underline",
               "&:hover": { color: "#fff" },
-              wordBreak: "break-word",
             }}
           >
             View
@@ -216,7 +233,7 @@ const AdminApprovalRequest = () => {
       minWidth: 160,
       renderCell: (params) =>
         ["waiting for approval", "waiting", "pending"].includes(
-          params.row.status?.toLowerCase()
+          (params.row.status || "").toLowerCase()
         ) ? (
           <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
             <Button
@@ -277,17 +294,14 @@ const AdminApprovalRequest = () => {
           },
         }}
       >
-        {/* Topbar */}
         <Box sx={{ position: "fixed", width: "100%", zIndex: 10 }}>
           <Topbar open={sidebarOpen} />
         </Box>
 
-        {/* Sidebar */}
         <Box sx={{ zIndex: 5 }}>
           <Sidebar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
         </Box>
 
-        {/* Main Content */}
         <Box
           component="main"
           sx={{
@@ -315,22 +329,15 @@ const AdminApprovalRequest = () => {
           </Typography>
 
           {loading ? (
-            <Box
-              sx={{
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                height: "60vh",
-              }}
-            >
+            <Box sx={{ display: "flex", justifyContent: "center", height: "60vh" }}>
               <CircularProgress sx={{ color: "#fff" }} />
             </Box>
+          ) : error ? (
+            <Typography align="center" color="error" sx={{ mt: 10 }}>
+              {error}
+            </Typography>
           ) : requests.length === 0 ? (
-            <Typography
-              variant="h6"
-              align="center"
-              sx={{ mt: 10, opacity: 0.8 }}
-            >
+            <Typography align="center" sx={{ mt: 10, opacity: 0.8 }}>
               No requests waiting for approval 🎉
             </Typography>
           ) : (
@@ -351,35 +358,16 @@ const AdminApprovalRequest = () => {
                 getRowId={(row) => `${row.source}_${row.id}`}
                 disableRowSelectionOnClick
                 density={isMobile ? "compact" : "standard"}
-                getRowClassName={(params) =>
-                  params.row.status?.toLowerCase() === "waiting for approval"
-                    ? "waiting-row"
-                    : ""
-                }
                 sx={{
-                  color: "#0e0d0dff",
+                  color: "#111",
                   border: "none",
                   "& .MuiDataGrid-columnHeaders": {
                     backgroundColor: "rgba(40,40,40,0.9)",
-                    color: "#0c0c0cff",
+                    color: "#fff",
                     fontWeight: 600,
-                    borderBottom: "1px solid rgba(255,255,255,0.1)",
-                  },
-                  "& .MuiDataGrid-cell": {
-                    borderBottom: "1px solid rgba(255,255,255,0.05)",
-                    whiteSpace: "normal",
-                    lineHeight: "1.4rem",
                   },
                   "& .MuiDataGrid-row:hover": {
                     backgroundColor: "rgba(255,255,255,0.08)",
-                    transition: "background-color 0.2s ease",
-                  },
-                  "& .waiting-row": {
-                    backgroundColor: "rgba(255, 215, 0, 0.08) !important",
-                  },
-                  "& .MuiDataGrid-footerContainer": {
-                    backgroundColor: "rgba(35,35,35,0.9)",
-                    color: "#ccc",
                   },
                 }}
               />
@@ -387,7 +375,6 @@ const AdminApprovalRequest = () => {
           )}
         </Box>
 
-        {/* Confirmation Dialog */}
         <Dialog
           open={Boolean(selected)}
           onClose={() => setSelected(null)}
@@ -407,8 +394,7 @@ const AdminApprovalRequest = () => {
           </DialogTitle>
           <DialogContent dividers>
             <Typography>
-              Are you sure you want to{" "}
-              <b>{selected?.action}</b> this{" "}
+              Are you sure you want to <b>{selected?.action}</b> this{" "}
               <b>{selected?.type || "request"}</b> from{" "}
               <b>{selected?.userName}</b> for ₱
               {parseFloat(selected?.amount || 0).toLocaleString("en-PH", {
@@ -423,10 +409,7 @@ const AdminApprovalRequest = () => {
               variant="contained"
               color={selected?.action === "approve" ? "success" : "error"}
               onClick={() =>
-                handleAction(
-                  selected,
-                  selected?.action === "approve" ? "approve" : "reject"
-                )
+                handleAction(selected, selected?.action === "approve" ? "approve" : "reject")
               }
             >
               Confirm
