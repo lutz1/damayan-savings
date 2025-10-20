@@ -105,36 +105,61 @@ const AdminUserManagement = () => {
 
   // ✅ Create user manually (existing dialog)
   const handleCreateUser = async () => {
-  try {
-    // Create new auth user under secondary app
-    const userCredential = await createUserWithEmailAndPassword(
-      secondaryAuth,
-      newUser.email,
-      "password123"
-    );
+    const {
+      username,
+      name,
+      email,
+      contactNumber,
+      address,
+      role,
+      referredBy,
+      referrerRole,
+    } = newUser;
 
-    const uid = userCredential.user.uid;
+    if (!username || !name || !email || !contactNumber || !address || !role) {
+      alert("Please fill in all fields.");
+      return;
+    }
 
-    // Now write under main app's Firestore using ADMIN-authenticated session
-    await setDoc(doc(db, "users", uid), {
-      username: newUser.username,
-      name: newUser.name,
-      email: newUser.email,
-      contactNumber: newUser.contactNumber,
-      address: newUser.address,
-      role: newUser.role,
-      referredBy: newUser.referredBy,
-      referrerRole: newUser.referrerRole,
-      createdAt: serverTimestamp(),
-    });
+    try {
+      const userCredential = await createUserWithEmailAndPassword(
+        secondaryAuth,
+        email,
+        "password123"
+      );
 
-    await secondaryAuth.signOut(); // keep your main admin signed in
-    alert("✅ User created successfully!");
-  } catch (err) {
-    console.error("🔥 Error adding user:", err);
-    alert("Error creating user: " + err.message);
-  }
-};
+      const uid = userCredential.user.uid;
+
+      await setDoc(doc(db, "users", uid), {
+        username,
+        name,
+        email,
+        contactNumber,
+        address,
+        role,
+        referredBy,
+        referrerRole,
+        createdAt: serverTimestamp(),
+      });
+
+      alert("✅ User created successfully!");
+      setOpenDialog(false);
+      await secondaryAuth.signOut();
+      setNewUser({
+        username: "",
+        name: "",
+        email: "",
+        contactNumber: "",
+        address: "",
+        role: "Member",
+        referredBy: "",
+        referrerRole: "",
+      });
+    } catch (error) {
+      console.error("🔥 Error adding user:", error);
+      alert("Error creating user: " + error.message);
+    }
+  };
 
   // ✅ Approve pending invite
   const handleApproveInvite = async (invite) => {
