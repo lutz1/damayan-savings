@@ -103,7 +103,7 @@ const AdminUserManagement = () => {
     return () => unsubscribe();
   }, []);
 
-  // ✅ Create user manually (existing dialog)
+  // ✅ Create user manually
   const handleCreateUser = async () => {
     const {
       username,
@@ -300,6 +300,8 @@ const AdminUserManagement = () => {
               }}
             >
               <MenuItem value="All">All</MenuItem>
+              <MenuItem value="CEO">Chief Executive Officer (CEO)</MenuItem>
+              <MenuItem value="MasterMD">Master Marketing Director (MasterMD)</MenuItem>
               <MenuItem value="MD">Marketing Director (MD)</MenuItem>
               <MenuItem value="MS">Marketing Supervisor (MS)</MenuItem>
               <MenuItem value="MI">Marketing Incharge (MI)</MenuItem>
@@ -474,6 +476,8 @@ const AdminUserManagement = () => {
                 onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
                 label="Role"
               >
+                <MenuItem value="CEO">Chief Executive Officer (CEO)</MenuItem>
+                <MenuItem value="MasterMD">Master Marketing Director (MasterMD)</MenuItem>
                 <MenuItem value="MD">Marketing Director (MD)</MenuItem>
                 <MenuItem value="MS">Marketing Supervisor (MS)</MenuItem>
                 <MenuItem value="MI">Marketing Incharge (MI)</MenuItem>
@@ -496,6 +500,8 @@ const AdminUserManagement = () => {
                 onChange={(e) => setNewUser({ ...newUser, referrerRole: e.target.value })}
                 label="Referrer Role"
               >
+                <MenuItem value="CEO">Chief Executive Officer (CEO)</MenuItem>
+                <MenuItem value="MasterMD">Master Marketing Director (MasterMD)</MenuItem>
                 <MenuItem value="MD">Marketing Director (MD)</MenuItem>
                 <MenuItem value="MS">Marketing Supervisor (MS)</MenuItem>
                 <MenuItem value="MI">Marketing Incharge (MI)</MenuItem>
@@ -509,8 +515,10 @@ const AdminUserManagement = () => {
             </Typography>
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-            <Button variant="contained" onClick={handleCreateUser}>
+            <Button onClick={() => setOpenDialog(false)} color="error">
+              Cancel
+            </Button>
+            <Button onClick={handleCreateUser} variant="contained" color="primary">
               Create
             </Button>
           </DialogActions>
