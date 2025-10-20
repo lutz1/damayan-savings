@@ -13,11 +13,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  onAuthStateChanged,
 } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
 
-// ✅ Import assets
 import bgImage from "../assets/bg.jpg";
 import tclcLogo from "../assets/tclc-logo1.png";
 import damayanLogo from "../assets/damayan.png";
@@ -31,17 +31,55 @@ const Login = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [code, setCode] = useState("");
 
-  // ✅ Auto redirect if already logged in
-  useEffect(() => {
-    const role = localStorage.getItem("userRole");
-    if (!role) return;
+  // 🔄 Role-based redirect
+  const handleRedirect = (role) => {
+    const base = "/damayan-savings";
+    const upper = role.toUpperCase();
 
-    const upperRole = role.toUpperCase();
-    if (upperRole === "ADMIN") {
-      window.location.replace("/damayan-savings/admin/dashboard");
-    } else if (["MD", "MS", "MI", "AGENT", "MEMBER"].includes(upperRole)) {
-      window.location.replace("/damayan-savings/member/dashboard");
+    switch (upper) {
+      case "ADMIN":
+      case "CEO":
+        window.location.replace(`${base}/admin/dashboard`);
+        break;
+      case "MASTERMD":
+      case "MD":
+      case "MS":
+      case "MI":
+      case "AGENT":
+      case "MEMBER":
+        window.location.replace(`${base}/member/dashboard`);
+        break;
+      default:
+        window.location.replace(`${base}/`);
     }
+  };
+
+  // ✅ Auto-redirect if logged in
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        localStorage.removeItem("userRole");
+        return;
+      }
+
+      let role = localStorage.getItem("userRole");
+
+      // If role not found in localStorage, fetch from Firestore
+      if (!role) {
+        const userRef = doc(db, "users", user.uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          role = userSnap.data().role || "Member";
+          localStorage.setItem("userRole", role.toUpperCase());
+        } else {
+          return;
+        }
+      }
+
+      handleRedirect(role);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // --- LOGIN HANDLER ---
@@ -64,16 +102,9 @@ const Login = () => {
 
       const userData = userSnap.data();
       const role = (userData.role || "Member").toUpperCase();
-      localStorage.setItem("userRole", role);
 
-      // ✅ Use window.location.replace for GH Pages base path
-      if (role === "ADMIN") {
-        window.location.replace("/damayan-savings/admin/dashboard");
-      } else if (["MD", "MS", "MI", "AGENT", "MEMBER"].includes(role)) {
-        window.location.replace("/damayan-savings/member/dashboard");
-      } else {
-        window.location.replace("/damayan-savings/");
-      }
+      localStorage.setItem("userRole", role);
+      handleRedirect(role);
     } catch (err) {
       console.error("Login error:", err.message);
       if (err.code === "auth/invalid-credential" || err.code === "auth/wrong-password") {
@@ -111,7 +142,7 @@ const Login = () => {
       });
 
       localStorage.setItem("userRole", "MEMBER");
-      window.location.replace("/damayan-savings/member/dashboard");
+      handleRedirect("MEMBER");
     } catch (err) {
       console.error("Signup error:", err.message);
       if (err.code === "auth/email-already-in-use") {
@@ -187,7 +218,6 @@ const Login = () => {
 
           <AnimatePresence mode="wait">
             {!isSignup ? (
-              // 🔐 LOGIN FORM
               <motion.div
                 key="login"
                 initial={{ opacity: 0, x: 40 }}
@@ -228,17 +258,12 @@ const Login = () => {
                 </form>
                 <Typography mt={2}>
                   Don’t have an account?{" "}
-                  <Link
-                    component="button"
-                    color="rgba(240,224,7,1)"
-                    onClick={() => setIsSignup(true)}
-                  >
+                  <Link component="button" color="rgba(240,224,7,1)" onClick={() => setIsSignup(true)}>
                     Create one
                   </Link>
                 </Typography>
               </motion.div>
             ) : (
-              // 📝 SIGNUP FORM
               <motion.div
                 key="signup"
                 initial={{ opacity: 0, x: -40 }}
@@ -299,11 +324,7 @@ const Login = () => {
                 </form>
                 <Typography mt={2}>
                   Already have an account?{" "}
-                  <Link
-                    component="button"
-                    color="rgba(240,224,7,1)"
-                    onClick={() => setIsSignup(false)}
-                  >
+                  <Link component="button" color="rgba(240,224,7,1)" onClick={() => setIsSignup(false)}>
                     Login
                   </Link>
                 </Typography>
@@ -323,7 +344,7 @@ const Login = () => {
   );
 };
 
-// 🔧 Reusable Styles
+// 🔧 Styles
 const textFieldStyle = {
   "& .MuiOutlinedInput-root": {
     "& fieldset": { borderColor: "rgba(255,255,255,0.3)" },

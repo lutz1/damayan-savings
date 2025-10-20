@@ -24,7 +24,10 @@ import AdminTransferTransaction from "./pages/admin/adminTransferTransaction";
 // Member pages
 import MemberDashboard from "./pages/member/memberDashboard";
 import MemberPayback from "./pages/member/memberPayback";
-import MemberCapitalShare from "./pages/member/memberCapitalShare"; // ✅ NEW
+import MemberCapitalShare from "./pages/member/memberCapitalShare";
+
+// CEO page
+import CEODashboard from "./pages/ceo/ceoDashboard";
 
 import "leaflet/dist/leaflet.css";
 
@@ -32,12 +35,12 @@ function App() {
   const [initialized, setInitialized] = useState(false);
   const [role, setRole] = useState(() => localStorage.getItem("userRole"));
 
-  // ✅ Initialize role only once
+  // ✅ Load role once
   useEffect(() => {
     const storedRole = localStorage.getItem("userRole");
     if (storedRole) setRole(storedRole);
     setInitialized(true);
-  }, []); // ✅ empty deps to avoid warning
+  }, []);
 
   if (!initialized) {
     return (
@@ -51,15 +54,20 @@ function App() {
   const AdminRoute = ({ children }) =>
     role?.toUpperCase() === "ADMIN" ? children : <Navigate to="/login" />;
 
+  const CEORoute = ({ children }) =>
+    role?.toUpperCase() === "CEO" ? children : <Navigate to="/login" />;
+
   const MemberRoute = ({ children }) =>
-    ["MD", "MS", "MI", "AGENT", "MEMBER"].includes(role?.toUpperCase()) ? (
+    ["MASTERMD", "MD", "MS", "MI", "AGENT", "MEMBER"].includes(
+      role?.toUpperCase()
+    ) ? (
       children
     ) : (
       <Navigate to="/login" />
     );
 
   // =====================================================
-  // 🔁 AUTO REDIRECT LOGIC
+  // 🔁 AUTO REDIRECT AFTER LOGIN
   // =====================================================
   const AutoRedirect = () => {
     const location = useLocation();
@@ -72,7 +80,11 @@ function App() {
       if (["/damayan-savings/", "/damayan-savings/login"].includes(path)) {
         if (upperRole === "ADMIN") {
           window.location.replace("/damayan-savings/admin/dashboard");
-        } else if (["MD", "MS", "MI", "AGENT", "MEMBER"].includes(upperRole)) {
+        } else if (upperRole === "CEO") {
+          window.location.replace("/damayan-savings/ceo/dashboard");
+        } else if (
+          ["MASTERMD", "MD", "MS", "MI", "AGENT", "MEMBER"].includes(upperRole)
+        ) {
           window.location.replace("/damayan-savings/member/dashboard");
         }
       }
@@ -82,7 +94,7 @@ function App() {
   };
 
   // =====================================================
-  // 🧭 ROUTER CONFIG
+  // 🧭 ROUTER CONFIGURATION
   // =====================================================
   return (
     <ParallaxProvider>
@@ -95,7 +107,7 @@ function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<Login />} />
 
-            {/* ===================== ADMIN ROUTES ===================== */}
+            {/* Admin Routes */}
             <Route
               path="/admin/dashboard"
               element={
@@ -145,7 +157,17 @@ function App() {
               }
             />
 
-            {/* ===================== MEMBER ROUTES ===================== */}
+            {/* CEO Route */}
+            <Route
+              path="/ceo/dashboard"
+              element={
+                <CEORoute>
+                  <CEODashboard />
+                </CEORoute>
+              }
+            />
+
+            {/* Member Routes */}
             <Route
               path="/member/dashboard"
               element={

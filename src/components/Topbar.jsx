@@ -434,7 +434,7 @@ const handleInviteRegister = async () => {
               </Tooltip>
 
               {/* User Info */}
-              <Box sx={{ textAlign: "center", mb: 2, mt: 4 }}>
+              <Box sx={{ textAlign: "center", mb: 0, mt: 0 }}>
                 <Avatar
                   alt={userData.name}
                   src="/images/avatar-placeholder.png"
