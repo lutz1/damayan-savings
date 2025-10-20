@@ -1,3 +1,4 @@
+// src/pages/admin/AdminUserManagement.jsx
 import React, { useEffect, useState } from "react";
 import {
   Box,
@@ -34,6 +35,7 @@ import {
   orderBy,
   doc,
   setDoc,
+  deleteDoc,
   serverTimestamp,
 } from "firebase/firestore";
 import { createUserWithEmailAndPassword } from "firebase/auth";
@@ -46,6 +48,7 @@ const AdminUserManagement = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [roleFilter, setRoleFilter] = useState("All");
   const [users, setUsers] = useState([]);
+  const [pendingInvites, setPendingInvites] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
   const [newUser, setNewUser] = useState({
@@ -62,7 +65,7 @@ const AdminUserManagement = () => {
   const isMobile = useMediaQuery("(max-width:768px)");
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
 
-  // 🔥 Fetch users from Firestore
+  // 🔥 Fetch users
   useEffect(() => {
     setLoading(true);
     let q = query(collection(db, "users"), orderBy("createdAt", "desc"));
@@ -89,66 +92,79 @@ const AdminUserManagement = () => {
     return () => unsubscribe();
   }, [roleFilter]);
 
-  // ✅ Create new user in Auth + Firestore
+  // 🔥 Fetch pending invites
+  useEffect(() => {
+    const q = collection(db, "pendingInvites");
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setPendingInvites(
+        snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+      );
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // ✅ Create user manually (existing dialog)
   const handleCreateUser = async () => {
-    const {
-      username,
-      name,
-      email,
-      contactNumber,
-      address,
-      role,
-      referredBy,
-      referrerRole,
-    } = newUser;
+  try {
+    // Create new auth user under secondary app
+    const userCredential = await createUserWithEmailAndPassword(
+      secondaryAuth,
+      newUser.email,
+      "password123"
+    );
 
-    if (!username || !name || !email || !contactNumber || !address || !role) {
-      alert("Please fill in all fields.");
-      return;
-    }
+    const uid = userCredential.user.uid;
 
+    // Now write under main app's Firestore using ADMIN-authenticated session
+    await setDoc(doc(db, "users", uid), {
+      username: newUser.username,
+      name: newUser.name,
+      email: newUser.email,
+      contactNumber: newUser.contactNumber,
+      address: newUser.address,
+      role: newUser.role,
+      referredBy: newUser.referredBy,
+      referrerRole: newUser.referrerRole,
+      createdAt: serverTimestamp(),
+    });
+
+    await secondaryAuth.signOut(); // keep your main admin signed in
+    alert("✅ User created successfully!");
+  } catch (err) {
+    console.error("🔥 Error adding user:", err);
+    alert("Error creating user: " + err.message);
+  }
+};
+
+  // ✅ Approve pending invite
+  const handleApproveInvite = async (invite) => {
     try {
-      // 🔐 Create Auth user using secondary app
       const userCredential = await createUserWithEmailAndPassword(
         secondaryAuth,
-        email,
-        "password123" // default password
+        invite.email,
+        "password123"
       );
 
       const uid = userCredential.user.uid;
 
-      // 🗂 Save user to Firestore
       await setDoc(doc(db, "users", uid), {
-        username,
-        name,
-        email,
-        contactNumber,
-        address,
-        role,
-        referredBy,
-        referrerRole,
+        username: invite.username,
+        name: invite.fullName,
+        email: invite.email,
+        contactNumber: invite.contact,
+        address: invite.address,
+        role: invite.role,
+        referredBy: invite.upline,
         createdAt: serverTimestamp(),
       });
 
-      alert("✅ User created successfully!");
-      setOpenDialog(false);
-
-      // 🧹 Clean up
+      await deleteDoc(doc(db, "pendingInvites", invite.id));
       await secondaryAuth.signOut();
 
-      setNewUser({
-        username: "",
-        name: "",
-        email: "",
-        contactNumber: "",
-        address: "",
-        role: "Member",
-        referredBy: "",
-        referrerRole: "",
-      });
-    } catch (error) {
-      console.error("🔥 Error adding user:", error);
-      alert("Error creating user: " + error.message);
+      alert(`✅ ${invite.fullName} has been approved as ${invite.role}!`);
+    } catch (err) {
+      console.error("Error approving invite:", err);
+      alert("Failed to approve invite: " + err.message);
     }
   };
 
@@ -168,7 +184,7 @@ const AdminUserManagement = () => {
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: "rgba(0, 0, 0, 0.15)",
+          backgroundColor: "rgba(0,0,0,0.15)",
           zIndex: 0,
         },
       }}
@@ -288,14 +304,7 @@ const AdminUserManagement = () => {
                 No users found for selected role.
               </Typography>
             ) : (
-              <TableContainer
-                component={Paper}
-                sx={{
-                  background: "transparent",
-                  color: "white",
-                  overflowX: "auto",
-                }}
-              >
+              <TableContainer component={Paper} sx={{ background: "transparent", color: "white" }}>
                 <Table>
                   <TableHead>
                     <TableRow>
@@ -307,7 +316,6 @@ const AdminUserManagement = () => {
                       <TableCell sx={{ color: "white", fontWeight: "bold" }}>Address</TableCell>
                       <TableCell sx={{ color: "white", fontWeight: "bold" }}>Joined</TableCell>
                       <TableCell sx={{ color: "white", fontWeight: "bold" }}>Referred By</TableCell>
-                      <TableCell sx={{ color: "white", fontWeight: "bold" }}>Referrer Role</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -330,8 +338,63 @@ const AdminUserManagement = () => {
                             : "—"}
                         </TableCell>
                         <TableCell sx={{ color: "white" }}>{user.referredBy || "—"}</TableCell>
-                        <TableCell sx={{ color: "white" }}>{user.referrerRole || "—"}</TableCell>
                       </motion.tr>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 🕓 Pending Invites */}
+        <Typography variant="h5" sx={{ mt: 5, mb: 2, fontWeight: 600 }}>
+          ⏳ Pending Invites
+        </Typography>
+        <Card
+          sx={{
+            background: "rgba(255,255,255,0.12)",
+            backdropFilter: "blur(12px)",
+            borderRadius: "20px",
+            boxShadow: "0 6px 25px rgba(0,0,0,0.25)",
+            overflow: "hidden",
+          }}
+        >
+          <CardContent>
+            {pendingInvites.length === 0 ? (
+              <Typography align="center" sx={{ color: "rgba(255,255,255,0.7)", py: 3 }}>
+                No pending invites.
+              </Typography>
+            ) : (
+              <TableContainer component={Paper} sx={{ background: "transparent", color: "white" }}>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ color: "white", fontWeight: "bold" }}>Full Name</TableCell>
+                      <TableCell sx={{ color: "white", fontWeight: "bold" }}>Email</TableCell>
+                      <TableCell sx={{ color: "white", fontWeight: "bold" }}>Role</TableCell>
+                      <TableCell sx={{ color: "white", fontWeight: "bold" }}>Upline</TableCell>
+                      <TableCell sx={{ color: "white", fontWeight: "bold" }}>Action</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {pendingInvites.map((invite) => (
+                      <TableRow key={invite.id}>
+                        <TableCell sx={{ color: "white" }}>{invite.fullName}</TableCell>
+                        <TableCell sx={{ color: "white" }}>{invite.email}</TableCell>
+                        <TableCell sx={{ color: "white" }}>{invite.role}</TableCell>
+                        <TableCell sx={{ color: "white" }}>{invite.upline}</TableCell>
+                        <TableCell>
+                          <Button
+                            size="small"
+                            variant="contained"
+                            color="success"
+                            onClick={() => handleApproveInvite(invite)}
+                          >
+                            Approve
+                          </Button>
+                        </TableCell>
+                      </TableRow>
                     ))}
                   </TableBody>
                 </Table>
@@ -394,7 +457,6 @@ const AdminUserManagement = () => {
               </Select>
             </FormControl>
 
-            {/* 🧩 Referral Info */}
             <TextField
               label="Referred By (Username)"
               value={newUser.referredBy}

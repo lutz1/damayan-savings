@@ -1,12 +1,10 @@
+// ✅ firebase.js
 import { initializeApp, getApps, getApp } from "firebase/app";
-import {
-  initializeFirestore,
-  clearIndexedDbPersistence,
-} from "firebase/firestore";
+import { initializeFirestore, clearIndexedDbPersistence } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 
-// ✅ Firebase Config
+// 🔹 Main Config
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
   authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
@@ -16,25 +14,25 @@ const firebaseConfig = {
   appId: process.env.REACT_APP_FIREBASE_APP_ID,
 };
 
-// ✅ Initialize only once
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+// 🔹 Secondary Config — use NEW key if available
+const secondaryConfig = {
+  ...firebaseConfig,
+  apiKey: process.env.REACT_APP_FIREBASE_SECONDARY_API_KEY || firebaseConfig.apiKey,
+};
 
-// ✅ Auth and Storage first (important: avoid circular init)
+// Main app init
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const storage = getStorage(app);
+const db = initializeFirestore(app, { ignoreUndefinedProperties: true });
 
-// ✅ Firestore with persistence cleared
-const db = initializeFirestore(app, {
-  ignoreUndefinedProperties: true,
-});
+clearIndexedDbPersistence(db).catch(() =>
+  console.warn("⚠️ Firestore persistence already active, skip clearing.")
+);
 
-clearIndexedDbPersistence(db).catch(() => {
-  console.warn("⚠️ Firestore persistence already active, skip clearing.");
-});
-
-// ✅ Secondary app (for admin account creation)
-const secondaryApp = initializeApp(firebaseConfig, "Secondary");
+// Secondary app init (isolated session)
+const secondaryApp =
+  getApps().find(a => a.name === "Secondary") || initializeApp(secondaryConfig, "Secondary");
 const secondaryAuth = getAuth(secondaryApp);
 
-// ✅ Exports (order matters — do NOT reorder these)
 export { app, auth, db, storage, secondaryAuth };
