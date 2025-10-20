@@ -2,35 +2,84 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/tclc-logo1.png" />
+    <link rel="icon" href="%PUBLIC_URL%/damayan.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
     <meta
       name="description"
       content="TCLC Damayan Savings — A member-based savings and income platform"
     />
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/damayan.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <title>TCLC-Damayan Savings</title>
 
-    <!-- ✅ Restore redirect path from 404.html if present (for SPA routing on GitHub Pages) -->
+    <!-- ✅ Restore redirect path for SPA routing on GitHub Pages -->
     <script type="text/javascript">
       (function () {
         var redirect = sessionStorage.getItem("redirect");
         if (redirect) {
           sessionStorage.removeItem("redirect");
-          // Only rewrite path if not already at the correct route
-          if (window.location.pathname === "/damayan-savings/" || window.location.pathname === "/damayan-savings") {
+          if (
+            window.location.pathname === "/damayan-savings/" ||
+            window.location.pathname === "/damayan-savings"
+          ) {
             window.history.replaceState(null, null, redirect);
           }
         }
       })();
     </script>
+
+    <!-- ✅ Simple Loader Styles -->
+    <style>
+      #root {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background: radial-gradient(circle at center, #001122, #000);
+        font-family: "Poppins", sans-serif;
+        color: white;
+        text-align: center;
+      }
+      .loader {
+        animation: fadein 1.2s ease-in-out;
+      }
+      .loader img {
+        width: 160px;
+        height: auto;
+        filter: drop-shadow(0 0 8px rgba(0, 200, 255, 0.6))
+          drop-shadow(0 0 15px rgba(255, 255, 255, 0.3));
+      }
+      .loader p {
+        margin-top: 14px;
+        font-size: 1rem;
+        opacity: 0.8;
+        letter-spacing: 0.5px;
+      }
+      @keyframes fadein {
+        from {
+          opacity: 0;
+          transform: scale(0.95);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+    </style>
   </head>
 
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div id="root"></div>
+
+    <!-- ✅ Preload Screen -->
+    <div id="root">
+      <div class="loader">
+        <img src="%PUBLIC_URL%/damayan.png" alt="Damayan Logo" />
+        <p>Loading Damayan Savings...</p>
+      </div>
+    </div>
+
     <!-- React mounts here -->
   </body>
 </html>
