@@ -1,4 +1,3 @@
-// src/components/Sidebar.jsx
 import React, { useState } from "react";
 import {
   Drawer,
@@ -20,8 +19,6 @@ import {
   ExpandMore,
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
-  AccountCircle as AccountCircleIcon,
-  AccountTree as AccountTreeIcon,
   MonetizationOn as MonetizationOnIcon,
   Savings as SavingsIcon,
   PieChart as PieChartIcon,
@@ -39,7 +36,7 @@ const Sidebar = ({ open, onToggleSidebar }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
-  // ✅ Get user role from localStorage (no unused setter)
+  // ✅ Get user role from localStorage
   const role = localStorage.getItem("userRole");
 
   // =====================================================
@@ -67,7 +64,8 @@ const Sidebar = ({ open, onToggleSidebar }) => {
       icon: <SwapHorizIcon />,
       path: "/admin/transfer-transactions",
     },
-    { text: "Profile", icon: <AccountCircleIcon />, path: "/admin/profile" },
+    // 🚫 Profile removed for admin
+    // { text: "Profile", icon: <AccountCircleIcon />, path: "/admin/profile" },
   ];
 
   const memberNav = [
@@ -88,15 +86,17 @@ const Sidebar = ({ open, onToggleSidebar }) => {
         },
       ],
     },
-    {
-      text: "Genealogy Tree",
-      icon: <AccountTreeIcon />,
-      path: "/member/genealogy",
-    },
-    { text: "Profile", icon: <AccountCircleIcon />, path: "/member/profile" },
+    // 🚫 Genealogy Tree removed
+    // {
+    //   text: "Genealogy Tree",
+    //   icon: <AccountTreeIcon />,
+    //   path: "/member/genealogy",
+    // },
+    // 🚫 Profile removed
+    // { text: "Profile", icon: <AccountCircleIcon />, path: "/member/profile" },
   ];
 
-  // ✅ Case-insensitive role matching
+  // ✅ Determine role-based navigation
   const navItems =
     role?.toUpperCase() === "ADMIN" ? adminNav : memberNav;
 
@@ -116,7 +116,6 @@ const Sidebar = ({ open, onToggleSidebar }) => {
   // =====================================================
   const drawerContent = (
     <>
-      {/* ✅ Logo + Toggle Icon */}
       <Box
         sx={{
           display: "flex",
@@ -167,7 +166,6 @@ const Sidebar = ({ open, onToggleSidebar }) => {
 
       <Divider sx={{ borderColor: "rgba(255,255,255,0.2)" }} />
 
-      {/* ✅ Navigation Links */}
       <Box sx={{ mt: 1 }}>
         <List>
           {navItems.map((item) => {
@@ -276,12 +274,8 @@ const Sidebar = ({ open, onToggleSidebar }) => {
     </>
   );
 
-  // =====================================================
-  // 📱 DRAWER WRAPPER
-  // =====================================================
   return (
     <>
-      {/* 👇 Mobile Hamburger */}
       {isMobile && !open && (
         <IconButton
           onClick={onToggleSidebar}

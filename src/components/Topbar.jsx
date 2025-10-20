@@ -35,7 +35,7 @@ import {
   Lock as LockIcon,
   KeyboardArrowRight as CloseIcon,
   Menu as MenuIcon,
-
+  GroupAdd as InviteIcon, // 🆕
   VpnKey as CodeIcon,
 } from "@mui/icons-material";
 import { signOut } from "firebase/auth";
@@ -44,6 +44,7 @@ import {
   doc,
   onSnapshot,
   getDoc,
+  getDocs,
   addDoc,
   updateDoc,
   collection,
@@ -67,6 +68,19 @@ const Topbar = ({ open, onToggleSidebar }) => {
   const [recipient, setRecipient] = useState("");
   const [codeType, setCodeType] = useState("");
   const [availableCodes, setAvailableCodes] = useState([]);
+
+   // 🆕 Invite form states
+  const [inviteForm, setInviteForm] = useState({
+    activationCode: "",
+    upline: "",
+    username: "",
+    fullName: "",
+    email: "",
+    contact: "",
+    address: "",
+    role: "member",
+    password: "",
+  });
 
   const [userData, setUserData] = useState({
     name: "",
@@ -164,12 +178,79 @@ const Topbar = ({ open, onToggleSidebar }) => {
 
   // ✅ Dialog open/close
   const handleOpenDialog = (type) => setDialog(type);
+  useEffect(() => {
+  if (dialog === "invite" && userData.name) {
+    setInviteForm((prev) => ({ ...prev, upline: userData.name }));
+  }
+}, [dialog, userData.name]);
   const handleCloseDialog = () => {
     setDialog(null);
     setAmount("");
     setRecipient("");
     setCodeType("");
   };
+
+// ✅ Updated Invite & Earn Registration — with Pending Approval
+const handleInviteRegister = async () => {
+  try {
+    const {
+      activationCode,
+      username,
+      fullName,
+      email,
+      contact,
+      address,
+      role,
+    } = inviteForm;
+
+    if (!activationCode)
+      return alert("Please select an activation code.");
+    if (!username || !fullName || !email)
+      return alert("Please fill all required fields.");
+
+    const q = query(
+      collection(db, "purchaseCodes"),
+      where("code", "==", activationCode),
+      where("used", "==", false)
+    );
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      alert("Invalid or already used activation code.");
+      return;
+    }
+
+    const codeDoc = snapshot.docs[0];
+    const codeRef = codeDoc.ref;
+
+    // ✅ Create pending registration (not yet in users)
+    const pendingData = {
+      activationCode,
+      upline: userData.name,
+      username,
+      fullName,
+      email,
+      contact,
+      address,
+      role,
+      status: "pending",
+      createdAt: serverTimestamp(),
+    };
+
+    await addDoc(collection(db, "pendingInvites"), pendingData);
+
+    // Mark activation code temporarily as reserved
+    await updateDoc(codeRef, { used: true });
+
+    alert(
+      `✅ Registration submitted for approval!\nOnce approved by admin, the account will be created.`
+    );
+    handleCloseDialog();
+  } catch (error) {
+    console.error("Invite registration failed:", error);
+    alert("Registration failed. Please try again.");
+  }
+};
 
   // ✅ Handle submit for all dialogs
   const handleSubmitAction = async () => {
@@ -480,39 +561,63 @@ const Topbar = ({ open, onToggleSidebar }) => {
 
               {/* Drawer List */}
               <List>
-                <ListItem disablePadding>
-                  <ListItemButton onClick={() => handleOpenDialog("purchase")}>
-                    <ListItemIcon>
-                      <PurchaseIcon sx={{ color: "#4FC3F7" }} />
-                    </ListItemIcon>
-                    <ListItemText primary="Purchase Codes" />
-                  </ListItemButton>
-                </ListItem>
-                <ListItem disablePadding>
-                  <ListItemButton onClick={() => handleOpenDialog("withdraw")}>
-                    <ListItemIcon>
-                      <WithdrawIcon sx={{ color: "#F57C00" }} />
-                    </ListItemIcon>
-                    <ListItemText primary="Withdrawal" />
-                  </ListItemButton>
-                </ListItem>
-                <ListItem disablePadding>
-                  <ListItemButton onClick={() => handleOpenDialog("deposit")}>
-                    <ListItemIcon>
-                      <DepositIcon sx={{ color: "#81C784" }} />
-                    </ListItemIcon>
-                    <ListItemText primary="Deposit" />
-                  </ListItemButton>
-                </ListItem>
-                <ListItem disablePadding>
-                  <ListItemButton onClick={() => handleOpenDialog("transfer")}>
-                    <ListItemIcon>
-                      <TransferIcon sx={{ color: "#9575CD" }} />
-                    </ListItemIcon>
-                    <ListItemText primary="Transfer Funds" />
-                  </ListItemButton>
-                </ListItem>
-              </List>
+  {/* ✅ Purchase Codes (enabled) */}
+  <ListItem disablePadding>
+    <ListItemButton onClick={() => handleOpenDialog("purchase")}>
+      <ListItemIcon>
+        <PurchaseIcon sx={{ color: "#4FC3F7" }} />
+      </ListItemIcon>
+      <ListItemText primary="Purchase Codes" />
+    </ListItemButton>
+  </ListItem>
+
+  {/* 🚫 Disabled Features */}
+  <ListItem disablePadding>
+    <ListItemButton disabled>
+      <ListItemIcon>
+        <WithdrawIcon sx={{ color: "gray" }} />
+      </ListItemIcon>
+      <ListItemText
+        primary="Withdrawal (Disabled)"
+        sx={{ color: "rgba(255,255,255,0.4)" }}
+      />
+    </ListItemButton>
+  </ListItem>
+
+  <ListItem disablePadding>
+    <ListItemButton disabled>
+      <ListItemIcon>
+        <DepositIcon sx={{ color: "gray" }} />
+      </ListItemIcon>
+      <ListItemText
+        primary="Deposit (Disabled)"
+        sx={{ color: "rgba(255,255,255,0.4)" }}
+      />
+    </ListItemButton>
+  </ListItem>
+
+  <ListItem disablePadding>
+    <ListItemButton disabled>
+      <ListItemIcon>
+        <TransferIcon sx={{ color: "gray" }} />
+      </ListItemIcon>
+      <ListItemText
+        primary="Transfer Funds (Disabled)"
+        sx={{ color: "rgba(255,255,255,0.4)" }}
+      />
+    </ListItemButton>
+  </ListItem>
+
+  {/* 🆕 Invite & Earn */}
+  <ListItem disablePadding>
+    <ListItemButton onClick={() => handleOpenDialog("invite")}>
+      <ListItemIcon>
+        <InviteIcon sx={{ color: "#FFB300" }} />
+      </ListItemIcon>
+      <ListItemText primary="Invite & Earn" />
+    </ListItemButton>
+  </ListItem>
+</List>
 
               <Box sx={{ flexGrow: 1 }} />
               <Divider sx={{ borderColor: "rgba(255,255,255,0.2)", mb: 2 }} />
@@ -599,6 +704,112 @@ const Topbar = ({ open, onToggleSidebar }) => {
           </Button>
         </DialogActions>
       </Dialog>
+      {/* 🆕 Invite & Earn Registration Dialog */}
+<Dialog open={dialog === "invite"} onClose={handleCloseDialog}>
+  <DialogTitle>Invite & Earn Registration</DialogTitle>
+  <DialogContent dividers>
+    {/* ✅ Activation Code Dropdown */}
+    <TextField
+      select
+      fullWidth
+      label="Select Activation Code"
+      margin="dense"
+      value={inviteForm.activationCode}
+      onChange={(e) =>
+        setInviteForm({ ...inviteForm, activationCode: e.target.value })
+      }
+    >
+      {availableCodes.length > 0 ? (
+        availableCodes.map((code, index) => (
+          <MenuItem key={index} value={code.code}>
+            {code.type} — {code.code}
+          </MenuItem>
+        ))
+      ) : (
+        <MenuItem disabled>No available codes</MenuItem>
+      )}
+    </TextField>
+
+    {/* ✅ Upline auto-filled */}
+    <TextField
+      fullWidth
+      label="Upline"
+      margin="dense"
+      value={userData.name}
+      InputProps={{ readOnly: true }}
+    />
+
+    <TextField
+      fullWidth
+      label="Username"
+      margin="dense"
+      value={inviteForm.username}
+      onChange={(e) =>
+        setInviteForm({ ...inviteForm, username: e.target.value })
+      }
+    />
+    <TextField
+      fullWidth
+      label="Full Name"
+      margin="dense"
+      value={inviteForm.fullName}
+      onChange={(e) =>
+        setInviteForm({ ...inviteForm, fullName: e.target.value })
+      }
+    />
+    <TextField
+      fullWidth
+      label="Email"
+      margin="dense"
+      value={inviteForm.email}
+      onChange={(e) =>
+        setInviteForm({ ...inviteForm, email: e.target.value })
+      }
+    />
+    <TextField
+      fullWidth
+      label="Contact Number"
+      margin="dense"
+      value={inviteForm.contact}
+      onChange={(e) =>
+        setInviteForm({ ...inviteForm, contact: e.target.value })
+      }
+    />
+    <TextField
+      fullWidth
+      label="Address"
+      margin="dense"
+      value={inviteForm.address}
+      onChange={(e) =>
+        setInviteForm({ ...inviteForm, address: e.target.value })
+      }
+    />
+
+    {/* ✅ Role dropdown updated */}
+    <TextField
+      select
+      fullWidth
+      label="Role"
+      margin="dense"
+      value={inviteForm.role}
+      onChange={(e) =>
+        setInviteForm({ ...inviteForm, role: e.target.value })
+      }
+    >
+      <MenuItem value="MD">MD</MenuItem>
+      <MenuItem value="MS">MS</MenuItem>
+      <MenuItem value="MI">MI</MenuItem>
+      <MenuItem value="Agent">Agent</MenuItem>
+      <MenuItem value="Member">Member</MenuItem>
+    </TextField>
+  </DialogContent>
+  <DialogActions>
+    <Button onClick={handleCloseDialog}>Cancel</Button>
+    <Button variant="contained" onClick={handleInviteRegister}>
+      Register
+    </Button>
+  </DialogActions>
+</Dialog>
     </>
   );
 };
