@@ -31,7 +31,7 @@ const Login = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [code, setCode] = useState("");
 
-  // 🔄 Role-based redirect
+  // ✅ Redirect users based on role
   const handleRedirect = (role) => {
     const base = "/damayan-savings";
     const upper = role.toUpperCase();
@@ -54,7 +54,7 @@ const Login = () => {
     }
   };
 
-  // ✅ Auto-redirect if logged in
+  // ✅ Auto redirect if already logged in
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
@@ -63,22 +63,17 @@ const Login = () => {
       }
 
       let role = localStorage.getItem("userRole");
-
-      // If role not found in localStorage, fetch from Firestore
       if (!role) {
         const userRef = doc(db, "users", user.uid);
         const userSnap = await getDoc(userRef);
         if (userSnap.exists()) {
           role = userSnap.data().role || "Member";
           localStorage.setItem("userRole", role.toUpperCase());
-        } else {
-          return;
-        }
+        } else return;
       }
 
       handleRedirect(role);
     });
-
     return () => unsubscribe();
   }, []);
 
@@ -91,7 +86,6 @@ const Login = () => {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-
       const userRef = doc(db, "users", user.uid);
       const userSnap = await getDoc(userRef);
 
@@ -102,7 +96,6 @@ const Login = () => {
 
       const userData = userSnap.data();
       const role = (userData.role || "Member").toUpperCase();
-
       localStorage.setItem("userRole", role);
       handleRedirect(role);
     } catch (err) {
@@ -123,7 +116,6 @@ const Login = () => {
   const handleSignup = async (e) => {
     e.preventDefault();
     setError("");
-
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
       return;
@@ -133,14 +125,12 @@ const Login = () => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-
       await setDoc(doc(db, "users", user.uid), {
         email,
         code,
         role: "Member",
         createdAt: new Date(),
       });
-
       localStorage.setItem("userRole", "MEMBER");
       handleRedirect("MEMBER");
     } catch (err) {
@@ -162,11 +152,10 @@ const Login = () => {
         backgroundImage: `url(${bgImage})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        p: { xs: 2, md: 0 },
+        p: { xs: 2, sm: 3, md: 0 },
         position: "relative",
         "&::before": {
           content: '""',
@@ -175,43 +164,55 @@ const Login = () => {
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: "rgba(13, 135, 184, 0.25)",
+          backgroundColor: "rgba(13,135,184,0.3)",
           zIndex: 0,
         },
       }}
     >
       <motion.div
-        initial={{ opacity: 0, y: 30 }}
+        initial={{ opacity: 0, y: 25 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
-        style={{ width: "100%", maxWidth: 420, zIndex: 1 }}
+        style={{ width: "100%", maxWidth: 430, zIndex: 1 }}
       >
         <Paper
           elevation={10}
           sx={{
-            p: { xs: 3, md: 5 },
+            p: { xs: 3, sm: 4, md: 5 },
             borderRadius: 4,
             textAlign: "center",
             backdropFilter: "blur(18px)",
             background: "rgba(255,255,255,0.15)",
             border: "1px solid rgba(255,255,255,0.3)",
             color: "#fff",
-            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
           }}
         >
-          {/* 🪩 Logos */}
-          <Box sx={{ mb: 2 }}>
-            <Box component="img" src={tclcLogo} alt="TCLC" sx={{ width: 110, height: 100 }} />
+          {/* LOGOS */}
+          <Box sx={{ mb: 3 }}>
+            <Box
+              component="img"
+              src={tclcLogo}
+              alt="TCLC"
+              sx={{
+                width: { xs: 80, sm: 100, md: 110 },
+                height: "auto",
+              }}
+            />
             <Box
               component="img"
               src={damayanLogo}
               alt="Damayan"
-              sx={{ width: 260, height: 85, mt: -3 }}
+              sx={{
+                width: { xs: 190, sm: 230, md: 260 },
+                height: "auto",
+                mt: -2,
+              }}
             />
           </Box>
 
           {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
+            <Alert severity="error" sx={{ mb: 2, fontSize: { xs: "0.8rem", sm: "0.9rem" } }}>
               {error}
             </Alert>
           )}
@@ -256,9 +257,14 @@ const Login = () => {
                     {loading ? <CircularProgress size={24} color="inherit" /> : "Login"}
                   </Button>
                 </form>
-                <Typography mt={2}>
+
+                <Typography mt={2} sx={{ fontSize: { xs: "0.8rem", sm: "0.9rem" } }}>
                   Don’t have an account?{" "}
-                  <Link component="button" color="rgba(240,224,7,1)" onClick={() => setIsSignup(true)}>
+                  <Link
+                    component="button"
+                    color="rgba(240,224,7,1)"
+                    onClick={() => setIsSignup(true)}
+                  >
                     Create one
                   </Link>
                 </Typography>
@@ -322,9 +328,14 @@ const Login = () => {
                     {loading ? <CircularProgress size={24} color="inherit" /> : "Create Account"}
                   </Button>
                 </form>
-                <Typography mt={2}>
+
+                <Typography mt={2} sx={{ fontSize: { xs: "0.8rem", sm: "0.9rem" } }}>
                   Already have an account?{" "}
-                  <Link component="button" color="rgba(240,224,7,1)" onClick={() => setIsSignup(false)}>
+                  <Link
+                    component="button"
+                    color="rgba(240,224,7,1)"
+                    onClick={() => setIsSignup(false)}
+                  >
                     Login
                   </Link>
                 </Typography>
@@ -334,7 +345,11 @@ const Login = () => {
 
           <Typography
             variant="body2"
-            sx={{ mt: 3, color: "rgba(255,255,255,0.8)", fontSize: "0.8rem" }}
+            sx={{
+              mt: 4,
+              color: "rgba(255,255,255,0.8)",
+              fontSize: { xs: "0.7rem", sm: "0.8rem" },
+            }}
           >
             © 2025 Damayan Savings. All rights reserved.
           </Typography>
@@ -344,7 +359,7 @@ const Login = () => {
   );
 };
 
-// 🔧 Styles
+// Styles
 const textFieldStyle = {
   "& .MuiOutlinedInput-root": {
     "& fieldset": { borderColor: "rgba(255,255,255,0.3)" },
@@ -355,14 +370,15 @@ const textFieldStyle = {
     color: "rgba(255,255,255,0.7)",
     "&.Mui-focused": { color: "#fff" },
   },
-  input: { color: "#fff" },
+  input: { color: "#fff", fontSize: { xs: "0.8rem", sm: "1rem" } },
 };
 
 const buttonStyle = {
   mt: 3,
-  py: 1.3,
+  py: { xs: 1.1, sm: 1.3 },
   fontWeight: "bold",
   borderRadius: 2,
+  fontSize: { xs: "0.85rem", sm: "1rem" },
   background: "linear-gradient(90deg, #1976d2, #42a5f5)",
 };
 

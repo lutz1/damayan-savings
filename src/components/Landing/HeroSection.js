@@ -31,7 +31,7 @@ const glassmorphicStyle = {
   background: "rgba(255, 255, 255, 0.15)",
   backdropFilter: "blur(10px)",
   borderRadius: "12px",
-  padding: "16px 24px",
+  padding: "10px 10px",
 };
 
 const HeroSection = () => {
@@ -108,7 +108,7 @@ const HeroSection = () => {
       />
 
       {/* Foreground content */}
-      <Box sx={{ position: "relative", zIndex: 2, maxWidth: 900, px: 2, mt: 10 }}>
+      <Box sx={{ position: "relative", zIndex: 2, maxWidth: 900, px: 1, mt: 0 }}>
         {/* Main Title */}
         <motion.div
           key={`title-${index}`}
@@ -118,9 +118,9 @@ const HeroSection = () => {
           transition={{ duration: 1.2, ease: "easeOut", delay: 0.2 }}
         >
           <Typography
-            variant="h3"
-            fontWeight={700}
-            sx={{ textShadow: "2px 2px 10px rgba(0,0,0,0.6)", mb: 5 }}
+            variant="h4"
+            fontWeight={600}
+            sx={{ textShadow: "2px 2px 10px rgba(0, 0, 0, 1)", mb: 3 }}
           >
             DAMAYAN: Lingap, Malasakit, at Kalinga sa Kapwa
           </Typography>

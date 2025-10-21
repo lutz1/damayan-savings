@@ -96,7 +96,7 @@ const ChatBot = () => {
   };
 
   return (
-    <Box sx={{ position: "fixed", bottom: 110, right: 32, zIndex: 2000 }}>
+    <Box sx={{ position: "fixed", bottom: 10, right: 10, zIndex: 2000 }}>
       {/* Bot Icon Floating (when closed) */}
       {!open && (
         <motion.div

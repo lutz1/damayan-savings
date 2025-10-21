@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from "react";
-import { AppBar, Toolbar, Button, Box } from "@mui/material";
+import { AppBar, Toolbar, Button, Box, useMediaQuery } from "@mui/material";
 import { Link } from "react-scroll";
 import { motion } from "framer-motion";
+import { useTheme } from "@mui/material/styles";
 
-// ✅ Import logos
 import tclcLogo from "../assets/tclc-logo1.png";
 import damayanLogo from "../assets/damayan.png";
 
-const sections = ["home", "about","leadership", "stats", "contact"];
+const sections = ["home", "about", "leadership", "stats", "contact"];
 
 const Navbar = () => {
   const [elevate, setElevate] = useState(false);
-  const [activeSection, setActiveSection] = useState("home"); // Track active section
+  const [activeSection, setActiveSection] = useState("home");
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm")); // detect mobile
 
-  // Scroll listener for AppBar elevation
   useEffect(() => {
     const handleScroll = () => setElevate(window.scrollY > 50);
     window.addEventListener("scroll", handleScroll);
@@ -48,26 +49,37 @@ const Navbar = () => {
             justifyContent: "space-between",
           }}
         >
-          {/* Glassmorphic Logo Section */}
+          {/* ✅ Logo section (hidden on mobile) */}
+          {!isMobile && (
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 2,
+                px: 2,
+                py: 0.5,
+                borderRadius: 3,
+                backgroundColor: "rgba(255,255,255,0.15)",
+                backdropFilter: "blur(10px)",
+                cursor: "pointer",
+              }}
+            >
+              <Box component="img" src={tclcLogo} alt="TCLC Logo" sx={{ height: 40 }} />
+              <Box component="img" src={damayanLogo} alt="DAMAYAN Logo" sx={{ height: 40 }} />
+            </Box>
+          )}
+
+          {/* ✅ Navigation Links (always horizontal, visible on all sizes) */}
           <Box
             sx={{
               display: "flex",
+              flexWrap: "wrap",
+              justifyContent: "center",
               alignItems: "center",
-              gap: 2,
-              px: 2,
-              py: 0.5,
-              borderRadius: 3,
-              backgroundColor: "rgba(255,255,255,0.15)",
-              backdropFilter: "blur(10px)",
-              cursor: "pointer",
+              gap: isMobile ? 0.3 : 1.5,
+              width: isMobile ? "100%" : "auto",
             }}
           >
-            <Box component="img" src={tclcLogo} alt="TCLC Logo" sx={{ height: 40 }} />
-            <Box component="img" src={damayanLogo} alt="DAMAYAN Logo" sx={{ height: 40 }} />
-          </Box>
-
-          {/* Navigation Links */}
-          <Box>
             {sections.map((section) => (
               <Link
                 key={section}
@@ -75,16 +87,17 @@ const Navbar = () => {
                 smooth={true}
                 duration={600}
                 offset={-70}
-                spy={true} // Track scroll
-                onSetActive={() => setActiveSection(section)} // ✅ Ensure active on click
+                spy={true}
+                onSetActive={() => setActiveSection(section)}
               >
                 <Button
                   sx={{
                     fontWeight: 600,
-                    mx: 1.5,
-                    px: 2,
-                    py: 0.7,
-                    color: activeSection === section ? "#FFD700" : "#fff", // Golden if active
+                    mx: isMobile ? 0.2 : 1.5,
+                    px: isMobile ? 1 : 2,
+                    py: isMobile ? 0.5 : 0.7,
+                    fontSize: isMobile ? "0.75rem" : "0.9rem",
+                    color: activeSection === section ? "#FFD700" : "#fff",
                     textShadow: "0px 0px 6px rgba(0,0,0,0.5)",
                     transition: "all 0.3s ease",
                     borderRadius: 2,

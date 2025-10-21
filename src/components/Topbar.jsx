@@ -1,3 +1,4 @@
+// src/components/Topbar.jsx
 import React, { useState, useEffect } from "react";
 import {
   AppBar,
@@ -35,7 +36,7 @@ import {
   Lock as LockIcon,
   KeyboardArrowRight as CloseIcon,
   Menu as MenuIcon,
-  GroupAdd as InviteIcon, // 🆕
+  GroupAdd as InviteIcon,
   VpnKey as CodeIcon,
 } from "@mui/icons-material";
 import { signOut } from "firebase/auth";
@@ -69,7 +70,7 @@ const Topbar = ({ open, onToggleSidebar }) => {
   const [codeType, setCodeType] = useState("");
   const [availableCodes, setAvailableCodes] = useState([]);
 
-   // 🆕 Invite form states
+  // Invite form states
   const [inviteForm, setInviteForm] = useState({
     activationCode: "",
     upline: "",
@@ -90,7 +91,7 @@ const Topbar = ({ open, onToggleSidebar }) => {
     role: "member",
   });
 
-  // ✅ Real-time user info listener
+  // Real-time user info listener
   useEffect(() => {
     const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
       if (!currentUser) return;
@@ -122,7 +123,7 @@ const Topbar = ({ open, onToggleSidebar }) => {
               role: data.role || "member",
             });
 
-            // ✅ Listen to available codes
+            // Listen to available codes for this user
             const codesRef = collection(db, "purchaseCodes");
             const q = query(
               codesRef,
@@ -155,7 +156,7 @@ const Topbar = ({ open, onToggleSidebar }) => {
     return () => unsubscribeAuth();
   }, []);
 
-  // ✅ Logout handler
+  // Logout handler
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -166,7 +167,7 @@ const Topbar = ({ open, onToggleSidebar }) => {
     }
   };
 
-  // ✅ Drawer open/close
+  // Drawer open/close
   const openDrawer = () => {
     setDrawerOpen(true);
     setTimeout(() => setSlideIn(true), 50);
@@ -176,13 +177,13 @@ const Topbar = ({ open, onToggleSidebar }) => {
     setTimeout(() => setDrawerOpen(false), 300);
   };
 
-  // ✅ Dialog open/close
+  // Dialog open/close
   const handleOpenDialog = (type) => setDialog(type);
   useEffect(() => {
-  if (dialog === "invite" && userData.name) {
-    setInviteForm((prev) => ({ ...prev, upline: userData.name }));
-  }
-}, [dialog, userData.name]);
+    if (dialog === "invite" && userData.name) {
+      setInviteForm((prev) => ({ ...prev, upline: userData.name }));
+    }
+  }, [dialog, userData.name]);
   const handleCloseDialog = () => {
     setDialog(null);
     setAmount("");
@@ -190,69 +191,67 @@ const Topbar = ({ open, onToggleSidebar }) => {
     setCodeType("");
   };
 
-// ✅ Updated Invite & Earn Registration — with Pending Approval
-const handleInviteRegister = async () => {
-  try {
-    const {
-      activationCode,
-      username,
-      fullName,
-      email,
-      contact,
-      address,
-      role,
-    } = inviteForm;
+  // Invite & Earn Registration — with Pending Approval
+  const handleInviteRegister = async () => {
+    try {
+      const {
+        activationCode,
+        username,
+        fullName,
+        email,
+        contact,
+        address,
+        role,
+      } = inviteForm;
 
-    if (!activationCode)
-      return alert("Please select an activation code.");
-    if (!username || !fullName || !email)
-      return alert("Please fill all required fields.");
+      if (!activationCode) return alert("Please select an activation code.");
+      if (!username || !fullName || !email) return alert("Please fill all required fields.");
 
-    const q = query(
-      collection(db, "purchaseCodes"),
-      where("code", "==", activationCode),
-      where("used", "==", false)
-    );
-    const snapshot = await getDocs(q);
+      const q = query(
+        collection(db, "purchaseCodes"),
+        where("code", "==", activationCode),
+        where("used", "==", false)
+      );
+      const snapshot = await getDocs(q);
 
-    if (snapshot.empty) {
-      alert("Invalid or already used activation code.");
-      return;
+      if (snapshot.empty) {
+        alert("Invalid or already used activation code.");
+        return;
+      }
+
+      const codeDoc = snapshot.docs[0];
+      const codeRef = codeDoc.ref;
+
+      // Create pending registration (not yet in users)
+      const pendingData = {
+        activationCode,
+        upline: userData.name,
+        username,
+        fullName,
+        email,
+        contact,
+        address,
+        role,
+        status: "pending",
+        createdAt: serverTimestamp(),
+      };
+
+      await addDoc(collection(db, "pendingInvites"), pendingData);
+
+      // Mark activation code temporarily as reserved
+      await updateDoc(codeRef, { used: true });
+
+      alert(
+        `✅ Registration submitted for approval!\nOnce approved by admin, the account will be created.`
+      );
+      handleCloseDialog();
+    } catch (error) {
+      console.error("Invite registration failed:", error);
+      alert("Registration failed. Please try again.");
     }
+  };
 
-    const codeDoc = snapshot.docs[0];
-    const codeRef = codeDoc.ref;
-
-    // ✅ Create pending registration (not yet in users)
-    const pendingData = {
-      activationCode,
-      upline: userData.name,
-      username,
-      fullName,
-      email,
-      contact,
-      address,
-      role,
-      status: "pending",
-      createdAt: serverTimestamp(),
-    };
-
-    await addDoc(collection(db, "pendingInvites"), pendingData);
-
-    // Mark activation code temporarily as reserved
-    await updateDoc(codeRef, { used: true });
-
-    alert(
-      `✅ Registration submitted for approval!\nOnce approved by admin, the account will be created.`
-    );
-    handleCloseDialog();
-  } catch (error) {
-    console.error("Invite registration failed:", error);
-    alert("Registration failed. Please try again.");
-  }
-};
-
-  // ✅ Handle submit for all dialogs
+  // Handle submit for all dialogs (purchase / transfer / other)
   const handleSubmitAction = async () => {
     try {
       const user = auth.currentUser;
@@ -268,25 +267,21 @@ const handleInviteRegister = async () => {
       if (dialog === "purchase") {
         if (!codeType) return alert("Please select a code type to purchase.");
 
-        
-        // ✅ Set price based on type
+        // Set price: Downline Code = 600, others = 500
         const price = codeType === "Downline Code" ? 600 : 500;
 
-         if (currentWallet < price) {
+        if (currentWallet < price) {
           alert(`Insufficient wallet balance. ₱${price} is required to purchase this code.`);
           return;
         }
 
-        // Deduct ₱500
+        // Deduct amount
         await updateDoc(userRef, {
           eWallet: currentWallet - price,
         });
 
         // Generate random code
-        const randomCode = `TCLC-${Math.random()
-          .toString(36)
-          .substring(2, 10)
-          .toUpperCase()}`;
+        const randomCode = `TCLC-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
 
         // Save to Firestore
         await addDoc(collection(db, "purchaseCodes"), {
@@ -303,6 +298,11 @@ const handleInviteRegister = async () => {
         alert(
           `✅ Purchase successful!\nType: ${codeType}\nCode: ${randomCode}\n₱${price} has been deducted from your wallet.`
         );
+      } else if (dialog === "transfer") {
+        // Example: handle transfer dialog (if implemented)
+        if (!recipient || !amount) return alert("Recipient and amount required.");
+        // ...transfer logic (not implemented in original)...
+        alert(`Transfer requested: ${amount} to ${recipient}`);
       } else {
         alert(`Action: ${dialog}\nAmount: ₱${amount}\nRecipient: ${recipient || "N/A"}`);
       }
@@ -316,7 +316,7 @@ const handleInviteRegister = async () => {
 
   return (
     <>
-      {/* ✅ AppBar */}
+      {/* AppBar */}
       <AppBar
         position="fixed"
         sx={{
@@ -372,7 +372,7 @@ const handleInviteRegister = async () => {
         </Toolbar>
       </AppBar>
 
-      {/* ✅ Backdrop */}
+      {/* Backdrop */}
       <Backdrop
         open={drawerOpen}
         sx={{
@@ -383,7 +383,7 @@ const handleInviteRegister = async () => {
         onClick={closeDrawer}
       />
 
-      {/* ✅ Slide Drawer */}
+      {/* Slide Drawer */}
       {drawerOpen && (
         <Box
           sx={{
@@ -391,10 +391,9 @@ const handleInviteRegister = async () => {
             top: 0,
             right: 0,
             height: "100vh",
-            width: 350,
+            width: isMobile ? "85%" : 350,
             zIndex: 1300,
             display: "flex",
-            alignItems: "center",
             justifyContent: "flex-end",
             pointerEvents: "none",
           }}
@@ -402,8 +401,8 @@ const handleInviteRegister = async () => {
           <Slide direction="left" in={slideIn} mountOnEnter unmountOnExit>
             <Box
               sx={{
-                width: 330,
-                height: "95%",
+                width: "100%",
+                height: "100%",
                 borderRadius: "20px 0 0 20px",
                 background: "rgba(30,30,30,0.75)",
                 backdropFilter: "blur(20px)",
@@ -411,8 +410,7 @@ const handleInviteRegister = async () => {
                 color: "#fff",
                 display: "flex",
                 flexDirection: "column",
-                p: 2.5,
-                position: "relative",
+                overflow: "hidden",
                 pointerEvents: "auto",
               }}
             >
@@ -437,7 +435,7 @@ const handleInviteRegister = async () => {
               </Tooltip>
 
               {/* User Info */}
-              <Box sx={{ textAlign: "center", mb: 0, mt: 0 }}>
+              <Box sx={{ textAlign: "center", p: 2, pt: 4 }}>
                 <Avatar
                   alt={userData.name}
                   src="/images/avatar-placeholder.png"
@@ -463,189 +461,186 @@ const handleInviteRegister = async () => {
                   }}
                 >
                   <EmailIcon fontSize="small" sx={{ color: "gray" }} />
-                  <Typography
-                    variant="body2"
-                    sx={{ color: "rgba(255,255,255,0.7)" }}
-                  >
+                  <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.7)" }}>
                     {userData.email}
                   </Typography>
                 </Box>
               </Box>
 
-              <Divider sx={{ borderColor: "rgba(255,255,255,0.2)", mb: 2 }} />
+              <Divider sx={{ borderColor: "rgba(255,255,255,0.2)" }} />
 
-              {/* Wallet */}
-              {userData.role !== "admin" && (
-                <Box
-                  sx={{
-                    background: "rgba(255,255,255,0.08)",
-                    borderRadius: 2,
-                    p: 2,
-                    mb: 2,
-                  }}
-                >
-                  <Typography
-                    variant="subtitle1"
-                    sx={{
-                      mb: 1,
-                      display: "flex",
-                      alignItems: "center",
-                      fontWeight: 500,
-                    }}
-                  >
-                    <WalletIcon fontSize="small" sx={{ mr: 1, color: "#4CAF50" }} />
-                    E-Wallet
-                  </Typography>
-                  <Typography
-                    variant="h5"
-                    sx={{ color: "#4CAF50", fontWeight: 700 }}
-                  >
-                    ₱
-                    {userData.eWallet.toLocaleString("en-PH", {
-                      minimumFractionDigits: 2,
-                    })}
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      mt: 1,
-                      display: "flex",
-                      alignItems: "center",
-                      color: "rgba(255,255,255,0.6)",
-                    }}
-                  >
-                    <LockIcon fontSize="small" sx={{ mr: 0.5 }} />
-                    Lock-in Balance: ₱
-                    {userData.lockInBalance.toLocaleString("en-PH", {
-                      minimumFractionDigits: 2,
-                    })}
-                  </Typography>
-                </Box>
-              )}
-
-              {/* Available Codes */}
-              {availableCodes.length > 0 && (
-                <Box
-                  sx={{
-                    background: "rgba(255,255,255,0.1)",
-                    borderRadius: 2,
-                    p: 2,
-                    mb: 2,
-                  }}
-                >
-                  <Typography
-                    variant="subtitle1"
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      fontWeight: 500,
-                      mb: 1,
-                    }}
-                  >
-                    <CodeIcon fontSize="small" sx={{ mr: 1, color: "#FFD54F" }} />
-                    Available Codes
-                  </Typography>
-                  {availableCodes.map((code, i) => (
-                    <Typography
-                      key={i}
-                      variant="body2"
-                      sx={{
-                        color: "#FFF59D",
-                        fontFamily: "monospace",
-                        ml: 2,
-                      }}
-                    >
-                      {code.type}: {code.code}
-                    </Typography>
-                  ))}
-                </Box>
-              )}
-
-              {/* Drawer List */}
-              <List>
-  {/* ✅ Purchase Codes (enabled) */}
-  <ListItem disablePadding>
-    <ListItemButton onClick={() => handleOpenDialog("purchase")}>
-      <ListItemIcon>
-        <PurchaseIcon sx={{ color: "#4FC3F7" }} />
-      </ListItemIcon>
-      <ListItemText primary="Purchase Codes" />
-    </ListItemButton>
-  </ListItem>
-
-  {/* 🚫 Disabled Features */}
-  <ListItem disablePadding>
-    <ListItemButton disabled>
-      <ListItemIcon>
-        <WithdrawIcon sx={{ color: "gray" }} />
-      </ListItemIcon>
-      <ListItemText
-        primary="Withdrawal (Disabled)"
-        sx={{ color: "rgba(255,255,255,0.4)" }}
-      />
-    </ListItemButton>
-  </ListItem>
-
-  <ListItem disablePadding>
-    <ListItemButton disabled>
-      <ListItemIcon>
-        <DepositIcon sx={{ color: "gray" }} />
-      </ListItemIcon>
-      <ListItemText
-        primary="Deposit (Disabled)"
-        sx={{ color: "rgba(255,255,255,0.4)" }}
-      />
-    </ListItemButton>
-  </ListItem>
-
-  <ListItem disablePadding>
-    <ListItemButton disabled>
-      <ListItemIcon>
-        <TransferIcon sx={{ color: "gray" }} />
-      </ListItemIcon>
-      <ListItemText
-        primary="Transfer Funds (Disabled)"
-        sx={{ color: "rgba(255,255,255,0.4)" }}
-      />
-    </ListItemButton>
-  </ListItem>
-
-  {/* 🆕 Invite & Earn */}
-  <ListItem disablePadding>
-    <ListItemButton onClick={() => handleOpenDialog("invite")}>
-      <ListItemIcon>
-        <InviteIcon sx={{ color: "#FFB300" }} />
-      </ListItemIcon>
-      <ListItemText primary="Invite & Earn" />
-    </ListItemButton>
-  </ListItem>
-</List>
-
-              <Box sx={{ flexGrow: 1 }} />
-              <Divider sx={{ borderColor: "rgba(255,255,255,0.2)", mb: 10 }} />
-
-              <Button
-                fullWidth
-                variant="outlined"
-                startIcon={<LogoutIcon />}
-                onClick={handleLogout}
+              {/* Scrollable Content */}
+              <Box
                 sx={{
-                  color: "#FF5252",
-                  borderColor: "rgba(255,255,255,0.3)",
-                  "&:hover": {
-                    borderColor: "#FF5252",
-                    background: "rgba(255,82,82,0.1)",
-                  },
+                  flexGrow: 1,
+                  overflowY: "auto",
+                  p: 2,
+                  pb: 10, // leave space for sticky logout area
                 }}
               >
-                Logout
-              </Button>
+                {/* Wallet (non-admin) */}
+                {userData.role !== "admin" && (
+                  <Box
+                    sx={{
+                      background: "rgba(255,255,255,0.08)",
+                      borderRadius: 2,
+                      p: 2,
+                      mb: 2,
+                    }}
+                  >
+                    <Typography
+                      variant="subtitle1"
+                      sx={{
+                        mb: 1,
+                        display: "flex",
+                        alignItems: "center",
+                        fontWeight: 500,
+                      }}
+                    >
+                      <WalletIcon fontSize="small" sx={{ mr: 1, color: "#4CAF50" }} />
+                      E-Wallet
+                    </Typography>
+                    <Typography variant="h5" sx={{ color: "#4CAF50", fontWeight: 700 }}>
+                      ₱
+                      {userData.eWallet.toLocaleString("en-PH", {
+                        minimumFractionDigits: 2,
+                      })}
+                    </Typography>
+                    <Typography variant="body2" sx={{ mt: 1, color: "rgba(255,255,255,0.6)" }}>
+                      <LockIcon fontSize="small" sx={{ mr: 0.5 }} />
+                      Lock-in Balance: ₱
+                      {userData.lockInBalance.toLocaleString("en-PH", {
+                        minimumFractionDigits: 2,
+                      })}
+                    </Typography>
+                  </Box>
+                )}
+
+                {/* Available Codes */}
+                {availableCodes.length > 0 && (
+                  <Box
+                    sx={{
+                      background: "rgba(255,255,255,0.1)",
+                      borderRadius: 2,
+                      p: 2,
+                      mb: 2,
+                    }}
+                  >
+                    <Typography
+                      variant="subtitle1"
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        fontWeight: 500,
+                        mb: 1,
+                      }}
+                    >
+                      <CodeIcon fontSize="small" sx={{ mr: 1, color: "#FFD54F" }} />
+                      Available Codes
+                    </Typography>
+                    {availableCodes.map((code, i) => (
+                      <Typography
+                        key={i}
+                        variant="body2"
+                        sx={{
+                          color: "#FFF59D",
+                          fontFamily: "monospace",
+                          ml: 2,
+                        }}
+                      >
+                        {code.type}: {code.code}
+                      </Typography>
+                    ))}
+                  </Box>
+                )}
+
+                {/* Drawer Menu List */}
+                <List>
+                  {/* Purchase Codes */}
+                  <ListItem disablePadding>
+                    <ListItemButton onClick={() => handleOpenDialog("purchase")}>
+                      <ListItemIcon>
+                        <PurchaseIcon sx={{ color: "#4FC3F7" }} />
+                      </ListItemIcon>
+                      <ListItemText primary="Purchase Codes" />
+                    </ListItemButton>
+                  </ListItem>
+
+                  {/* Withdraw (disabled) */}
+                  <ListItem disablePadding>
+                    <ListItemButton disabled>
+                      <ListItemIcon>
+                        <WithdrawIcon sx={{ color: "gray" }} />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Withdrawal (Disabled)"
+                        sx={{ color: "rgba(255,255,255,0.4)" }}
+                      />
+                    </ListItemButton>
+                  </ListItem>
+
+                  {/* Deposit (disabled) */}
+                  <ListItem disablePadding>
+                    <ListItemButton disabled>
+                      <ListItemIcon>
+                        <DepositIcon sx={{ color: "gray" }} />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Deposit (Disabled)"
+                        sx={{ color: "rgba(255,255,255,0.4)" }}
+                      />
+                    </ListItemButton>
+                  </ListItem>
+
+                  {/* Transfer Funds (disabled) */}
+                  <ListItem disablePadding>
+                    <ListItemButton disabled>
+                      <ListItemIcon>
+                        <TransferIcon sx={{ color: "gray" }} />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Transfer Funds (Disabled)"
+                        sx={{ color: "rgba(255,255,255,0.4)" }}
+                      />
+                    </ListItemButton>
+                  </ListItem>
+
+                  {/* Invite & Earn */}
+                  <ListItem disablePadding>
+                    <ListItemButton onClick={() => handleOpenDialog("invite")}>
+                      <ListItemIcon>
+                        <InviteIcon sx={{ color: "#FFB300" }} />
+                      </ListItemIcon>
+                      <ListItemText primary="Invite & Earn" />
+                    </ListItemButton>
+                  </ListItem>
+
+                  {/* 🚪 Logout moved here */}
+                  <ListItem disablePadding>
+                    <ListItemButton onClick={handleLogout}>
+                      <ListItemIcon>
+                        <LogoutIcon sx={{ color: "#FF5252" }} />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Logout"
+                        sx={{
+                          color: "#FF5252",
+                          "& .MuiListItemText-primary": {
+                            fontWeight: 600,
+                          },
+                        }}
+                      />
+                    </ListItemButton>
+                  </ListItem>
+                </List>
+                              
+              </Box>
             </Box>
           </Slide>
         </Box>
       )}
 
-      {/* ✅ Dialog */}
+      {/* Dialog (purchase / transfer / etc.) */}
       <Dialog open={Boolean(dialog)} onClose={handleCloseDialog}>
         <DialogTitle sx={{ textTransform: "capitalize" }}>
           {dialog === "purchase" ? "Purchase Code" : `${dialog} Form`}
@@ -661,9 +656,8 @@ const handleInviteRegister = async () => {
                 value={codeType}
                 onChange={(e) => setCodeType(e.target.value)}
               >
-                <MenuItem value="Activate Capital Share">
-                  Activate Capital Share
-                </MenuItem>
+                <MenuItem value="Activate Capital Share">Activate Capital Share</MenuItem>
+                <MenuItem value="Activate Genealogy Tree">Activate Genealogy Tree</MenuItem>
                 <MenuItem value="Downline Code">Downline Code</MenuItem>
               </TextField>
               <Typography variant="body2" sx={{ mt: 1.5, color: "gray" }}>
@@ -686,7 +680,7 @@ const handleInviteRegister = async () => {
             />
           )}
 
-          {dialog !== "purchase" && (
+          {dialog !== "purchase" && dialog !== "invite" && (
             <TextField
               fullWidth
               margin="dense"
@@ -705,112 +699,91 @@ const handleInviteRegister = async () => {
           </Button>
         </DialogActions>
       </Dialog>
-      {/* 🆕 Invite & Earn Registration Dialog */}
-<Dialog open={dialog === "invite"} onClose={handleCloseDialog}>
-  <DialogTitle>Invite & Earn Registration</DialogTitle>
-  <DialogContent dividers>
-    {/* ✅ Activation Code Dropdown */}
-    <TextField
-      select
-      fullWidth
-      label="Select Activation Code"
-      margin="dense"
-      value={inviteForm.activationCode}
-      onChange={(e) =>
-        setInviteForm({ ...inviteForm, activationCode: e.target.value })
-      }
-    >
-      {availableCodes.length > 0 ? (
-        availableCodes.map((code, index) => (
-          <MenuItem key={index} value={code.code}>
-            {code.type} — {code.code}
-          </MenuItem>
-        ))
-      ) : (
-        <MenuItem disabled>No available codes</MenuItem>
-      )}
-    </TextField>
 
-    {/* ✅ Upline auto-filled */}
-    <TextField
-      fullWidth
-      label="Upline"
-      margin="dense"
-      value={userData.name}
-      InputProps={{ readOnly: true }}
-    />
+      {/* Invite & Earn Registration Dialog */}
+      <Dialog open={dialog === "invite"} onClose={handleCloseDialog}>
+        <DialogTitle>Invite & Earn Registration</DialogTitle>
+        <DialogContent dividers>
+          <TextField
+            select
+            fullWidth
+            label="Select Activation Code"
+            margin="dense"
+            value={inviteForm.activationCode}
+            onChange={(e) => setInviteForm({ ...inviteForm, activationCode: e.target.value })}
+          >
+            {availableCodes.length > 0 ? (
+              availableCodes.map((code, index) => (
+                <MenuItem key={index} value={code.code}>
+                  {code.type} — {code.code}
+                </MenuItem>
+              ))
+            ) : (
+              <MenuItem disabled>No available codes</MenuItem>
+            )}
+          </TextField>
 
-    <TextField
-      fullWidth
-      label="Username"
-      margin="dense"
-      value={inviteForm.username}
-      onChange={(e) =>
-        setInviteForm({ ...inviteForm, username: e.target.value })
-      }
-    />
-    <TextField
-      fullWidth
-      label="Full Name"
-      margin="dense"
-      value={inviteForm.fullName}
-      onChange={(e) =>
-        setInviteForm({ ...inviteForm, fullName: e.target.value })
-      }
-    />
-    <TextField
-      fullWidth
-      label="Email"
-      margin="dense"
-      value={inviteForm.email}
-      onChange={(e) =>
-        setInviteForm({ ...inviteForm, email: e.target.value })
-      }
-    />
-    <TextField
-      fullWidth
-      label="Contact Number"
-      margin="dense"
-      value={inviteForm.contact}
-      onChange={(e) =>
-        setInviteForm({ ...inviteForm, contact: e.target.value })
-      }
-    />
-    <TextField
-      fullWidth
-      label="Address"
-      margin="dense"
-      value={inviteForm.address}
-      onChange={(e) =>
-        setInviteForm({ ...inviteForm, address: e.target.value })
-      }
-    />
+          {/* Upline auto-filled */}
+          <TextField fullWidth label="Upline" margin="dense" value={userData.name} InputProps={{ readOnly: true }} />
 
-    {/* ✅ Role dropdown updated */}
-    <TextField
-      select
-      fullWidth
-      label="Role"
-      margin="dense"
-      value={inviteForm.role}
-      onChange={(e) =>
-        setInviteForm({ ...inviteForm, role: e.target.value })
-      }
-    >
-      <MenuItem value="MD">MD</MenuItem>
-      <MenuItem value="MS">MS</MenuItem>
-      <MenuItem value="MI">MI</MenuItem>
-      <MenuItem value="Agent">Agent</MenuItem>
-      <MenuItem value="Member">Member</MenuItem>
-    </TextField>
-  </DialogContent>
-  <DialogActions>
-    <Button onClick={handleCloseDialog}>Cancel</Button>
-    <Button variant="contained" onClick={handleInviteRegister}>
-      Register
-    </Button>
-  </DialogActions>
-</Dialog>
+          <TextField
+            fullWidth
+            label="Username"
+            margin="dense"
+            value={inviteForm.username}
+            onChange={(e) => setInviteForm({ ...inviteForm, username: e.target.value })}
+          />
+          <TextField
+            fullWidth
+            label="Full Name"
+            margin="dense"
+            value={inviteForm.fullName}
+            onChange={(e) => setInviteForm({ ...inviteForm, fullName: e.target.value })}
+          />
+          <TextField
+            fullWidth
+            label="Email"
+            margin="dense"
+            value={inviteForm.email}
+            onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+          />
+          <TextField
+            fullWidth
+            label="Contact Number"
+            margin="dense"
+            value={inviteForm.contact}
+            onChange={(e) => setInviteForm({ ...inviteForm, contact: e.target.value })}
+          />
+          <TextField
+            fullWidth
+            label="Address"
+            margin="dense"
+            value={inviteForm.address}
+            onChange={(e) => setInviteForm({ ...inviteForm, address: e.target.value })}
+          />
+
+          <TextField
+            select
+            fullWidth
+            label="Role"
+            margin="dense"
+            value={inviteForm.role}
+            onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
+          >
+            <MenuItem value="MD">MD</MenuItem>
+            <MenuItem value="MS">MS</MenuItem>
+            <MenuItem value="MI">MI</MenuItem>
+            <MenuItem value="Agent">Agent</MenuItem>
+            <MenuItem value="Member">Member</MenuItem>
+          </TextField>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDialog}>Cancel</Button>
+          <Button variant="contained" onClick={handleInviteRegister}>
+            Register
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 };
