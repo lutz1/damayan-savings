@@ -16,17 +16,10 @@ import {
   TextField,
   CircularProgress,
   Table,
-  TableHead,
   TableBody,
   TableCell,
+  TableHead,
   TableRow,
-  TableContainer,
-  Paper,
-  MenuItem,
-  Select,
-  FormControl,
-  InputLabel,
-  Pagination,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { Calendar, momentLocalizer } from "react-big-calendar";
@@ -45,8 +38,7 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { db, auth, storage } from "../../firebase";
+import { db, auth } from "../../firebase";
 
 const localizer = momentLocalizer(moment);
 
@@ -60,7 +52,6 @@ const MemberPayback = () => {
   // States
   const [events, setEvents] = useState([]);
   const [paybackEntries, setPaybackEntries] = useState([]);
-  const [filterStatus, setFilterStatus] = useState("All");
   const [totalContribution, setTotalContribution] = useState(0);
   const [totalPassiveIncome, setTotalPassiveIncome] = useState(0);
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
@@ -72,19 +63,18 @@ const MemberPayback = () => {
   const [selectedDate, setSelectedDate] = useState(null);
   const [directUsername, setDirectUsername] = useState("");
   const [amount, setAmount] = useState("");
-  const [receiptFile, setReceiptFile] = useState(null);
   const [adding, setAdding] = useState(false);
-
-  // Filters & Pagination
-  const [searchTerm, setSearchTerm] = useState("");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
 
   // View Entry Dialog
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState(null);
+
+  // Expiration Notification Dialog
+  const [expiredDialogOpen, setExpiredDialogOpen] = useState(false);
+  const [expiredEntries, setExpiredEntries] = useState([]);
+
+  // Payback Transaction History Dialog
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
 
   // ===================== Fetch Payback + Transfers =====================
   const fetchPaybackData = useCallback(async (userId) => {
@@ -104,15 +94,23 @@ const MemberPayback = () => {
         getDocs(transferQ),
       ]);
 
-      const entries = paybackSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const entries = paybackSnap.docs.map((d) => {
+        const data = d.data();
+        // Compute expiration date = 30 days after entry date
+        const expirationDate = moment(data.date).add(30, "days").toISOString();
+        const isExpired = moment().isAfter(expirationDate);
+        return { id: d.id, ...data, expirationDate, isExpired };
+      });
 
-      const totalContributionAmount = entries
-        .filter((e) => e.status?.toLowerCase() === "approved")
-        .reduce((sum, e) => sum + (e.amount || 0), 0);
+      const totalContributionAmount = entries.reduce(
+        (sum, e) => sum + (e.amount || 0),
+        0
+      );
 
-      const totalPassive = entries
-        .filter((e) => e.status?.toLowerCase() === "approved")
-        .reduce((sum, e) => sum + (e.amount || 0) * 0.02, 0);
+      const totalPassive = entries.reduce(
+        (sum, e) => sum + (e.amount || 0) * 0.02,
+        0
+      );
 
       const totalTransferred = transferSnap.docs.reduce(
         (sum, t) => sum + (t.data().amount || 0),
@@ -125,7 +123,7 @@ const MemberPayback = () => {
 
       const calendarEvents = entries.map((e) => ({
         id: e.id,
-        title: `₱${Number(e.amount).toFixed(2)} - ${e.status || "Pending"}`,
+        title: `₱${Number(e.amount).toFixed(2)}`,
         start: new Date(e.date),
         end: new Date(e.date),
         allDay: true,
@@ -133,6 +131,13 @@ const MemberPayback = () => {
       }));
 
       setEvents(calendarEvents);
+
+      // Check expired entries
+      const expired = entries.filter((e) => e.isExpired);
+      if (expired.length > 0) {
+        setExpiredEntries(expired);
+        setExpiredDialogOpen(true);
+      }
     } catch (err) {
       console.error("Error fetching payback data:", err);
     } finally {
@@ -161,17 +166,35 @@ const MemberPayback = () => {
   const resetAddFields = () => {
     setDirectUsername("");
     setAmount("");
-    setReceiptFile(null);
     setSelectedDate(null);
   };
 
   const handleAddPayback = async () => {
-    if (!directUsername || !amount || !receiptFile) {
-      return alert("Please provide direct username, amount and upload a receipt.");
+    if (!directUsername || !amount) {
+      return alert("Please provide direct username and amount.");
     }
 
     setAdding(true);
     try {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists()) {
+        setAdding(false);
+        return alert("User not found.");
+      }
+
+      const walletBalance = userSnap.data().eWallet || 0;
+      const amountNum = parseFloat(amount);
+
+      if (amountNum > walletBalance) {
+        setAdding(false);
+        return alert("Insufficient wallet balance.");
+      }
+
       const usersRef = collection(db, "users");
       const q1 = query(usersRef, where("username", "==", directUsername));
       const q2 = query(usersRef, where("email", "==", directUsername));
@@ -180,40 +203,40 @@ const MemberPayback = () => {
 
       if (snap.empty) {
         setAdding(false);
-        return alert("Direct referral not found in your system.");
+        return alert("Direct referral not found.");
       }
 
       const userDoc = snap.docs[0].data();
       if (!["MD", "MS", "MI", "Agent", "Member"].includes(userDoc.role)) {
         setAdding(false);
-        return alert(
-          "Direct referral must have role MD, MS, MI, Agent or Member."
-        );
+        return alert("Invalid role for direct referral.");
       }
 
-      const fileName = `${auth.currentUser.uid}_${Date.now()}_${receiptFile.name}`;
-      const storageRef = ref(storage, `receipts/${fileName}`);
-      await uploadBytes(storageRef, receiptFile);
-      const receiptUrl = await getDownloadURL(storageRef);
+      await updateDoc(userRef, {
+        eWallet: walletBalance - amountNum,
+      });
+
+      const entryDate = selectedDate
+        ? new Date(selectedDate).toISOString()
+        : new Date().toISOString();
+      const expirationDate = moment(entryDate).add(30, "days").toISOString();
 
       await addDoc(collection(db, "paybackEntries"), {
-        userId: auth.currentUser.uid,
+        userId: user.uid,
         directUsername,
         miUsername: directUsername,
         role: userDoc.role,
-        receiptUrl,
-        amount: parseFloat(amount),
-        date: selectedDate
-          ? new Date(selectedDate).toISOString()
-          : new Date().toISOString(),
-        status: "Waiting for Approval",
+        amount: amountNum,
+        date: entryDate,
+        expirationDate,
+        status: "Approved",
         createdAt: new Date().toISOString(),
       });
 
-      await fetchPaybackData(auth.currentUser.uid);
+      await fetchPaybackData(user.uid);
       resetAddFields();
       setOpenAddDialog(false);
-      alert("Payback entry submitted! Awaiting admin approval.");
+      alert(`Payback entry added successfully! ₱${amountNum.toFixed(2)} deducted from wallet.`);
     } catch (err) {
       console.error("Error adding payback entry:", err);
       alert("Failed to add entry. See console for details.");
@@ -263,48 +286,19 @@ const MemberPayback = () => {
   };
 
   // ===================== Calendar Style =====================
-  const eventStyleGetter = (event) => {
-    let backgroundColor = "#4CAF50";
-    const status = (event.data?.status || "").toLowerCase();
-    if (status === "waiting for approval") backgroundColor = "#FFC107";
-    if (status === "rejected") backgroundColor = "#F44336";
-    return {
-      style: {
-        backgroundColor,
-        color: "white",
-        borderRadius: "6px",
-        padding: "2px 4px",
-      },
-    };
-  };
+  const eventStyleGetter = () => ({
+    style: {
+      backgroundColor: "#4CAF50",
+      color: "white",
+      borderRadius: "6px",
+      padding: "2px 4px",
+    },
+  });
 
   const EventComponent = ({ event }) => (
     <span>
       <strong>{event.title}</strong>
     </span>
-  );
-
-  // ===================== Filters =====================
-  const filteredEntries = paybackEntries.filter((entry) => {
-    const statusMatch =
-      filterStatus === "All" ||
-      (entry.status || "").toLowerCase() === filterStatus.toLowerCase();
-    const lowerSearch = searchTerm.trim().toLowerCase();
-    const searchMatch =
-      !lowerSearch ||
-      (entry.directUsername || "").toLowerCase().includes(lowerSearch) ||
-      (entry.status || "").toLowerCase().includes(lowerSearch);
-    const dateMatch =
-      (!fromDate || new Date(entry.date) >= new Date(fromDate)) &&
-      (!toDate || new Date(entry.date) <= new Date(toDate));
-    return statusMatch && searchMatch && dateMatch;
-  });
-
-  useEffect(() => setCurrentPage(1), [searchTerm, filterStatus, fromDate, toDate]);
-  const totalPages = Math.max(1, Math.ceil(filteredEntries.length / itemsPerPage));
-  const paginatedEntries = filteredEntries.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
   );
 
   // ===================== Render =====================
@@ -318,16 +312,6 @@ const MemberPayback = () => {
         backgroundPosition: "center",
         position: "relative",
         overflowX: "hidden",
-        "&::before": {
-          content: '""',
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "rgba(253, 250, 250, 0.01)",
-          zIndex: 0,
-        },
       }}
     >
       {/* Topbar */}
@@ -341,7 +325,6 @@ const MemberPayback = () => {
           zIndex: 5,
           position: isMobile ? "fixed" : "relative",
           height: "100%",
-          transition: "all 0.3s ease",
         }}
       >
         <Sidebar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
@@ -353,73 +336,64 @@ const MemberPayback = () => {
         sx={{
           flexGrow: 1,
           p: { xs: 2, sm: 4 },
-          mt: 8,
+          mt: 1,
           color: "white",
           overflowY: "auto",
-          maxHeight: "100vh",
           width: isMobile ? "100%" : `calc(100% - ${sidebarOpen ? 240 : 60}px)`,
-          transition: "all 0.3s ease",
         }}
       >
         <Toolbar />
-        <Typography
-          variant={isMobile ? "h5" : "h4"}
-          fontWeight={700}
-          gutterBottom
-        >
+        <Typography variant={isMobile ? "h5" : "h4"} fontWeight={700} gutterBottom>
           Payback Overview
         </Typography>
 
         {/* Summary Cards */}
-        <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid container spacing={3} sx={{ mb: 2 }}>
           <Grid item xs={12} md={6}>
-            <Card sx={{ backgroundColor: "rgba(33,150,243,0.12)", borderRadius: 3 }}>
+            <Card sx={{ backgroundColor: "rgba(231, 237, 241, 0.53)", borderRadius: 3 }}>
               <CardContent>
                 <Typography variant="h6">Total Contribution</Typography>
-                <Typography variant="h4" sx={{ color: "#ffffffff" }}>
-                  ₱{Number(totalContribution).toFixed(2)}
-                </Typography>
+                <Typography variant="h4">₱{Number(totalContribution).toFixed(2)}</Typography>
               </CardContent>
             </Card>
           </Grid>
-
           <Grid item xs={12} md={6}>
-            <Card sx={{ backgroundColor: "rgba(76,175,80,0.12)", borderRadius: 3 }}>
+            <Card sx={{ backgroundColor: "rgba(231, 237, 241, 0.53)", borderRadius: 3 }}>
               <CardContent>
                 <Typography variant="h6">Total Passive Income</Typography>
-                <Typography variant="h4" sx={{ color: "#ffffffff" }}>
-                  ₱{Number(totalPassiveIncome).toFixed(2)}
-                </Typography>
+                <Typography variant="h4">₱{Number(totalPassiveIncome).toFixed(2)}</Typography>
                 <Button
                   variant="contained"
                   color="success"
-                  sx={{ mt: 2 }}
+                  sx={{ mt: 2, mr: 2 }}
                   onClick={() => setTransferDialogOpen(true)}
                 >
                   Transfer to E-Wallet
                 </Button>
+                
               </CardContent>
             </Card>
           </Grid>
         </Grid>
-
+                <Button
+                  variant="contained"
+                  color="success"
+                  sx={{ mt: 1, mb: 2 }}
+                  onClick={() => setHistoryDialogOpen(true)}
+                >
+                  Payback Transaction History
+                </Button>
         {/* Calendar */}
         <Card
           sx={{
-            backgroundColor: "rgba(255,255,255,0.08)",
+            backgroundColor: "rgba(231, 237, 241, 0.27)",
             borderRadius: 3,
             p: 2,
-            mb: 4,
             height: { xs: "60vh", md: "75vh" },
           }}
         >
           {loading ? (
-            <Box
-              display="flex"
-              justifyContent="center"
-              alignItems="center"
-              height="100%"
-            >
+            <Box display="flex" justifyContent="center" alignItems="center" height="100%">
               <CircularProgress color="info" />
             </Box>
           ) : (
@@ -439,179 +413,30 @@ const MemberPayback = () => {
             />
           )}
         </Card>
-
-        {/* Table */}
-        <Card sx={{ backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 3, mb: 4 }}>
-          <CardContent>
-            <Box
-              sx={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 2,
-                justifyContent: "space-between",
-                mb: 2,
-              }}
-            >
-              <TextField
-                label="Search"
-                variant="outlined"
-                size="small"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                sx={{
-                  backgroundColor: "white",
-                  borderRadius: 1,
-                  minWidth: { xs: "100%", sm: 300 },
-                }}
-              />
-              <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
-                <TextField
-                  label="From"
-                  type="date"
-                  size="small"
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                  sx={{ backgroundColor: "white", borderRadius: 1 }}
-                />
-                <TextField
-                  label="To"
-                  type="date"
-                  size="small"
-                  value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                  sx={{ backgroundColor: "white", borderRadius: 1 }}
-                />
-                <FormControl size="small" sx={{ minWidth: 160 }}>
-                  <InputLabel>Status Filter</InputLabel>
-                  <Select
-                    value={filterStatus}
-                    onChange={(e) => setFilterStatus(e.target.value)}
-                    label="Status Filter"
-                    sx={{ backgroundColor: "white", borderRadius: 1 }}
-                  >
-                    <MenuItem value="All">All</MenuItem>
-                    <MenuItem value="Approved">Approved</MenuItem>
-                    <MenuItem value="Rejected">Rejected</MenuItem>
-                    <MenuItem value="Waiting for Approval">
-                      Waiting for Approval
-                    </MenuItem>
-                  </Select>
-                </FormControl>
-              </Box>
-            </Box>
-
-            <TableContainer component={Paper}>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Date</TableCell>
-                    <TableCell>Direct Username</TableCell>
-                    <TableCell>Amount</TableCell>
-                    <TableCell>Status</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {paginatedEntries.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} align="center">
-                        No entries found
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    paginatedEntries.map((entry) => (
-                      <TableRow key={entry.id}>
-                        <TableCell>{moment(entry.date).format("LL")}</TableCell>
-                        <TableCell>
-                          {entry.directUsername || "N/A"}
-                        </TableCell>
-                        <TableCell>₱{Number(entry.amount).toFixed(2)}</TableCell>
-                        <TableCell
-                          sx={{
-                            color:
-                              entry.status === "Approved"
-                                ? "green"
-                                : entry.status === "Rejected"
-                                ? "red"
-                                : "#03b120ff",
-                            fontWeight: 600,
-                          }}
-                        >
-                          {entry.status || "Pending"}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <Box display="flex" justifyContent="center" mt={2}>
-                <Pagination
-                  count={totalPages}
-                  page={currentPage}
-                  onChange={(e, page) => setCurrentPage(page)}
-                  color="primary"
-                />
-              </Box>
-            )}
-          </CardContent>
-        </Card>
       </Box>
 
-      {/* ===================== DIALOGS ===================== */}
-
       {/* Add Payback Entry Dialog */}
-      <Dialog
-        open={openAddDialog}
-        onClose={() => setOpenAddDialog(false)}
-        fullWidth
-        maxWidth="sm"
-        PaperProps={{
-          sx: { borderRadius: 3, backgroundColor: "rgba(255,255,255,0.95)" },
-        }}
-      >
+      <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)} fullWidth maxWidth="sm">
         <DialogTitle>Add Payback Entry</DialogTitle>
-        <DialogContent dividers sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          <Typography variant="body2" sx={{ fontStyle: "italic", mb: 1 }}>
+        <DialogContent dividers>
+          <Typography variant="body2" sx={{ mb: 1 }}>
             Selected Date: {selectedDate ? moment(selectedDate).format("LL") : ""}
           </Typography>
-
           <TextField
             label="Direct Username or Email"
             fullWidth
             value={directUsername}
             onChange={(e) => setDirectUsername(e.target.value)}
           />
-
           <TextField
             label="Amount"
             type="number"
             fullWidth
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
+            sx={{ mt: 2 }}
           />
-
-          <Button variant="contained" component="label" color="info">
-            Upload Receipt
-            <input
-              type="file"
-              accept="image/*,application/pdf"
-              hidden
-              onChange={(e) => setReceiptFile(e.target.files[0])}
-            />
-          </Button>
-
-          {receiptFile && (
-            <Typography variant="body2" color="text.secondary">
-              {receiptFile.name}
-            </Typography>
-          )}
         </DialogContent>
-
         <DialogActions>
           <Button onClick={() => setOpenAddDialog(false)} color="error">
             Cancel
@@ -621,29 +446,19 @@ const MemberPayback = () => {
             color="primary"
             variant="contained"
             disabled={adding}
-            startIcon={adding && <CircularProgress size={18} color="inherit" />}
           >
-            {adding ? "Submitting..." : "Submit"}
+            {adding ? <CircularProgress size={18} color="inherit" /> : "Submit"}
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* View Payback Entry Dialog */}
-      <Dialog
-        open={viewDialogOpen}
-        onClose={() => setViewDialogOpen(false)}
-        fullWidth
-        maxWidth="sm"
-        PaperProps={{
-          sx: { borderRadius: 3, backgroundColor: "rgba(255,255,255,0.95)" },
-        }}
-      >
+      <Dialog open={viewDialogOpen} onClose={() => setViewDialogOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>Payback Entry Details</DialogTitle>
         {selectedEntry && (
           <DialogContent dividers>
             <Typography>
-              <strong>Date:</strong>{" "}
-              {moment(selectedEntry.date).format("LL")}
+              <strong>Date:</strong> {moment(selectedEntry.date).format("LL")}
             </Typography>
             <Typography>
               <strong>Direct Username:</strong> {selectedEntry.directUsername}
@@ -652,24 +467,14 @@ const MemberPayback = () => {
               <strong>Role:</strong> {selectedEntry.role}
             </Typography>
             <Typography>
-              <strong>Amount:</strong> ₱
-              {Number(selectedEntry.amount).toFixed(2)}
+              <strong>Amount:</strong> ₱{Number(selectedEntry.amount).toFixed(2)}
             </Typography>
             <Typography>
-              <strong>Status:</strong> {selectedEntry.status}
+              <strong>2% Profit:</strong> ₱{(selectedEntry.amount * 0.02).toFixed(2)}
             </Typography>
-            {selectedEntry.receiptUrl && (
-              <Box mt={2}>
-                <Typography variant="subtitle2">Receipt:</Typography>
-                <a
-                  href={selectedEntry.receiptUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  View Receipt
-                </a>
-              </Box>
-            )}
+            <Typography>
+              <strong>Expiration:</strong> {moment(selectedEntry.expirationDate).format("LL")}
+            </Typography>
           </DialogContent>
         )}
         <DialogActions>
@@ -679,16 +484,68 @@ const MemberPayback = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Transfer to E-Wallet Dialog */}
-      <Dialog
-        open={transferDialogOpen}
-        onClose={() => setTransferDialogOpen(false)}
-        fullWidth
-        maxWidth="xs"
-        PaperProps={{
-          sx: { borderRadius: 3, backgroundColor: "rgba(255,255,255,0.95)" },
-        }}
-      >
+      {/* Expired Entries Notification Dialog */}
+      <Dialog open={expiredDialogOpen} onClose={() => setExpiredDialogOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Expired Payback Entries</DialogTitle>
+        <DialogContent dividers>
+          {expiredEntries.length > 0 ? (
+            expiredEntries.map((e) => (
+              <Box key={e.id} mb={2}>
+                <Typography>
+                  <strong>{e.directUsername}</strong> — ₱{e.amount.toFixed(2)} (Expired:{" "}
+                  {moment(e.expirationDate).format("LL")})
+                </Typography>
+              </Box>
+            ))
+          ) : (
+            <Typography>No expired entries.</Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setExpiredDialogOpen(false)} color="primary">
+            OK
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Payback Transaction History Dialog */}
+      <Dialog open={historyDialogOpen} onClose={() => setHistoryDialogOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle>Payback Transaction History</DialogTitle>
+        <DialogContent dividers>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Date</TableCell>
+                <TableCell>Direct Username</TableCell>
+                <TableCell>Amount</TableCell>
+                <TableCell>2% Profit</TableCell>
+                <TableCell>Expiration</TableCell>
+                <TableCell>Status</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {paybackEntries.map((e) => (
+                <TableRow key={e.id}>
+                  <TableCell>{moment(e.date).format("LL")}</TableCell>
+                  <TableCell>{e.directUsername}</TableCell>
+                  <TableCell>₱{e.amount.toFixed(2)}</TableCell>
+                  <TableCell>₱{(e.amount * 0.02).toFixed(2)}</TableCell>
+                  <TableCell>{moment(e.expirationDate).format("LL")}</TableCell>
+                  <TableCell>{e.isExpired ? "Expired" : e.status}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setHistoryDialogOpen(false)} color="primary">
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Transfer Dialog */}
+      <Dialog open={transferDialogOpen} onClose={() => setTransferDialogOpen(false)} fullWidth maxWidth="xs">
         <DialogTitle>Transfer Passive Income</DialogTitle>
         <DialogContent dividers>
           <Typography variant="body2" gutterBottom>
@@ -700,22 +557,14 @@ const MemberPayback = () => {
             fullWidth
             value={transferAmount}
             onChange={(e) => setTransferAmount(e.target.value)}
-            sx={{ mt: 1 }}
           />
-          <Typography variant="caption" color="text.secondary">
-            1% fee will be deducted from your transfer.
-          </Typography>
+          <Typography variant="caption">1% fee will be deducted.</Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setTransferDialogOpen(false)} color="error">
             Cancel
           </Button>
-          <Button
-            onClick={handleTransfer}
-            color="success"
-            variant="contained"
-            disabled={!transferAmount}
-          >
+          <Button onClick={handleTransfer} color="success" variant="contained" disabled={!transferAmount}>
             Confirm
           </Button>
         </DialogActions>

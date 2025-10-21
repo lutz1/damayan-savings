@@ -4,6 +4,7 @@ import {
   getDoc,
   updateDoc,
   collection,
+  addDoc,
   getDocs,
   query,
   where,
@@ -29,6 +30,8 @@ import {
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { onAuthStateChanged } from "firebase/auth";
+import Calendar from "react-calendar";
+import "react-calendar/dist/Calendar.css";
 import Topbar from "../../components/Topbar";
 import Sidebar from "../../components/Sidebar";
 import bgImage from "../../assets/bg.jpg";
@@ -44,12 +47,17 @@ const MemberCapitalShare = () => {
   const [userData, setUserData] = useState(null);
   const [isActive, setIsActive] = useState(
     localStorage.getItem("capitalShareActive") === "true"
-  ); // ✅ Cache check
+  );
   const [codes, setCodes] = useState([]);
   const [selectedCode, setSelectedCode] = useState("");
   const [openDialog, setOpenDialog] = useState(false);
-  const [loading, setLoading] = useState(!isActive); // ✅ Skip spinner if already active
-  const [overrideIncome, setOverrideIncome] = useState(0);
+  const [loading, setLoading] = useState(!isActive);
+
+  // Calendar and Add Entry Dialog states
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [openAddDialog, setOpenAddDialog] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [directUser, setDirectUser] = useState("");
 
   // ✅ Fetch Firestore user data + available codes
   const fetchData = useCallback(
@@ -61,7 +69,6 @@ const MemberCapitalShare = () => {
           const data = snap.data();
           setUserData(data);
 
-          // Sync active state if changed
           if (data.capitalShareActive) {
             setIsActive(true);
             localStorage.setItem("capitalShareActive", "true");
@@ -93,7 +100,7 @@ const MemberCapitalShare = () => {
         setLoading(false);
       }
     },
-    [isActive] // ✅ add only stable dependency
+    [isActive]
   );
 
   // ✅ Auth listener
@@ -108,14 +115,6 @@ const MemberCapitalShare = () => {
     });
     return () => unsubscribe();
   }, [fetchData]);
-
-  // ✅ Compute 5% profit + override income
-  useEffect(() => {
-    if (isActive && userData?.capitalAmount) {
-      const monthlyProfit = userData.capitalAmount * 0.05;
-      setOverrideIncome(monthlyProfit);
-    }
-  }, [isActive, userData]);
 
   // ✅ Activation logic
   const handleActivate = async () => {
@@ -133,12 +132,55 @@ const MemberCapitalShare = () => {
       });
 
       setIsActive(true);
-      localStorage.setItem("capitalShareActive", "true"); // ✅ save cache
+      localStorage.setItem("capitalShareActive", "true");
       setOpenDialog(false);
       alert("✅ Capital Share successfully activated!");
     } catch (error) {
       console.error("Activation failed:", error);
       alert("Activation failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ Handle calendar date click
+  const handleDateClick = (date) => {
+    if (!isActive) {
+      alert("Please activate your Capital Share first.");
+      return;
+    }
+    setSelectedDate(date);
+    setOpenAddDialog(true);
+  };
+
+  // ✅ Handle Add Entry Submit
+  const handleAddEntry = async () => {
+    if (!amount || Number(amount) < 1000) {
+      alert("Minimum capital share amount is ₱1,000.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const entryRef = collection(db, "capitalShareEntries");
+      await addDoc(entryRef, {
+        userId: user.uid,
+        amount: Number(amount),
+        date: selectedDate,
+        directUsernameOrEmail: directUser || "",
+        directBonus: directUser ? Number(amount) * 0.0033 : 0,
+        profit: 0,
+        status: "pending",
+        createdAt: serverTimestamp(),
+      });
+
+      alert("✅ Capital Share entry added successfully!");
+      setAmount("");
+      setDirectUser("");
+      setOpenAddDialog(false);
+    } catch (error) {
+      console.error("Error adding capital share:", error);
+      alert("Failed to add capital share entry.");
     } finally {
       setLoading(false);
     }
@@ -225,6 +267,7 @@ const MemberCapitalShare = () => {
           </Grid>
         </Grid>
 
+        {/* ✅ Calendar */}
         <Card
           sx={{
             mt: 4,
@@ -233,11 +276,51 @@ const MemberCapitalShare = () => {
             p: 3,
           }}
         >
-          <Typography variant="h6">Override Income (Genealogy Tree)</Typography>
-          <Typography variant="h4" sx={{ color: "#fff", mt: 1 }}>
-            ₱{Number(overrideIncome || 0).toLocaleString()}
+          <Typography variant="h6" sx={{ mb: 2 }}>
+            📅 Capital Share Calendar
           </Typography>
+          <Calendar
+            onClickDay={handleDateClick}
+            tileDisabled={({ date }) => date > new Date()}
+          />
         </Card>
+
+        {/* ✅ Add Capital Share Dialog */}
+        <Dialog
+          open={openAddDialog}
+          onClose={() => setOpenAddDialog(false)}
+          fullWidth
+          maxWidth="xs"
+        >
+          <DialogTitle>Add Capital Share Entry</DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              Selected Date: <strong>{selectedDate?.toDateString()}</strong>
+            </Typography>
+            <TextField
+              label="Amount (₱)"
+              type="number"
+              fullWidth
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              sx={{ mb: 2 }}
+              inputProps={{ min: 1000 }}
+            />
+            <TextField
+              label="Direct Username or Email (Optional)"
+              fullWidth
+              value={directUser}
+              onChange={(e) => setDirectUser(e.target.value)}
+              sx={{ mb: 2 }}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setOpenAddDialog(false)}>Cancel</Button>
+            <Button onClick={handleAddEntry} variant="contained">
+              Submit
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         {/* ✅ Activation Overlay */}
         {!isActive && (

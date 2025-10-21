@@ -267,14 +267,19 @@ const handleInviteRegister = async () => {
 
       if (dialog === "purchase") {
         if (!codeType) return alert("Please select a code type to purchase.");
-        if (currentWallet < 500) {
-          alert("Insufficient wallet balance. ₱500 is required to purchase a code.");
+
+        
+        // ✅ Set price based on type
+        const price = codeType === "Downline Code" ? 600 : 500;
+
+         if (currentWallet < price) {
+          alert(`Insufficient wallet balance. ₱${price} is required to purchase this code.`);
           return;
         }
 
         // Deduct ₱500
         await updateDoc(userRef, {
-          eWallet: currentWallet - 500,
+          eWallet: currentWallet - price,
         });
 
         // Generate random code
@@ -291,17 +296,15 @@ const handleInviteRegister = async () => {
           code: randomCode,
           type: codeType,
           used: false,
-          amount: 500,
+          amount: price,
           createdAt: serverTimestamp(),
         });
 
         alert(
-          `✅ Purchase successful!\nType: ${codeType}\nCode: ${randomCode}\n₱500 has been deducted from your wallet.`
+          `✅ Purchase successful!\nType: ${codeType}\nCode: ${randomCode}\n₱${price} has been deducted from your wallet.`
         );
       } else {
-        alert(
-          `Action: ${dialog}\nAmount: ₱${amount}\nRecipient: ${recipient || "N/A"}`
-        );
+        alert(`Action: ${dialog}\nAmount: ₱${amount}\nRecipient: ${recipient || "N/A"}`);
       }
 
       handleCloseDialog();
@@ -550,7 +553,6 @@ const handleInviteRegister = async () => {
                         color: "#FFF59D",
                         fontFamily: "monospace",
                         ml: 2,
-                        mb: 0.5,
                       }}
                     >
                       {code.type}: {code.code}
@@ -620,7 +622,7 @@ const handleInviteRegister = async () => {
 </List>
 
               <Box sx={{ flexGrow: 1 }} />
-              <Divider sx={{ borderColor: "rgba(255,255,255,0.2)", mb: 2 }} />
+              <Divider sx={{ borderColor: "rgba(255,255,255,0.2)", mb: 10 }} />
 
               <Button
                 fullWidth
@@ -662,14 +664,13 @@ const handleInviteRegister = async () => {
                 <MenuItem value="Activate Capital Share">
                   Activate Capital Share
                 </MenuItem>
-                <MenuItem value="Activate Genealogy Tree">
-                  Activate Genealogy Tree
-                </MenuItem>
                 <MenuItem value="Downline Code">Downline Code</MenuItem>
               </TextField>
               <Typography variant="body2" sx={{ mt: 1.5, color: "gray" }}>
-                Each code costs ₱500. Purchased codes will appear under “Available
-                Codes”.
+                {codeType === "Downline Code"
+                  ? "Downline Code costs ₱600."
+                  : "Each code costs ₱500. Purchased codes will appear under “Available Codes”."
+                }
               </Typography>
             </>
           )}

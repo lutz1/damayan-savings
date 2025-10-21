@@ -21,7 +21,6 @@ import {
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
   AccountCircle as AccountCircleIcon,
-  AccountTree as AccountTreeIcon,
   MonetizationOn as MonetizationOnIcon,
   Savings as SavingsIcon,
   PieChart as PieChartIcon,
@@ -39,11 +38,11 @@ const Sidebar = ({ open, onToggleSidebar }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
-  // ✅ Get user role from localStorage (no unused setter)
+  // ✅ Get user role
   const role = localStorage.getItem("userRole");
 
   // =====================================================
-  // 🛠️ NAVIGATION ITEMS
+  // 🧭 NAVIGATION ITEMS
   // =====================================================
   const adminNav = [
     { text: "Dashboard", icon: <DashboardIcon />, path: "/admin/dashboard" },
@@ -70,6 +69,7 @@ const Sidebar = ({ open, onToggleSidebar }) => {
     { text: "Profile", icon: <AccountCircleIcon />, path: "/admin/profile" },
   ];
 
+  // ✅ Member navigation (Genealogy removed)
   const memberNav = [
     { text: "Dashboard", icon: <DashboardIcon />, path: "/member/dashboard" },
     {
@@ -88,20 +88,15 @@ const Sidebar = ({ open, onToggleSidebar }) => {
         },
       ],
     },
-    {
-      text: "Genealogy Tree",
-      icon: <AccountTreeIcon />,
-      path: "/member/genealogy",
-    },
+    // ❌ Genealogy Tree removed
     { text: "Profile", icon: <AccountCircleIcon />, path: "/member/profile" },
   ];
 
-  // ✅ Case-insensitive role matching
   const navItems =
     role?.toUpperCase() === "ADMIN" ? adminNav : memberNav;
 
   // =====================================================
-  // 🧭 HANDLERS
+  // ⚙️ HANDLERS
   // =====================================================
   const handleToggleIncome = () => setIncomeOpen((prev) => !prev);
 
@@ -116,7 +111,7 @@ const Sidebar = ({ open, onToggleSidebar }) => {
   // =====================================================
   const drawerContent = (
     <>
-      {/* ✅ Logo + Toggle Icon */}
+      {/* ✅ Logo + Toggle */}
       <Box
         sx={{
           display: "flex",
@@ -167,7 +162,7 @@ const Sidebar = ({ open, onToggleSidebar }) => {
 
       <Divider sx={{ borderColor: "rgba(255,255,255,0.2)" }} />
 
-      {/* ✅ Navigation Links */}
+      {/* ✅ Menu Items */}
       <Box sx={{ mt: 1 }}>
         <List>
           {navItems.map((item) => {
@@ -176,25 +171,18 @@ const Sidebar = ({ open, onToggleSidebar }) => {
             if (item.children) {
               return (
                 <Box key={item.text}>
-                  <Tooltip
-                    title={open ? "" : item.text}
-                    placement="right"
-                    arrow
-                  >
+                  <Tooltip title={open ? "" : item.text} placement="right" arrow>
                     <ListItemButton
                       onClick={handleToggleIncome}
                       sx={{
                         color: "#fff",
                         "&:hover": {
-                          backgroundColor: "rgba(255, 255, 255, 0.15)",
+                          backgroundColor: "rgba(255,255,255,0.15)",
                         },
                       }}
                     >
                       <ListItemIcon
-                        sx={{
-                          color: "#fff",
-                          minWidth: open ? 40 : "auto",
-                        }}
+                        sx={{ color: "#fff", minWidth: open ? 40 : "auto" }}
                       >
                         {item.icon}
                       </ListItemIcon>
@@ -214,10 +202,10 @@ const Sidebar = ({ open, onToggleSidebar }) => {
                             color: "#fff",
                             backgroundColor:
                               location.pathname === child.path
-                                ? "rgba(255, 255, 255, 0.25)"
+                                ? "rgba(255,255,255,0.25)"
                                 : "transparent",
                             "&:hover": {
-                              backgroundColor: "rgba(255, 255, 255, 0.15)",
+                              backgroundColor: "rgba(255,255,255,0.15)",
                             },
                           }}
                           onClick={() => handleNavigate(child.path)}
@@ -251,18 +239,15 @@ const Sidebar = ({ open, onToggleSidebar }) => {
                   sx={{
                     color: "#fff",
                     backgroundColor: isActive
-                      ? "rgba(255, 255, 255, 0.25)"
+                      ? "rgba(255,255,255,0.25)"
                       : "transparent",
                     "&:hover": {
-                      backgroundColor: "rgba(255, 255, 255, 0.15)",
+                      backgroundColor: "rgba(255,255,255,0.15)",
                     },
                   }}
                 >
                   <ListItemIcon
-                    sx={{
-                      color: "#fff",
-                      minWidth: open ? 40 : "auto",
-                    }}
+                    sx={{ color: "#fff", minWidth: open ? 40 : "auto" }}
                   >
                     {item.icon}
                   </ListItemIcon>
@@ -312,8 +297,8 @@ const Sidebar = ({ open, onToggleSidebar }) => {
             transition: "width 0.3s ease",
             overflowX: "hidden",
             backdropFilter: "blur(15px)",
-            background: "rgba(255, 255, 255, 0.12)",
-            borderRight: "1px solid rgba(255, 255, 255, 0.2)",
+            background: "rgba(255,255,255,0.12)",
+            borderRight: "1px solid rgba(255,255,255,0.2)",
             boxShadow: "0 8px 32px 0 rgba(31, 38, 135, 0.37)",
             color: "#fff",
           },
