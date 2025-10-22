@@ -280,7 +280,7 @@ const Topbar = ({ open, onToggleSidebar }) => {
           eWallet: currentWallet - price,
         });
 
-        // Generate random code
+        // Generate random code 
         const randomCode = `TCLC-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
 
         // Save to Firestore
@@ -657,7 +657,6 @@ const Topbar = ({ open, onToggleSidebar }) => {
                 onChange={(e) => setCodeType(e.target.value)}
               >
                 <MenuItem value="Activate Capital Share">Activate Capital Share</MenuItem>
-                <MenuItem value="Activate Genealogy Tree">Activate Genealogy Tree</MenuItem>
                 <MenuItem value="Downline Code">Downline Code</MenuItem>
               </TextField>
               <Typography variant="body2" sx={{ mt: 1.5, color: "gray" }}>
