@@ -350,15 +350,15 @@ const MemberPayback = () => {
         {/* Summary Cards */}
         <Grid container spacing={3} sx={{ mb: 2 }}>
           <Grid item xs={12} md={6}>
-            <Card sx={{ backgroundColor: "rgba(231, 237, 241, 0.53)", borderRadius: 3 }}>
+            <Card sx={{ backgroundColor: "rgba(231, 237, 241, 0.53)", borderRadius: 3, width: 380 }}>
               <CardContent>
-                <Typography variant="h6">Total Contribution</Typography>
+                <Typography variant="h6" >Total Contribution</Typography>
                 <Typography variant="h4">₱{Number(totalContribution).toFixed(2)}</Typography>
               </CardContent>
             </Card>
           </Grid>
           <Grid item xs={12} md={6}>
-            <Card sx={{ backgroundColor: "rgba(231, 237, 241, 0.53)", borderRadius: 3 }}>
+            <Card sx={{ backgroundColor: "rgba(231, 237, 241, 0.53)", borderRadius: 3 , width: 380}}>
               <CardContent>
                 <Typography variant="h6">Total Passive Income</Typography>
                 <Typography variant="h4">₱{Number(totalPassiveIncome).toFixed(2)}</Typography>

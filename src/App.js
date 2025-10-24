@@ -26,9 +26,6 @@ import MemberDashboard from "./pages/member/memberDashboard";
 import MemberPayback from "./pages/member/memberPayback";
 import MemberCapitalShare from "./pages/member/memberCapitalShare";
 
-// CEO page
-import CEODashboard from "./pages/ceo/ceoDashboard";
-
 import "leaflet/dist/leaflet.css";
 
 function App() {
@@ -52,10 +49,11 @@ function App() {
   // 🔐 ROUTE GUARDS
   // =====================================================
   const AdminRoute = ({ children }) =>
-    role?.toUpperCase() === "ADMIN" ? children : <Navigate to="/login" />;
-
-  const CEORoute = ({ children }) =>
-    role?.toUpperCase() === "CEO" ? children : <Navigate to="/login" />;
+    ["ADMIN", "CEO"].includes(role?.toUpperCase()) ? (
+      children
+    ) : (
+      <Navigate to="/login" />
+    );
 
   const MemberRoute = ({ children }) =>
     ["MASTERMD", "MD", "MS", "MI", "AGENT", "MEMBER"].includes(
@@ -78,10 +76,8 @@ function App() {
       const upperRole = userRole?.toUpperCase();
 
       if (["/damayan-savings/", "/damayan-savings/login"].includes(path)) {
-        if (upperRole === "ADMIN") {
+        if (["ADMIN", "CEO"].includes(upperRole)) {
           window.location.replace("/damayan-savings/admin/dashboard");
-        } else if (upperRole === "CEO") {
-          window.location.replace("/damayan-savings/ceo/dashboard");
         } else if (
           ["MASTERMD", "MD", "MS", "MI", "AGENT", "MEMBER"].includes(upperRole)
         ) {
@@ -154,16 +150,6 @@ function App() {
                 <AdminRoute>
                   <AdminProfile />
                 </AdminRoute>
-              }
-            />
-
-            {/* CEO Route */}
-            <Route
-              path="/ceo/dashboard"
-              element={
-                <CEORoute>
-                  <CEODashboard />
-                </CEORoute>
               }
             />
 

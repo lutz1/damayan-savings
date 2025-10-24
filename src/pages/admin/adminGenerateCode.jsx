@@ -2,140 +2,86 @@ import React, { useEffect, useState } from "react";
 import {
   Box,
   Typography,
-  Button,
   Paper,
-  CircularProgress,
   Grid,
-  Divider,
+  CircularProgress,
   Toolbar,
 } from "@mui/material";
-import {
-  collection,
-  addDoc,
-  getDocs,
-  updateDoc,
-  doc,
-  serverTimestamp,
-  deleteDoc,
-  query,
-  where,
-} from "firebase/firestore";
+import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase";
 import Sidebar from "../../components/Sidebar";
 import Topbar from "../../components/Topbar";
-import bgImage from "../../assets/bg.jpg"; // ✅ background image
-
-// ✅ Toggle dummy mode (no Firebase connection needed)
-const USE_DUMMY_DATA = true;
-
-// ✅ Helper to generate unique 8-char alphanumeric codes
-const generateRandomCode = () => {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  return Array.from({ length: 8 }, () =>
-    chars.charAt(Math.floor(Math.random() * chars.length))
-  ).join("");
-};
+import bgImage from "../../assets/bg.jpg";
+import {
+  BarChart,
+  BarPlot,
+  PieChart,
+  pieArcLabelClasses,
+  axisClasses,
+} from "@mui/x-charts";
+import { motion } from "framer-motion";
+import { useTheme } from "@mui/material/styles";
 
 const AdminGenerateCode = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loading, setLoading] = useState(true);
-  const [requests, setRequests] = useState([]);
-  const [processing, setProcessing] = useState(null);
+  const [codes, setCodes] = useState([]);
+  const [totalSales, setTotalSales] = useState(0);
+  const theme = useTheme();
 
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
 
-  // ✅ Fetch pending code requests (dummy or real)
+  // ✅ Real-time Firestore fetch
   useEffect(() => {
-    const fetchRequests = async () => {
-      if (USE_DUMMY_DATA) {
-        // 💡 Dummy pending requests
-        setTimeout(() => {
-          setRequests([
-            { id: "1", role: "Marketing Director (MD)", requestedBy: "John Doe" },
-            { id: "2", role: "Marketing Supervisor (MS)", requestedBy: "Jane Smith" },
-            { id: "3", role: "Agent", requestedBy: "Alex Lee" },
-          ]);
-          setLoading(false);
-        }, 800);
-        return;
-      }
+    const unsub = onSnapshot(collection(db, "purchaseCodes"), (snapshot) => {
+      const data = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
 
-      try {
-        const q = query(collection(db, "codeRequests"), where("status", "==", "pending"));
-        const snapshot = await getDocs(q);
-        const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        setRequests(data);
-      } catch (error) {
-        console.error("Error fetching code requests:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+      // Sort by createdAt (newest first)
+      const sorted = data.sort(
+        (a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)
+      );
 
-    fetchRequests();
+      // Compute total sales
+      const total = sorted.reduce(
+        (acc, curr) => acc + (Number(curr.amount) || 0),
+        0
+      );
+
+      setCodes(sorted);
+      setTotalSales(total);
+      setLoading(false);
+    });
+
+    return () => unsub();
   }, []);
 
-  // ✅ Generate and store a code for a specific request
-  const handleGenerateCode = async (req) => {
-    setProcessing(req.id);
-    try {
-      const code = generateRandomCode();
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours validity
+  // ✅ Aggregate sales per code
+  const salesPerCode = codes.reduce((acc, curr) => {
+    const code = curr.code || "Unknown";
+    acc[code] = (acc[code] || 0) + (Number(curr.amount) || 0);
+    return acc;
+  }, {});
 
-      if (USE_DUMMY_DATA) {
-        // 🧪 Just simulate generation
-        await new Promise((res) => setTimeout(res, 1200));
-        alert(`✅ Dummy code for ${req.role} generated: ${code}`);
-        setRequests((prev) => prev.filter((r) => r.id !== req.id));
-        setProcessing(null);
-        return;
-      }
+  const barData = Object.entries(salesPerCode).map(([code, amount]) => ({
+    code,
+    amount,
+  }));
 
-      // 🧩 Firestore operations (real mode)
-      await addDoc(collection(db, "generatedCodes"), {
-        role: req.role,
-        code,
-        createdAt: serverTimestamp(),
-        expiresAt,
-        used: false,
-      });
+  const pieData = Object.entries(salesPerCode).map(([code, amount]) => ({
+    label: code,
+    value: amount,
+  }));
 
-      await updateDoc(doc(db, "codeRequests", req.id), {
-        status: "completed",
-        generatedCode: code,
-      });
+  const totalPieValue = pieData.reduce((a, b) => a + b.value, 0);
 
-      setRequests((prev) => prev.filter((r) => r.id !== req.id));
-      alert(`✅ Code for ${req.role} generated: ${code}`);
-    } catch (error) {
-      console.error("Error generating code:", error);
-    } finally {
-      setProcessing(null);
-    }
+  // ✨ Motion Variants for Smooth Animation
+  const fadeIn = {
+    hidden: { opacity: 0, y: 40 },
+    show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: "easeOut" } },
   };
-
-  // ✅ Cleanup expired codes (only runs if Firestore connected)
-  const cleanupExpiredCodes = async () => {
-    if (USE_DUMMY_DATA) return;
-    try {
-      const now = new Date();
-      const q = query(collection(db, "generatedCodes"));
-      const snapshot = await getDocs(q);
-
-      snapshot.forEach(async (docSnap) => {
-        const data = docSnap.data();
-        if (data.expiresAt && data.expiresAt.toDate() < now) {
-          await deleteDoc(doc(db, "generatedCodes", docSnap.id));
-        }
-      });
-    } catch (error) {
-      console.error("Error cleaning up expired codes:", error);
-    }
-  };
-
-  useEffect(() => {
-    cleanupExpiredCodes();
-  }, []);
 
   return (
     <Box
@@ -154,7 +100,7 @@ const AdminGenerateCode = () => {
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: "rgba(0, 0, 0, 0.1)",
+          backgroundColor: "rgba(0, 0, 0, 0.25)",
           zIndex: 0,
         },
       }}
@@ -174,8 +120,8 @@ const AdminGenerateCode = () => {
         component="main"
         sx={{
           flexGrow: 1,
-          p: 4,
-          mt: 8,
+          p: { xs: 2, sm: 3, md: 2 },
+          mt: 0,
           color: "white",
           zIndex: 1,
           width: `calc(100% - ${sidebarOpen ? 240 : 60}px)`,
@@ -185,67 +131,218 @@ const AdminGenerateCode = () => {
       >
         <Toolbar />
 
-        <Box
-          sx={{
-            p: 4,
-            color: "white",
-            backdropFilter: "blur(12px)",
+        <motion.div
+          variants={fadeIn}
+          initial="hidden"
+          animate="show"
+          style={{
+            backdropFilter: "blur(14px)",
             background: "rgba(255, 255, 255, 0.1)",
             borderRadius: "16px",
             boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
+            padding: "24px",
           }}
         >
           <Typography variant="h4" gutterBottom>
-            Generate Access Codes
+            Purchase Codes Analytics
           </Typography>
-          <Typography variant="subtitle1" sx={{ mb: 2 }}>
-            Handle pending code requests for marketing roles.
+          <Typography variant="subtitle1" sx={{ mb: 3 }}>
+            Real-time data of all purchased access codes and total sales.
           </Typography>
-
-          <Divider sx={{ mb: 3, borderColor: "rgba(255,255,255,0.2)" }} />
 
           {loading ? (
             <CircularProgress color="inherit" />
-          ) : requests.length === 0 ? (
-            <Typography>No pending code requests.</Typography>
           ) : (
-            <Grid container spacing={2}>
-              {requests.map((req) => (
-                <Grid item xs={12} sm={6} md={4} key={req.id}>
+            <>
+              {/* 🧮 Summary Section */}
+              <motion.div
+                variants={fadeIn}
+                initial="hidden"
+                animate="show"
+                transition={{ delay: 0.2 }}
+              >
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: { xs: "column", sm: "row" },
+                    justifyContent: "space-between",
+                    alignItems: { xs: "flex-start", sm: "center" },
+                    mb: 4,
+                  }}
+                >
+                  <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                    💰 Total Sales: ₱{totalSales.toLocaleString()}
+                  </Typography>
+                  <Typography variant="body1" sx={{ opacity: 0.8 }}>
+                    {codes.length} Purchases Recorded
+                  </Typography>
+                </Box>
+              </motion.div>
+
+              {/* 📊 Charts Section */}
+              <Grid container spacing={3}>
+                {/* 📈 Bar Chart */}
+                <Grid item xs={12} md={8}>
+                  <motion.div
+                    variants={fadeIn}
+                    initial="hidden"
+                    animate="show"
+                    transition={{ delay: 0.3 }}
+                  >
+                    <Paper
+                      sx={{
+                        p: 2,
+                        height: 400,
+                        background: "rgba(255, 255, 255, 0.15)",
+                        borderRadius: "16px",
+                        backdropFilter: "blur(10px)",
+                      }}
+                    >
+                      <Typography variant="h6" sx={{ mb: 2 }}>
+                        Sales per Code
+                      </Typography>
+                      <BarChart
+                        dataset={barData}
+                        xAxis={[{ dataKey: "code", scaleType: "band" }]}
+                        yAxis={[{ label: "Sales (₱)" }]}
+                        series={[
+                          {
+                            dataKey: "amount",
+                            color: theme.palette.success.light,
+                          },
+                        ]}
+                        height={320}
+                        grid={{ vertical: true, horizontal: true }}
+                        sx={{
+                          [`.${axisClasses.root}`]: { stroke: "#ccc" },
+                          "& .MuiChartsAxis-label": { fill: "#fff" },
+                          "& .MuiChartsAxis-tickLabel": { fill: "#fff" },
+                          "& .MuiBarElement-root": {
+                            transition: "all 0.4s ease",
+                          },
+                        }}
+                      >
+                        <BarPlot />
+                      </BarChart>
+                    </Paper>
+                  </motion.div>
+                </Grid>
+
+                {/* 🥧 Pie Chart */}
+                <Grid item xs={12} md={4}>
+                  <motion.div
+                    variants={fadeIn}
+                    initial="hidden"
+                    animate="show"
+                    transition={{ delay: 0.4 }}
+                  >
+                    <Paper
+                      sx={{
+                        p: 2,
+                        height: 400,
+                        background: "rgba(255, 255, 255, 0.15)",
+                        borderRadius: "16px",
+                        backdropFilter: "blur(10px)",
+                      }}
+                    >
+                      <Typography variant="h6" sx={{ mb: 2 }}>
+                        Code Sales Distribution
+                      </Typography>
+                      <PieChart
+                        series={[
+                          {
+                            arcLabel: (item) =>
+                              `${item.label} (${(
+                                (item.value / totalPieValue) *
+                                100
+                              ).toFixed(1)}%)`,
+                            arcLabelMinAngle: 15,
+                            data: pieData,
+                          },
+                        ]}
+                        height={320}
+                        sx={{
+                          [`& .${pieArcLabelClasses.root}`]: {
+                            fill: "#fff",
+                            fontSize: 12,
+                          },
+                        }}
+                      />
+                    </Paper>
+                  </motion.div>
+                </Grid>
+              </Grid>
+
+              {/* 📋 Table Section */}
+              <motion.div
+                variants={fadeIn}
+                initial="hidden"
+                animate="show"
+                transition={{ delay: 0.5 }}
+              >
+                <Box sx={{ mt: 5 }}>
+                  <Typography variant="h6" sx={{ mb: 2 }}>
+                    Purchase Details
+                  </Typography>
                   <Paper
-                    elevation={3}
                     sx={{
                       p: 2,
                       background: "rgba(255, 255, 255, 0.15)",
-                      color: "white",
-                      backdropFilter: "blur(10px)",
-                      borderRadius: "12px",
-                      textAlign: "center",
+                      borderRadius: "16px",
+                      backdropFilter: "blur(8px)",
+                      overflowX: "auto",
                     }}
                   >
-                    <Typography variant="h6">{req.role}</Typography>
-                    <Typography variant="body2" sx={{ mb: 2 }}>
-                      Requested by: {req.requestedBy || "Unknown"}
-                    </Typography>
-                    <Button
-                      variant="contained"
-                      onClick={() => handleGenerateCode(req)}
-                      disabled={processing === req.id}
-                      sx={{
-                        mt: 1,
-                        background: "rgba(255,255,255,0.2)",
-                        backdropFilter: "blur(5px)",
-                        "&:hover": { background: "rgba(255,255,255,0.3)" },
+                    <table
+                      style={{
+                        width: "100%",
+                        borderCollapse: "collapse",
+                        color: "white",
                       }}
                     >
-                      {processing === req.id ? "Generating..." : "Generate Code"}
-                    </Button>
+                      <thead>
+                        <tr
+                          style={{
+                            background: "rgba(255,255,255,0.1)",
+                            textAlign: "left",
+                          }}
+                        >
+                          <th style={{ padding: "8px" }}>Code</th>
+                          <th style={{ padding: "8px" }}>Amount (₱)</th>
+                          <th style={{ padding: "8px" }}>Purchased By</th>
+                          <th style={{ padding: "8px" }}>Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {codes.map((code) => (
+                          <tr key={code.id}>
+                            <td style={{ padding: "8px" }}>{code.code}</td>
+                            <td style={{ padding: "8px" }}>
+                              ₱{Number(code.amount || 0).toLocaleString()}
+                            </td>
+                            <td style={{ padding: "8px" }}>
+                              {code.purchasedBy?.name ||
+                                code.name ||
+                                code.userName ||
+                                "Unnamed User"}
+                            </td>
+                            <td style={{ padding: "8px" }}>
+                              {code.createdAt?.seconds
+                                ? new Date(
+                                    code.createdAt.seconds * 1000
+                                  ).toLocaleString()
+                                : "--"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </Paper>
-                </Grid>
-              ))}
-            </Grid>
+                </Box>
+              </motion.div>
+            </>
           )}
-        </Box>
+        </motion.div>
       </Box>
     </Box>
   );

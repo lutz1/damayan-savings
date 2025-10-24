@@ -1,4 +1,3 @@
-// src/components/Sidebar.jsx
 import React, { useState } from "react";
 import {
   Drawer,
@@ -40,6 +39,7 @@ const Sidebar = ({ open, onToggleSidebar }) => {
 
   // ✅ Get user role
   const role = localStorage.getItem("userRole");
+  const upperRole = role?.toUpperCase();
 
   // =====================================================
   // 🧭 NAVIGATION ITEMS
@@ -69,7 +69,6 @@ const Sidebar = ({ open, onToggleSidebar }) => {
     { text: "Profile", icon: <AccountCircleIcon />, path: "/admin/profile" },
   ];
 
-  // ✅ Member navigation (Genealogy removed)
   const memberNav = [
     { text: "Dashboard", icon: <DashboardIcon />, path: "/member/dashboard" },
     {
@@ -88,12 +87,13 @@ const Sidebar = ({ open, onToggleSidebar }) => {
         },
       ],
     },
-    // ❌ Genealogy Tree removed
     { text: "Profile", icon: <AccountCircleIcon />, path: "/member/profile" },
   ];
 
-  const navItems =
-    role?.toUpperCase() === "ADMIN" ? adminNav : memberNav;
+  // ✅ CEO shares admin sidebar
+  const navItems = ["ADMIN", "CEO"].includes(upperRole)
+    ? adminNav
+    : memberNav;
 
   // =====================================================
   // ⚙️ HANDLERS
@@ -123,29 +123,52 @@ const Sidebar = ({ open, onToggleSidebar }) => {
       >
         {open && (
           <Box
-            component="img"
-            src={damayanLogo}
-            alt="Damayan Logo"
             sx={{
-              width: 160,
-              height: "auto",
-              ml: 1,
-              cursor: "pointer",
-              filter: `
-                drop-shadow(0 0 6px rgba(255,255,255,0.7))
-                drop-shadow(0 0 12px rgba(0,200,255,0.5))
-              `,
-              transition: "transform 0.3s ease, filter 0.3s ease",
-              "&:hover": {
-                transform: "scale(1.05)",
-                filter: `
-                  drop-shadow(0 0 10px rgba(255,255,255,0.8))
-                  drop-shadow(0 0 20px rgba(0,200,255,0.6))
-                `,
-              },
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              mt: -1,
             }}
-            onClick={() => navigate("/")}
-          />
+          >
+            <Box
+              component="img"
+              src={damayanLogo}
+              alt="Damayan Logo"
+              sx={{
+                width: 160,
+                height: "auto",
+                ml: 1,
+                cursor: "pointer",
+                filter: `
+                  drop-shadow(0 0 6px rgba(255,255,255,0.7))
+                  drop-shadow(0 0 12px rgba(0,200,255,0.5))
+                `,
+                transition: "transform 0.3s ease, filter 0.3s ease",
+                "&:hover": {
+                  transform: "scale(1.05)",
+                  filter: `
+                    drop-shadow(0 0 10px rgba(255,255,255,0.8))
+                    drop-shadow(0 0 20px rgba(0,200,255,0.6))
+                  `,
+                },
+              }}
+              onClick={() => navigate("/")}
+            />
+
+            {/* ✅ Role label (ADMIN / CEO) */}
+            <Box
+              sx={{
+                mt: 1,
+                fontSize: "0.8rem",
+                color: "rgba(255,255,255,0.8)",
+                fontWeight: "bold",
+                letterSpacing: "0.5px",
+                textTransform: "uppercase",
+              }}
+            >
+              {upperRole}
+            </Box>
+          </Box>
         )}
 
         <IconButton
@@ -187,8 +210,7 @@ const Sidebar = ({ open, onToggleSidebar }) => {
                         {item.icon}
                       </ListItemIcon>
                       {open && <ListItemText primary={item.text} />}
-                      {open &&
-                        (incomeOpen ? <ExpandLess /> : <ExpandMore />)}
+                      {open && (incomeOpen ? <ExpandLess /> : <ExpandMore />)}
                     </ListItemButton>
                   </Tooltip>
 

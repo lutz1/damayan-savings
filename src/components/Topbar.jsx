@@ -33,7 +33,6 @@ import {
   Send as TransferIcon,
   MonetizationOn as WithdrawIcon,
   Email as EmailIcon,
-  Lock as LockIcon,
   KeyboardArrowRight as CloseIcon,
   Menu as MenuIcon,
   GroupAdd as InviteIcon,
@@ -87,7 +86,6 @@ const Topbar = ({ open, onToggleSidebar }) => {
     name: "",
     email: "",
     eWallet: 0,
-    lockInBalance: 1000,
     role: "member",
   });
 
@@ -104,22 +102,12 @@ const Topbar = ({ open, onToggleSidebar }) => {
         async (docSnap) => {
           if (docSnap.exists()) {
             const data = docSnap.data();
-            let rawWallet = Number(data.eWallet) || 0;
-            let lockInBalance = 0;
-            let displayWallet = rawWallet;
-
-            if (rawWallet >= 1000) {
-              lockInBalance = 1000;
-              displayWallet = rawWallet - 1000;
-            }
-
-            if (displayWallet < 0) displayWallet = 0;
+            const rawWallet = Number(data.eWallet) || 0;
 
             setUserData({
               name: data.name || "Unknown User",
               email: data.email || currentUser.email || "No email",
-              eWallet: displayWallet,
-              lockInBalance,
+              eWallet: rawWallet,
               role: data.role || "member",
             });
 
@@ -144,7 +132,6 @@ const Topbar = ({ open, onToggleSidebar }) => {
             name: "Unknown User",
             email: currentUser?.email || "",
             eWallet: 0,
-            lockInBalance: 0,
             role: "member",
           });
         }
@@ -205,7 +192,8 @@ const Topbar = ({ open, onToggleSidebar }) => {
       } = inviteForm;
 
       if (!activationCode) return alert("Please select an activation code.");
-      if (!username || !fullName || !email) return alert("Please fill all required fields.");
+      if (!username || !fullName || !email)
+        return alert("Please fill all required fields.");
 
       const q = query(
         collection(db, "purchaseCodes"),
@@ -222,7 +210,6 @@ const Topbar = ({ open, onToggleSidebar }) => {
       const codeDoc = snapshot.docs[0];
       const codeRef = codeDoc.ref;
 
-      // Create pending registration (not yet in users)
       const pendingData = {
         activationCode,
         upline: userData.name,
@@ -237,8 +224,6 @@ const Topbar = ({ open, onToggleSidebar }) => {
       };
 
       await addDoc(collection(db, "pendingInvites"), pendingData);
-
-      // Mark activation code temporarily as reserved
       await updateDoc(codeRef, { used: true });
 
       alert(
@@ -251,7 +236,7 @@ const Topbar = ({ open, onToggleSidebar }) => {
     }
   };
 
-  // Handle submit for all dialogs (purchase / transfer / other)
+  // Handle submit for all dialogs
   const handleSubmitAction = async () => {
     try {
       const user = auth.currentUser;
@@ -267,23 +252,22 @@ const Topbar = ({ open, onToggleSidebar }) => {
       if (dialog === "purchase") {
         if (!codeType) return alert("Please select a code type to purchase.");
 
-        // Set price: Downline Code = 600, others = 500
         const price = codeType === "Downline Code" ? 600 : 500;
 
         if (currentWallet < price) {
-          alert(`Insufficient wallet balance. ₱${price} is required to purchase this code.`);
+          alert(
+            `Insufficient wallet balance. ₱${price} is required to purchase this code.`
+          );
           return;
         }
 
-        // Deduct amount
-        await updateDoc(userRef, {
-          eWallet: currentWallet - price,
-        });
+        await updateDoc(userRef, { eWallet: currentWallet - price });
 
-        // Generate random code 
-        const randomCode = `TCLC-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+        const randomCode = `TCLC-${Math.random()
+          .toString(36)
+          .substring(2, 10)
+          .toUpperCase()}`;
 
-        // Save to Firestore
         await addDoc(collection(db, "purchaseCodes"), {
           userId: user.uid,
           name: data.name || "Unknown User",
@@ -299,12 +283,15 @@ const Topbar = ({ open, onToggleSidebar }) => {
           `✅ Purchase successful!\nType: ${codeType}\nCode: ${randomCode}\n₱${price} has been deducted from your wallet.`
         );
       } else if (dialog === "transfer") {
-        // Example: handle transfer dialog (if implemented)
-        if (!recipient || !amount) return alert("Recipient and amount required.");
-        // ...transfer logic (not implemented in original)...
+        if (!recipient || !amount)
+          return alert("Recipient and amount required.");
         alert(`Transfer requested: ${amount} to ${recipient}`);
       } else {
-        alert(`Action: ${dialog}\nAmount: ₱${amount}\nRecipient: ${recipient || "N/A"}`);
+        alert(
+          `Action: ${dialog}\nAmount: ₱${amount}\nRecipient: ${
+            recipient || "N/A"
+          }`
+        );
       }
 
       handleCloseDialog();
@@ -503,13 +490,6 @@ const Topbar = ({ open, onToggleSidebar }) => {
                     <Typography variant="h5" sx={{ color: "#4CAF50", fontWeight: 700 }}>
                       ₱
                       {userData.eWallet.toLocaleString("en-PH", {
-                        minimumFractionDigits: 2,
-                      })}
-                    </Typography>
-                    <Typography variant="body2" sx={{ mt: 1, color: "rgba(255,255,255,0.6)" }}>
-                      <LockIcon fontSize="small" sx={{ mr: 0.5 }} />
-                      Lock-in Balance: ₱
-                      {userData.lockInBalance.toLocaleString("en-PH", {
                         minimumFractionDigits: 2,
                       })}
                     </Typography>
