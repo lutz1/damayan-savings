@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+/* eslint-disable no-unused-vars */
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -9,6 +10,8 @@ import {
   Divider,
   Toolbar,
 } from "@mui/material";
+import { doc, updateDoc, onSnapshot, collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "../../firebase";
 import Sidebar from "../../components/Sidebar";
 import Topbar from "../../components/Topbar";
 import bgImage from "../../assets/bg.jpg";
@@ -16,26 +19,105 @@ import bgImage from "../../assets/bg.jpg";
 const AdminProfile = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
+  const [admin, setAdmin] = useState(null);
+  const [form, setForm] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [unsubscribe, setUnsubscribe] = useState(null);
 
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
 
-  // ✅ Dummy admin data
-  const [admin, setAdmin] = useState({
-    name: "John Admin",
-    email: "admin@example.com",
-    contact: "+1 555 123 4567",
-    role: "System Administrator",
-    joinedDate: "January 5, 2023",
-  });
+  // 🔥 Real-time Firestore connection (safe + stable)
+  useEffect(() => {
+    const adminEmail = "johnn.onezero@gmail.com"; // TODO: replace with current admin's email from Auth
+    let unsubscribeFn = null;
 
-  const [form, setForm] = useState({ ...admin });
+    const fetchAdmin = async () => {
+      try {
+        const q = query(collection(db, "users"), where("email", "==", adminEmail));
+        const snapshot = await getDocs(q);
 
-  const handleEditToggle = () => {
-    if (isEditing) {
-      setAdmin(form);
+        if (!snapshot.empty) {
+          const adminDoc = snapshot.docs[0];
+          const docRef = doc(db, "users", adminDoc.id);
+
+          // ✅ Attach real-time listener safely
+          unsubscribeFn = onSnapshot(
+            docRef,
+            (docSnap) => {
+              if (docSnap.exists()) {
+                const data = docSnap.data();
+                setAdmin(data);
+                setForm(data);
+                setLoading(false);
+              }
+            },
+            (error) => {
+              console.error("onSnapshot error:", error);
+              setLoading(false);
+            }
+          );
+
+          setUnsubscribe(() => unsubscribeFn);
+        } else {
+          console.warn("⚠️ No admin found with that email.");
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error("Error fetching admin profile:", error);
+        setLoading(false);
+      }
+    };
+
+    fetchAdmin();
+
+    // ✅ Proper cleanup to prevent “Unexpected state” crash
+    return () => {
+      if (unsubscribeFn) {
+        unsubscribeFn();
+      }
+    };
+  }, []);
+
+  const handleChange = (field, value) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleEditToggle = async () => {
+    if (isEditing && admin?.email) {
+      try {
+        const q = query(collection(db, "users"), where("email", "==", admin.email));
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          const adminDoc = snapshot.docs[0];
+          const docRef = doc(db, "users", adminDoc.id);
+          await updateDoc(docRef, {
+            name: form.name || "",
+            contactNumber: form.contactNumber || "",
+            email: form.email || "",
+          });
+        }
+      } catch (err) {
+        console.error("Error updating profile:", err);
+      }
     }
     setIsEditing((prev) => !prev);
   };
+
+  if (loading) {
+    return (
+      <Typography variant="h6" sx={{ color: "white", textAlign: "center", mt: 10 }}>
+        Loading profile...
+      </Typography>
+    );
+  }
+
+  if (!admin) {
+    return (
+      <Typography variant="h6" sx={{ color: "white", textAlign: "center", mt: 10 }}>
+        No admin profile found.
+      </Typography>
+    );
+  }
 
   return (
     <Box
@@ -107,92 +189,68 @@ const AdminProfile = () => {
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
+                label="Username"
+                value={form.username || ""}
+                InputProps={{
+                  readOnly: true,
+                  style: { color: "white" },
+                }}
+                InputLabelProps={{ style: { color: "white" } }}
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
                 label="Full Name"
-                value={isEditing ? form.name : admin.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                value={form.name || ""}
+                onChange={(e) => handleChange("name", e.target.value)}
                 InputProps={{
                   readOnly: !isEditing,
                   style: { color: "white" },
                 }}
                 InputLabelProps={{ style: { color: "white" } }}
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    "& fieldset": { borderColor: "rgba(255,255,255,0.3)" },
-                    "&:hover fieldset": { borderColor: "white" },
-                  },
-                }}
               />
             </Grid>
+
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
                 label="Email"
-                value={isEditing ? form.email : admin.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                value={form.email || ""}
+                onChange={(e) => handleChange("email", e.target.value)}
                 InputProps={{
                   readOnly: !isEditing,
                   style: { color: "white" },
                 }}
                 InputLabelProps={{ style: { color: "white" } }}
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    "& fieldset": { borderColor: "rgba(255,255,255,0.3)" },
-                    "&:hover fieldset": { borderColor: "white" },
-                  },
-                }}
               />
             </Grid>
+
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
                 label="Contact Number"
-                value={isEditing ? form.contact : admin.contact}
-                onChange={(e) => setForm({ ...form, contact: e.target.value })}
+                value={form.contactNumber || ""}
+                onChange={(e) => handleChange("contactNumber", e.target.value)}
                 InputProps={{
                   readOnly: !isEditing,
                   style: { color: "white" },
                 }}
                 InputLabelProps={{ style: { color: "white" } }}
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    "& fieldset": { borderColor: "rgba(255,255,255,0.3)" },
-                    "&:hover fieldset": { borderColor: "white" },
-                  },
-                }}
               />
             </Grid>
+
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
                 label="Role"
-                value={admin.role}
+                value={form.role || "admin"}
                 InputProps={{
                   readOnly: true,
                   style: { color: "white" },
                 }}
                 InputLabelProps={{ style: { color: "white" } }}
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    "& fieldset": { borderColor: "rgba(255,255,255,0.3)" },
-                  },
-                }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Joined Date"
-                value={admin.joinedDate}
-                InputProps={{
-                  readOnly: true,
-                  style: { color: "white" },
-                }}
-                InputLabelProps={{ style: { color: "white" } }}
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    "& fieldset": { borderColor: "rgba(255,255,255,0.3)" },
-                  },
-                }}
               />
             </Grid>
           </Grid>

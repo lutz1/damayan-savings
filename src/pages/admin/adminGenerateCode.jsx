@@ -1,24 +1,24 @@
-import React, { useEffect, useState } from "react";
+// src/pages/admin/AdminGenerateCode.jsx
+import React, { useEffect, useState, useMemo } from "react";
 import {
   Box,
   Typography,
   Paper,
-  Grid,
   CircularProgress,
   Toolbar,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  TablePagination,
 } from "@mui/material";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase";
 import Sidebar from "../../components/Sidebar";
 import Topbar from "../../components/Topbar";
 import bgImage from "../../assets/bg.jpg";
-import {
-  BarChart,
-  BarPlot,
-  PieChart,
-  pieArcLabelClasses,
-  axisClasses,
-} from "@mui/x-charts";
+import { LineChart } from "@mui/x-charts";
 import { motion } from "framer-motion";
 import { useTheme } from "@mui/material/styles";
 
@@ -27,11 +27,15 @@ const AdminGenerateCode = () => {
   const [loading, setLoading] = useState(true);
   const [codes, setCodes] = useState([]);
   const [totalSales, setTotalSales] = useState(0);
+
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+
   const theme = useTheme();
 
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
 
-  // ✅ Real-time Firestore fetch
+  // 🔥 Real-time Firestore fetch
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "purchaseCodes"), (snapshot) => {
       const data = snapshot.docs.map((doc) => ({
@@ -39,12 +43,10 @@ const AdminGenerateCode = () => {
         ...doc.data(),
       }));
 
-      // Sort by createdAt (newest first)
       const sorted = data.sort(
         (a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)
       );
 
-      // Compute total sales
       const total = sorted.reduce(
         (acc, curr) => acc + (Number(curr.amount) || 0),
         0
@@ -58,29 +60,31 @@ const AdminGenerateCode = () => {
     return () => unsub();
   }, []);
 
-  // ✅ Aggregate sales per code
-  const salesPerCode = codes.reduce((acc, curr) => {
-    const code = curr.code || "Unknown";
-    acc[code] = (acc[code] || 0) + (Number(curr.amount) || 0);
-    return acc;
-  }, {});
+  // 🧠 Memoized chart data
+  const lineChartData = useMemo(() => {
+    const salesByDate = codes.reduce((acc, curr) => {
+      if (!curr.createdAt?.seconds) return acc;
+      const date = new Date(curr.createdAt.seconds * 1000).toLocaleDateString();
+      acc[date] = (acc[date] || 0) + (Number(curr.amount) || 0);
+      return acc;
+    }, {});
 
-  const barData = Object.entries(salesPerCode).map(([code, amount]) => ({
-    code,
-    amount,
-  }));
+    return Object.entries(salesByDate)
+      .sort((a, b) => new Date(a[0]) - new Date(b[0]))
+      .map(([date, total]) => ({ date, total }));
+  }, [codes]);
 
-  const pieData = Object.entries(salesPerCode).map(([code, amount]) => ({
-    label: code,
-    value: amount,
-  }));
-
-  const totalPieValue = pieData.reduce((a, b) => a + b.value, 0);
-
-  // ✨ Motion Variants for Smooth Animation
+  // 🪄 Animations
   const fadeIn = {
     hidden: { opacity: 0, y: 40 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: "easeOut" } },
+    show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } },
+  };
+
+  // Pagination handlers
+  const handleChangePage = (_, newPage) => setPage(newPage);
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
   };
 
   return (
@@ -91,7 +95,6 @@ const AdminGenerateCode = () => {
         backgroundImage: `url(${bgImage})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
         position: "relative",
         "&::before": {
           content: '""',
@@ -105,28 +108,23 @@ const AdminGenerateCode = () => {
         },
       }}
     >
-      {/* ✅ Topbar */}
       <Box sx={{ position: "fixed", width: "100%", zIndex: 10 }}>
         <Topbar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
       </Box>
 
-      {/* ✅ Sidebar */}
       <Box sx={{ zIndex: 5 }}>
         <Sidebar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
       </Box>
 
-      {/* ✅ Main Content */}
       <Box
         component="main"
         sx={{
           flexGrow: 1,
-          p: { xs: 2, sm: 3, md: 2 },
-          mt: 0,
+          p: { xs: 2, sm: 3 },
           color: "white",
           zIndex: 1,
           width: `calc(100% - ${sidebarOpen ? 240 : 60}px)`,
           transition: "all 0.3s ease",
-          position: "relative",
         }}
       >
         <Toolbar />
@@ -143,30 +141,25 @@ const AdminGenerateCode = () => {
             padding: "24px",
           }}
         >
-          <Typography variant="h4" gutterBottom>
+          <Typography variant="h4" gutterBottom fontWeight={700}>
             Purchase Codes Analytics
           </Typography>
-          <Typography variant="subtitle1" sx={{ mb: 3 }}>
-            Real-time data of all purchased access codes and total sales.
+          <Typography variant="subtitle1" sx={{ mb: 3, opacity: 0.9 }}>
+            Real-time sales overview of all purchased codes.
           </Typography>
 
           {loading ? (
             <CircularProgress color="inherit" />
           ) : (
             <>
-              {/* 🧮 Summary Section */}
-              <motion.div
-                variants={fadeIn}
-                initial="hidden"
-                animate="show"
-                transition={{ delay: 0.2 }}
-              >
+              {/* Summary */}
+              <motion.div variants={fadeIn} transition={{ delay: 0.2 }}>
                 <Box
                   sx={{
                     display: "flex",
                     flexDirection: { xs: "column", sm: "row" },
                     justifyContent: "space-between",
-                    alignItems: { xs: "flex-start", sm: "center" },
+                    alignItems: "center",
                     mb: 4,
                   }}
                 >
@@ -179,108 +172,128 @@ const AdminGenerateCode = () => {
                 </Box>
               </motion.div>
 
-              {/* 📊 Charts Section */}
-              <Grid container spacing={3}>
-                {/* 📈 Bar Chart */}
-                <Grid item xs={12} md={8}>
-                  <motion.div
-                    variants={fadeIn}
-                    initial="hidden"
-                    animate="show"
-                    transition={{ delay: 0.3 }}
-                  >
-                    <Paper
-                      sx={{
-                        p: 2,
-                        height: 400,
-                        background: "rgba(255, 255, 255, 0.15)",
-                        borderRadius: "16px",
-                        backdropFilter: "blur(10px)",
-                      }}
-                    >
-                      <Typography variant="h6" sx={{ mb: 2 }}>
-                        Sales per Code
-                      </Typography>
-                      <BarChart
-                        dataset={barData}
-                        xAxis={[{ dataKey: "code", scaleType: "band" }]}
-                        yAxis={[{ label: "Sales (₱)" }]}
-                        series={[
-                          {
-                            dataKey: "amount",
-                            color: theme.palette.success.light,
-                          },
-                        ]}
-                        height={320}
-                        grid={{ vertical: true, horizontal: true }}
-                        sx={{
-                          [`.${axisClasses.root}`]: { stroke: "#ccc" },
-                          "& .MuiChartsAxis-label": { fill: "#fff" },
-                          "& .MuiChartsAxis-tickLabel": { fill: "#fff" },
-                          "& .MuiBarElement-root": {
-                            transition: "all 0.4s ease",
-                          },
-                        }}
-                      >
-                        <BarPlot />
-                      </BarChart>
-                    </Paper>
-                  </motion.div>
-                </Grid>
-
-                {/* 🥧 Pie Chart */}
-                <Grid item xs={12} md={4}>
-                  <motion.div
-                    variants={fadeIn}
-                    initial="hidden"
-                    animate="show"
-                    transition={{ delay: 0.4 }}
-                  >
-                    <Paper
-                      sx={{
-                        p: 2,
-                        height: 400,
-                        background: "rgba(255, 255, 255, 0.15)",
-                        borderRadius: "16px",
-                        backdropFilter: "blur(10px)",
-                      }}
-                    >
-                      <Typography variant="h6" sx={{ mb: 2 }}>
-                        Code Sales Distribution
-                      </Typography>
-                      <PieChart
-                        series={[
-                          {
-                            arcLabel: (item) =>
-                              `${item.label} (${(
-                                (item.value / totalPieValue) *
-                                100
-                              ).toFixed(1)}%)`,
-                            arcLabelMinAngle: 15,
-                            data: pieData,
-                          },
-                        ]}
-                        height={320}
-                        sx={{
-                          [`& .${pieArcLabelClasses.root}`]: {
-                            fill: "#fff",
-                            fontSize: 12,
-                          },
-                        }}
-                      />
-                    </Paper>
-                  </motion.div>
-                </Grid>
-              </Grid>
-
-              {/* 📋 Table Section */}
+              {/* Enhanced Line Chart */}
               <motion.div
                 variants={fadeIn}
-                initial="hidden"
-                animate="show"
-                transition={{ delay: 0.5 }}
+                transition={{ delay: 0.3 }}
+                style={{ position: "relative" }}
               >
-                <Box sx={{ mt: 5 }}>
+                <Paper
+                  sx={{
+                    p: 3,
+                    height: 420,
+                    mb: 4,
+                    background: "linear-gradient(145deg, rgba(255,255,255,0.12), rgba(255,255,255,0.05))",
+                    borderRadius: "20px",
+                    backdropFilter: "blur(12px)",
+                    overflow: "hidden",
+                  }}
+                >
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                    📈 Sales Summary (Dynamic Line Chart)
+                  </Typography>
+
+                  <LineChart
+                    dataset={lineChartData}
+                    xAxis={[
+                      {
+                        dataKey: "date",
+                        label: "Date",
+                        scaleType: "band",
+                        tickLabelStyle: { fill: "#fff" },
+                      },
+                    ]}
+                    yAxis={[
+                      {
+                        label: "₱ Sales",
+                        tickLabelStyle: { fill: "#fff" },
+                        gridLineStyle: {
+                          stroke: "rgba(255,255,255,0.15)",
+                        },
+                      },
+                    ]}
+                    series={[
+                      {
+                        dataKey: "total",
+                        label: "Daily Sales",
+                        color: theme.palette.success.main,
+                        curve: "monotone",
+                        area: true,
+                        showMark: true,
+                        fill: "url(#salesGradient)",
+                        highlightScope: { highlighted: "series" },
+                        valueFormatter: (value) => `₱${value.toLocaleString()}`,
+                      },
+                    ]}
+                    tooltip={{
+                      trigger: "item",
+                      itemContentRender: (item) => (
+                        <Paper
+                          sx={{
+                            p: 1,
+                            bgcolor: "rgba(0,0,0,0.75)",
+                            color: "white",
+                            borderRadius: "8px",
+                            boxShadow: "0 0 10px rgba(0,0,0,0.5)",
+                          }}
+                        >
+                          <Typography variant="body2" fontWeight={600}>
+                            {item.data.date}
+                          </Typography>
+                          <Typography variant="body2">
+                            ₱{item.data.total.toLocaleString()}
+                          </Typography>
+                        </Paper>
+                      ),
+                    }}
+                    height={340}
+                    margin={{ left: 60, right: 20, top: 20, bottom: 40 }}
+                    sx={{
+                      "& .MuiChartsAxis-line": {
+                        stroke: "rgba(255,255,255,0.3)",
+                      },
+                      "& .MuiChartsAxis-tickLabel": { fill: "#fff" },
+                      "& .MuiLineElement-root": {
+                        strokeWidth: 3,
+                        filter: "drop-shadow(0px 0px 6px rgba(0,255,128,0.7))",
+                        transition: "all 0.6s ease",
+                      },
+                      "& .MuiMarkElement-root": {
+                        transition: "all 0.3s ease",
+                        "&:hover": {
+                          r: 6,
+                          fill: theme.palette.success.light,
+                        },
+                      },
+                    }}
+                  >
+                    <defs>
+                      <linearGradient
+                        id="salesGradient"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="0%"
+                          stopColor={theme.palette.success.main}
+                          stopOpacity="0.6"
+                        />
+                        <stop
+                          offset="100%"
+                          stopColor={theme.palette.success.main}
+                          stopOpacity="0"
+                        />
+                      </linearGradient>
+                    </defs>
+                  </LineChart>
+                </Paper>
+              </motion.div>
+
+              {/* Table */}
+              <motion.div variants={fadeIn} transition={{ delay: 0.5 }}>
+                <Box sx={{ mt: 2 }}>
                   <Typography variant="h6" sx={{ mb: 2 }}>
                     Purchase Details
                   </Typography>
@@ -290,53 +303,57 @@ const AdminGenerateCode = () => {
                       background: "rgba(255, 255, 255, 0.15)",
                       borderRadius: "16px",
                       backdropFilter: "blur(8px)",
-                      overflowX: "auto",
                     }}
                   >
-                    <table
-                      style={{
-                        width: "100%",
-                        borderCollapse: "collapse",
-                        color: "white",
+                    <Table>
+                      <TableHead>
+                        <TableRow sx={{ background: "rgba(255,255,255,0.1)" }}>
+                          <TableCell sx={{ color: "#fff" }}>Code</TableCell>
+                          <TableCell sx={{ color: "#fff" }}>Amount (₱)</TableCell>
+                          <TableCell sx={{ color: "#fff" }}>Purchased By</TableCell>
+                          <TableCell sx={{ color: "#fff" }}>Date</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {codes
+                          .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                          .map((code) => (
+                            <TableRow key={code.id}>
+                              <TableCell sx={{ color: "#fff" }}>{code.code}</TableCell>
+                              <TableCell sx={{ color: "#fff" }}>
+                                ₱{Number(code.amount || 0).toLocaleString()}
+                              </TableCell>
+                              <TableCell sx={{ color: "#fff" }}>
+                                {code.purchasedBy?.name ||
+                                  code.name ||
+                                  code.userName ||
+                                  "Unnamed User"}
+                              </TableCell>
+                              <TableCell sx={{ color: "#fff" }}>
+                                {code.createdAt?.seconds
+                                  ? new Date(
+                                      code.createdAt.seconds * 1000
+                                    ).toLocaleString()
+                                  : "--"}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                      </TableBody>
+                    </Table>
+
+                    <TablePagination
+                      component="div"
+                      count={codes.length}
+                      page={page}
+                      onPageChange={handleChangePage}
+                      rowsPerPage={rowsPerPage}
+                      onRowsPerPageChange={handleChangeRowsPerPage}
+                      rowsPerPageOptions={[5, 10, 25, 50]}
+                      sx={{
+                        color: "#fff",
+                        "& .MuiSelect-icon": { color: "#fff" },
                       }}
-                    >
-                      <thead>
-                        <tr
-                          style={{
-                            background: "rgba(255,255,255,0.1)",
-                            textAlign: "left",
-                          }}
-                        >
-                          <th style={{ padding: "8px" }}>Code</th>
-                          <th style={{ padding: "8px" }}>Amount (₱)</th>
-                          <th style={{ padding: "8px" }}>Purchased By</th>
-                          <th style={{ padding: "8px" }}>Date</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {codes.map((code) => (
-                          <tr key={code.id}>
-                            <td style={{ padding: "8px" }}>{code.code}</td>
-                            <td style={{ padding: "8px" }}>
-                              ₱{Number(code.amount || 0).toLocaleString()}
-                            </td>
-                            <td style={{ padding: "8px" }}>
-                              {code.purchasedBy?.name ||
-                                code.name ||
-                                code.userName ||
-                                "Unnamed User"}
-                            </td>
-                            <td style={{ padding: "8px" }}>
-                              {code.createdAt?.seconds
-                                ? new Date(
-                                    code.createdAt.seconds * 1000
-                                  ).toLocaleString()
-                                : "--"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    />
                   </Paper>
                 </Box>
               </motion.div>

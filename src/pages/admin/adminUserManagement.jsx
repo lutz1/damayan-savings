@@ -96,9 +96,7 @@ const AdminUserManagement = () => {
   useEffect(() => {
     const q = collection(db, "pendingInvites");
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setPendingInvites(
-        snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-      );
+      setPendingInvites(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
     });
     return () => unsubscribe();
   }, []);
@@ -162,34 +160,52 @@ const AdminUserManagement = () => {
   };
 
   // ✅ Approve pending invite
-  const handleApproveInvite = async (invite) => {
-    try {
-      const userCredential = await createUserWithEmailAndPassword(
-        secondaryAuth,
-        invite.email,
-        "password123"
-      );
+const handleApproveInvite = async (invite) => {
+  try {
+    const userCredential = await createUserWithEmailAndPassword(
+      secondaryAuth,
+      invite.inviteeEmail,
+      "password123"
+    );
 
-      const uid = userCredential.user.uid;
+    const uid = userCredential.user.uid;
 
-      await setDoc(doc(db, "users", uid), {
-        username: invite.username,
-        name: invite.fullName,
-        email: invite.email,
-        contactNumber: invite.contact,
-        address: invite.address,
-        role: invite.role,
-        referredBy: invite.upline,
-        createdAt: serverTimestamp(),
-      });
+    // ✅ use the real username, not referralCode
+    await setDoc(doc(db, "users", uid), {
+      username: invite.inviteeUsername,   // ← FIXED HERE
+      name: invite.inviteeName,
+      email: invite.inviteeEmail,
+      contactNumber: invite.contactNumber,
+      address: invite.address,
+      role: invite.role,
+      referredBy: invite.uplineUsername,
+      referrerRole: invite.uplineRole || "", // optional, if available
+      createdAt: serverTimestamp(),
+    });
 
-      await deleteDoc(doc(db, "pendingInvites", invite.id));
-      await secondaryAuth.signOut();
+    // Remove from pendingInvites after approval
+    await deleteDoc(doc(db, "pendingInvites", invite.id));
 
-      alert(`✅ ${invite.fullName} has been approved as ${invite.role}!`);
-    } catch (err) {
-      console.error("Error approving invite:", err);
-      alert("Failed to approve invite: " + err.message);
+    // Sign out of the secondary auth
+    await secondaryAuth.signOut();
+
+    alert(`✅ ${invite.inviteeName} has been approved as ${invite.role}!`);
+  } catch (err) {
+    console.error("Error approving invite:", err);
+    alert("Failed to approve invite: " + err.message);
+  }
+};
+
+  // ❌ Reject pending invite
+  const handleRejectInvite = async (inviteId) => {
+    if (window.confirm("Are you sure you want to reject this invite?")) {
+      try {
+        await deleteDoc(doc(db, "pendingInvites", inviteId));
+        alert("❌ Invite has been rejected and removed.");
+      } catch (err) {
+        console.error("Error rejecting invite:", err);
+        alert("Failed to reject invite: " + err.message);
+      }
     }
   };
 
@@ -230,7 +246,7 @@ const AdminUserManagement = () => {
         sx={{
           flexGrow: 1,
           p: isMobile ? 2 : 4,
-          mt: 8,
+          mt: 0,
           color: "white",
           zIndex: 1,
           width: `calc(100% - ${sidebarOpen ? 240 : 60}px)`,
@@ -375,60 +391,93 @@ const AdminUserManagement = () => {
         </Card>
 
         {/* 🕓 Pending Invites */}
-        <Typography variant="h5" sx={{ mt: 5, mb: 2, fontWeight: 600 }}>
-          ⏳ Pending Invites
-        </Typography>
-        <Card
-          sx={{
-            background: "rgba(255,255,255,0.12)",
-            backdropFilter: "blur(12px)",
-            borderRadius: "20px",
-            boxShadow: "0 6px 25px rgba(0,0,0,0.25)",
-            overflow: "hidden",
-          }}
-        >
-          <CardContent>
-            {pendingInvites.length === 0 ? (
-              <Typography align="center" sx={{ color: "rgba(255,255,255,0.7)", py: 3 }}>
-                No pending invites.
-              </Typography>
-            ) : (
-              <TableContainer component={Paper} sx={{ background: "transparent", color: "white" }}>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ color: "white", fontWeight: "bold" }}>Full Name</TableCell>
-                      <TableCell sx={{ color: "white", fontWeight: "bold" }}>Email</TableCell>
-                      <TableCell sx={{ color: "white", fontWeight: "bold" }}>Role</TableCell>
-                      <TableCell sx={{ color: "white", fontWeight: "bold" }}>Upline</TableCell>
-                      <TableCell sx={{ color: "white", fontWeight: "bold" }}>Action</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {pendingInvites.map((invite) => (
-                      <TableRow key={invite.id}>
-                        <TableCell sx={{ color: "white" }}>{invite.fullName}</TableCell>
-                        <TableCell sx={{ color: "white" }}>{invite.email}</TableCell>
-                        <TableCell sx={{ color: "white" }}>{invite.role}</TableCell>
-                        <TableCell sx={{ color: "white" }}>{invite.upline}</TableCell>
-                        <TableCell>
-                          <Button
-                            size="small"
-                            variant="contained"
-                            color="success"
-                            onClick={() => handleApproveInvite(invite)}
-                          >
-                            Approve
-                          </Button>
-                        </TableCell>
+          <Typography variant="h5" sx={{ mt: 5, mb: 2, fontWeight: 600 }}>
+            ⏳ Pending Invites
+          </Typography>
+          <Card
+            sx={{
+              background: "rgba(255,255,255,0.12)",
+              backdropFilter: "blur(12px)",
+              borderRadius: "20px",
+              boxShadow: "0 6px 25px rgba(0,0,0,0.25)",
+              overflow: "hidden",
+            }}
+          >
+            <CardContent>
+              {pendingInvites.length === 0 ? (
+                <Typography align="center" sx={{ color: "rgba(255,255,255,0.7)", py: 3 }}>
+                  No pending invites.
+                </Typography>
+              ) : (
+                <TableContainer component={Paper} sx={{ background: "transparent", color: "white" }}>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ color: "white", fontWeight: "bold" }}>Username</TableCell>
+                        <TableCell sx={{ color: "white", fontWeight: "bold" }}>Full Name</TableCell>
+                        <TableCell sx={{ color: "white", fontWeight: "bold" }}>Email</TableCell>
+                        <TableCell sx={{ color: "white", fontWeight: "bold" }}>Role</TableCell>
+                        <TableCell sx={{ color: "white", fontWeight: "bold" }}>Upline</TableCell>
+                        <TableCell sx={{ color: "white", fontWeight: "bold" }}>Referral Code</TableCell>
+                        <TableCell sx={{ color: "white", fontWeight: "bold" }}>Contact</TableCell>
+                        <TableCell sx={{ color: "white", fontWeight: "bold" }}>Address</TableCell>
+                        <TableCell sx={{ color: "white", fontWeight: "bold" }}>Action</TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
-          </CardContent>
-        </Card>
+                    </TableHead>
+                    <TableBody>
+                      {pendingInvites.map((invite) => (
+                        <TableRow key={invite.id}>
+                          <TableCell sx={{ color: "white" }}>
+                            {invite.inviteeUsername || "—"}
+                          </TableCell>
+                          <TableCell sx={{ color: "white" }}>
+                            {invite.inviteeName || "—"}
+                          </TableCell>
+                          <TableCell sx={{ color: "white" }}>
+                            {invite.inviteeEmail || "—"}
+                          </TableCell>
+                          <TableCell sx={{ color: "white" }}>
+                            {invite.role || "—"}
+                          </TableCell>
+                          <TableCell sx={{ color: "white" }}>
+                            {invite.uplineUsername || "—"}
+                          </TableCell>
+                          <TableCell sx={{ color: "white" }}>
+                            {invite.referralCode || "—"}
+                          </TableCell>
+                          <TableCell sx={{ color: "white" }}>
+                            {invite.contactNumber || "—"}
+                          </TableCell>
+                          <TableCell sx={{ color: "white" }}>
+                            {invite.address || "—"}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              size="small"
+                              variant="contained"
+                              color="success"
+                              sx={{ mr: 1 }}
+                              onClick={() => handleApproveInvite(invite)}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="contained"
+                              color="error"
+                              onClick={() => handleRejectInvite(invite.id)}
+                            >
+                              Reject
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </CardContent>
+          </Card>
 
         {/* 🧾 Create User Dialog */}
         <Dialog open={openDialog} onClose={() => setOpenDialog(false)} fullWidth maxWidth="sm">

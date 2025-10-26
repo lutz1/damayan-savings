@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import React, { useEffect, useState, useMemo } from "react";
 import {
   Box,
@@ -6,101 +7,59 @@ import {
   Grid,
   Card,
   CardContent,
-  MenuItem,
-  Select,
-  FormControl,
-  InputLabel,
-  Divider,
-  List,
-  ListItem,
-  ListItemText,
-  Fade,
 } from "@mui/material";
-import { format, subDays, subMonths, subYears } from "date-fns";
-import {
-  LineChart,
-  Line,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
-import { motion, AnimatePresence } from "framer-motion";
+import { db } from "../../firebase";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { motion } from "framer-motion";
 import Topbar from "../../components/Topbar";
 import Sidebar from "../../components/Sidebar";
 import bgImage from "../../assets/bg.jpg";
 
-const toDate = (timestamp) =>
-  timestamp instanceof Date ? timestamp : new Date(timestamp);
-
 const AdminDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [filter, setFilter] = useState("weekly");
-  const [salesData, setSalesData] = useState([]);
   const [userCounts, setUserCounts] = useState({
     MD: 0,
     MS: 0,
     MI: 0,
     Agent: 0,
-    Members: 0,
   });
-  const [logs, setLogs] = useState([]);
-  const [chartKey, setChartKey] = useState(0);
+  const [salesData, setSalesData] = useState([]);
 
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
 
-  // 🔹 Simulate live data (replace with Firestore later)
+  // 🔹 Real-time Firestore listeners
   useEffect(() => {
-    const now = new Date();
+    const unsubscribers = [];
 
-    setUserCounts({
-      MD: 4,
-      MS: 8,
-      MI: 12,
-      Agent: 20,
-      Members: 100,
+    // 🧮 1. Count users by role (MD, MS, MI, Agent)
+    const roles = ["MD", "MS", "MI", "Agent"];
+    roles.forEach((role) => {
+      const q = query(collection(db, "users"), where("role", "==", role));
+      const unsub = onSnapshot(q, (snapshot) => {
+        setUserCounts((prev) => ({
+          ...prev,
+          [role]: snapshot.size,
+        }));
+      });
+      unsubscribers.push(unsub);
     });
 
-    let data = [];
-    if (filter === "weekly") {
-      for (let i = 6; i >= 0; i--) {
-        data.push({
-          date: format(subDays(now, i), "MMM dd"),
-          amount: Math.floor(Math.random() * 1000 + 500),
-        });
-      }
-    } else if (filter === "monthly") {
-      for (let i = 4; i >= 0; i--) {
-        data.push({
-          date: format(subMonths(now, i), "MMM yyyy"),
-          amount: Math.floor(Math.random() * 10000 + 2000),
-        });
-      }
-    } else {
-      for (let i = 4; i >= 0; i--) {
-        data.push({
-          date: format(subYears(now, i), "yyyy"),
-          amount: Math.floor(Math.random() * 50000 + 10000),
-        });
-      }
-    }
+    // 💰 2. Real-time Total Sales (sum of all sales amounts)
+    const salesQuery = query(collection(db, "sales"));
+    const unsubSales = onSnapshot(salesQuery, (snapshot) => {
+      const sales = snapshot.docs.map((doc) => doc.data());
+      setSalesData(sales);
+    });
+    unsubscribers.push(unsubSales);
 
-    setSalesData(data);
-    setChartKey((prev) => prev + 1);
+    // 🧹 Cleanup all listeners
+    return () => unsubscribers.forEach((u) => u());
+  }, []);
 
-    setLogs([
-      { id: 1, action: "New member registered", timestamp: new Date() },
-      { id: 2, action: "Marketing Supervisor approved a request", timestamp: subDays(now, 1) },
-      { id: 3, action: "Code generated for Marketing Incharge", timestamp: subDays(now, 2) },
-      { id: 4, action: "Agent completed a sale", timestamp: subDays(now, 3) },
-      { id: 5, action: "System backup completed", timestamp: subDays(now, 4) },
-    ]);
-  }, [filter]);
-
-  // 💰 Calculate total sales dynamically
+  // 💰 Total Sales Calculation
   const totalSales = useMemo(
-    () => salesData.reduce((sum, d) => sum + d.amount, 0),
+    () =>
+      salesData.reduce((sum, d) => sum + (Number(d.amount) || 0), 0),
     [salesData]
   );
 
@@ -141,7 +100,7 @@ const AdminDashboard = () => {
         sx={{
           flexGrow: 1,
           p: 4,
-          mt: 8,
+          mt: 0,
           color: "white",
           zIndex: 1,
           width: `calc(100% - ${sidebarOpen ? 240 : 60}px)`,
@@ -165,14 +124,12 @@ const AdminDashboard = () => {
         </Typography>
 
         {/* 🧱 Stats Cards */}
-        <Grid container spacing={2} sx={{ mb: 4 }}>
+        <Grid container spacing={2}>
           {[
             { label: "Marketing Director (MD)", value: userCounts.MD },
             { label: "Marketing Supervisor (MS)", value: userCounts.MS },
             { label: "Marketing Incharge (MI)", value: userCounts.MI },
             { label: "Agents", value: userCounts.Agent },
-            { label: "Members", value: userCounts.Members },
-            { label: "💰 Total Sales", value: `₱${totalSales.toLocaleString()}` },
           ].map((item, index) => (
             <Grid item xs={12} sm={6} md={2.4} key={index}>
               <motion.div
@@ -187,6 +144,7 @@ const AdminDashboard = () => {
                     backdropFilter: "blur(12px)",
                     color: "white",
                     borderRadius: "18px",
+                    width: "160px",
                     boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
                     transition: "transform 0.3s ease, box-shadow 0.3s ease",
                     "&:hover": {
@@ -208,111 +166,6 @@ const AdminDashboard = () => {
             </Grid>
           ))}
         </Grid>
-
-        {/* 📈 Sales Chart Section */}
-        <Box
-          sx={{
-            p: 4,
-            background: "rgba(255, 255, 255, 0.12)",
-            borderRadius: "20px",
-            boxShadow: "0 6px 25px rgba(0,0,0,0.25)",
-            mb: 5,
-          }}
-        >
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              mb: 2,
-            }}
-          >
-            <Typography variant="h5" fontWeight="600">
-              Sales Overview
-            </Typography>
-            <FormControl size="small" sx={{ minWidth: 160 }}>
-              <InputLabel sx={{ color: "white" }}>Filter By</InputLabel>
-              <Select
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                label="Filter By"
-                sx={{
-                  color: "white",
-                  "& .MuiOutlinedInput-notchedOutline": {
-                    borderColor: "rgba(255,255,255,0.3)",
-                  },
-                  "&:hover .MuiOutlinedInput-notchedOutline": {
-                    borderColor: "white",
-                  },
-                }}
-              >
-                <MenuItem value="weekly">Weekly</MenuItem>
-                <MenuItem value="monthly">Monthly</MenuItem>
-                <MenuItem value="annual">Annual</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={chartKey}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.6 }}
-            >
-              <ResponsiveContainer width="100%" height={320}>
-                <LineChart data={salesData}>
-                  <Line
-                    type="monotone"
-                    dataKey="amount"
-                    stroke="#00e5ff"
-                    strokeWidth={3}
-                    dot={{ r: 4, stroke: "#fff", strokeWidth: 2 }}
-                  />
-                  <CartesianGrid stroke="rgba(255,255,255,0.1)" />
-                  <XAxis dataKey="date" stroke="white" />
-                  <YAxis stroke="white" />
-                  <Tooltip
-                    contentStyle={{
-                      background: "rgba(0,0,0,0.8)",
-                      color: "white",
-                      borderRadius: "8px",
-                    }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </motion.div>
-          </AnimatePresence>
-        </Box>
-
-        {/* 🧾 Activity Logs */}
-        <Fade in timeout={900}>
-          <Box
-            sx={{
-              p: 4,
-              background: "rgba(255, 255, 255, 0.12)",
-              borderRadius: "20px",
-              boxShadow: "0 6px 25px rgba(0,0,0,0.25)",
-            }}
-          >
-            <Typography variant="h5" gutterBottom fontWeight="600">
-              Recent Activity Logs
-            </Typography>
-            <Divider sx={{ mb: 2, borderColor: "rgba(255,255,255,0.2)" }} />
-            <List>
-              {logs.map((log) => (
-                <ListItem key={log.id} divider>
-                  <ListItemText
-                    primary={log.action}
-                    secondary={format(toDate(log.timestamp), "PPpp")}
-                    primaryTypographyProps={{ fontWeight: 500 }}
-                  />
-                </ListItem>
-              ))}
-            </List>
-          </Box>
-        </Fade>
       </Box>
     </Box>
   );
