@@ -8,7 +8,20 @@ import {
   Grid,
   Card,
   CardContent,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  List,
+  ListItem,
+  ListItemText,
+  TextField,
+  MenuItem,
 } from "@mui/material";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import SortIcon from "@mui/icons-material/Sort";
 import { onAuthStateChanged } from "firebase/auth";
 import {
   collection,
@@ -17,6 +30,7 @@ import {
   onSnapshot,
   doc,
   getDoc,
+  getDocs,
 } from "firebase/firestore";
 import { auth, db } from "../../firebase";
 import { motion } from "framer-motion";
@@ -36,22 +50,25 @@ const MemberDashboard = () => {
     Agent: 0,
   });
 
+  const [referrals, setReferrals] = useState([]); // list for dialog
+  const [openDialog, setOpenDialog] = useState(false);
+  const [selectedRole, setSelectedRole] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState("name");
+  const [sortOrder, setSortOrder] = useState("asc");
+
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
 
-  // 🔹 Real-time listener for referrals (case-insensitive)
+  // 🔹 Real-time listener for referral counts
   const listenToReferrals = useCallback((username) => {
     if (!username) return;
-
     const lowerUsername = username.toLowerCase();
     const q = query(collection(db, "users"), where("referredBy", "==", username));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const counts = { MD: 0, MS: 0, MI: 0, Agent: 0 };
-
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
-
-        // Extra safety: accept case-insensitive match
         if (
           data.referredBy &&
           data.referredBy.toLowerCase() === lowerUsername &&
@@ -61,35 +78,34 @@ const MemberDashboard = () => {
           counts[data.role] += 1;
         }
       });
-
       setRoleCounts(counts);
     });
 
     return unsubscribe;
   }, []);
 
-  // 🔹 Fetch current user info (memoized)
-  const fetchUserData = useCallback(async (uid) => {
-    try {
-      const userRef = doc(db, "users", uid);
-      const snap = await getDoc(userRef);
-      if (snap.exists()) {
-        const data = snap.data();
-        setUserData(data);
-
-        // stop old listener before starting a new one
-        const unsubscribe = listenToReferrals(data.username);
-        return unsubscribe;
+  // 🔹 Fetch current user info
+  const fetchUserData = useCallback(
+    async (uid) => {
+      try {
+        const userRef = doc(db, "users", uid);
+        const snap = await getDoc(userRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          setUserData(data);
+          const unsubscribe = listenToReferrals(data.username);
+          return unsubscribe;
+        }
+      } catch (error) {
+        console.error("Error loading user data:", error);
       }
-    } catch (error) {
-      console.error("Error loading user data:", error);
-    }
-  }, [listenToReferrals]);
+    },
+    [listenToReferrals]
+  );
 
   // 🔹 Track authentication state
   useEffect(() => {
     let unsubReferrals = null;
-
     const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
@@ -108,6 +124,45 @@ const MemberDashboard = () => {
       if (unsubReferrals) unsubReferrals();
     };
   }, [fetchUserData]);
+
+  // 🔹 Handle “View” click — fetch referrals for that role
+  const handleViewReferrals = async (role) => {
+    if (!userData?.username) return;
+    setSelectedRole(role);
+    setOpenDialog(true);
+
+    try {
+      const q = query(
+        collection(db, "users"),
+        where("referredBy", "==", userData.username),
+        where("role", "==", role)
+      );
+      const querySnapshot = await getDocs(q);
+      const data = querySnapshot.docs.map((d) => d.data());
+      setReferrals(data);
+    } catch (error) {
+      console.error("Error fetching referrals:", error);
+    }
+  };
+
+  // 🔹 Filter + sort referrals
+  const filteredReferrals = referrals
+    .filter(
+      (r) =>
+        r.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.username?.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => {
+      const fieldA = a[sortField]?.toString().toLowerCase() || "";
+      const fieldB = b[sortField]?.toString().toLowerCase() || "";
+      if (fieldA < fieldB) return sortOrder === "asc" ? -1 : 1;
+      if (fieldA > fieldB) return sortOrder === "asc" ? 1 : -1;
+      return 0;
+    });
+
+  // 🔹 Toggle sort order
+  const handleToggleSortOrder = () =>
+    setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
 
   return (
     <Box
@@ -187,8 +242,7 @@ const MemberDashboard = () => {
             transition={{ duration: 0.5 }}
           >
             <Typography variant="h6" sx={{ mb: 3, opacity: 0.9 }}>
-              Welcome <strong>{userData.name}</strong>! Here’s your current network
-              summary:
+              Welcome <strong>{userData.name}</strong>! Here’s your current network summary:
             </Typography>
 
             <Grid container spacing={3}>
@@ -196,17 +250,35 @@ const MemberDashboard = () => {
                 <Grid item xs={12} sm={6} md={3} key={role}>
                   <Card
                     sx={{
+                      width:"350px",
                       background: "rgba(255,255,255,0.1)",
                       backdropFilter: "blur(10px)",
                       color: "#fff",
                       borderRadius: 3,
                       boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+                      position: "relative",
                     }}
                   >
                     <CardContent>
-                      <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                        {role}
-                      </Typography>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                          {role}
+                        </Typography>
+                        <IconButton
+                          onClick={() => handleViewReferrals(role)}
+                          color="inherit"
+                          size="small"
+                        >
+                          <VisibilityIcon sx={{ color: "#FFD54F" }} />
+                        </IconButton>
+                      </Box>
+
                       <Typography
                         variant="h4"
                         sx={{ mt: 1, fontWeight: "bold", color: "#FFD54F" }}
@@ -226,6 +298,64 @@ const MemberDashboard = () => {
           <Typography variant="body1">Unable to load user data.</Typography>
         )}
       </Box>
+
+      {/* 👁 Referrals Dialog */}
+      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} fullWidth maxWidth="sm">
+        <DialogTitle>
+          {selectedRole} Referrals
+        </DialogTitle>
+        <DialogContent dividers>
+          {/* 🔍 Search and Sort Controls */}
+          <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
+            <TextField
+              label="Search by name or username"
+              variant="outlined"
+              fullWidth
+              size="small"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            <TextField
+              select
+              label="Sort by"
+              variant="outlined"
+              size="small"
+              value={sortField}
+              onChange={(e) => setSortField(e.target.value)}
+              sx={{ minWidth: 120 }}
+            >
+              <MenuItem value="name">Name</MenuItem>
+              <MenuItem value="username">Username</MenuItem>
+            </TextField>
+            <IconButton onClick={handleToggleSortOrder}>
+              <SortIcon
+                sx={{
+                  transform: sortOrder === "asc" ? "rotate(0deg)" : "rotate(180deg)",
+                  transition: "transform 0.3s",
+                }}
+              />
+            </IconButton>
+          </Box>
+
+          {filteredReferrals.length === 0 ? (
+            <Typography variant="body2">No referrals found.</Typography>
+          ) : (
+            <List>
+              {filteredReferrals.map((ref, i) => (
+                <ListItem key={i} divider>
+                  <ListItemText
+                    primary={`${ref.name} (${ref.username})`}
+                    secondary={`Email: ${ref.email || "N/A"} | Contact: ${ref.contactNumber || "N/A"}`}
+                  />
+                </ListItem>
+              ))}
+            </List>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenDialog(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
