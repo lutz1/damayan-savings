@@ -1,4 +1,3 @@
-// src/components/Topbar/Topbar.jsx
 import React, { useState, useEffect } from "react";
 import {
   AppBar,
@@ -61,7 +60,7 @@ const Topbar = ({ open, onToggleSidebar }) => {
   const [dialog, setDialog] = useState(null);
 
   const [userData, setUserData] = useState({
-    name: "",
+    username: "",
     email: "",
     eWallet: 0,
     role: "member",
@@ -73,13 +72,13 @@ const Topbar = ({ open, onToggleSidebar }) => {
   useEffect(() => {
     const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
       if (!currentUser) return;
-      const userRef = doc(db, "users", currentUser.uid);
 
+      const userRef = doc(db, "users", currentUser.uid);
       const unsubscribeUser = onSnapshot(userRef, (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
           setUserData({
-            name: data.name || "Unknown User",
+            username: data.username || "UnknownUser",
             email: data.email || currentUser.email || "No email",
             eWallet: Number(data.eWallet) || 0,
             role: data.role || "member",
@@ -170,7 +169,7 @@ const Topbar = ({ open, onToggleSidebar }) => {
           <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
             <IconButton color="inherit" onClick={openDrawer}>
               <Avatar
-                alt={userData.name}
+                alt={userData.username}
                 src="/images/avatar-placeholder.png"
                 sx={{
                   bgcolor: "secondary.main",
@@ -250,7 +249,7 @@ const Topbar = ({ open, onToggleSidebar }) => {
               {/* User Info */}
               <Box sx={{ textAlign: "center", p: 2, pt: 4 }}>
                 <Avatar
-                  alt={userData.name}
+                  alt={userData.username}
                   src="/images/avatar-placeholder.png"
                   sx={{
                     width: 80,
@@ -262,7 +261,7 @@ const Topbar = ({ open, onToggleSidebar }) => {
                   }}
                 />
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  {userData.name}
+                  @{userData.username}
                 </Typography>
                 <Box
                   sx={{
@@ -285,144 +284,140 @@ const Topbar = ({ open, onToggleSidebar }) => {
 
               <Divider sx={{ borderColor: "rgba(255,255,255,0.2)" }} />
 
-              {/* Drawer Menu List */}
-              <Box sx={{ flexGrow: 1, overflowY: "auto", p: 2, pb: 10 }}>
-                {/* Wallet Section */}
-                {userData.role !== "admin" && (
-                  <Box
+              {/* Wallet Section */}
+              {userData.role !== "admin" && (
+                <Box
+                  sx={{
+                    background: "rgba(255,255,255,0.08)",
+                    borderRadius: 2,
+                    p: 2,
+                    mb: 2,
+                  }}
+                >
+                  <Typography
+                    variant="subtitle1"
                     sx={{
-                      background: "rgba(255,255,255,0.08)",
-                      borderRadius: 2,
-                      p: 2,
-                      mb: 2,
+                      mb: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      fontWeight: 500,
                     }}
                   >
-                    <Typography
-                      variant="subtitle1"
-                      sx={{
-                        mb: 1,
-                        display: "flex",
-                        alignItems: "center",
-                        fontWeight: 500,
-                      }}
-                    >
-                      <WalletIcon
-                        fontSize="small"
-                        sx={{ mr: 1, color: "#4CAF50" }}
-                      />
-                      E-Wallet
-                    </Typography>
-                    <Typography
-                      variant="h5"
-                      sx={{ color: "#4CAF50", fontWeight: 700 }}
-                    >
-                      ₱
-                      {userData.eWallet.toLocaleString("en-PH", {
-                        minimumFractionDigits: 2,
-                      })}
-                    </Typography>
-                  </Box>
-                )}
+                    <WalletIcon
+                      fontSize="small"
+                      sx={{ mr: 1, color: "#4CAF50" }}
+                    />
+                    E-Wallet
+                  </Typography>
+                  <Typography
+                    variant="h5"
+                    sx={{ color: "#4CAF50", fontWeight: 700 }}
+                  >
+                    ₱
+                    {userData.eWallet.toLocaleString("en-PH", {
+                      minimumFractionDigits: 2,
+                    })}
+                  </Typography>
+                </Box>
+              )}
 
-                {/* Available Codes */}
-                {availableCodes.length > 0 && (
-                  <Box
+              {/* Available Codes */}
+              {availableCodes.length > 0 && (
+                <Box
+                  sx={{
+                    background: "rgba(255,255,255,0.1)",
+                    borderRadius: 2,
+                    p: 2,
+                    mb: 2,
+                  }}
+                >
+                  <Typography
+                    variant="subtitle1"
                     sx={{
-                      background: "rgba(255,255,255,0.1)",
-                      borderRadius: 2,
-                      p: 2,
-                      mb: 2,
+                      display: "flex",
+                      alignItems: "center",
+                      fontWeight: 500,
+                      mb: 1,
                     }}
                   >
+                    <CodeIcon sx={{ mr: 1, color: "#FFD54F" }} />
+                    Available Codes
+                  </Typography>
+                  {availableCodes.map((code, i) => (
                     <Typography
-                      variant="subtitle1"
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        fontWeight: 500,
-                        mb: 1,
-                      }}
+                      key={i}
+                      variant="body2"
+                      sx={{ color: "#FFF59D", fontFamily: "monospace", ml: 2 }}
                     >
-                      <CodeIcon sx={{ mr: 1, color: "#FFD54F" }} />
-                      Available Codes
+                      {code.type}: {code.code}
                     </Typography>
-                    {availableCodes.map((code, i) => (
-                      <Typography
-                        key={i}
-                        variant="body2"
-                        sx={{ color: "#FFF59D", fontFamily: "monospace", ml: 2 }}
-                      >
-                        {code.type}: {code.code}
-                      </Typography>
-                    ))}
-                  </Box>
-                )}
+                  ))}
+                </Box>
+              )}
 
-                {/* Menu Items */}
-                <List>
-                  <ListItem disablePadding>
-                    <ListItemButton onClick={() => handleOpenDialog("purchase")}>
-                      <ListItemIcon>
-                        <PurchaseIcon sx={{ color: "#4FC3F7" }} />
-                      </ListItemIcon>
-                      <ListItemText primary="Purchase Codes" />
-                    </ListItemButton>
-                  </ListItem>
+              {/* Menu Items */}
+              <List>
+                <ListItem disablePadding>
+                  <ListItemButton onClick={() => handleOpenDialog("purchase")}>
+                    <ListItemIcon>
+                      <PurchaseIcon sx={{ color: "#4FC3F7" }} />
+                    </ListItemIcon>
+                    <ListItemText primary="Purchase Codes" />
+                  </ListItemButton>
+                </ListItem>
 
-                  <ListItem disablePadding>
-                    <ListItemButton onClick={() => handleOpenDialog("withdraw")}>
-                      <ListItemIcon>
-                        <WithdrawIcon sx={{ color: "#FF7043" }} />
-                      </ListItemIcon>
-                      <ListItemText primary="Withdrawal" />
-                    </ListItemButton>
-                  </ListItem>
+                <ListItem disablePadding>
+                  <ListItemButton onClick={() => handleOpenDialog("withdraw")}>
+                    <ListItemIcon>
+                      <WithdrawIcon sx={{ color: "#FF7043" }} />
+                    </ListItemIcon>
+                    <ListItemText primary="Withdrawal" />
+                  </ListItemButton>
+                </ListItem>
 
-                  <ListItem disablePadding>
-                    <ListItemButton onClick={() => handleOpenDialog("deposit")}>
-                      <ListItemIcon>
-                        <DepositIcon sx={{ color: "#81C784" }} />
-                      </ListItemIcon>
-                      <ListItemText primary="Deposit" />
-                    </ListItemButton>
-                  </ListItem>
+                <ListItem disablePadding>
+                  <ListItemButton onClick={() => handleOpenDialog("deposit")}>
+                    <ListItemIcon>
+                      <DepositIcon sx={{ color: "#81C784" }} />
+                    </ListItemIcon>
+                    <ListItemText primary="Deposit" />
+                  </ListItemButton>
+                </ListItem>
 
-                  {/* ✅ Enabled Transfer Funds */}
-                  <ListItem disablePadding>
-                    <ListItemButton onClick={() => handleOpenDialog("transfer")}>
-                      <ListItemIcon>
-                        <TransferIcon sx={{ color: "#BA68C8" }} />
-                      </ListItemIcon>
-                      <ListItemText primary="Transfer Funds" />
-                    </ListItemButton>
-                  </ListItem>
+                <ListItem disablePadding>
+                  <ListItemButton onClick={() => handleOpenDialog("transfer")}>
+                    <ListItemIcon>
+                      <TransferIcon sx={{ color: "#BA68C8" }} />
+                    </ListItemIcon>
+                    <ListItemText primary="Transfer Funds" />
+                  </ListItemButton>
+                </ListItem>
 
-                  <ListItem disablePadding>
-                    <ListItemButton onClick={() => handleOpenDialog("invite")}>
-                      <ListItemIcon>
-                        <InviteIcon sx={{ color: "#FFB300" }} />
-                      </ListItemIcon>
-                      <ListItemText primary="Invite & Earn" />
-                    </ListItemButton>
-                  </ListItem>
+                <ListItem disablePadding>
+                  <ListItemButton onClick={() => handleOpenDialog("invite")}>
+                    <ListItemIcon>
+                      <InviteIcon sx={{ color: "#FFB300" }} />
+                    </ListItemIcon>
+                    <ListItemText primary="Invite & Earn" />
+                  </ListItemButton>
+                </ListItem>
 
-                  {/* Logout */}
-                  <ListItem disablePadding>
-                    <ListItemButton onClick={handleLogout}>
-                      <ListItemIcon>
-                        <LogoutIcon sx={{ color: "#FF5252" }} />
-                      </ListItemIcon>
-                      <ListItemText
-                        primary="Logout"
-                        sx={{
-                          color: "#FF5252",
-                          "& .MuiListItemText-primary": { fontWeight: 600 },
-                        }}
-                      />
-                    </ListItemButton>
-                  </ListItem>
-                </List>
-              </Box>
+                {/* Logout */}
+                <ListItem disablePadding>
+                  <ListItemButton onClick={handleLogout}>
+                    <ListItemIcon>
+                      <LogoutIcon sx={{ color: "#FF5252" }} />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="Logout"
+                      sx={{
+                        color: "#FF5252",
+                        "& .MuiListItemText-primary": { fontWeight: 600 },
+                      }}
+                    />
+                  </ListItemButton>
+                </ListItem>
+              </List>
             </Box>
           </Slide>
         </Box>

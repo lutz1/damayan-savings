@@ -10,16 +10,7 @@ import {
   CircularProgress,
 } from "@mui/material";
 import { motion } from "framer-motion";
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  getDoc,
-  doc,
-  or,
-  and,
-} from "firebase/firestore";
+import { collection, query, where, onSnapshot, getDoc, doc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { db, auth } from "../../firebase";
 import Topbar from "../../components/Topbar";
@@ -30,7 +21,6 @@ const MemberDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [user, setUser] = useState(null);
   const [username, setUsername] = useState("");
-  const [name, setName] = useState("");
   const [loading, setLoading] = useState(true);
   const [downlines, setDownlines] = useState({
     MD: 0,
@@ -41,62 +31,66 @@ const MemberDashboard = () => {
 
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
 
-  // 🔹 Track current user & fetch username + name
+  // 🔹 Track current user & fetch username
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
         try {
-          const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+          const userDocRef = doc(db, "users", currentUser.uid);
+          const userDoc = await getDoc(userDocRef);
           if (userDoc.exists()) {
             const data = userDoc.data();
             setUsername(data.username || "");
-            setName(data.name || "");
-            console.log("🔹 Logged in as:", data.username, "| Name:", data.name);
+            console.log("Logged in user:", data.username);
           }
         } catch (err) {
-          console.error("❌ Error fetching user:", err);
+          console.error("Error fetching user document:", err);
         }
       } else {
         setUser(null);
+        setUsername("");
       }
     });
 
     return () => unsubAuth();
   }, []);
 
-  // 🔹 Fetch real-time downline counts based on referredBy
+  // 🔹 Fetch downline counts safely
   useEffect(() => {
-    if (!username && !name) return;
+    if (!username) return;
 
-    const unsubscribers = [];
+    setLoading(true);
     const roles = ["MD", "MS", "MI", "Agent"];
-
-    console.log("🔍 Fetching downlines for:", username, "or", name);
+    const unsubscribers = [];
 
     roles.forEach((role) => {
       const q = query(
         collection(db, "users"),
-        and(
-          or(where("referredBy", "==", username), where("referredBy", "==", name)),
-          where("role", "==", role)
-        )
+        where("referredBy", "==", username),
+        where("role", "==", role)
       );
 
-      const unsub = onSnapshot(q, (snapshot) => {
-        console.log(`📊 ${role}:`, snapshot.size);
-        setDownlines((prev) => ({
-          ...prev,
-          [role]: snapshot.size,
-        }));
-      });
+      const unsub = onSnapshot(
+        q,
+        (snapshot) => {
+          setDownlines((prev) => ({
+            ...prev,
+            [role]: snapshot.size,
+          }));
+        },
+        (err) => {
+          console.error("Firestore snapshot error:", err);
+        }
+      );
 
       unsubscribers.push(unsub);
     });
 
     setLoading(false);
+
     return () => unsubscribers.forEach((u) => u());
-  }, [username, name]);
+  }, [username]);
 
   return (
     <Box
@@ -135,7 +129,7 @@ const MemberDashboard = () => {
         sx={{
           flexGrow: 1,
           p: 4,
-          mt: 8,
+          mt: 0,
           color: "white",
           zIndex: 1,
           width: `calc(100% - ${sidebarOpen ? 240 : 60}px)`,
@@ -144,7 +138,6 @@ const MemberDashboard = () => {
         }}
       >
         <Toolbar />
-
         <Typography
           variant="h4"
           gutterBottom
@@ -155,7 +148,7 @@ const MemberDashboard = () => {
             textShadow: "1px 1px 3px rgba(0,0,0,0.4)",
           }}
         >
-          👥 Member Downline Overview
+          👥 My Downline Overview
         </Typography>
 
         {loading ? (

@@ -85,7 +85,7 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
       // Save invite data for admin approval
       await addDoc(collection(db, "pendingInvites"), {
         inviterId: auth.currentUser.uid,
-        uplineUsername: userData.name,
+        uplineUsername: userData.username,
         inviteeName: newUserName,
         inviteeUsername: newUserUsername, // 🆕 Store username
         inviteeEmail: newUserEmail,
@@ -220,7 +220,7 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
         <TextField
           fullWidth
           label="Upline Username"
-          value={userData?.name || ""}
+          value={userData?.username || ""}
           disabled
           sx={{
             mb: 2,

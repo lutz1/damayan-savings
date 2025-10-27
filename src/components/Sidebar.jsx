@@ -47,7 +47,7 @@ const Sidebar = ({ open, onToggleSidebar }) => {
   // Admin Navigation
   const adminNav = [
     { text: "Dashboard", icon: <DashboardIcon />, path: "/admin/dashboard" },
-    { text: "Generate Codes", icon: <MonetizationOnIcon />, path: "/admin/generate-codes" },
+    { text: "Purchased Codes", icon: <MonetizationOnIcon />, path: "/admin/generate-codes" },
     { text: "User Management", icon: <PieChartIcon />, path: "/admin/user-management" },
     { text: "Approval Requests", icon: <SavingsIcon />, path: "/admin/approval-requests" },
     { text: "Transfer Transactions", icon: <SwapHorizIcon />, path: "/admin/transfer-transactions" },
