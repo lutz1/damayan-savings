@@ -13,7 +13,7 @@ import {
   TableRow,
   TablePagination,
 } from "@mui/material";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, onSnapshot, doc, getDoc } from "firebase/firestore";
 import { db } from "../../firebase";
 import Sidebar from "../../components/Sidebar";
 import Topbar from "../../components/Topbar";
@@ -35,24 +35,51 @@ const AdminGenerateCode = () => {
 
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
 
-  // 🔥 Real-time Firestore fetch
+  // 🔥 Real-time Firestore fetch with user lookup
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, "purchaseCodes"), (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({
+    const unsub = onSnapshot(collection(db, "purchaseCodes"), async (snapshot) => {
+      const purchaseData = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
 
-      const sorted = data.sort(
+      // Sort newest first
+      const sorted = purchaseData.sort(
         (a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)
       );
 
-      const total = sorted.reduce(
+      // Fetch user info for each purchase
+      const codesWithUserInfo = await Promise.all(
+        sorted.map(async (code) => {
+          if (!code.userId) return { ...code, userDisplay: "Unknown User" };
+
+          try {
+            const userDoc = await getDoc(doc(db, "users", code.userId));
+            if (!userDoc.exists()) return { ...code, userDisplay: "Unknown User" };
+
+            const userData = userDoc.data();
+            return {
+              ...code,
+              userDisplay:
+                userData.username ||
+                userData.fullName ||
+                userData.displayName ||
+                userData.email ||
+                "Unnamed User",
+            };
+          } catch (error) {
+            console.error("Error fetching user data:", error);
+            return { ...code, userDisplay: "Error Loading User" };
+          }
+        })
+      );
+
+      const total = codesWithUserInfo.reduce(
         (acc, curr) => acc + (Number(curr.amount) || 0),
         0
       );
 
-      setCodes(sorted);
+      setCodes(codesWithUserInfo);
       setTotalSales(total);
       setLoading(false);
     });
@@ -173,17 +200,14 @@ const AdminGenerateCode = () => {
               </motion.div>
 
               {/* Enhanced Line Chart */}
-              <motion.div
-                variants={fadeIn}
-                transition={{ delay: 0.3 }}
-                style={{ position: "relative" }}
-              >
+              <motion.div variants={fadeIn} transition={{ delay: 0.3 }}>
                 <Paper
                   sx={{
                     p: 3,
                     height: 420,
                     mb: 4,
-                    background: "linear-gradient(145deg, rgba(255,255,255,0.12), rgba(255,255,255,0.05))",
+                    background:
+                      "linear-gradient(145deg, rgba(255,255,255,0.12), rgba(255,255,255,0.05))",
                     borderRadius: "20px",
                     backdropFilter: "blur(12px)",
                     overflow: "hidden",
@@ -222,30 +246,10 @@ const AdminGenerateCode = () => {
                         showMark: true,
                         fill: "url(#salesGradient)",
                         highlightScope: { highlighted: "series" },
-                        valueFormatter: (value) => `₱${value.toLocaleString()}`,
+                        valueFormatter: (value) =>
+                          `₱${value.toLocaleString()}`,
                       },
                     ]}
-                    tooltip={{
-                      trigger: "item",
-                      itemContentRender: (item) => (
-                        <Paper
-                          sx={{
-                            p: 1,
-                            bgcolor: "rgba(0,0,0,0.75)",
-                            color: "white",
-                            borderRadius: "8px",
-                            boxShadow: "0 0 10px rgba(0,0,0,0.5)",
-                          }}
-                        >
-                          <Typography variant="body2" fontWeight={600}>
-                            {item.data.date}
-                          </Typography>
-                          <Typography variant="body2">
-                            ₱{item.data.total.toLocaleString()}
-                          </Typography>
-                        </Paper>
-                      ),
-                    }}
                     height={340}
                     margin={{ left: 60, right: 20, top: 20, bottom: 40 }}
                     sx={{
@@ -255,7 +259,8 @@ const AdminGenerateCode = () => {
                       "& .MuiChartsAxis-tickLabel": { fill: "#fff" },
                       "& .MuiLineElement-root": {
                         strokeWidth: 3,
-                        filter: "drop-shadow(0px 0px 6px rgba(0,255,128,0.7))",
+                        filter:
+                          "drop-shadow(0px 0px 6px rgba(0,255,128,0.7))",
                         transition: "all 0.6s ease",
                       },
                       "& .MuiMarkElement-root": {
@@ -324,16 +329,11 @@ const AdminGenerateCode = () => {
                                 ₱{Number(code.amount || 0).toLocaleString()}
                               </TableCell>
                               <TableCell sx={{ color: "#fff" }}>
-                                {code.purchasedBy?.name ||
-                                  code.name ||
-                                  code.userName ||
-                                  "Unnamed User"}
+                                {code.userDisplay}
                               </TableCell>
                               <TableCell sx={{ color: "#fff" }}>
                                 {code.createdAt?.seconds
-                                  ? new Date(
-                                      code.createdAt.seconds * 1000
-                                    ).toLocaleString()
+                                  ? new Date(code.createdAt.seconds * 1000).toLocaleString()
                                   : "--"}
                               </TableCell>
                             </TableRow>
