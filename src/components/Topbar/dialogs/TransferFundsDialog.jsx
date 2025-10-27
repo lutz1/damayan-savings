@@ -1,3 +1,4 @@
+// src/components/TransferFundsDialog.jsx
 import React, { useState, useEffect } from "react";
 import {
   Dialog,
@@ -15,6 +16,7 @@ import {
   ListItem,
   ListItemText,
   Chip,
+  Paper,
 } from "@mui/material";
 import { Send, CheckCircle } from "@mui/icons-material";
 import {
@@ -24,42 +26,75 @@ import {
   query,
   where,
   onSnapshot,
+  getDocs,
+  limit,
 } from "firebase/firestore";
 
 const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) => {
   const [recipientUsername, setRecipientUsername] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [showResults, setShowResults] = useState(false);
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
   const [transferLogs, setTransferLogs] = useState([]);
   const [netAmount, setNetAmount] = useState(0);
+  const [searching, setSearching] = useState(false);
 
   // ✅ Real-time transfer logs for this user
   useEffect(() => {
     if (!open || !auth?.currentUser) return;
-
     const q = query(
       collection(db, "transferFunds"),
       where("senderId", "==", auth.currentUser.uid)
     );
-
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const logs = snapshot.docs
         .map((doc) => ({ id: doc.id, ...doc.data() }))
         .sort((a, b) => b.createdAt?.seconds - a.createdAt?.seconds);
       setTransferLogs(logs);
     });
-
     return () => unsubscribe();
   }, [open, auth, db]);
 
   // ✅ Compute net amount (after 2% charge)
   useEffect(() => {
     const amt = parseFloat(amount) || 0;
-    const charge = amt * 0.02;
-    setNetAmount(amt - charge);
+    setNetAmount(amt - amt * 0.02);
   }, [amount]);
+
+  // ✅ Search usernames from Firestore
+  const handleSearchUser = async (val) => {
+    setRecipientUsername(val);
+    if (!val.trim()) {
+      setSearchResults([]);
+      setShowResults(false);
+      return;
+    }
+
+    setSearching(true);
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, where("username", ">=", val), where("username", "<=", val + "\uf8ff"), limit(5));
+
+    try {
+      const snap = await getDocs(q);
+      const results = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((u) => u.username !== userData.username); // exclude self
+      setSearchResults(results);
+      setShowResults(true);
+    } catch (err) {
+      console.error("Search failed:", err);
+      setError("Failed to search usernames.");
+    }
+    setSearching(false);
+  };
+
+  const handleSelectUser = (username) => {
+    setRecipientUsername(username);
+    setShowResults(false);
+  };
 
   const handleTransferRequest = async () => {
     if (!recipientUsername || !amount) {
@@ -68,30 +103,17 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
     }
 
     const numAmount = parseFloat(amount);
-    if (numAmount <= 0) {
-      setError("Transfer amount must be greater than zero.");
-      return;
-    }
-
-    if (numAmount > userData.eWallet) {
-      setError("Insufficient wallet balance.");
-      return;
-    }
-
-    if (numAmount < 50) {
-      setError("Minimum transfer is ₱50.");
-      return;
-    }
+    if (numAmount <= 0) return setError("Transfer amount must be greater than zero.");
+    if (numAmount > userData.eWallet) return setError("Insufficient wallet balance.");
+    if (numAmount < 50) return setError("Minimum transfer is ₱50.");
 
     setError("");
     setLoading(true);
 
     try {
-      // Compute 2% charge
       const charge = numAmount * 0.02;
       const netTransfer = numAmount - charge;
 
-      // ✅ Save transfer request for admin approval
       await addDoc(collection(db, "transferFunds"), {
         senderId: auth.currentUser.uid,
         senderName: userData.name,
@@ -104,14 +126,12 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
         createdAt: serverTimestamp(),
       });
 
-      // ✅ Deduct from sender balance immediately (optional)
-      if (onBalanceUpdate) {
-        onBalanceUpdate(userData.eWallet - numAmount);
-      }
+      if (onBalanceUpdate) onBalanceUpdate(userData.eWallet - numAmount);
 
       setSuccess(true);
       setAmount("");
       setRecipientUsername("");
+      setSearchResults([]);
     } catch (err) {
       console.error("Transfer request failed:", err);
       setError("Something went wrong. Please try again.");
@@ -125,6 +145,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
     setSuccess(false);
     setRecipientUsername("");
     setAmount("");
+    setSearchResults([]);
     onClose();
   };
 
@@ -156,7 +177,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
         },
       }}
     >
-      {/* 🧾 Dialog Title */}
+      {/* 🧾 Title */}
       <DialogTitle
         sx={{
           textAlign: "center",
@@ -168,7 +189,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
       </DialogTitle>
 
       <DialogContent>
-        {/* 💰 Balance Section */}
+        {/* 💰 Balance */}
         <Box sx={{ textAlign: "center", mt: 2 }}>
           <Send sx={{ fontSize: 40, color: "#4FC3F7" }} />
           <Typography variant="h6" sx={{ mt: 1 }}>
@@ -184,7 +205,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
 
         <Divider sx={{ my: 2, borderColor: "rgba(255,255,255,0.1)" }} />
 
-        {/* ✅ Success Message */}
+        {/* ✅ Success */}
         {success ? (
           <Box sx={{ textAlign: "center", py: 4 }}>
             <CheckCircle sx={{ fontSize: 50, color: "#4CAF50" }} />
@@ -214,18 +235,62 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
               </Alert>
             )}
 
-            {/* 🧑‍ Recipient */}
-            <TextField
-              fullWidth
-              label="Recipient Username"
-              value={recipientUsername}
-              onChange={(e) => setRecipientUsername(e.target.value)}
-              sx={{
-                mb: 2,
-                "& .MuiInputBase-root": { color: "#fff" },
-                "& .MuiInputLabel-root": { color: "rgba(255,255,255,0.7)" },
-              }}
-            />
+            {/* 🧑‍ Recipient Search */}
+            <Box sx={{ position: "relative", mb: 2 }}>
+              <TextField
+                fullWidth
+                label="Recipient Username"
+                value={recipientUsername}
+                onChange={(e) => handleSearchUser(e.target.value)}
+                sx={{
+                  "& .MuiInputBase-root": { color: "#fff" },
+                  "& .MuiInputLabel-root": { color: "rgba(255,255,255,0.7)" },
+                }}
+              />
+              {searching && (
+                <CircularProgress
+                  size={20}
+                  sx={{ position: "absolute", right: 10, top: 15, color: "#4FC3F7" }}
+                />
+              )}
+
+              {showResults && searchResults.length > 0 && (
+                <Paper
+                  sx={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    zIndex: 5,
+                    bgcolor: "rgba(40,40,40,0.95)",
+                    color: "#fff",
+                    mt: 1,
+                    borderRadius: 2,
+                    maxHeight: 160,
+                    overflowY: "auto",
+                  }}
+                >
+                  {searchResults.map((u) => (
+                    <ListItem
+                      key={u.id}
+                      button
+                      onClick={() => handleSelectUser(u.username)}
+                      sx={{
+                        "&:hover": { background: "rgba(255,255,255,0.1)" },
+                      }}
+                    >
+                      <ListItemText
+                        primary={u.username}
+                        secondary={u.name}
+                        secondaryTypographyProps={{
+                          color: "rgba(255,255,255,0.6)",
+                        }}
+                      />
+                    </ListItem>
+                  ))}
+                </Paper>
+              )}
+            </Box>
 
             {/* 💸 Amount */}
             <TextField
@@ -241,7 +306,6 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
               }}
             />
 
-            {/* 🧮 Charge Summary */}
             {amount && (
               <>
                 <Typography variant="body2" sx={{ color: "#FFB74D", mb: 0.5 }}>
@@ -263,7 +327,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
               variant="subtitle1"
               sx={{ mb: 1, fontWeight: 600, color: "#90CAF9" }}
             >
-              Transfer Funds Logs
+              Transfer Logs
             </Typography>
             <List dense sx={{ maxHeight: 150, overflowY: "auto" }}>
               {transferLogs.map((log) => (
@@ -333,11 +397,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
               "&:hover": { bgcolor: "#29B6F6" },
             }}
           >
-            {loading ? (
-              <CircularProgress size={24} sx={{ color: "#000" }} />
-            ) : (
-              "Submit Request"
-            )}
+            {loading ? <CircularProgress size={24} sx={{ color: "#000" }} /> : "Submit Request"}
           </Button>
         )}
       </DialogActions>

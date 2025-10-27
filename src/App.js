@@ -21,14 +21,15 @@ import AdminProfile from "./pages/admin/adminProfile";
 import AdminUserManagement from "./pages/admin/adminUserManagement";
 import AdminApprovalRequest from "./pages/admin/adminApprovalRequest";
 import AdminTransferTransaction from "./pages/admin/adminTransferTransaction";
-import AdminWalletToWallet from "./pages/admin/adminWallettoWallet"; // ✅ Correct import path
-import AdminWithdrawals from "./pages/admin/adminWithdrawals"; 
-import AdminDeposits from "./pages/admin/adminDeposits"; 
+import AdminWalletToWallet from "./pages/admin/adminWallettoWallet";
+import AdminWithdrawals from "./pages/admin/adminWithdrawals";
+import AdminDeposits from "./pages/admin/adminDeposits";
 
 // Member pages
 import MemberDashboard from "./pages/member/memberDashboard";
 import MemberPayback from "./pages/member/memberPayback";
 import MemberCapitalShare from "./pages/member/memberCapitalShare";
+import MemberProfile from "./pages/member/memberProfile"; // ✅ Added
 
 import "leaflet/dist/leaflet.css";
 
@@ -93,7 +94,7 @@ function App() {
             <Route path="/admin/user-management" element={<AdminRoute><AdminUserManagement /></AdminRoute>} />
             <Route path="/admin/approval-requests" element={<AdminRoute><AdminApprovalRequest /></AdminRoute>} />
             <Route path="/admin/transfer-transactions" element={<AdminRoute><AdminTransferTransaction /></AdminRoute>} />
-            <Route path="/admin/wallet-to-wallet" element={<AdminRoute><AdminWalletToWallet /></AdminRoute>} /> {/* Financials */}
+            <Route path="/admin/wallet-to-wallet" element={<AdminRoute><AdminWalletToWallet /></AdminRoute>} />
             <Route path="/admin/withdrawals" element={<AdminRoute><AdminWithdrawals /></AdminRoute>} />
             <Route path="/admin/deposits" element={<AdminRoute><AdminDeposits /></AdminRoute>} />
             <Route path="/admin/profile" element={<AdminRoute><AdminProfile /></AdminRoute>} />
@@ -102,6 +103,7 @@ function App() {
             <Route path="/member/dashboard" element={<MemberRoute><MemberDashboard /></MemberRoute>} />
             <Route path="/member/income/payback" element={<MemberRoute><MemberPayback /></MemberRoute>} />
             <Route path="/member/income/capital-share" element={<MemberRoute><MemberCapitalShare /></MemberRoute>} />
+            <Route path="/member/profile" element={<MemberRoute><MemberProfile /></MemberRoute>} /> {/* ✅ New route */}
 
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" />} />
