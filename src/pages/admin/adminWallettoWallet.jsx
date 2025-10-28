@@ -78,7 +78,30 @@ const AdminWalletToWallet = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
 
-  // Fetch sender name helper
+  // 🔹 ENHANCED SEARCH/FILTER styles
+  const iosInputStyle = {
+    borderRadius: "20px",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    color: "white",
+    "& .MuiOutlinedInput-notchedOutline": { border: "none" },
+    "&:hover .MuiOutlinedInput-notchedOutline": { border: "none" },
+    "&.Mui-focused .MuiOutlinedInput-notchedOutline": { border: "1px solid #81C784" },
+    "& input": { padding: "10px 14px", color: "white" },
+    "& svg": { color: "white" },
+  };
+
+  const iosSelectStyle = {
+    borderRadius: "20px",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    color: "white",
+    "& .MuiOutlinedInput-notchedOutline": { border: "none" },
+    "&:hover .MuiOutlinedInput-notchedOutline": { border: "none" },
+    "&.Mui-focused .MuiOutlinedInput-notchedOutline": { border: "1px solid #81C784" },
+    "& .MuiSelect-select": { padding: "10px 14px", color: "white" },
+    "& .MuiSvgIcon-root": { color: "white" },
+  };
+
+  // Fetch sender name
   const fetchSenderName = async (emailOrId) => {
     try {
       let userQuery = query(collection(db, "users"), where("uid", "==", emailOrId));
@@ -132,7 +155,7 @@ const AdminWalletToWallet = () => {
     return () => unsubscribe();
   }, []);
 
-  // Approve or reject
+  // Approve/Reject
   const handleAction = async (id, status) => {
     try {
       const transferRef = doc(db, "transferFunds", id);
@@ -234,14 +257,12 @@ const AdminWalletToWallet = () => {
         <Topbar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
       </Box>
 
-      {/* Desktop sidebar */}
       {!isMobile && (
         <Box sx={{ zIndex: 5 }}>
           <Sidebar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
         </Box>
       )}
 
-      {/* Mobile sidebar */}
       {isMobile && (
         <Drawer
           anchor="left"
@@ -258,10 +279,10 @@ const AdminWalletToWallet = () => {
         sx={{
           flexGrow: 1,
           p: isMobile ? 1 : 3,
-          mt: 8,
+          mt: 2,
           color: "white",
           zIndex: 1,
-          width: "100%",
+          width: "95%",
           overflowX: "hidden",
         }}
       >
@@ -279,18 +300,25 @@ const AdminWalletToWallet = () => {
         </Typography>
 
         {/* Summary */}
-        <Card sx={{ background: "rgba(255,255,255,0.12)", backdropFilter: "blur(12px)", borderRadius: "16px", mb: 3 }}>
+        <Card
+          sx={{
+            background: "rgba(255,255,255,0.12)",
+            backdropFilter: "blur(12px)",
+            borderRadius: "16px",
+            mb: 3,
+          }}
+        >
           <CardContent>
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600 , color: "white",}}>
               📊 Transfer Summary
             </Typography>
-            <Typography sx={{ mt: 1 }}>
+            <Typography sx={{ mt: 1, color: "white",}}>
               Total Amount Transferred:{" "}
               <b>
                 ₱{summary.totalAmount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
               </b>
             </Typography>
-            <Typography sx={{ mt: 0.5 }}>
+            <Typography sx={{ mt: 0.5, color: "white",}}>
               Revenue (2% Charge):{" "}
               <b>₱{summary.totalRevenue.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</b>
             </Typography>
@@ -320,21 +348,26 @@ const AdminWalletToWallet = () => {
         </Card>
 
         {/* Search & Filter */}
-        <Stack direction={isMobile ? "column" : "row"} spacing={2} mb={2}>
+        <Stack
+          direction={isMobile ? "column" : "row"}
+          spacing={2}
+          mb={2}
+          sx={{ width: "100%" }}
+        >
           <TextField
             placeholder="Search by Sender, Recipient, or User ID"
             variant="outlined"
             size="small"
-            fullWidth={isMobile}
+            fullWidth={true}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchIcon sx={{ color: "white" }} />
+                  <SearchIcon />
                 </InputAdornment>
               ),
-              sx: { color: "white" },
+              sx: iosInputStyle,
             }}
           />
           <TextField
@@ -342,8 +375,8 @@ const AdminWalletToWallet = () => {
             label="Filter Status"
             value={filterStatus}
             size="small"
-            sx={{ minWidth: 150, color: "white" }}
             onChange={(e) => setFilterStatus(e.target.value)}
+            sx={iosSelectStyle}
           >
             {["All", "Pending", "Approved", "Rejected"].map((status) => (
               <MenuItem key={status} value={status}>
@@ -354,73 +387,148 @@ const AdminWalletToWallet = () => {
         </Stack>
 
         {/* Table */}
-        <Card sx={{ background: "rgba(255,255,255,0.12)", backdropFilter: "blur(12px)", borderRadius: "16px", boxShadow: "0 6px 25px rgba(0,0,0,0.25)", width: "100%", overflowX: "auto" }}>
-          <CardContent sx={{ p: 1 }}>
-            {loading ? (
-              <Box sx={{ display: "flex", justifyContent: "center", py: 5 }}>
-                <CircularProgress sx={{ color: "white" }} />
-              </Box>
-            ) : filteredTransfers.length === 0 ? (
-              <Typography align="center" sx={{ color: "rgba(255,255,255,0.7)", py: 3 }}>
-                No transfer requests found.
-              </Typography>
-            ) : (
-              <>
-                <TableContainer>
-                  <Table size={isMobile ? "small" : "medium"}>
-                    <TableHead>
-                      <TableRow>
-                        {["Sender","Recipient","Amount","Charge (2%)","Net Amount","Status","Date","Actions"].map((head) => (
-                          <TableCell key={head} sx={{ color: "white", fontWeight: "bold" }}>{head}</TableCell>
-                        ))}
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {filteredTransfers
-                        .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                        .map((t) => (
-                          <motion.tr key={t.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-                            <TableCell sx={{ color: "white" }}>{t.senderName || "Unknown"}</TableCell>
-                            <TableCell sx={{ color: "white" }}>{t.recipientUsername}</TableCell>
-                            <TableCell sx={{ color: "white" }}>₱{t.amount?.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</TableCell>
-                            <TableCell sx={{ color: "white" }}>₱{t.charge?.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</TableCell>
-                            <TableCell sx={{ color: "white" }}>₱{t.netAmount?.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</TableCell>
-                            <TableCell sx={{ color: t.status==="Approved"?"#81C784":t.status==="Rejected"?"#E57373":"#FFB74D", fontWeight: 600 }}>{t.status}</TableCell>
-                            <TableCell sx={{ color: "white" }}>{t.createdAt ? new Date(t.createdAt.seconds * 1000).toLocaleString("en-PH") : "—"}</TableCell>
-                            <TableCell>
-                              {t.status === "Pending" ? (
-                                <Stack direction="row" spacing={1}>
-                                  <Button size="small" variant="contained" sx={{ bgcolor:"#81C784", color:"#000","&:hover":{bgcolor:"#66BB6A"}, fontWeight:600 }} onClick={()=>handleAction(t.id,"Approved")}>Approve</Button>
-                                  <Button size="small" variant="contained" sx={{ bgcolor:"#E57373", color:"#000","&:hover":{bgcolor:"#EF5350"}, fontWeight:600 }} onClick={()=>handleAction(t.id,"Rejected")}>Reject</Button>
-                                </Stack>
-                              ) : (
-                                <Typography variant="body2" sx={{ color:"rgba(255,255,255,0.6)" }}>No actions</Typography>
-                              )}
+        <Box sx={{ width: "100%", overflowX: "auto" }}> {/* 🔹 Wrap table for mobile */}
+          <Card
+            sx={{
+              background: "rgba(255,255,255,0.12)",
+              backdropFilter: "blur(12px)",
+              borderRadius: "16px",
+              boxShadow: "0 6px 25px rgba(0,0,0,0.25)",
+              minWidth: isMobile ? "700px" : "auto",
+            }}
+          >
+            <CardContent sx={{ p: 1 }}>
+              {loading ? (
+                <Box sx={{ display: "flex", justifyContent: "center", py: 5 }}>
+                  <CircularProgress sx={{ color: "white" }} />
+                </Box>
+              ) : filteredTransfers.length === 0 ? (
+                <Typography align="center" sx={{ color: "rgba(255,255,255,0.7)", py: 3 }}>
+                  No transfer requests found.
+                </Typography>
+              ) : (
+                <>
+                  <TableContainer>
+                    <Table size={isMobile ? "small" : "medium"}>
+                      <TableHead>
+                        <TableRow>
+                          {[
+                            "Sender",
+                            "Recipient",
+                            "Amount",
+                            "Charge (2%)",
+                            "Net Amount",
+                            "Status",
+                            "Date",
+                            "Actions",
+                          ].map((head) => (
+                            <TableCell
+                              key={head}
+                              sx={{ color: "white", fontWeight: "bold" }}
+                            >
+                              {head}
                             </TableCell>
-                          </motion.tr>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                          ))}
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {filteredTransfers
+                          .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                          .map((t) => (
+                            <motion.tr
+                              key={t.id}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.3 }}
+                            >
+                              <TableCell sx={{ color: "white" }}>{t.senderName || "Unknown"}</TableCell>
+                              <TableCell sx={{ color: "white" }}>{t.recipientUsername}</TableCell>
+                              <TableCell sx={{ color: "white" }}>
+                                ₱{t.amount?.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                              </TableCell>
+                              <TableCell sx={{ color: "white" }}>
+                                ₱{t.charge?.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                              </TableCell>
+                              <TableCell sx={{ color: "white" }}>
+                                ₱{t.netAmount?.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                              </TableCell>
+                              <TableCell
+                                sx={{
+                                  color:
+                                    t.status === "Approved"
+                                      ? "#81C784"
+                                      : t.status === "Rejected"
+                                      ? "#E57373"
+                                      : "#FFB74D",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {t.status}
+                              </TableCell>
+                              <TableCell sx={{ color: "white" }}>
+                                {t.createdAt ? new Date(t.createdAt.seconds * 1000).toLocaleString("en-PH") : "—"}
+                              </TableCell>
+                              <TableCell>
+                                {t.status === "Pending" ? (
+                                  <Stack direction="row" spacing={1}>
+                                    <Button
+                                      size="small"
+                                      variant="contained"
+                                      sx={{
+                                        bgcolor: "#81C784",
+                                        color: "#000",
+                                        "&:hover": { bgcolor: "#66BB6A" },
+                                        fontWeight: 600,
+                                      }}
+                                      onClick={() => handleAction(t.id, "Approved")}
+                                    >
+                                      Approve
+                                    </Button>
+                                    <Button
+                                      size="small"
+                                      variant="contained"
+                                      sx={{
+                                        bgcolor: "#E57373",
+                                        color: "#000",
+                                        "&:hover": { bgcolor: "#EF5350" },
+                                        fontWeight: 600,
+                                      }}
+                                      onClick={() => handleAction(t.id, "Rejected")}
+                                    >
+                                      Reject
+                                    </Button>
+                                  </Stack>
+                                ) : (
+                                  <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.6)" }}>
+                                    No actions
+                                  </Typography>
+                                )}
+                              </TableCell>
+                            </motion.tr>
+                          ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
 
-                <TablePagination
-                  component="div"
-                  count={filteredTransfers.length}
-                  page={page}
-                  onPageChange={handleChangePage}
-                  rowsPerPage={rowsPerPage}
-                  onRowsPerPageChange={handleChangeRowsPerPage}
-                  rowsPerPageOptions={[5,10,25,50]}
-                  sx={{
-                    color: "white",
-                    ".MuiTablePagination-toolbar": { color: "white" },
-                    ".MuiTablePagination-selectLabel, .MuiTablePagination-displayedRows": { color: "white" },
-                  }}
-                />
-              </>
-            )}
-          </CardContent>
-        </Card>
+                  <TablePagination
+                    component="div"
+                    count={filteredTransfers.length}
+                    page={page}
+                    onPageChange={handleChangePage}
+                    rowsPerPage={rowsPerPage}
+                    onRowsPerPageChange={handleChangeRowsPerPage}
+                    rowsPerPageOptions={[5, 10, 25, 50]}
+                    sx={{
+                      color: "white",
+                      ".MuiTablePagination-toolbar": { color: "white" },
+                      ".MuiTablePagination-selectLabel, .MuiTablePagination-displayedRows": { color: "white" },
+                    }}
+                  />
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </Box>
       </Box>
 
       <Snackbar
