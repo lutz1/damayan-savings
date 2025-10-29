@@ -89,32 +89,31 @@ const AdminWithdrawals = () => {
 
   // Listen to withdrawals collection
   useEffect(() => {
-    const q = query(collection(db, "withdrawals"));
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const data = snapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        }));
-        const sorted = data.sort(
-          (a, b) => b.createdAt?.seconds - a.createdAt?.seconds
-        );
-        setWithdrawals(sorted);
-
-        const approvedTotal = sorted
-          .filter((w) => w.status?.toLowerCase() === "approved")
-          .reduce((sum, w) => sum + Number(w.amount || 0), 0);
-        setSalesData({ total: approvedTotal, revenue: approvedTotal * 0.05 });
-        setLoading(false);
-      },
-      (err) => {
-        console.error("Error fetching withdrawals:", err);
-        setLoading(false);
-      }
+  const q = query(collection(db, "withdrawals"));
+  const unsubscribe = onSnapshot(q, async (snapshot) => {
+    const data = await Promise.all(
+      snapshot.docs.map(async (docSnap) => {
+        const w = { id: docSnap.id, ...docSnap.data() };
+        if (w.userId) {
+          const userSnap = await getDoc(doc(db, "users", w.userId));
+          w.name = userSnap.exists() ? userSnap.data().username || "" : "";
+        } else {
+          w.name = "";
+        }
+        return w;
+      })
     );
-    return () => unsubscribe();
-  }, []);
+    const sorted = data.sort((a, b) => b.createdAt?.seconds - a.createdAt?.seconds);
+    setWithdrawals(sorted);
+
+    const approvedTotal = sorted
+      .filter((w) => w.status?.toLowerCase() === "approved")
+      .reduce((sum, w) => sum + Number(w.amount || 0), 0);
+    setSalesData({ total: approvedTotal, revenue: approvedTotal * 0.05 });
+    setLoading(false);
+  });
+  return () => unsubscribe();
+}, []);
 
   // Approve or Reject withdrawal
   const handleAction = async (status) => {

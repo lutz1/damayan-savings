@@ -19,7 +19,6 @@ import AdminDashboard from "./pages/admin/adminDashboard";
 import AdminGenerateCode from "./pages/admin/adminGenerateCode";
 import AdminProfile from "./pages/admin/adminProfile";
 import AdminUserManagement from "./pages/admin/adminUserManagement";
-import AdminApprovalRequest from "./pages/admin/adminApprovalRequest";
 import AdminTransferTransaction from "./pages/admin/adminTransferTransaction";
 import AdminWalletToWallet from "./pages/admin/adminWallettoWallet";
 import AdminWithdrawals from "./pages/admin/adminWithdrawals";
@@ -92,7 +91,6 @@ function App() {
             <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
             <Route path="/admin/generate-codes" element={<AdminRoute><AdminGenerateCode /></AdminRoute>} />
             <Route path="/admin/user-management" element={<AdminRoute><AdminUserManagement /></AdminRoute>} />
-            <Route path="/admin/approval-requests" element={<AdminRoute><AdminApprovalRequest /></AdminRoute>} />
             <Route path="/admin/transfer-transactions" element={<AdminRoute><AdminTransferTransaction /></AdminRoute>} />
             <Route path="/admin/wallet-to-wallet" element={<AdminRoute><AdminWalletToWallet /></AdminRoute>} />
             <Route path="/admin/withdrawals" element={<AdminRoute><AdminWithdrawals /></AdminRoute>} />

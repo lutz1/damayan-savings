@@ -49,7 +49,6 @@ const Sidebar = ({ open, onToggleSidebar }) => {
     { text: "Dashboard", icon: <DashboardIcon />, path: "/admin/dashboard" },
     { text: "Purchased Codes", icon: <MonetizationOnIcon />, path: "/admin/generate-codes" },
     { text: "User Management", icon: <PieChartIcon />, path: "/admin/user-management" },
-    { text: "Approval Requests", icon: <SavingsIcon />, path: "/admin/approval-requests" },
     { text: "Transfer Transactions", icon: <SwapHorizIcon />, path: "/admin/transfer-transactions" },
     { text: "Profile", icon: <AccountCircleIcon />, path: "/admin/profile" },
   ];
