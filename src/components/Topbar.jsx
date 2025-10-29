@@ -205,7 +205,7 @@ const Topbar = ({ open, onToggleSidebar }) => {
             top: 0,
             right: 0,
             height: "100vh",
-            width: isMobile ? "90%" : isTablet ? "70%" : 360,
+            width: isMobile ? "70%" : isTablet ? "70%" : 360,
             zIndex: 1300,
             display: "flex",
             justifyContent: "flex-end",

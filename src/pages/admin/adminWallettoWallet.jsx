@@ -282,7 +282,7 @@ const AdminWalletToWallet = () => {
           mt: 2,
           color: "white",
           zIndex: 1,
-          width: "95%",
+          width: "96%",
           overflowX: "hidden",
         }}
       >

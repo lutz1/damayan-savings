@@ -64,6 +64,29 @@ const AdminDeposits = () => {
 
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
 
+  // 🔹 ENHANCED SEARCH/FILTER styles
+  const iosInputStyle = {
+    borderRadius: "20px",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    color: "white",
+    "& .MuiOutlinedInput-notchedOutline": { border: "none" },
+    "&:hover .MuiOutlinedInput-notchedOutline": { border: "none" },
+    "&.Mui-focused .MuiOutlinedInput-notchedOutline": { border: "1px solid #81C784" },
+    "& input": { padding: "10px 14px", color: "white" },
+    "& svg": { color: "white" },
+  };
+
+  const iosSelectStyle = {
+    borderRadius: "20px",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    color: "white",
+    "& .MuiOutlinedInput-notchedOutline": { border: "none" },
+    "&:hover .MuiOutlinedInput-notchedOutline": { border: "none" },
+    "&.Mui-focused .MuiOutlinedInput-notchedOutline": { border: "1px solid #81C784" },
+    "& .MuiSelect-select": { padding: "10px 14px", color: "white" },
+    "& .MuiSvgIcon-root": { color: "white" },
+  };
+
   // ✅ Fetch current user's role
   useEffect(() => {
     const fetchRole = async () => {
@@ -232,7 +255,7 @@ const AdminDeposits = () => {
           anchor="left"
           open={sidebarOpen}
           onClose={handleToggleSidebar}
-          PaperProps={{ sx: { width: 250, backgroundColor: "#111" } }}
+          ModalProps={{ keepMounted: true }}
         >
           <Sidebar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
         </Drawer>
@@ -244,10 +267,10 @@ const AdminDeposits = () => {
         sx={{
           flexGrow: 1,
           p: isMobile ? 1 : 3,
-          mt: 8,
+          mt: 2,
           color: "white",
           zIndex: 1,
-          width: "100%",
+          width: "96%",
           overflowX: "hidden",
         }}
       >
@@ -267,6 +290,7 @@ const AdminDeposits = () => {
         {/* 📈 Sales Summary */}
         <Card
           sx={{
+            color: "white",
             background: "rgba(255,255,255,0.12)",
             backdropFilter: "blur(12px)",
             borderRadius: "16px",
@@ -287,22 +311,27 @@ const AdminDeposits = () => {
           </CardContent>
         </Card>
 
-        {/* 🔹 Search & Filter */}
-        <Stack direction={isMobile ? "column" : "row"} spacing={2} mb={2}>
+        {/* Search & Filter */}
+        <Stack
+          direction={isMobile ? "column" : "row"}
+          spacing={2}
+          mb={2}
+          sx={{ width: "100%" }}
+        >
           <TextField
-            placeholder="Search by Name"
+            placeholder="Search by Sender, Recipient, or User ID"
             variant="outlined"
             size="small"
-            fullWidth={isMobile}
+            fullWidth={true}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchIcon sx={{ color: "white" }} />
+                  <SearchIcon />
                 </InputAdornment>
               ),
-              sx: { color: "white" },
+              sx: iosInputStyle,
             }}
           />
           <TextField
@@ -310,8 +339,8 @@ const AdminDeposits = () => {
             label="Filter Status"
             value={filterStatus}
             size="small"
-            sx={{ minWidth: 150, color: "white" }}
             onChange={(e) => setFilterStatus(e.target.value)}
+            sx={iosSelectStyle}
           >
             {["All", "Pending", "Approved", "Rejected"].map((status) => (
               <MenuItem key={status} value={status}>

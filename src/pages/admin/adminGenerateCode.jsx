@@ -1,4 +1,3 @@
-// src/pages/admin/AdminGenerateCode.jsx
 import React, { useEffect, useState, useMemo } from "react";
 import {
   Box,
@@ -12,6 +11,8 @@ import {
   TableHead,
   TableRow,
   TablePagination,
+  useMediaQuery,
+  TableContainer,
 } from "@mui/material";
 import { collection, onSnapshot, doc, getDoc } from "firebase/firestore";
 import { db } from "../../firebase";
@@ -32,7 +33,7 @@ const AdminGenerateCode = () => {
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const theme = useTheme();
-
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
 
   // 🔥 Real-time Firestore fetch with user lookup
@@ -43,12 +44,10 @@ const AdminGenerateCode = () => {
         ...doc.data(),
       }));
 
-      // Sort newest first
       const sorted = purchaseData.sort(
         (a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)
       );
 
-      // Fetch user info for each purchase
       const codesWithUserInfo = await Promise.all(
         sorted.map(async (code) => {
           if (!code.userId) return { ...code, userDisplay: "Unknown User" };
@@ -101,13 +100,11 @@ const AdminGenerateCode = () => {
       .map(([date, total]) => ({ date, total }));
   }, [codes]);
 
-  // 🪄 Animations
   const fadeIn = {
     hidden: { opacity: 0, y: 40 },
     show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } },
   };
 
-  // Pagination handlers
   const handleChangePage = (_, newPage) => setPage(newPage);
   const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
@@ -135,25 +132,29 @@ const AdminGenerateCode = () => {
         },
       }}
     >
+      {/* Topbar */}
       <Box sx={{ position: "fixed", width: "100%", zIndex: 10 }}>
         <Topbar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
       </Box>
 
+      {/* Sidebar */}
       <Box sx={{ zIndex: 5 }}>
         <Sidebar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
       </Box>
 
+      {/* Main Content */}
       <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          p: { xs: 2, sm: 3 },
-          color: "white",
-          zIndex: 1,
-          width: `calc(100% - ${sidebarOpen ? 240 : 60}px)`,
-          transition: "all 0.3s ease",
-        }}
-      >
+              component="main"
+              sx={{
+                flexGrow: 1,
+                p: isMobile ? 1 : 3,
+                mt: 2,
+                color: "white",
+                zIndex: 1,
+                width: "96%",
+                overflowX: "hidden",
+              }}
+            >
         <Toolbar />
 
         <motion.div
@@ -179,15 +180,16 @@ const AdminGenerateCode = () => {
             <CircularProgress color="inherit" />
           ) : (
             <>
-              {/* Summary */}
+              {/* Sales Summary */}
               <motion.div variants={fadeIn} transition={{ delay: 0.2 }}>
                 <Box
                   sx={{
                     display: "flex",
-                    flexDirection: { xs: "column", sm: "row" },
+                    flexDirection: { xs: "column", md: "row" },
                     justifyContent: "space-between",
-                    alignItems: "center",
+                    alignItems: { xs: "flex-start", md: "center" },
                     mb: 4,
+                    gap: 2,
                   }}
                 >
                   <Typography variant="h5" sx={{ fontWeight: 600 }}>
@@ -199,7 +201,7 @@ const AdminGenerateCode = () => {
                 </Box>
               </motion.div>
 
-              {/* Enhanced Line Chart */}
+              {/* Line Chart */}
               <motion.div variants={fadeIn} transition={{ delay: 0.3 }}>
                 <Paper
                   sx={{
@@ -231,9 +233,7 @@ const AdminGenerateCode = () => {
                       {
                         label: "₱ Sales",
                         tickLabelStyle: { fill: "#fff" },
-                        gridLineStyle: {
-                          stroke: "rgba(255,255,255,0.15)",
-                        },
+                        gridLineStyle: { stroke: "rgba(255,255,255,0.15)" },
                       },
                     ]}
                     series={[
@@ -251,7 +251,7 @@ const AdminGenerateCode = () => {
                       },
                     ]}
                     height={340}
-                    margin={{ left: 60, right: 20, top: 20, bottom: 40 }}
+                    margin={{ left: 0, right: 0, top: 10, bottom: 10 }}
                     sx={{
                       "& .MuiChartsAxis-line": {
                         stroke: "rgba(255,255,255,0.3)",
@@ -261,10 +261,8 @@ const AdminGenerateCode = () => {
                         strokeWidth: 3,
                         filter:
                           "drop-shadow(0px 0px 6px rgba(0,255,128,0.7))",
-                        transition: "all 0.6s ease",
                       },
                       "& .MuiMarkElement-root": {
-                        transition: "all 0.3s ease",
                         "&:hover": {
                           r: 6,
                           fill: theme.palette.success.light,
@@ -273,13 +271,7 @@ const AdminGenerateCode = () => {
                     }}
                   >
                     <defs>
-                      <linearGradient
-                        id="salesGradient"
-                        x1="0"
-                        y1="0"
-                        x2="0"
-                        y2="1"
-                      >
+                      <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
                         <stop
                           offset="0%"
                           stopColor={theme.palette.success.main}
@@ -296,50 +288,110 @@ const AdminGenerateCode = () => {
                 </Paper>
               </motion.div>
 
-              {/* Table */}
+              {/* Responsive Purchase Details Table */}
               <motion.div variants={fadeIn} transition={{ delay: 0.5 }}>
                 <Box sx={{ mt: 2 }}>
-                  <Typography variant="h6" sx={{ mb: 2 }}>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      mb: 2,
+                      fontWeight: 600,
+                      textAlign: { xs: "center", sm: "left" },
+                    }}
+                  >
                     Purchase Details
                   </Typography>
+
                   <Paper
                     sx={{
-                      p: 2,
+                      p: { xs: 1.5, sm: 2 },
                       background: "rgba(255, 255, 255, 0.15)",
                       borderRadius: "16px",
                       backdropFilter: "blur(8px)",
                     }}
                   >
-                    <Table>
-                      <TableHead>
-                        <TableRow sx={{ background: "rgba(255,255,255,0.1)" }}>
-                          <TableCell sx={{ color: "#fff" }}>Code</TableCell>
-                          <TableCell sx={{ color: "#fff" }}>Amount (₱)</TableCell>
-                          <TableCell sx={{ color: "#fff" }}>Purchased By</TableCell>
-                          <TableCell sx={{ color: "#fff" }}>Date</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {codes
-                          .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                          .map((code) => (
-                            <TableRow key={code.id}>
-                              <TableCell sx={{ color: "#fff" }}>{code.code}</TableCell>
-                              <TableCell sx={{ color: "#fff" }}>
-                                ₱{Number(code.amount || 0).toLocaleString()}
+                    <Box
+                      sx={{
+                        width: "100%",
+                        overflowX: "auto",
+                        WebkitOverflowScrolling: "touch",
+                        scrollbarWidth: "thin",
+                        "&::-webkit-scrollbar": { height: "6px" },
+                        "&::-webkit-scrollbar-thumb": {
+                          backgroundColor: "rgba(255,255,255,0.3)",
+                          borderRadius: "10px",
+                        },
+                      }}
+                    >
+                      <TableContainer>
+                        <Table
+                          size={isMobile ? "small" : "medium"}
+                          sx={{ minWidth: 600 }}
+                        >
+                          <TableHead>
+                            <TableRow sx={{ background: "rgba(255,255,255,0.1)" }}>
+                              <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
+                                Code
                               </TableCell>
-                              <TableCell sx={{ color: "#fff" }}>
-                                {code.userDisplay}
+                              <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
+                                Amount (₱)
                               </TableCell>
-                              <TableCell sx={{ color: "#fff" }}>
-                                {code.createdAt?.seconds
-                                  ? new Date(code.createdAt.seconds * 1000).toLocaleString()
-                                  : "--"}
+                              <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
+                                Purchased By
+                              </TableCell>
+                              <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
+                                Date
                               </TableCell>
                             </TableRow>
-                          ))}
-                      </TableBody>
-                    </Table>
+                          </TableHead>
+                          <TableBody>
+                            {codes
+                              .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                              .map((code) => (
+                                <TableRow
+                                  key={code.id}
+                                  sx={{
+                                    "&:hover": {
+                                      backgroundColor: "rgba(255,255,255,0.05)",
+                                    },
+                                  }}
+                                >
+                                  <TableCell
+                                    sx={{
+                                      color: "#fff",
+                                      wordBreak: "break-word",
+                                      maxWidth: { xs: 100, sm: "auto" },
+                                    }}
+                                  >
+                                    {code.code}
+                                  </TableCell>
+                                  <TableCell sx={{ color: "#fff", whiteSpace: "nowrap" }}>
+                                    ₱{Number(code.amount || 0).toLocaleString()}
+                                  </TableCell>
+                                  <TableCell
+                                    sx={{
+                                      color: "#fff",
+                                      maxWidth: { xs: 120, sm: "auto" },
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    {code.userDisplay}
+                                  </TableCell>
+                                  <TableCell sx={{ color: "#fff", whiteSpace: "nowrap" }}>
+                                    {code.createdAt?.seconds
+                                      ? new Date(
+                                          code.createdAt.seconds * 1000
+                                        ).toLocaleString()
+                                      : "--"}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </Box>
 
                     <TablePagination
                       component="div"
@@ -352,6 +404,9 @@ const AdminGenerateCode = () => {
                       sx={{
                         color: "#fff",
                         "& .MuiSelect-icon": { color: "#fff" },
+                        "& .MuiTablePagination-toolbar": {
+                          flexWrap: { xs: "wrap", sm: "nowrap" },
+                        },
                       }}
                     />
                   </Paper>
