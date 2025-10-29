@@ -50,6 +50,8 @@ import WithdrawDialog from "./Topbar/dialogs/WithdrawDialog";
 import DepositDialog from "./Topbar/dialogs/DepositDialog";
 import TransferFundsDialog from "./Topbar/dialogs/TransferFundsDialog";
 import InviteEarnDialog from "./Topbar/dialogs/InviteEarnDialog";
+import EwalletHistoryDialog from "./Topbar/dialogs/EwalletHistoryDialog";
+import { History as HistoryIcon } from "@mui/icons-material";
 
 const Topbar = ({ open, onToggleSidebar }) => {
   const navigate = useNavigate();
@@ -319,11 +321,19 @@ const Topbar = ({ open, onToggleSidebar }) => {
                         fontWeight: 500,
                       }}
                     >
-                      <WalletIcon
-                        fontSize="small"
-                        sx={{ mr: 1, color: "#4CAF50" }}
-                      />
-                      E-Wallet
+                      <WalletIcon fontSize="small" sx={{ mr: 1, color: "#4CAF50" }} />
+                      <Typography component="span" sx={{ flexGrow: 1 }}>
+                        E-Wallet
+                      </Typography>
+                      <Tooltip title="View E-Wallet History">
+                        <IconButton
+                          onClick={() => setDialog("walletHistory")}
+                          size="small"
+                          sx={{ color: "#90CAF9" }}
+                        >
+                          <HistoryIcon />
+                        </IconButton>
+                      </Tooltip>
                     </Typography>
                     <Typography
                       variant="h5"
@@ -470,6 +480,12 @@ const Topbar = ({ open, onToggleSidebar }) => {
         db={db}
         auth={auth}
       />
+      <EwalletHistoryDialog
+      open={dialog === "walletHistory"}
+      onClose={handleCloseDialog}
+      db={db}
+      auth={auth}
+    />
     </>
   );
 };

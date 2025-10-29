@@ -50,16 +50,19 @@ const MemberDashboard = () => {
     Agent: 0,
   });
 
-  const [referrals, setReferrals] = useState([]); // list for dialog
+  const [referrals, setReferrals] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedRole, setSelectedRole] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState("name");
   const [sortOrder, setSortOrder] = useState("asc");
 
+  const [totalContribution, setTotalContribution] = useState(0);
+  const [totalCapitalShare, setTotalCapitalShare] = useState(0);
+
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
 
-  // 🔹 Real-time listener for referral counts
+  // 🔹 Listen to referral counts
   const listenToReferrals = useCallback((username) => {
     if (!username) return;
     const lowerUsername = username.toLowerCase();
@@ -84,7 +87,39 @@ const MemberDashboard = () => {
     return unsubscribe;
   }, []);
 
-  // 🔹 Fetch current user info
+  // 🔹 Fetch Payback Total Contribution and Capital Share
+const fetchPaybackAndCapital = async (uid) => {
+  try {
+    // ✅ Payback entries from main collection (not subcollection)
+    const paybackRef = collection(db, "paybackEntries");
+    const paybackQuery = query(
+      paybackRef,
+      where("userId", "==", uid),
+      where("status", "==", "Approved")
+    );
+    const paybackSnap = await getDocs(paybackQuery);
+
+    const totalPayback = paybackSnap.docs.reduce(
+      (acc, doc) => acc + (Number(doc.data().amount) || 0),
+      0
+    );
+    setTotalContribution(totalPayback);
+
+    // ✅ Capital Share from capitalShares collection
+    const capitalRef = collection(db, "capitalShares");
+    const capitalQuery = query(capitalRef, where("userId", "==", uid));
+    const capitalSnap = await getDocs(capitalQuery);
+    const totalCapital = capitalSnap.docs.reduce(
+      (acc, doc) => acc + (Number(doc.data().amount) || 0),
+      0
+    );
+    setTotalCapitalShare(totalCapital);
+  } catch (error) {
+    console.error("Error fetching totals:", error);
+  }
+};
+
+  // 🔹 Fetch user info
   const fetchUserData = useCallback(
     async (uid) => {
       try {
@@ -94,6 +129,9 @@ const MemberDashboard = () => {
           const data = snap.data();
           setUserData(data);
           const unsubscribe = listenToReferrals(data.username);
+
+          // Fetch payback and capital share
+          await fetchPaybackAndCapital(uid);
           return unsubscribe;
         }
       } catch (error) {
@@ -103,7 +141,7 @@ const MemberDashboard = () => {
     [listenToReferrals]
   );
 
-  // 🔹 Track authentication state
+  // 🔹 Auth state listener
   useEffect(() => {
     let unsubReferrals = null;
     const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
@@ -125,7 +163,7 @@ const MemberDashboard = () => {
     };
   }, [fetchUserData]);
 
-  // 🔹 Handle “View” click — fetch referrals for that role
+  // 🔹 View referrals by role
   const handleViewReferrals = async (role) => {
     if (!userData?.username) return;
     setSelectedRole(role);
@@ -145,7 +183,7 @@ const MemberDashboard = () => {
     }
   };
 
-  // 🔹 Filter + sort referrals
+  // 🔹 Filter + Sort
   const filteredReferrals = referrals
     .filter(
       (r) =>
@@ -160,7 +198,6 @@ const MemberDashboard = () => {
       return 0;
     });
 
-  // 🔹 Toggle sort order
   const handleToggleSortOrder = () =>
     setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
 
@@ -210,102 +247,158 @@ const MemberDashboard = () => {
         }}
       >
         <Toolbar />
-
-        <Typography
-          variant="h4"
-          gutterBottom
-          sx={{
-            fontWeight: 700,
-            letterSpacing: 0.5,
-            mb: 3,
-            textShadow: "1px 1px 3px rgba(0,0,0,0.4)",
-          }}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
         >
-          👤 {userData ? `${userData.username}'s Dashboard` : "Loading Dashboard..."}
-        </Typography>
-
-        {loading ? (
-          <Box
+          <Typography
+            variant="h4"
+            gutterBottom
             sx={{
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              height: "60vh",
+              fontWeight: 700,
+              letterSpacing: 0.5,
+              mb: 3,
+              textShadow: "1px 1px 3px rgba(0,0,0,0.4)",
             }}
           >
-            <CircularProgress color="inherit" />
-          </Box>
-        ) : userData ? (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <Typography variant="h6" sx={{ mb: 3, opacity: 0.9 }}>
-              Welcome <strong>{userData.name}</strong>! Here’s your current network summary:
-            </Typography>
+            👤 {userData ? `${userData.username}'s Dashboard` : "Loading Dashboard..."}
+          </Typography>
 
-            <Grid container spacing={3}>
-              {["MD", "MS", "MI", "Agent"].map((role) => (
-                <Grid item xs={12} sm={6} md={3} key={role}>
-                  <Card
-                    sx={{
-                      width:"350px",
-                      background: "rgba(255,255,255,0.1)",
-                      backdropFilter: "blur(10px)",
-                      color: "#fff",
-                      borderRadius: 3,
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
-                      position: "relative",
-                    }}
+          {/* 💰 Payback and Capital Cards */}
+          <Grid container spacing={3} sx={{ mb: 3 }}>
+            <Grid item xs={12} sm={6} md={4}>
+              <Card
+                sx={{
+                  background: "rgba(255,255,255,0.1)",
+                  backdropFilter: "blur(10px)",
+                  width: "350px",
+                  color: "#fff",
+                  borderRadius: 3,
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+                }}
+              >
+                <CardContent>
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                    Payback Total Contribution
+                  </Typography>
+                  <Typography
+                    variant="h4"
+                    sx={{ fontWeight: "bold", color: "#81C784", mt: 1 }}
                   >
-                    <CardContent>
-                      <Box
-                        sx={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
-                      >
-                        <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                          {role}
-                        </Typography>
-                        <IconButton
-                          onClick={() => handleViewReferrals(role)}
-                          color="inherit"
-                          size="small"
-                        >
-                          <VisibilityIcon sx={{ color: "#FFD54F" }} />
-                        </IconButton>
-                      </Box>
-
-                      <Typography
-                        variant="h4"
-                        sx={{ mt: 1, fontWeight: "bold", color: "#FFD54F" }}
-                      >
-                        {roleCounts[role]}
-                      </Typography>
-                      <Typography variant="body2" sx={{ mt: 1, opacity: 0.8 }}>
-                        Total {role} referrals under your network
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
+                    ₱{totalContribution.toLocaleString()}
+                  </Typography>
+                </CardContent>
+              </Card>
             </Grid>
-          </motion.div>
-        ) : (
-          <Typography variant="body1">Unable to load user data.</Typography>
-        )}
+
+            <Grid item xs={12} sm={6} md={4}>
+              <Card
+                sx={{
+                  background: "rgba(255,255,255,0.1)",
+                  backdropFilter: "blur(10px)",
+                  width: "350px",
+                  color: "#fff",
+                  borderRadius: 3,
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+                }}
+              >
+                <CardContent>
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                    Total Capital Share
+                  </Typography>
+                  <Typography
+                    variant="h4"
+                    sx={{ fontWeight: "bold", color: "#FFD54F", mt: 1 }}
+                  >
+                    ₱{totalCapitalShare.toLocaleString()}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+
+          {loading ? (
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                height: "60vh",
+              }}
+            >
+              <CircularProgress color="inherit" />
+            </Box>
+          ) : userData ? (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              <Typography variant="h6" sx={{ mb: 3, opacity: 0.9 }}>
+                Welcome <strong>{userData.name}</strong>! Here’s your current network summary:
+              </Typography>
+
+              <Grid container spacing={3}>
+                {["MD", "MS", "MI", "Agent"].map((role) => (
+                  <Grid item xs={12} sm={6} md={3} key={role}>
+                    <Card
+                      sx={{
+                        width: "350px",
+                        background: "rgba(255,255,255,0.1)",
+                        backdropFilter: "blur(10px)",
+                        color: "#fff",
+                        borderRadius: 3,
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+                        position: "relative",
+                      }}
+                    >
+                      <CardContent>
+                        <Box
+                          sx={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                          }}
+                        >
+                          <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                            {role}
+                          </Typography>
+                          <IconButton
+                            onClick={() => handleViewReferrals(role)}
+                            color="inherit"
+                            size="small"
+                          >
+                            <VisibilityIcon sx={{ color: "#FFD54F" }} />
+                          </IconButton>
+                        </Box>
+
+                        <Typography
+                          variant="h4"
+                          sx={{ mt: 1, fontWeight: "bold", color: "#FFD54F" }}
+                        >
+                          {roleCounts[role]}
+                        </Typography>
+                        <Typography variant="body2" sx={{ mt: 1, opacity: 0.8 }}>
+                          Total {role} referrals under your network
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
+            </motion.div>
+          ) : (
+            <Typography variant="body1">Unable to load user data.</Typography>
+          )}
+        </motion.div>
       </Box>
 
       {/* 👁 Referrals Dialog */}
       <Dialog open={openDialog} onClose={() => setOpenDialog(false)} fullWidth maxWidth="sm">
-        <DialogTitle>
-          {selectedRole} Referrals
-        </DialogTitle>
+        <DialogTitle>{selectedRole} Referrals</DialogTitle>
         <DialogContent dividers>
-          {/* 🔍 Search and Sort Controls */}
+          {/* 🔍 Search + Sort */}
           <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
             <TextField
               label="Search by name or username"
