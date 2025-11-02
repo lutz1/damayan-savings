@@ -76,83 +76,111 @@ const MemberPayback = () => {
   // History
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
 
-  // ===================== Upline ₱5 Reward Logic =====================
-  const handleUplineReward = useCallback(async (entries) => {
-    const today = moment().startOf("day");
-    for (const entry of entries) {
-      const dueDate = moment(entry.expirationDate).startOf("day");
-      if (today.isSameOrAfter(dueDate) && !entry.rewardGiven) {
-        try {
-          // find upline
-          const q = query(collection(db, "users"), where("username", "==", entry.uplineUsername));
-          const snap = await getDocs(q);
-          if (!snap.empty) {
-            const uplineRef = doc(db, "users", snap.docs[0].id);
-            const uplineData = snap.docs[0].data();
-            const newBalance = (uplineData.eWallet || 0) + 5;
-            await updateDoc(uplineRef, { eWallet: newBalance });
-            // mark as rewarded
-            const entryRef = doc(db, "paybackEntries", entry.id);
-            await updateDoc(entryRef, { rewardGiven: true });
-          }
-        } catch (err) {
-          console.error("Reward update failed:", err);
+  // ===================== Upline ₱5 Reward Logic (Revised to Override) =====================
+const handleUplineReward = useCallback(async (entries) => {
+  const today = moment().startOf("day");
+  for (const entry of entries) {
+    const dueDate = moment(entry.expirationDate).startOf("day");
+
+    if (today.isSameOrAfter(dueDate) && !entry.rewardGiven) {
+      try {
+        const q = query(collection(db, "users"), where("username", "==", entry.uplineUsername));
+        const snap = await getDocs(q);
+
+        if (!snap.empty) {
+          const uplineDoc = snap.docs[0];
+          const uplineData = uplineDoc.data();
+
+          // ✅ Save override record instead of crediting directly
+          await addDoc(collection(db, "override"), {
+            uplineId: uplineDoc.id,
+            uplineUsername: uplineData.username,
+            memberId: entry.userId,
+            memberUsername: entry.memberUsername || "",
+            paybackEntryId: entry.id,
+            amount: 5,
+            status: "Pending",
+            createdAt: new Date().toISOString(),
+          });
+
+          const entryRef = doc(db, "paybackEntries", entry.id);
+          await updateDoc(entryRef, { rewardGiven: true });
         }
+      } catch (err) {
+        console.error("Override reward creation failed:", err);
       }
     }
-  }, []);
+  }
+}, []);
 
   // ===================== Fetch Payback Data =====================
-  const fetchPaybackData = useCallback(async (userId) => {
-    try {
-      setLoading(true);
-      const paybackQ = query(collection(db, "paybackEntries"), where("userId", "==", userId));
-      const transferQ = query(collection(db, "passiveTransfers"), where("userId", "==", userId));
+const fetchPaybackData = useCallback(async (userId) => {
+  try {
+    setLoading(true);
+    const paybackQ = query(collection(db, "paybackEntries"), where("userId", "==", userId));
+    const transferQ = query(collection(db, "passiveTransfers"), where("userId", "==", userId));
 
-      const [paybackSnap, transferSnap] = await Promise.all([getDocs(paybackQ), getDocs(transferQ)]);
+    const [paybackSnap, transferSnap] = await Promise.all([
+      getDocs(paybackQ),
+      getDocs(transferQ),
+    ]);
 
-      const entries = paybackSnap.docs.map((d) => {
-        const data = d.data();
-        const expirationDate = data.expirationDate || moment(data.date).add(30, "days").toISOString();
-        const isExpired = moment().isAfter(expirationDate);
-        return { id: d.id, ...data, expirationDate, isExpired };
-      });
+    const entries = paybackSnap.docs.map((d) => {
+      const data = d.data();
+      const expirationDate =
+        data.expirationDate || moment(data.date).add(30, "days").toISOString();
+      const isExpired = moment().isAfter(expirationDate);
+      return { id: d.id, ...data, expirationDate, isExpired };
+    });
 
-      const totalContributionAmount = entries.reduce((sum, e) => sum + (e.amount || 0), 0);
-      // Only include expired entries in total passive income
-      const totalPassive = entries
-        .filter((e) => moment().isSameOrAfter(moment(e.expirationDate))) // ✅ only after due date
-        .reduce((sum, e) => sum + (e.amount || 0) * 0.02, 0);
-      const totalTransferred = transferSnap.docs.reduce((sum, t) => sum + (t.data().amount || 0), 0);
+    const totalContributionAmount = entries.reduce((sum, e) => sum + (e.amount || 0), 0);
+    const totalPassive = entries
+      .filter((e) => moment().isSameOrAfter(moment(e.expirationDate)))
+      .reduce((sum, e) => sum + (e.amount || 0) * 0.02, 0);
+    const totalTransferred = transferSnap.docs.reduce(
+      (sum, t) => sum + (t.data().amount || 0),
+      0
+    );
 
-      setTotalContribution(totalContributionAmount);
-      setTotalPassiveIncome(Math.max(totalPassive - totalTransferred, 0));
-      setPaybackEntries(entries);
+    setTotalContribution(totalContributionAmount);
+    setTotalPassiveIncome(Math.max(totalPassive - totalTransferred, 0));
+    setPaybackEntries(entries);
 
-      const calendarEvents = entries.map((e) => ({
-        id: e.id,
-        title: `₱${Number(e.amount).toFixed(2)}`,
-        start: new Date(e.date),
-        end: new Date(e.date),
-        allDay: true,
-        data: e,
-      }));
+    // ✅ Create calendar events (keep expired ones visible, color coded)
+    const calendarEvents = entries.map((e) => ({
+      id: e.id,
+      title: `₱${Number(e.amount).toFixed(2)}`,
+      start: new Date(e.date),
+      end: new Date(e.date),
+      allDay: true,
+      data: e,
+      isExpired: e.isExpired,
+    }));
 
-      setEvents(calendarEvents);
+    setEvents(calendarEvents);
 
-      await handleUplineReward(entries); // ✅ auto-credit ₱5 reward after due date
+    await handleUplineReward(entries); // ✅ override entries created on due
 
-      const expired = entries.filter((e) => e.isExpired);
-      if (expired.length > 0) {
-        setExpiredEntries(expired);
-        setExpiredDialogOpen(true);
-      }
-    } catch (err) {
-      console.error("Error fetching payback data:", err);
-    } finally {
-      setLoading(false);
+    // ✅ Notify 3 days before expiration
+    const today = moment();
+    const nearDue = entries.filter((e) => {
+      const daysLeft = moment(e.expirationDate).diff(today, "days");
+      return daysLeft <= 3 && daysLeft >= 0 && !e.isExpired;
+    });
+
+    // ✅ Collect expired entries (still visible in calendar)
+    const expired = entries.filter((e) => e.isExpired);
+
+    if (nearDue.length > 0 || expired.length > 0) {
+      setExpiredEntries([...nearDue, ...expired]);
+      setExpiredDialogOpen(true);
     }
-  }, [handleUplineReward]);
+  } catch (err) {
+    console.error("Error fetching payback data:", err);
+  } finally {
+    setLoading(false);
+  }
+}, [handleUplineReward]);
 
   // ===================== Fetch Upline Username =====================
   const fetchUplineUsername = useCallback(async (userId) => {
@@ -313,14 +341,26 @@ const onNavigate = (date, view, action) => {
 // ===================== Calendar Slot Selection =====================
 
 
-  const eventStyleGetter = () => ({
+  const eventStyleGetter = (event) => {
+  let backgroundColor = "#4CAF50"; // default (green)
+  if (event.isExpired) {
+    backgroundColor = "#d32f2f"; // red for expired
+  } else {
+    const daysLeft = moment(event.data.expirationDate).diff(moment(), "days");
+    if (daysLeft <= 3 && daysLeft >= 0) {
+      backgroundColor = "#FFA000"; // orange for soon-to-expire
+    }
+  }
+
+  return {
     style: {
-      backgroundColor: "#4CAF50",
+      backgroundColor,
       color: "white",
       borderRadius: "6px",
       padding: "2px 4px",
     },
-  });
+  };
+};
 
   const EventComponent = ({ event }) => (
     <span>
@@ -471,25 +511,27 @@ const onNavigate = (date, view, action) => {
 
       {/* Expired Entries */}
       <Dialog open={expiredDialogOpen} onClose={() => setExpiredDialogOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Expired Payback Entries</DialogTitle>
-        <DialogContent dividers>
-          {expiredEntries.length > 0 ? (
-            expiredEntries.map((e) => (
-              <Box key={e.id} mb={1}>
-                <Typography>
-                  <strong>{e.uplineUsername}</strong> — ₱{e.amount.toFixed(2)} (Expired {moment(e.expirationDate).format("LL")})
-                </Typography>
-              </Box>
-            ))
-          ) : (
-            <Typography>No expired entries.</Typography>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setExpiredDialogOpen(false)} color="primary">
-            OK
-          </Button>
-        </DialogActions>
+        <DialogTitle>
+  {expiredEntries.some(e => !e.isExpired)
+    ? "Payback Entries Expiring Soon"
+    : "Expired Payback Entries"}
+</DialogTitle>
+<DialogContent dividers>
+  {expiredEntries.length > 0 ? (
+    expiredEntries.map((e) => (
+      <Box key={e.id} mb={1}>
+        <Typography>
+          <strong>{e.uplineUsername}</strong> — ₱{e.amount.toFixed(2)}{" "}
+          ({e.isExpired
+            ? `Expired ${moment(e.expirationDate).format("LL")}`
+            : `Expiring on ${moment(e.expirationDate).format("LL")}`})
+        </Typography>
+      </Box>
+    ))
+  ) : (
+    <Typography>No expiring or expired entries.</Typography>
+  )}
+</DialogContent>
       </Dialog>
 
       {/* Transaction History */}

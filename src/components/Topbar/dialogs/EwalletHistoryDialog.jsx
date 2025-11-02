@@ -58,66 +58,78 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
   );
 
   // Real-time listeners
-  useEffect(() => {
-    if (!auth?.currentUser || !listenersReady || !username) return;
-    const uid = auth.currentUser.uid;
-    const unsubscribers = [];
+useEffect(() => {
+  if (!auth?.currentUser || !listenersReady || !username) return;
+  const uid = auth.currentUser.uid;
+  const unsubscribers = [];
 
-    const setupListener = (q, sourceLabel, transformFn) => {
-      const unsub = onSnapshot(q, (snapshot) => {
-        const data = snapshot.docs.map((doc) => transformFn({ id: doc.id, ...doc.data() }));
-        setHistory((prev) => mergeAndSort(prev, data, sourceLabel));
-      });
-      unsubscribers.push(unsub);
-    };
+  const setupListener = (q, sourceLabel, transformFn) => {
+    const unsub = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map((doc) => transformFn({ id: doc.id, ...doc.data() }));
+      setHistory((prev) => mergeAndSort(prev, data, sourceLabel));
+    });
+    unsubscribers.push(unsub);
+  };
 
-    // Purchase Codes
-    setupListener(
-      query(collection(db, "purchaseCodes"), where("userId", "==", uid)),
-      "purchase",
-      (d) => ({ ...d, source: "purchase", displayType: "Purchase Codes", isCredit: false })
-    );
+  // Purchase Codes
+  setupListener(
+    query(collection(db, "purchaseCodes"), where("userId", "==", uid)),
+    "purchase",
+    (d) => ({ ...d, source: "purchase", displayType: "Purchase Codes", isCredit: false })
+  );
 
-    // Withdrawals
-    setupListener(
-      query(collection(db, "withdrawals"), where("userId", "==", uid)),
-      "withdrawal",
-      (d) => ({ ...d, source: "withdrawal", displayType: "Withdrawal", isCredit: false })
-    );
+  // Withdrawals
+  setupListener(
+    query(collection(db, "withdrawals"), where("userId", "==", uid)),
+    "withdrawal",
+    (d) => ({ ...d, source: "withdrawal", displayType: "Withdrawal", isCredit: false })
+  );
 
-    // Deposits
-    setupListener(
-      query(collection(db, "deposits"), where("userId", "==", uid)),
-      "deposit",
-      (d) => ({ ...d, source: "deposit", displayType: "Deposit", isCredit: true })
-    );
+  // Deposits
+  setupListener(
+    query(collection(db, "deposits"), where("userId", "==", uid)),
+    "deposit",
+    (d) => ({ ...d, source: "deposit", displayType: "Deposit", isCredit: true })
+  );
 
-    // Transfers (sent)
-    setupListener(
-      query(collection(db, "transferFunds"), where("senderId", "==", uid)),
-      "transfer",
-      (d) => ({
-        ...d,
-        source: "transfer",
-        displayType: `Transfer → ${d.recipientUsername || "User"}`,
-        isCredit: false,
-      })
-    );
+  // Transfers (sent)
+  setupListener(
+    query(collection(db, "transferFunds"), where("senderId", "==", uid)),
+    "transfer",
+    (d) => ({
+      ...d,
+      source: "transfer",
+      displayType: `Transfer → ${d.recipientUsername || "User"}`,
+      isCredit: false,
+    })
+  );
 
-    // Transfers (received)
-    setupListener(
-      query(collection(db, "transferFunds"), where("recipientUsername", "==", username)),
-      "received",
-      (d) => ({
-        ...d,
-        source: "received",
-        displayType: `Transfer credited ₱${d.netAmount || d.amount || 0} from ${d.senderUsername || d.senderName || "User"}`,
-        isCredit: true,
-      })
-    );
+  // Transfers (received)
+  setupListener(
+    query(collection(db, "transferFunds"), where("recipientUsername", "==", username)),
+    "received",
+    (d) => ({
+      ...d,
+      source: "received",
+      displayType: `Transfer credited ₱${d.netAmount || d.amount || 0} from ${d.senderUsername || d.senderName || "User"}`,
+      isCredit: true,
+    })
+  );
 
-    return () => unsubscribers.forEach((unsub) => unsub());
-  }, [db, auth, username, listenersReady, mergeAndSort]);
+  // ➕ Payback Entries
+  setupListener(
+    query(collection(db, "paybackEntries"), where("userId", "==", uid)),
+    "payback",
+    (d) => ({
+      ...d,
+      source: "payback",
+      displayType: `Payback Entry (${d.role || "N/A"})`,
+      isCredit: false, // deduction
+    })
+  );
+
+  return () => unsubscribers.forEach((unsub) => unsub());
+}, [db, auth, username, listenersReady, mergeAndSort]);
 
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
