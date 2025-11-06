@@ -260,13 +260,7 @@ const Login = () => {
 
                 <Typography mt={2} sx={{ fontSize: { xs: "0.8rem", sm: "0.9rem" } }}>
                   Don’t have an account?{" "}
-                  <Link
-                    component="button"
-                    color="rgba(240,224,7,1)"
-                    onClick={() => setIsSignup(true)}
-                  >
-                    Create one
-                  </Link>
+
                 </Typography>
               </motion.div>
             ) : (
