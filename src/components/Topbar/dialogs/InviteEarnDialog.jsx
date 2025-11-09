@@ -26,25 +26,27 @@ import {
   serverTimestamp,
   doc,
   updateDoc,
+  limit,
+  getDocs,
 } from "firebase/firestore";
 
 const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
-  const [newUserUsername, setNewUserUsername] = useState(""); // 🆕 Username field
+  const [newUserUsername, setNewUserUsername] = useState("");
   const [newUserName, setNewUserName] = useState("");
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserContact, setNewUserContact] = useState("");
   const [newUserAddress, setNewUserAddress] = useState("");
   const [newUserRole, setNewUserRole] = useState("MD");
   const [selectedCode, setSelectedCode] = useState("");
-
   const [availableCodes, setAvailableCodes] = useState([]);
 
-  const referralCode = userData?.referralCode || auth?.currentUser?.uid?.slice(0, 6);
+  const referralCode =
+    userData?.referralCode || auth?.currentUser?.uid?.slice(0, 6);
 
-  // Fetch available codes for current user
+  // Fetch available activation codes for current user
   useEffect(() => {
     if (!auth.currentUser) return;
 
@@ -59,7 +61,6 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
       const codes = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setAvailableCodes(codes);
 
-      // Select the first available code automatically
       if (codes.length > 0 && !selectedCode) setSelectedCode(codes[0].code);
     });
 
@@ -69,7 +70,7 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
   const handleRegisterInvitee = async () => {
     if (
       !newUserName ||
-      !newUserUsername || // 🆕 Require username
+      !newUserUsername ||
       !newUserEmail ||
       !newUserContact ||
       !newUserAddress ||
@@ -81,32 +82,113 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
 
     setError("");
     setLoading(true);
+
     try {
-      // Save invite data for admin approval
+      // 1️⃣ Add pending invite
       await addDoc(collection(db, "pendingInvites"), {
         inviterId: auth.currentUser.uid,
-        uplineUsername: userData.username,
+        inviterUsername: userData.username,
+        inviterRole: userData.role,
         inviteeName: newUserName,
-        inviteeUsername: newUserUsername, // 🆕 Store username
+        inviteeUsername: newUserUsername,
         inviteeEmail: newUserEmail,
         contactNumber: newUserContact,
         address: newUserAddress,
         role: newUserRole,
         code: selectedCode,
         referralCode,
+        referredBy: userData.username,
+        referrerRole: userData.role,
         status: "Pending Approval",
         createdAt: serverTimestamp(),
       });
 
-      // Mark the code as used
+      // 2️⃣ Mark activation code as used
       const codeDoc = availableCodes.find((c) => c.code === selectedCode);
       if (codeDoc) {
         await updateDoc(doc(db, "purchaseCodes", codeDoc.id), { used: true });
       }
 
+      // 3️⃣ Direct Invite Reward based on invitee role
+      const baseRewards = { MD: 210, MS: 160, MI: 140, Agent: 120 };
+      const inviterReward = baseRewards[newUserRole] || 0;
+
+      if (inviterReward > 0) {
+        await addDoc(collection(db, "referralReward"), {
+          userId: auth.currentUser.uid,
+          username: userData.username,
+          role: userData.role,
+          amount: inviterReward,
+          source: newUserUsername,
+          type: "Direct Invite Reward",
+          approved: false,
+          payoutReleased: false,
+          createdAt: serverTimestamp(),
+        });
+      }
+
+      // 4️⃣ Upline Network Bonuses
+      const bonusStructure = {
+        Agent: [20, 20, 50, 10],
+        MI: [20, 50, 10],
+        MS: [50, 10],
+        MD: [],
+      };
+
+      const expectedRolesOrder = {
+        Agent: ["MI", "MS", "MD", "MD"],
+        MI: ["MS", "MD", "MD"],
+        MS: ["MD", "MD"],
+      };
+
+      let currentUplineUsername = userData?.referredBy;
+      let uplineLevel = 0;
+      const uplineBonuses = bonusStructure[newUserRole] || [];
+      const expectedRoles = expectedRolesOrder[newUserRole] || [];
+
+      const roleHierarchy = ["Agent", "MI", "MS", "MD"];
+
+      for (let bonus of uplineBonuses) {
+        if (!currentUplineUsername) break;
+
+        // Fetch upline user
+        const q = query(
+          collection(db, "users"),
+          where("username", "==", currentUplineUsername),
+          limit(1)
+        );
+        const snap = await getDocs(q);
+        if (snap.empty) break;
+
+        const uplineUser = snap.docs[0].data();
+        const uplineId = snap.docs[0].id;
+
+        const expectedRole = expectedRoles[uplineLevel] || null;
+        const uplineRank = roleHierarchy.indexOf(uplineUser.role);
+        const expectedRank = expectedRole ? roleHierarchy.indexOf(expectedRole) : 0;
+
+        if (uplineRank >= expectedRank) {
+          await addDoc(collection(db, "referralReward"), {
+            userId: uplineId,
+            username: uplineUser.username,
+            role: uplineUser.role,
+            amount: bonus,
+            source: newUserUsername,
+            type: "Network Bonus",
+            approved: false,
+            payoutReleased: false,
+            createdAt: serverTimestamp(),
+          });
+        }
+
+        currentUplineUsername = uplineUser.referredBy || null;
+        uplineLevel++;
+      }
+
+      // Reset form
       setSuccess(true);
       setNewUserName("");
-      setNewUserUsername(""); // 🆕 Clear field after success
+      setNewUserUsername("");
       setNewUserEmail("");
       setNewUserContact("");
       setNewUserAddress("");
@@ -124,7 +206,7 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
     setError("");
     setSuccess(false);
     setNewUserName("");
-    setNewUserUsername(""); // 🆕 Reset
+    setNewUserUsername("");
     setNewUserEmail("");
     setNewUserContact("");
     setNewUserAddress("");
@@ -193,16 +275,12 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
           </Alert>
         )}
 
-        {/* Available Activation Code */}
         <FormControl fullWidth sx={{ mb: 2 }}>
           <InputLabel sx={{ color: "#fff" }}>Select Activation Code</InputLabel>
           <Select
             value={selectedCode}
             onChange={(e) => setSelectedCode(e.target.value)}
-            sx={{
-              color: "#fff",
-              "& .MuiSvgIcon-root": { color: "#fff" },
-            }}
+            sx={{ color: "#fff", "& .MuiSvgIcon-root": { color: "#fff" } }}
           >
             {availableCodes.length > 0 ? (
               availableCodes.map((c) => (
@@ -216,7 +294,6 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
           </Select>
         </FormControl>
 
-        {/* Upline Username */}
         <TextField
           fullWidth
           label="Upline Username"
@@ -224,19 +301,11 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
           disabled
           sx={{
             mb: 2,
-            "& .MuiInputBase-input.Mui-disabled": {
-              color: "#fff !important", // 👈 Ensures text is white even when disabled
-              WebkitTextFillColor: "#fff !important", // 👈 Fix for Chrome autofill
-            },
-            "& .MuiInputLabel-root": {
-              color: "rgba(255,255,255,0.7)",
-            },
-            "& .MuiInputLabel-root.Mui-disabled": {
-              color: "rgba(255,255,255,0.7)",
-            },
+            "& .MuiInputBase-input.Mui-disabled": { color: "#fff !important" },
+            "& .MuiInputLabel-root.Mui-disabled": { color: "rgba(255,255,255,0.7)" },
           }}
         />
-        {/* 🆕 Username Field */}
+
         <TextField
           fullWidth
           label="Username"
@@ -247,7 +316,6 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
           sx={{ mb: 2 }}
         />
 
-        {/* New User Fields */}
         <TextField
           fullWidth
           label="Full Name"
@@ -289,16 +357,12 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
           sx={{ mb: 2 }}
         />
 
-        {/* Role Dropdown */}
         <FormControl fullWidth sx={{ mb: 2 }}>
           <InputLabel sx={{ color: "#fff" }}>Role</InputLabel>
           <Select
             value={newUserRole}
             onChange={(e) => setNewUserRole(e.target.value)}
-            sx={{
-              color: "#fff",
-              "& .MuiSvgIcon-root": { color: "#fff" },
-            }}
+            sx={{ color: "#fff", "& .MuiSvgIcon-root": { color: "#fff" } }}
           >
             <MenuItem value="MD">MD</MenuItem>
             <MenuItem value="MS">MS</MenuItem>
@@ -313,23 +377,15 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
           onClick={handleClose}
           variant="outlined"
           color="inherit"
-          sx={{
-            color: "#fff",
-            borderColor: "rgba(255,255,255,0.4)",
-          }}
+          sx={{ color: "#fff", borderColor: "rgba(255,255,255,0.4)" }}
         >
           Close
         </Button>
-
         <Button
           onClick={handleRegisterInvitee}
           variant="contained"
           disabled={loading}
-          sx={{
-            bgcolor: "#FFD54F",
-            color: "#000",
-            "&:hover": { bgcolor: "#FFCA28" },
-          }}
+          sx={{ bgcolor: "#FFD54F", color: "#000", "&:hover": { bgcolor: "#FFCA28" } }}
         >
           {loading ? <CircularProgress size={24} sx={{ color: "#000" }} /> : "Invite"}
         </Button>

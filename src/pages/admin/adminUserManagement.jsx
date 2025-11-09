@@ -40,6 +40,8 @@ import {
   serverTimestamp,
   getDocs,
   limit,
+  addDoc,
+  updateDoc
 } from "firebase/firestore";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { db, secondaryAuth } from "../../firebase";
@@ -168,47 +170,211 @@ const AdminUserManagement = () => {
 
   // ✅ Approve pending invite
   const handleApproveInvite = async (invite) => {
-    try {
-      const inviterQuery = query(
+  try {
+    const uplineUsername = invite.referredBy || invite.inviterUsername || invite.uplineUsername;
+
+    if (!uplineUsername) {
+      alert("Upline username missing. Cannot approve invite.");
+      return;
+    }
+
+    // 🔍 Get inviter (direct referrer)
+    const inviterQuery = query(
+      collection(db, "users"),
+      where("username", "==", uplineUsername),
+      limit(1)
+    );
+    const inviterSnap = await getDocs(inviterQuery);
+
+    if (inviterSnap.empty) {
+      alert("Inviter not found in users collection.");
+      return;
+    }
+
+    const inviterDoc = inviterSnap.docs[0];
+    const referrerId = inviterDoc.id;
+    const referrerRole = inviterDoc.data().role || "";
+    const referrerUsername = inviterDoc.data().username || "";
+    const inviterUpline = inviterDoc.data().referredBy || null; // 🔹 needed for network chain
+
+    // 🧩 Create Firebase Auth user for invitee
+    const userCredential = await createUserWithEmailAndPassword(
+      secondaryAuth,
+      invite.inviteeEmail,
+      "password123"
+    );
+    const uid = userCredential.user.uid;
+
+    // 🗂️ Create user in Firestore
+    await setDoc(doc(db, "users", uid), {
+      username: invite.inviteeUsername,
+      name: invite.inviteeName,
+      email: invite.inviteeEmail,
+      contactNumber: invite.contactNumber || "",
+      address: invite.address || "",
+      role: invite.role,
+      referredBy: uplineUsername,
+      referrerRole,
+      referralReward: false,
+      createdAt: serverTimestamp(),
+    });
+
+    // =========================================================
+    // 💰 DIRECT INVITE REWARD
+    const directRewardMap = {
+      Agent: 120,
+      MI: 140,
+      MS: 160,
+      MD: 210,
+    };
+    const directRewardAmount = directRewardMap[invite.role] || 0;
+
+    const directRewardQuery = query(
+      collection(db, "referralReward"),
+      where("userId", "==", referrerId),
+      where("source", "==", invite.inviteeUsername),
+      where("type", "==", "Direct Invite Reward"),
+      limit(1)
+    );
+
+    const directSnap = await getDocs(directRewardQuery);
+
+    if (!directSnap.empty) {
+      // ✅ Update existing direct reward
+      const directDocRef = doc(db, "referralReward", directSnap.docs[0].id);
+      await updateDoc(directDocRef, {
+        approved: true,
+        payoutReleased: true,
+        releasedAt: serverTimestamp(),
+      });
+      console.log(`✅ Updated Direct Invite Reward for ${referrerUsername}`);
+    } else {
+      // ✅ Create new direct reward properly marked as approved
+      await addDoc(collection(db, "referralReward"), {
+        userId: referrerId,
+        username: referrerUsername,
+        source: invite.inviteeUsername,
+        role: referrerRole,
+        type: "Direct Invite Reward",
+        amount: directRewardAmount,
+        payoutReleased: true,
+        approved: true,
+        createdAt: serverTimestamp(),
+        releasedAt: serverTimestamp(),
+      });
+      console.log(
+        `✅ Created Direct Invite Reward ₱${directRewardAmount} for ${referrerUsername}`
+      );
+    }
+
+    // Mark invitee referralReward = true
+    await setDoc(
+      doc(db, "users", uid),
+      { referralReward: true },
+      { merge: true }
+    );
+
+    // =========================================================
+    // 🌐 NETWORK BONUS DISTRIBUTION (SKIP INVITER)
+    const bonusStructure = {
+      Agent: [20, 20, 50, 10], // MI, MS, MD, next MD
+      MI: [20, 50, 10],
+      MS: [50, 10],
+      MD: [],
+    };
+    const bonusLevels = bonusStructure[invite.role] || [];
+
+    let currentUpline = inviterUpline; // ✅ starts from inviter's upline (skip inviter)
+
+    console.log(`=== 🧭 Network Bonus Distribution for ${invite.inviteeUsername} ===`);
+
+    for (let level = 0; level < bonusLevels.length; level++) {
+      if (!currentUpline) break;
+
+      const uplineQuery = query(
         collection(db, "users"),
-        where("username", "==", invite.uplineUsername),
+        where("username", "==", currentUpline),
         limit(1)
       );
-      const inviterSnap = await getDocs(inviterQuery);
+      const uplineSnap = await getDocs(uplineQuery);
 
-      let referrerRole = "";
-      if (!inviterSnap.empty) {
-        referrerRole = inviterSnap.docs[0].data().role || "";
+      if (uplineSnap.empty) {
+        console.log(`⚠️ No upline found at level ${level + 1}`);
+        break;
       }
 
-      const userCredential = await createUserWithEmailAndPassword(
-        secondaryAuth,
-        invite.inviteeEmail,
-        "password123"
+      const uplineDoc = uplineSnap.docs[0];
+      const uplineId = uplineDoc.id;
+      const uplineRole = uplineDoc.data().role || "";
+      const uplineUsername = uplineDoc.data().username;
+      const nextUpline = uplineDoc.data().referredBy || null;
+
+      const bonusAmount = bonusLevels[level];
+
+      if (bonusAmount <= 0) {
+        currentUpline = nextUpline;
+        continue;
+      }
+
+      // Prevent network bonus if same as inviter
+      if (uplineUsername === referrerUsername) {
+        console.log(`⛔ Skipping inviter (${uplineUsername}) from network bonus`);
+        currentUpline = nextUpline;
+        continue;
+      }
+
+      const existingBonusQuery = query(
+        collection(db, "referralReward"),
+        where("userId", "==", uplineId),
+        where("source", "==", invite.inviteeUsername),
+        where("type", "==", "Network Bonus"),
+        limit(1)
       );
-      const uid = userCredential.user.uid;
+      const existingBonusSnap = await getDocs(existingBonusQuery);
 
-      await setDoc(doc(db, "users", uid), {
-        username: invite.inviteeUsername,
-        name: invite.inviteeName,
-        email: invite.inviteeEmail,
-        contactNumber: invite.contactNumber,
-        address: invite.address,
-        role: invite.role,
-        referredBy: invite.uplineUsername,
-        referrerRole,
-        createdAt: serverTimestamp(),
-      });
+      if (existingBonusSnap.empty) {
+        await addDoc(collection(db, "referralReward"), {
+          userId: uplineId,
+          username: uplineUsername,
+          source: invite.inviteeUsername,
+          role: uplineRole,
+          type: "Network Bonus",
+          amount: bonusAmount,
+          payoutReleased: true,
+          approved: true,
+          createdAt: serverTimestamp(),
+          releasedAt: serverTimestamp(),
+        });
 
-      await deleteDoc(doc(db, "pendingInvites", invite.id));
-      await secondaryAuth.signOut();
+        console.log(
+          `💸 [Level ${level + 1}] ${uplineUsername} (${uplineRole}) earned ₱${bonusAmount}`
+        );
+      } else {
+        console.log(
+          `ℹ️ [Level ${level + 1}] Network bonus already exists for ${uplineUsername}`
+        );
+      }
 
-      alert(`✅ ${invite.inviteeName} has been approved as ${invite.role}!`);
-    } catch (err) {
-      console.error("Error approving invite:", err);
-      alert("Failed to approve invite: " + err.message);
+      currentUpline = nextUpline;
     }
-  };
+
+    console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} ===`);
+
+    // =========================================================
+    // 🧹 Remove pending invite
+    await deleteDoc(doc(db, "pendingInvites", invite.id));
+
+    // 🔒 Sign out temp auth
+    await secondaryAuth.signOut();
+
+    alert(
+      `✅ ${invite.inviteeName} approved as ${invite.role}!\nDirect and network rewards released successfully.`
+    );
+  } catch (err) {
+    console.error("❌ Error approving invite:", err);
+    alert("Failed to approve invite: " + err.message);
+  }
+};
 
   const handleRejectInvite = async (inviteId) => {
     if (window.confirm("Are you sure you want to reject this invite?")) {

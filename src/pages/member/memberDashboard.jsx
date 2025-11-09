@@ -31,6 +31,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  updateDoc,
 } from "firebase/firestore";
 import { auth, db } from "../../firebase";
 import { motion } from "framer-motion";
@@ -59,6 +60,116 @@ const MemberDashboard = () => {
 
   const [totalContribution, setTotalContribution] = useState(0);
   const [totalCapitalShare, setTotalCapitalShare] = useState(0);
+
+  // 💸 Referral Rewards
+const [totalEarnings, setTotalEarnings] = useState(0);
+const [rewardHistory, setRewardHistory] = useState([]);
+const [rewardDialogOpen, setRewardDialogOpen] = useState(false);
+
+// 💰 Override Earnings
+const [overrideEarnings, setOverrideEarnings] = useState(0);
+const [overrideList, setOverrideList] = useState([]);
+const [overrideDialogOpen, setOverrideDialogOpen] = useState(false);
+
+const handleTransferToWallet = async (amount, type) => {
+  if (!user) return;
+  if (!amount || amount <= 0) return alert("No funds to transfer.");
+
+  try {
+    const userRef = doc(db, "users", user.uid);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) return alert("User not found.");
+
+    const currentBalance = userSnap.data().eWallet || 0;
+    await updateDoc(userRef, {
+      eWallet: currentBalance + amount,
+    });
+
+    // ✅ Update relevant reward documents as transferred
+    if (type === "referral") {
+      const batchPromises = rewardHistory
+        .filter((r) => r.payoutReleased) // Only unreleased or approved
+        .map((r) =>
+          updateDoc(doc(db, "referralReward", r.id), { payoutReleased: true })
+        );
+      await Promise.all(batchPromises);
+    } else if (type === "override") {
+      const batchPromises = overrideList
+        .filter((o) => o.status !== "Credited") // Only pending
+        .map((o) =>
+          updateDoc(doc(db, "override", o.id), { status: "Credited" })
+        );
+      await Promise.all(batchPromises);
+    }
+
+    alert(`₱${amount.toLocaleString()} transferred to eWallet!`);
+
+  } catch (err) {
+    console.error("Error transferring funds:", err);
+    alert("Failed to transfer funds.");
+  }
+};
+
+useEffect(() => {
+  if (!user) return;
+
+  const q = query(collection(db, "override"), where("userId", "==", user.uid));
+
+  const unsubscribe = onSnapshot(q, (snapshot) => {
+    const overrides = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    setOverrideList(overrides);
+
+    const now = new Date();
+
+    // ✅ Only include credited OR expired pending rewards
+    const total = overrides.reduce((sum, o) => {
+      const expDate = o.expirationDate
+        ? new Date(o.expirationDate)
+        : null;
+      const isExpired = expDate && expDate < now;
+      const isCredited = o.status === "Credited";
+
+      if (isCredited || isExpired) {
+        return sum + (Number(o.amount) || 0);
+      }
+      return sum;
+    }, 0);
+
+    setOverrideEarnings(total);
+  });
+
+  return () => unsubscribe();
+}, [user]);
+
+useEffect(() => {
+  if (!user) return;
+
+  // ✅ Match your actual Firestore field
+  const q = query(
+    collection(db, "referralReward"),
+    where("userId", "==", user.uid),
+    where("payoutReleased", "==", true) // 🟢 FIXED
+  );
+
+  const unsubscribe = onSnapshot(q, (snapshot) => {
+    const rewards = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    setRewardHistory(rewards);
+
+    // ✅ Compute total earnings from all payoutReleased = true
+    const total = rewards.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+    setTotalEarnings(total);
+  });
+
+  return () => unsubscribe();
+}, [user]);
 
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
 
@@ -316,6 +427,108 @@ const fetchPaybackAndCapital = async (uid) => {
                 </CardContent>
               </Card>
             </Grid>
+
+{/* 💸 Earnings Card */}
+<Grid item xs={12} sm={6} md={4}>
+  <Card
+    sx={{
+      background: "rgba(255,255,255,0.1)",
+      backdropFilter: "blur(10px)",
+      width: "350px",
+      color: "#fff",
+      borderRadius: 3,
+      boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+      position: "relative",
+    }}
+  >
+    <CardContent>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+          Referral Earnings
+        </Typography>
+        <IconButton
+          onClick={() => setRewardDialogOpen(true)}
+          color="inherit"
+          size="small"
+        >
+          <VisibilityIcon sx={{ color: "#81C784" }} />
+        </IconButton>
+      </Box>
+      <Typography
+        variant="h4"
+        sx={{ fontWeight: "bold", color: "#81C784", mt: 1 }}
+      >
+        ₱{totalEarnings.toLocaleString()}
+      </Typography>
+      <Typography variant="body2" sx={{ mt: 1, opacity: 0.8 }}>
+        Total earned from your referrals
+      </Typography>
+
+        <Button
+  variant="contained"
+  color="success"
+  size="small"
+  sx={{ mt: 1 }}
+  onClick={() => handleTransferToWallet(totalEarnings, "referral")}
+  disabled={totalEarnings <= 0}
+>
+  Transfer to eWallet
+</Button>
+
+    </CardContent>
+  </Card>
+</Grid>
+
+{/* 💼 Override Earnings Card */}
+<Grid item xs={12} sm={6} md={4}>
+  <Card
+    sx={{
+      background: "rgba(255,255,255,0.1)",
+      backdropFilter: "blur(10px)",
+      width: "350px",
+      color: "#fff",
+      borderRadius: 3,
+      boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+      position: "relative",
+    }}
+  >
+    <CardContent>
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+          Override Earnings
+        </Typography>
+        <IconButton onClick={() => setOverrideDialogOpen(true)} color="inherit" size="small">
+          <VisibilityIcon sx={{ color: "#64B5F6" }} />
+        </IconButton>
+      </Box>
+      <Typography variant="h4" sx={{ fontWeight: "bold", color: "#64B5F6", mt: 1 }}>
+        ₱{overrideEarnings.toLocaleString()}
+      </Typography>
+      <Typography variant="body2" sx={{ mt: 1, opacity: 0.8 }}>
+        Credited rewards (after expiration date)
+      </Typography>
+
+      <Button
+  variant="contained"
+  color="primary"
+  size="small"
+  sx={{ mt: 1 }}
+  onClick={() => handleTransferToWallet(overrideEarnings, "override")}
+  disabled={overrideEarnings <= 0}
+>
+  Transfer to eWallet
+</Button>
+
+    </CardContent>
+  </Card>
+</Grid>
+
           </Grid>
 
           {loading ? (
@@ -449,6 +662,80 @@ const fetchPaybackAndCapital = async (uid) => {
           <Button onClick={() => setOpenDialog(false)}>Close</Button>
         </DialogActions>
       </Dialog>
+      {/* 🧾 Reward History Dialog */}
+<Dialog
+  open={rewardDialogOpen}
+  onClose={() => setRewardDialogOpen(false)}
+  fullWidth
+  maxWidth="sm"
+>
+  <DialogTitle>Reward History</DialogTitle>
+  <DialogContent dividers>
+    {rewardHistory.length === 0 ? (
+  <Typography variant="body2">No approved rewards yet.</Typography>
+) : (
+  <List>
+    {rewardHistory
+      .sort((a, b) => (b.releasedAt?.seconds || 0) - (a.releasedAt?.seconds || 0))
+      .map((reward) => (
+        <ListItem key={reward.id} divider>
+          <ListItemText
+            primary={`₱${reward.amount.toLocaleString()} earned`}
+            secondary={`From: ${reward.source} | ${new Date(
+            (reward.releasedAt?.seconds || 0) * 1000
+          ).toLocaleString()}`}
+          />
+        </ListItem>
+      ))}
+  </List>
+)}
+  </DialogContent>
+  <DialogActions>
+    <Button onClick={() => setRewardDialogOpen(false)}>Close</Button>
+  </DialogActions>
+</Dialog>
+
+{/* 🧾 Override History Dialog */}
+<Dialog
+  open={overrideDialogOpen}
+  onClose={() => setOverrideDialogOpen(false)}
+  fullWidth
+  maxWidth="sm"
+>
+  <DialogTitle>Override Upline Rewards</DialogTitle>
+  <DialogContent dividers>
+    {overrideList.length === 0 ? (
+      <Typography variant="body2">No override rewards found.</Typography>
+    ) : (
+      <List>
+  {overrideList
+    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+    .map((o) => {
+      const isExpired = o.expirationDate && new Date(o.expirationDate) < new Date();
+      const credited = o.status === "Credited" || isExpired;
+      return (
+        <ListItem key={o.id} divider>
+          <ListItemText
+            primary={`₱${o.amount.toLocaleString()} — ${
+              credited ? "Credited" : "Pending"
+            }`}
+            secondary={`From: ${o.source || "N/A"} | Expiration: ${
+              o.expirationDate
+                ? new Date(o.expirationDate).toLocaleDateString()
+                : "N/A"
+            }`}
+          />
+        </ListItem>
+      );
+    })}
+</List>
+    )}
+  </DialogContent>
+  <DialogActions>
+    <Button onClick={() => setOverrideDialogOpen(false)}>Close</Button>
+  </DialogActions>
+</Dialog>
+
     </Box>
   );
 };

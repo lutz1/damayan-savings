@@ -7,15 +7,10 @@ import {
   Paper,
   CircularProgress,
   Alert,
-  Link,
 } from "@mui/material";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  onAuthStateChanged,
-} from "firebase/auth";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { motion } from "framer-motion";
+import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
 
 import bgImage from "../assets/bg.jpg";
@@ -23,13 +18,10 @@ import tclcLogo from "../assets/tclc-logo1.png";
 import damayanLogo from "../assets/damayan.png";
 
 const Login = () => {
-  const [isSignup, setIsSignup] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [code, setCode] = useState("");
 
   // ✅ Redirect users based on role
   const handleRedirect = (role) => {
@@ -112,39 +104,6 @@ const Login = () => {
     }
   };
 
-  // --- SIGNUP HANDLER ---
-  const handleSignup = async (e) => {
-    e.preventDefault();
-    setError("");
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      await setDoc(doc(db, "users", user.uid), {
-        email,
-        code,
-        role: "Member",
-        createdAt: new Date(),
-      });
-      localStorage.setItem("userRole", "MEMBER");
-      handleRedirect("MEMBER");
-    } catch (err) {
-      console.error("Signup error:", err.message);
-      if (err.code === "auth/email-already-in-use") {
-        setError("This email is already registered.");
-      } else {
-        setError("Signup failed. Please try again.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <Box
       sx={{
@@ -194,10 +153,7 @@ const Login = () => {
               component="img"
               src={tclcLogo}
               alt="TCLC"
-              sx={{
-                width: { xs: 80, sm: 100, md: 110 },
-                height: "auto",
-              }}
+              sx={{ width: { xs: 80, sm: 100, md: 110 }, height: "auto" }}
             />
             <Box
               component="img"
@@ -217,125 +173,37 @@ const Login = () => {
             </Alert>
           )}
 
-          <AnimatePresence mode="wait">
-            {!isSignup ? (
-              <motion.div
-                key="login"
-                initial={{ opacity: 0, x: 40 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -40 }}
-                transition={{ duration: 0.4 }}
-              >
-                <form onSubmit={handleLogin}>
-                  <TextField
-                    label="Email Address"
-                    type="email"
-                    fullWidth
-                    required
-                    margin="normal"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    sx={textFieldStyle}
-                  />
-                  <TextField
-                    label="Password"
-                    type="password"
-                    fullWidth
-                    required
-                    margin="normal"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    sx={textFieldStyle}
-                  />
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    fullWidth
-                    disabled={loading}
-                    sx={buttonStyle}
-                  >
-                    {loading ? <CircularProgress size={24} color="inherit" /> : "Login"}
-                  </Button>
-                </form>
-
-                <Typography mt={2} sx={{ fontSize: { xs: "0.8rem", sm: "0.9rem" } }}>
-                  Don’t have an account?{" "}
-
-                </Typography>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="signup"
-                initial={{ opacity: 0, x: -40 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 40 }}
-                transition={{ duration: 0.4 }}
-              >
-                <form onSubmit={handleSignup}>
-                  <TextField
-                    label="Email Address"
-                    type="email"
-                    fullWidth
-                    required
-                    margin="normal"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    sx={textFieldStyle}
-                  />
-                  <TextField
-                    label="Password"
-                    type="password"
-                    fullWidth
-                    required
-                    margin="normal"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    sx={textFieldStyle}
-                  />
-                  <TextField
-                    label="Confirm Password"
-                    type="password"
-                    fullWidth
-                    required
-                    margin="normal"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    sx={textFieldStyle}
-                  />
-                  <TextField
-                    label="Registered Code"
-                    type="text"
-                    fullWidth
-                    required
-                    margin="normal"
-                    value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                    sx={textFieldStyle}
-                  />
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    fullWidth
-                    disabled={loading}
-                    sx={buttonStyle}
-                  >
-                    {loading ? <CircularProgress size={24} color="inherit" /> : "Create Account"}
-                  </Button>
-                </form>
-
-                <Typography mt={2} sx={{ fontSize: { xs: "0.8rem", sm: "0.9rem" } }}>
-                  Already have an account?{" "}
-                  <Link
-                    component="button"
-                    color="rgba(240,224,7,1)"
-                    onClick={() => setIsSignup(false)}
-                  >
-                    Login
-                  </Link>
-                </Typography>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <form onSubmit={handleLogin}>
+            <TextField
+              label="Email Address"
+              type="email"
+              fullWidth
+              required
+              margin="normal"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              sx={textFieldStyle}
+            />
+            <TextField
+              label="Password"
+              type="password"
+              fullWidth
+              required
+              margin="normal"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              sx={textFieldStyle}
+            />
+            <Button
+              type="submit"
+              variant="contained"
+              fullWidth
+              disabled={loading}
+              sx={buttonStyle}
+            >
+              {loading ? <CircularProgress size={24} color="inherit" /> : "Login"}
+            </Button>
+          </form>
 
           <Typography
             variant="body2"

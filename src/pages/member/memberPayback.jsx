@@ -76,12 +76,19 @@ const MemberPayback = () => {
   // History
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
 
-  // ===================== Upline ₱5 Reward Logic (Revised to Override) =====================
+  // ===================== Upline ₱90 Reward Logic (Stored in Override) =====================
+// ===================== Upline ₱90 Reward Logic (Stored in Override) =====================
 const handleUplineReward = useCallback(async (entries) => {
   const today = moment().startOf("day");
+  console.log("🟡 Checking for expired payback entries eligible for ₱90 upline reward...");
+  console.log("📅 Today's Date:", today.format("YYYY-MM-DD"));
+  console.log("📄 Total entries to check:", entries.length);
+
   for (const entry of entries) {
     const dueDate = moment(entry.expirationDate).startOf("day");
+    console.log(`🔹 Entry: ${entry.id} | Expiration: ${entry.expirationDate} | RewardGiven: ${entry.rewardGiven}`);
 
+    // Only process if the entry is due and not yet rewarded
     if (today.isSameOrAfter(dueDate) && !entry.rewardGiven) {
       try {
         const q = query(collection(db, "users"), where("username", "==", entry.uplineUsername));
@@ -91,26 +98,35 @@ const handleUplineReward = useCallback(async (entries) => {
           const uplineDoc = snap.docs[0];
           const uplineData = uplineDoc.data();
 
-          // ✅ Save override record instead of crediting directly
-          await addDoc(collection(db, "override"), {
+          // ✅ Store ₱90 in override (not credited yet)
+          const overrideRef = await addDoc(collection(db, "override"), {
             uplineId: uplineDoc.id,
             uplineUsername: uplineData.username,
             memberId: entry.userId,
             memberUsername: entry.memberUsername || "",
             paybackEntryId: entry.id,
-            amount: 5,
-            status: "Pending",
+            amount: 90,
+            credited: false, // not yet credited
             createdAt: new Date().toISOString(),
+            expirationDate: entry.expirationDate, // for reference
+            type: "UplineReward",
           });
 
+          console.log(`💰 ₱90 override created for upline: ${uplineData.username} | Override ID: ${overrideRef.id}`);
+
+          // ✅ Mark payback entry as rewarded so it won’t repeat
           const entryRef = doc(db, "paybackEntries", entry.id);
           await updateDoc(entryRef, { rewardGiven: true });
+          console.log(`✅ Entry ${entry.id} marked as rewarded.`);
         }
       } catch (err) {
-        console.error("Override reward creation failed:", err);
+        console.error("Error creating upline override reward:", err);
       }
+    } else {
+      console.log("⏩ Entry not yet due or already rewarded. Skipping...");
     }
   }
+  console.log("🟢 Upline reward checking completed.");
 }, []);
 
   // ===================== Fetch Payback Data =====================
@@ -230,64 +246,82 @@ const fetchPaybackData = useCallback(async (userId) => {
 
   // ===================== Add Payback Entry (continued) =====================
   const handleAddPayback = async () => {
-    if (!uplineUsername || !amount) return alert("Please confirm upline and amount.");
-    setAdding(true);
-    try {
-      const user = auth.currentUser;
-      if (!user) return;
+  if (!uplineUsername || !amount) return alert("Please confirm upline and amount.");
+  setAdding(true);
 
-      const userRef = doc(db, "users", user.uid);
-      const userSnap = await getDoc(userRef);
-      if (!userSnap.exists()) {
-        setAdding(false);
-        return alert("User not found.");
-      }
+  try {
+    const user = auth.currentUser;
+    if (!user) return;
 
-      const walletBalance = userSnap.data().eWallet || 0;
-      const amountNum = parseFloat(amount);
-      if (amountNum > walletBalance) {
-        setAdding(false);
-        return alert("Insufficient wallet balance.");
-      }
-
-      const q = query(collection(db, "users"), where("username", "==", uplineUsername));
-      const snap = await getDocs(q);
-      if (snap.empty) {
-        setAdding(false);
-        return alert("Upline not found.");
-      }
-
-      const uplineDoc = snap.docs[0].data();
-
-      await updateDoc(userRef, { eWallet: walletBalance - amountNum });
-
-      const entryDate = moment(selectedDate || new Date()).toISOString();
-      const expirationDate = moment(entryDate).add(30, "days").toISOString();
-
-      await addDoc(collection(db, "paybackEntries"), {
-        userId: user.uid,
-        uplineUsername,
-        amount: amountNum,
-        role: uplineDoc.role,
-        date: entryDate,
-        expirationDate,
-        status: "Approved",
-        rewardGiven: false,
-        createdAt: new Date().toISOString(),
-      });
-
-      await fetchPaybackData(user.uid);
-      resetAddFields();
-      setOpenAddDialog(false);
-      alert(`Payback entry added! ₱${amountNum.toFixed(2)} deducted.`);
-    } catch (err) {
-      console.error("Error adding payback entry:", err);
-      alert("Failed to add entry.");
-    } finally {
+    const userRef = doc(db, "users", user.uid);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) {
       setAdding(false);
+      return alert("User not found.");
     }
-  };
 
+    const walletBalance = userSnap.data().eWallet || 0;
+    const amountNum = parseFloat(amount);
+    if (amountNum > walletBalance) {
+      setAdding(false);
+      return alert("Insufficient wallet balance.");
+    }
+
+    console.log("💰 Wallet balance before deduction:", walletBalance);
+
+    // Get upline user doc
+    const q = query(collection(db, "users"), where("username", "==", uplineUsername));
+    const snap = await getDocs(q);
+    if (snap.empty) {
+      setAdding(false);
+      return alert("Upline not found.");
+    }
+
+    const uplineDoc = snap.docs[0].data();
+    console.log("👥 Upline data:", uplineDoc);
+
+    // Deduct wallet
+    await updateDoc(userRef, { eWallet: walletBalance - amountNum });
+    console.log(`✅ Deducted ₱${amountNum} from user eWallet`);
+
+    // Prepare payback entry
+    const entryDate = moment(selectedDate || new Date()).toISOString();
+    const expirationDate = moment(entryDate).add(30, "days").toISOString();
+
+    console.log("📝 Adding payback entry with:");
+    console.log("User ID:", user.uid);
+    console.log("Upline Username:", uplineUsername);
+    console.log("Amount:", amountNum);
+    console.log("Upline Role:", uplineDoc.role);
+    console.log("Entry Date:", entryDate);
+    console.log("Expiration Date:", expirationDate);
+    console.log("RewardGiven: false (Upline ₱90 pending after expiration)");
+
+    // Add payback entry
+    await addDoc(collection(db, "paybackEntries"), {
+      userId: user.uid,
+      uplineUsername,
+      amount: amountNum,
+      role: uplineDoc.role,
+      date: entryDate,
+      expirationDate,
+      rewardGiven: false,
+      createdAt: new Date().toISOString(),
+    });
+
+    console.log("✅ Payback entry successfully added");
+
+    await fetchPaybackData(user.uid);
+    resetAddFields();
+    setOpenAddDialog(false);
+    alert(`Payback entry added! ₱${amountNum.toFixed(2)} deducted.`);
+  } catch (err) {
+    console.error("❌ Error adding payback entry:", err);
+    alert("Failed to add entry.");
+  } finally {
+    setAdding(false);
+  }
+};
   // ===================== Transfer Logic =====================
   const handleTransfer = async () => {
   const amountNum = parseFloat(transferAmount);
