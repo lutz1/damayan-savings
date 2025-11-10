@@ -215,7 +215,7 @@ const MemberCapitalShare = () => {
     setCapitalAmount(totalCapital);
     setMonthlyProfit(totalProfit);
     setCalendarEntries(calendarData);
-  } catch (err) {
+  } catch (err) { 
     console.error("Error fetching capital share data:", err);
   }
 }, [user, processMonthlyProfit]);
