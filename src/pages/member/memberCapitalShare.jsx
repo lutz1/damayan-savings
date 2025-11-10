@@ -1,5 +1,5 @@
 // src/pages/MemberCapitalShare.jsx
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Box,
   Card,
@@ -31,8 +31,10 @@ import {
   serverTimestamp,
   orderBy,
 } from "firebase/firestore";
-import Calendar from "react-calendar";
-import "react-calendar/dist/Calendar.css";
+// 🔹 CHANGE: react-big-calendar imports
+import { Calendar as BigCalendar, dateFnsLocalizer } from "react-big-calendar";
+import { format, parse, startOfWeek, getDay } from "date-fns";
+import "react-big-calendar/lib/css/react-big-calendar.css";
 import Topbar from "../../components/Topbar";
 import Sidebar from "../../components/Sidebar";
 import bgImage from "../../assets/bg.jpg";
@@ -42,6 +44,17 @@ const MIN_AMOUNT = 1000;
 const LOCK_IN = 5000;
 const MONTHLY_RATE = 0.05;
 const TRANSFER_CHARGE = 0.01;
+
+const locales = {
+  "en-US": require("date-fns/locale/en-US"),
+};
+const localizer = dateFnsLocalizer({
+  format,
+  parse,
+  startOfWeek,
+  getDay,
+  locales,
+});
 
 const MemberCapitalShare = () => {
   const theme = useTheme();
@@ -58,13 +71,23 @@ const MemberCapitalShare = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [openAddDialog, setOpenAddDialog] = useState(false);
   const [amount, setAmount] = useState("");
-  const [directUser, setDirectUser] = useState("");
 
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [transactionHistory, setTransactionHistory] = useState([]);
   const [capitalAmount, setCapitalAmount] = useState(0);
   const [monthlyProfit, setMonthlyProfit] = useState(0);
   const [calendarEntries, setCalendarEntries] = useState([]);
+
+  // 🔹 CHANGE: map calendarEntries to events for react-big-calendar
+  const events = useMemo(() => {
+    return calendarEntries.map((entry) => ({
+      title: entry.profitReady ? "Profit Ready" : "Active",
+      start: entry.date,
+      end: entry.date,
+      allDay: true,
+      entry,
+    }));
+  }, [calendarEntries]);
 
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
 
@@ -138,59 +161,64 @@ const MemberCapitalShare = () => {
   }, [user]);
 
   const fetchTransactionHistory = useCallback(async () => {
-    if (!user) return;
-    try {
-      await processMonthlyProfit();
+  if (!user) return;
+  try {
+    await processMonthlyProfit();
 
-      const q = query(
-        collection(db, "capitalShareEntries"),
-        where("userId", "==", user.uid),
-        orderBy("createdAt", "desc")
-      );
-      const snap = await getDocs(q);
+    const q = query(
+      collection(db, "capitalShareEntries"),
+      where("userId", "==", user.uid),
+      orderBy("createdAt", "desc")
+    );
+    const snap = await getDocs(q);
 
-      const now = new Date();
-      let totalCapital = 0;
-      let totalProfit = 0;
-      const calendarData = [];
+    const now = new Date();
+    let totalCapital = 0;
+    let totalProfit = 0;
+    const calendarData = [];
 
-      const history = snap.docs.map((doc) => {
-        const data = doc.data();
-        if (data.nextProfitDate && typeof data.nextProfitDate.toDate === "function") {
-          data.nextProfitDate = data.nextProfitDate.toDate();
-        }
-        if (data.createdAt && typeof data.createdAt.toDate === "function") {
-          data.createdAt = data.createdAt.toDate();
-        }
+    const history = snap.docs.map((doc) => {
+      const data = doc.data();
+      if (data.nextProfitDate && typeof data.nextProfitDate.toDate === "function") {
+        data.nextProfitDate = data.nextProfitDate.toDate();
+      }
+      if (data.createdAt && typeof data.createdAt.toDate === "function") {
+        data.createdAt = data.createdAt.toDate();
+      }
 
-        const createdAt = data.createdAt || new Date();
-        const expireDate = new Date(createdAt);
-        expireDate.setFullYear(expireDate.getFullYear() + 1);
-        const isActive = now <= expireDate;
+      const createdAt = data.createdAt || new Date();
+      const expireDate = new Date(createdAt);
+      expireDate.setFullYear(expireDate.getFullYear() + 1);
+      const isActive = now <= expireDate;
 
-        if (isActive) {
-          totalCapital += data.lockIn || 0;
-          if (data.nextProfitDate && data.nextProfitDate <= now) {
-            totalProfit += (data.amount || 0) * MONTHLY_RATE;
-          }
-          calendarData.push({
-            date: new Date(data.date),
-            profitReady: data.nextProfitDate <= now,
-            createdAt: createdAt,
-          });
+      if (isActive) {
+        // ✅ Include full amount (not just lock-in)
+        totalCapital += data.amount || 0;
+
+        // 🧮 Compute profit only if due
+        if (data.nextProfitDate && data.nextProfitDate <= now) {
+          totalProfit += (data.amount || 0) * MONTHLY_RATE;
         }
 
-        return data;
-      });
+        // 📅 Calendar entry
+        calendarData.push({
+          date: new Date(data.date),
+          profitReady: data.nextProfitDate <= now,
+          createdAt: createdAt,
+        });
+      }
 
-      setTransactionHistory(history);
-      setCapitalAmount(totalCapital);
-      setMonthlyProfit(totalProfit);
-      setCalendarEntries(calendarData);
-    } catch (err) {
-      console.error(err);
-    }
-  }, [user, processMonthlyProfit]);
+      return data;
+    });
+
+    setTransactionHistory(history);
+    setCapitalAmount(totalCapital);
+    setMonthlyProfit(totalProfit);
+    setCalendarEntries(calendarData);
+  } catch (err) {
+    console.error("Error fetching capital share data:", err);
+  }
+}, [user, processMonthlyProfit]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -236,46 +264,86 @@ const MemberCapitalShare = () => {
   };
 
   const handleAddEntry = async () => {
-    const entryAmount = Number(amount);
-    const walletBalance = Number(userData?.eWallet || 0);
-    if (!entryAmount || entryAmount < MIN_AMOUNT) return alert(`Minimum amount is ₱${MIN_AMOUNT}`);
-    if (entryAmount > walletBalance) return alert("Insufficient wallet balance.");
+  const entryAmount = Number(amount);
+  const walletBalance = Number(userData?.eWallet || 0);
+  if (!entryAmount || entryAmount < MIN_AMOUNT)
+    return alert(`Minimum amount is ₱${MIN_AMOUNT}`);
+  if (entryAmount > walletBalance)
+    return alert("Insufficient wallet balance.");
 
-    try {
-      const entriesRef = collection(db, "capitalShareEntries");
-      const lockInAmount = Math.min(LOCK_IN, entryAmount);
-      const transferableAmount = entryAmount > LOCK_IN ? entryAmount - LOCK_IN : 0;
+  try {
+    const entriesRef = collection(db, "capitalShareEntries");
+    const lockInAmount = Math.min(LOCK_IN, entryAmount);
+    const transferableAmount =
+      entryAmount > LOCK_IN ? entryAmount - LOCK_IN : 0;
 
-      await addDoc(entriesRef, {
-        userId: user.uid,
-        amount: entryAmount,
-        date: selectedDate,
-        directUsernameOrEmail: directUser || "",
-        directBonus: directUser ? entryAmount * 0.0033 : 0,
-        profit: 0,
-        lockIn: lockInAmount,
-        transferable: transferableAmount,
-        status: "Approved",
-        createdAt: serverTimestamp(),
-        nextProfitDate: new Date(new Date().setMonth(new Date().getMonth() + 1)),
-      });
+    // 🔹 Add capital share entry
+    await addDoc(entriesRef, {
+      userId: user.uid,
+      amount: entryAmount,
+      date: selectedDate,
+      profit: 0,
+      lockIn: lockInAmount,
+      transferable: transferableAmount,
+      status: "Approved",
+      createdAt: serverTimestamp(),
+      nextProfitDate: new Date(
+        new Date().setMonth(new Date().getMonth() + 1)
+      ),
+    });
 
-      const userRef = doc(db, "users", user.uid);
-      await updateDoc(userRef, {
-        eWallet: walletBalance - entryAmount,
-      });
+    // 🔹 Deduct from user wallet
+    const userRef = doc(db, "users", user.uid);
+    await updateDoc(userRef, { eWallet: walletBalance - entryAmount });
 
-      alert("Capital Share entry added!");
-      setAmount("");
-      setDirectUser("");
-      setOpenAddDialog(false);
-      await fetchUserData(user);
-      await fetchTransactionHistory();
-    } catch (err) {
-      console.error(err);
-      alert("Failed to add entry.");
+    // 🔹 Store 5% upline bonus in override collection (using referredBy)
+    if (userData?.referredBy) {
+      const uplineQuery = query(
+        collection(db, "users"),
+        where("username", "==", userData.referredBy)
+      );
+      const snap = await getDocs(uplineQuery);
+      if (!snap.empty) {
+        const upline = snap.docs[0];
+        const uplineBonus = entryAmount * 0.05;
+        const releaseDate = new Date(
+          new Date().setMonth(new Date().getMonth() + 1)
+        );
+
+        await addDoc(collection(db, "override"), {
+          uplineId: upline.id,
+          fromUserId: user.uid,
+          fromUsername: userData.username || "",
+          uplineUsername: userData.referredBy,
+          amount: uplineBonus,
+          type: "Upline Capital Share Bonus",
+          status: "Pending",
+          createdAt: serverTimestamp(),
+          releaseDate,
+        });
+
+        // 🧾 Debug logs
+        console.log("✅ Upline Bonus Recorded!");
+        console.log(`Upline Username: ${userData.referredBy}`);
+        console.log(`Bonus Amount: ₱${uplineBonus.toFixed(2)}`);
+        console.log(`Release Date (after 1 month):`, releaseDate);
+      } else {
+        console.warn("⚠️ No upline found for referredBy:", userData.referredBy);
+      }
+    } else {
+      console.log("ℹ️ No referredBy/upline, skipping upline bonus.");
     }
-  };
+
+    alert("✅ Capital Share entry added successfully!");
+    setAmount("");
+    setOpenAddDialog(false);
+    await fetchUserData(user);
+    await fetchTransactionHistory();
+  } catch (err) {
+    console.error("Error adding capital share entry:", err);
+    alert("❌ Failed to add entry.");
+  }
+};
 
   const handleTransferCapitalShare = async (entry) => {
     const now = new Date();
@@ -343,13 +411,19 @@ const MemberCapitalShare = () => {
       </Backdrop>
     );
 
-  const tileClassName = ({ date }) => {
-    const entry = calendarEntries.find(
-      (e) => e.date.toDateString() === date.toDateString()
-    );
-    if (!entry) return "";
-    if (entry.profitReady) return "profit-ready";
-    return "active-entry";
+  const handleSelectSlot = (slotInfo) => { // 🔹 CHANGE
+    const date = slotInfo.start;
+    handleDateClick(date);
+  };
+
+  const eventStyleGetter = (event) => { // 🔹 CHANGE
+    const style = {
+      backgroundColor: event.entry.profitReady ? "rgba(255, 193, 7, 0.5)" : "rgba(76, 175, 80, 0.3)",
+      borderRadius: "50%",
+      color: "black",
+      border: "none",
+    };
+    return { style };
   };
 
   return (
@@ -391,43 +465,103 @@ const MemberCapitalShare = () => {
         </Typography>
 
         <Grid container spacing={3} sx={{ mb: 3 }}>
-          <Grid item xs={12} md={4}>
-            <Card sx={{ backgroundColor: "rgba(231, 237, 241, 0.53)",width:"380px", borderRadius: 3 }}>
-              <CardContent>
-                <Typography variant="h6">Capital Share</Typography>
-                <Typography variant="h4">₱{Number(capitalAmount).toLocaleString()}</Typography>
-                {capitalAmount >= LOCK_IN && (
-                  <Button variant="contained" sx={{ mt: 1 }} onClick={() => handleTransferCapitalShare(transactionHistory[0])}>
-                    Transfer Capital to Wallet
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
+        {/* 🔹 Capital Share Card */}
+        <Grid item xs={12} md={4}>
+          <Card
+            sx={{
+              backgroundColor: "rgba(231, 237, 241, 0.53)",
+              borderRadius: 3,
+              width: { xs: "100%", sm: "380px" },
+            }}
+          >
+            <CardContent>
+              <Typography variant="h6" fontWeight={600}>
+                Capital Share
+              </Typography>
 
-          <Grid item xs={12} md={4}>
-            <Card sx={{ backgroundColor: "rgba(231, 237, 241, 0.53)",width:"380px", borderRadius: 3 }}>
-              <CardContent>
-                <Typography variant="h6">Monthly Profit (5%)</Typography>
-                <Typography variant="h4">₱{Number(monthlyProfit).toLocaleString()}</Typography>
-                {monthlyProfit > 0 && (
-                  <Button variant="contained" sx={{ mt: 1 }} onClick={handleTransferProfit}>
-                    Transfer Profit to Wallet
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
+              {/* Total */}
+              <Typography variant="h4" sx={{ mt: 0.5 }}>
+                ₱{Number(capitalAmount).toLocaleString()}
+              </Typography>
+
+              {/* Breakdown */}
+              {capitalAmount > 0 && (
+                <Box sx={{ mt: 1.5 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    🔒 Lock-in: ₱{Math.min(capitalAmount, LOCK_IN).toLocaleString()}
+                  </Typography>
+                  {capitalAmount > LOCK_IN && (
+                    <Typography variant="body2" color="text.secondary">
+                      💼 Transferable: ₱
+                      {(capitalAmount - LOCK_IN).toLocaleString()}
+                    </Typography>
+                  )}
+                </Box>
+              )}
+
+              {/* Transfer Button */}
+              {capitalAmount >= LOCK_IN && (
+                <Button
+                  variant="contained"
+                  sx={{ mt: 2 }}
+                  onClick={() =>
+                    handleTransferCapitalShare(transactionHistory[0])
+                  }
+                >
+                  Transfer Capital to Wallet
+                </Button>
+              )}
+            </CardContent>
+          </Card>
         </Grid>
+
+        {/* 🔹 Monthly Profit Card */}
+        <Grid item xs={12} md={4}>
+          <Card
+            sx={{
+              backgroundColor: "rgba(231, 237, 241, 0.53)",
+              borderRadius: 3,
+              width: { xs: "100%", sm: "380px" },
+            }}
+          >
+            <CardContent>
+              <Typography variant="h6" fontWeight={600}>
+                Monthly Profit (5%)
+              </Typography>
+
+              <Typography variant="h4" sx={{ mt: 0.5 }}>
+                ₱{Number(monthlyProfit).toLocaleString()}
+              </Typography>
+
+              {monthlyProfit > 0 && (
+                <Button
+                  variant="contained"
+                  sx={{ mt: 2 }}
+                  onClick={handleTransferProfit}
+                >
+                  Transfer Profit to Wallet
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
         <Card sx={{ mt: 4, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 3, p: 3 }}>
           <Typography variant="h6" sx={{ mb: 2 }}>
             📅 Capital Share Calendar
           </Typography>
-          <Calendar
-            onClickDay={handleDateClick}
-            tileDisabled={({ date }) => date < new Date().setHours(0, 0, 0, 0)}
-            tileClassName={tileClassName}
+
+          {/* 🔹 CHANGE: React Big Calendar */}
+          <BigCalendar
+            localizer={localizer}
+            events={events}
+            startAccessor="start"
+            endAccessor="end"
+            style={{ height: 500 }}
+            selectable
+            onSelectSlot={handleSelectSlot}
+            eventPropGetter={eventStyleGetter}
           />
         </Card>
 
@@ -448,12 +582,12 @@ const MemberCapitalShare = () => {
               inputProps={{ min: MIN_AMOUNT }}
             />
             <TextField
-              label="Direct Username or Email (Optional)"
-              fullWidth
-              value={directUser}
-              onChange={(e) => setDirectUser(e.target.value)}
-              sx={{ mb: 2 }}
-            />
+            label="Upline Username"
+            fullWidth
+            value={userData?.referredBy || "No Upline"}
+            InputProps={{ readOnly: true }}
+            sx={{ mb: 2 }}
+          />
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setOpenAddDialog(false)}>Cancel</Button>

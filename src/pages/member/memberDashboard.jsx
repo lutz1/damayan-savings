@@ -514,7 +514,7 @@ const fetchPaybackAndCapital = async (uid) => {
         Credited rewards (after expiration date)
       </Typography>
 
-      <Button
+  <Button
   variant="contained"
   color="primary"
   size="small"
