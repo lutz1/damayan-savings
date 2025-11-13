@@ -46,10 +46,9 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
   const referralCode =
     userData?.referralCode || auth?.currentUser?.uid?.slice(0, 6);
 
-  // Fetch available activation codes for current user
+  // Fetch available activation codes
   useEffect(() => {
     if (!auth.currentUser) return;
-
     const codesRef = collection(db, "purchaseCodes");
     const q = query(
       codesRef,
@@ -60,7 +59,6 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
     const unsubscribe = onSnapshot(q, (snap) => {
       const codes = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setAvailableCodes(codes);
-
       if (codes.length > 0 && !selectedCode) setSelectedCode(codes[0].code);
     });
 
@@ -84,7 +82,7 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
     setLoading(true);
 
     try {
-      // 1️⃣ Add pending invite
+      // 1️⃣ Add pending invite record
       await addDoc(collection(db, "pendingInvites"), {
         inviterId: auth.currentUser.uid,
         inviterUsername: userData.username,
@@ -109,10 +107,16 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
         await updateDoc(doc(db, "purchaseCodes", codeDoc.id), { used: true });
       }
 
-      // 3️⃣ Direct Invite Reward based on invitee role
-      const baseRewards = { MD: 210, MS: 160, MI: 140, Agent: 120 };
-      const inviterReward = baseRewards[newUserRole] || 0;
+      // 3️⃣ Direct Invite Reward
+      const directRewardMap = {
+        MasterMD: 235,
+        MD: 210,
+        MS: 160,
+        MI: 140,
+        Agent: 120,
+      };
 
+      const inviterReward = directRewardMap[userData.role] || 0;
       if (inviterReward > 0) {
         await addDoc(collection(db, "referralReward"), {
           userId: auth.currentUser.uid,
@@ -125,33 +129,15 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
           payoutReleased: false,
           createdAt: serverTimestamp(),
         });
+        console.log(`✅ Direct Reward ₱${inviterReward} → ${userData.username}`);
       }
 
-      // 4️⃣ Upline Network Bonuses
-      const bonusStructure = {
-        Agent: [20, 20, 50, 10],
-        MI: [20, 50, 10],
-        MS: [50, 10],
-        MD: [],
-      };
+      // 4️⃣ Network Bonuses
+      let currentUplineUsername = userData?.referredBy || null;
+      const mdBonusSlots = [50, 10];
+      let mdSlotIndex = 0;
 
-      const expectedRolesOrder = {
-        Agent: ["MI", "MS", "MD", "MD"],
-        MI: ["MS", "MD", "MD"],
-        MS: ["MD", "MD"],
-      };
-
-      let currentUplineUsername = userData?.referredBy;
-      let uplineLevel = 0;
-      const uplineBonuses = bonusStructure[newUserRole] || [];
-      const expectedRoles = expectedRolesOrder[newUserRole] || [];
-
-      const roleHierarchy = ["Agent", "MI", "MS", "MD"];
-
-      for (let bonus of uplineBonuses) {
-        if (!currentUplineUsername) break;
-
-        // Fetch upline user
+      while (currentUplineUsername) {
         const q = query(
           collection(db, "users"),
           where("username", "==", currentUplineUsername),
@@ -162,27 +148,67 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
 
         const uplineUser = snap.docs[0].data();
         const uplineId = snap.docs[0].id;
+        const role = uplineUser.role;
 
-        const expectedRole = expectedRoles[uplineLevel] || null;
-        const uplineRank = roleHierarchy.indexOf(uplineUser.role);
-        const expectedRank = expectedRole ? roleHierarchy.indexOf(expectedRole) : 0;
+        if (role === "CEO") {
+          console.log("⛔ CEO found, stopping network bonuses chain");
+          break; // Stop bonuses at CEO
+        }
 
-        if (uplineRank >= expectedRank) {
+        // MasterMD bonus
+        if (role === "MasterMD") {
           await addDoc(collection(db, "referralReward"), {
             userId: uplineId,
             username: uplineUser.username,
-            role: uplineUser.role,
-            amount: bonus,
+            role,
+            amount: 15,
             source: newUserUsername,
             type: "Network Bonus",
             approved: false,
             payoutReleased: false,
             createdAt: serverTimestamp(),
           });
+          console.log(`💸 Network Bonus ₱15 → ${uplineUser.username} (MasterMD)`);
+        }
+
+        // MD bonuses with slots
+        if (role === "MD" && mdSlotIndex < mdBonusSlots.length) {
+          const bonusAmount = mdBonusSlots[mdSlotIndex];
+          await addDoc(collection(db, "referralReward"), {
+            userId: uplineId,
+            username: uplineUser.username,
+            role,
+            amount: bonusAmount,
+            source: newUserUsername,
+            type: "Network Bonus",
+            approved: false,
+            payoutReleased: false,
+            createdAt: serverTimestamp(),
+          });
+          console.log(`💸 Network Bonus ₱${bonusAmount} → ${uplineUser.username} (MD)`);
+          mdSlotIndex++;
+        }
+
+        // MI & MS fixed bonuses
+        const roleBonusMap = { MI: 20, MS: 20 };
+        if (roleBonusMap[role]) {
+          await addDoc(collection(db, "referralReward"), {
+            userId: uplineId,
+            username: uplineUser.username,
+            role,
+            amount: roleBonusMap[role],
+            source: newUserUsername,
+            type: "Network Bonus",
+            approved: false,
+            payoutReleased: false,
+            createdAt: serverTimestamp(),
+          });
+          console.log(
+            `💸 Network Bonus ₱${roleBonusMap[role]} → ${uplineUser.username} (${role})`
+          );
         }
 
         currentUplineUsername = uplineUser.referredBy || null;
-        uplineLevel++;
       }
 
       // Reset form
@@ -195,7 +221,7 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
       setNewUserRole("MD");
       setSelectedCode("");
     } catch (err) {
-      console.error("Invite failed:", err);
+      console.error("❌ Invite failed:", err);
       setError("Unable to send invite. Try again later.");
     } finally {
       setLoading(false);
@@ -253,11 +279,7 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
         {error && (
           <Alert
             severity="error"
-            sx={{
-              mb: 2,
-              background: "rgba(255,82,82,0.15)",
-              color: "#FF8A80",
-            }}
+            sx={{ mb: 2, background: "rgba(255,82,82,0.15)", color: "#FF8A80" }}
           >
             {error}
           </Alert>
@@ -265,11 +287,7 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
         {success && (
           <Alert
             severity="success"
-            sx={{
-              mb: 2,
-              background: "rgba(76,175,80,0.2)",
-              color: "#81C784",
-            }}
+            sx={{ mb: 2, background: "rgba(76,175,80,0.2)", color: "#81C784" }}
           >
             Invite submitted for admin approval!
           </Alert>
