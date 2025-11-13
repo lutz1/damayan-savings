@@ -195,7 +195,7 @@ const AdminUserManagement = () => {
     const referrerId = inviterDoc.id;
     const referrerRole = inviterDoc.data().role || "";
     const referrerUsername = inviterDoc.data().username || "";
-    const inviterUpline = inviterDoc.data().referredBy || null; // 🔹 needed for network chain
+    const inviterUpline = inviterDoc.data().referredBy || null; // for network chain
 
     // 🧩 Create Firebase Auth user for invitee
     const userCredential = await createUserWithEmailAndPassword(
@@ -240,7 +240,6 @@ const AdminUserManagement = () => {
     const directSnap = await getDocs(directRewardQuery);
 
     if (!directSnap.empty) {
-      // ✅ Update existing direct reward
       const directDocRef = doc(db, "referralReward", directSnap.docs[0].id);
       await updateDoc(directDocRef, {
         approved: true,
@@ -249,7 +248,6 @@ const AdminUserManagement = () => {
       });
       console.log(`✅ Updated Direct Invite Reward for ${referrerUsername}`);
     } else {
-      // ✅ Create new direct reward properly marked as approved
       await addDoc(collection(db, "referralReward"), {
         userId: referrerId,
         username: referrerUsername,
@@ -275,22 +273,14 @@ const AdminUserManagement = () => {
     );
 
     // =========================================================
-    // 🌐 NETWORK BONUS DISTRIBUTION (SKIP INVITER)
-    const bonusStructure = {
-      Agent: [20, 20, 50, 10], // MI, MS, MD, next MD
-      MI: [20, 50, 10],
-      MS: [50, 10],
-      MD: [],
-    };
-    const bonusLevels = bonusStructure[invite.role] || [];
-
-    let currentUpline = inviterUpline; // ✅ starts from inviter's upline (skip inviter)
-
+    // 🌐 NETWORK BONUS DISTRIBUTION (skip inviter)
+    let currentUpline = inviterUpline;
     console.log(`=== 🧭 Network Bonus Distribution for ${invite.inviteeUsername} ===`);
 
-    for (let level = 0; level < bonusLevels.length; level++) {
-      if (!currentUpline) break;
+    // Reset MD slot index to keep track of MD bonuses
+    handleApproveInvite.mdSlotIndex = 0;
 
+    while (currentUpline) {
       const uplineQuery = query(
         collection(db, "users"),
         where("username", "==", currentUpline),
@@ -299,60 +289,63 @@ const AdminUserManagement = () => {
       const uplineSnap = await getDocs(uplineQuery);
 
       if (uplineSnap.empty) {
-        console.log(`⚠️ No upline found at level ${level + 1}`);
+        console.log(`⚠️ No upline found for ${currentUpline}`);
         break;
       }
 
       const uplineDoc = uplineSnap.docs[0];
       const uplineId = uplineDoc.id;
-      const uplineRole = uplineDoc.data().role || "";
+      const uplineRole = (uplineDoc.data().role || "").trim();
       const uplineUsername = uplineDoc.data().username;
       const nextUpline = uplineDoc.data().referredBy || null;
 
-      const bonusAmount = bonusLevels[level];
-
-      if (bonusAmount <= 0) {
-        currentUpline = nextUpline;
-        continue;
-      }
-
-      // Prevent network bonus if same as inviter
+      // Skip inviter
       if (uplineUsername === referrerUsername) {
         console.log(`⛔ Skipping inviter (${uplineUsername}) from network bonus`);
         currentUpline = nextUpline;
         continue;
       }
 
-      const existingBonusQuery = query(
-        collection(db, "referralReward"),
-        where("userId", "==", uplineId),
-        where("source", "==", invite.inviteeUsername),
-        where("type", "==", "Network Bonus"),
-        limit(1)
-      );
-      const existingBonusSnap = await getDocs(existingBonusQuery);
+      // Determine bonus amount
+      let bonusAmount = 0;
 
-      if (existingBonusSnap.empty) {
-        await addDoc(collection(db, "referralReward"), {
-          userId: uplineId,
-          username: uplineUsername,
-          source: invite.inviteeUsername,
-          role: uplineRole,
-          type: "Network Bonus",
-          amount: bonusAmount,
-          payoutReleased: true,
-          approved: true,
-          createdAt: serverTimestamp(),
-          releasedAt: serverTimestamp(),
-        });
+      if (uplineRole === "MasterMD") bonusAmount = 15;
+      else if (uplineRole === "MD") {
+        const mdBonusSlots = [50, 10]; // original MD network bonuses
+        if (handleApproveInvite.mdSlotIndex < mdBonusSlots.length) {
+          bonusAmount = mdBonusSlots[handleApproveInvite.mdSlotIndex];
+          handleApproveInvite.mdSlotIndex++;
+        }
+      } else if (["MI", "MS"].includes(uplineRole)) bonusAmount = 20;
+      else if (uplineRole === "Agent") bonusAmount = 20;
 
-        console.log(
-          `💸 [Level ${level + 1}] ${uplineUsername} (${uplineRole}) earned ₱${bonusAmount}`
+      if (bonusAmount > 0) {
+        const existingBonusQuery = query(
+          collection(db, "referralReward"),
+          where("userId", "==", uplineId),
+          where("source", "==", invite.inviteeUsername),
+          where("type", "==", "Network Bonus"),
+          limit(1)
         );
-      } else {
-        console.log(
-          `ℹ️ [Level ${level + 1}] Network bonus already exists for ${uplineUsername}`
-        );
+        const existingBonusSnap = await getDocs(existingBonusQuery);
+
+        if (existingBonusSnap.empty) {
+          await addDoc(collection(db, "referralReward"), {
+            userId: uplineId,
+            username: uplineUsername,
+            source: invite.inviteeUsername,
+            role: uplineRole,
+            type: "Network Bonus",
+            amount: bonusAmount,
+            approved: true,
+            payoutReleased: true,
+            createdAt: serverTimestamp(),
+            releasedAt: serverTimestamp(),
+          });
+          console.log(`💸 ${uplineUsername} (${uplineRole}) earned ₱${bonusAmount}`);
+        } else {
+          console.log(`ℹ️ Network bonus already exists for ${uplineUsername}`);
+        }
       }
 
       currentUpline = nextUpline;

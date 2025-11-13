@@ -150,13 +150,15 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
         const uplineId = snap.docs[0].id;
         const role = uplineUser.role;
 
-        if (role === "CEO") {
+        console.log("🧭 Checking upline:", uplineUser.username, role);
+
+        if (role?.toLowerCase() === "ceo") {
           console.log("⛔ CEO found, stopping network bonuses chain");
-          break; // Stop bonuses at CEO
+          break;
         }
 
         // MasterMD bonus
-        if (role === "MasterMD") {
+        if (role?.toLowerCase() === "mastermd") {
           await addDoc(collection(db, "referralReward"), {
             userId: uplineId,
             username: uplineUser.username,
@@ -171,8 +173,8 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
           console.log(`💸 Network Bonus ₱15 → ${uplineUser.username} (MasterMD)`);
         }
 
-        // MD bonuses with slots
-        if (role === "MD" && mdSlotIndex < mdBonusSlots.length) {
+        // MD bonuses
+        if (role?.toLowerCase() === "md" && mdSlotIndex < mdBonusSlots.length) {
           const bonusAmount = mdBonusSlots[mdSlotIndex];
           await addDoc(collection(db, "referralReward"), {
             userId: uplineId,
@@ -190,22 +192,21 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
         }
 
         // MI & MS fixed bonuses
-        const roleBonusMap = { MI: 20, MS: 20 };
-        if (roleBonusMap[role]) {
+        const roleBonusMap = { mi: 20, ms: 20 };
+        if (role && roleBonusMap[role.toLowerCase()]) {
+          const bonus = roleBonusMap[role.toLowerCase()];
           await addDoc(collection(db, "referralReward"), {
             userId: uplineId,
             username: uplineUser.username,
             role,
-            amount: roleBonusMap[role],
+            amount: bonus,
             source: newUserUsername,
             type: "Network Bonus",
             approved: false,
             payoutReleased: false,
             createdAt: serverTimestamp(),
           });
-          console.log(
-            `💸 Network Bonus ₱${roleBonusMap[role]} → ${uplineUser.username} (${role})`
-          );
+          console.log(`💸 Network Bonus ₱${bonus} → ${uplineUser.username} (${role})`);
         }
 
         currentUplineUsername = uplineUser.referredBy || null;
