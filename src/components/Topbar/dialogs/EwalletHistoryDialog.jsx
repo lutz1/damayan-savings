@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react"; 
 import {
   Dialog,
   DialogTitle,
@@ -21,23 +21,17 @@ import { collection, query, where, onSnapshot, doc, getDoc } from "firebase/fire
 const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
   const [history, setHistory] = useState([]);
   const [username, setUsername] = useState("");
-  const [listenersReady, setListenersReady] = useState(false);
 
-  // Fetch username before attaching listeners
+  // Fetch username once
   useEffect(() => {
     const fetchUsername = async () => {
       if (!auth?.currentUser) return;
-      const userRef = doc(db, "users", auth.currentUser.uid);
-      const snap = await getDoc(userRef);
-      if (snap.exists()) {
-        setUsername(snap.data().username || "");
-        setListenersReady(true);
-      }
+      const snap = await getDoc(doc(db, "users", auth.currentUser.uid));
+      if (snap.exists()) setUsername(snap.data().username || "");
     };
     fetchUsername();
   }, [auth, db]);
 
-  // Helper to convert timestamp to number
   const getTimestampValue = useCallback((ts) => {
     if (!ts) return 0;
     if (typeof ts === "number") return ts;
@@ -47,7 +41,6 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
     return 0;
   }, []);
 
-  // Merge and sort new data
   const mergeAndSort = useCallback(
     (prev, newData, source) => {
       const filtered = prev.filter((item) => item.source !== source);
@@ -57,79 +50,79 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
     [getTimestampValue]
   );
 
-  // Real-time listeners
-useEffect(() => {
-  if (!auth?.currentUser || !listenersReady || !username) return;
-  const uid = auth.currentUser.uid;
-  const unsubscribers = [];
+  useEffect(() => {
+    if (!auth?.currentUser || !username) return;
 
-  const setupListener = (q, sourceLabel, transformFn) => {
-    const unsub = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((doc) => transformFn({ id: doc.id, ...doc.data() }));
-      setHistory((prev) => mergeAndSort(prev, data, sourceLabel));
-    });
-    unsubscribers.push(unsub);
-  };
+    const uid = auth.currentUser.uid;
+    const unsubscribers = [];
 
-  // Purchase Codes
-  setupListener(
-    query(collection(db, "purchaseCodes"), where("userId", "==", uid)),
-    "purchase",
-    (d) => ({ ...d, source: "purchase", displayType: "Purchase Codes", isCredit: false })
-  );
+    const setupListener = (q, sourceLabel, transformFn) => {
+      const unsub = onSnapshot(q, (snapshot) => {
+        const data = snapshot.docs.map((doc) => transformFn({ id: doc.id, ...doc.data() }));
+        setHistory((prev) => mergeAndSort(prev, data, sourceLabel));
+      });
+      unsubscribers.push(unsub);
+    };
 
-  // Withdrawals
-  setupListener(
-    query(collection(db, "withdrawals"), where("userId", "==", uid)),
-    "withdrawal",
-    (d) => ({ ...d, source: "withdrawal", displayType: "Withdrawal", isCredit: false })
-  );
+    // Purchase Codes
+    setupListener(
+      query(collection(db, "purchaseCodes"), where("userId", "==", uid)),
+      "purchase",
+      (d) => ({ ...d, source: "purchase", displayType: "Purchase Codes", isCredit: false })
+    );
 
-  // Deposits
-  setupListener(
-    query(collection(db, "deposits"), where("userId", "==", uid)),
-    "deposit",
-    (d) => ({ ...d, source: "deposit", displayType: "Deposit", isCredit: true })
-  );
+    // Withdrawals
+    setupListener(
+      query(collection(db, "withdrawals"), where("userId", "==", uid)),
+      "withdrawal",
+      (d) => ({ ...d, source: "withdrawal", displayType: "Withdrawal", isCredit: false })
+    );
 
-  // Transfers (sent)
-  setupListener(
-    query(collection(db, "transferFunds"), where("senderId", "==", uid)),
-    "transfer",
-    (d) => ({
-      ...d,
-      source: "transfer",
-      displayType: `Transfer → ${d.recipientUsername || "User"}`,
-      isCredit: false,
-    })
-  );
+    // Deposits
+    setupListener(
+      query(collection(db, "deposits"), where("userId", "==", uid)),
+      "deposit",
+      (d) => ({ ...d, source: "deposit", displayType: "Deposit", isCredit: true })
+    );
 
-  // Transfers (received)
-  setupListener(
-    query(collection(db, "transferFunds"), where("recipientUsername", "==", username)),
-    "received",
-    (d) => ({
-      ...d,
-      source: "received",
-      displayType: `Transfer credited ₱${d.netAmount || d.amount || 0} from ${d.senderUsername || d.senderName || "User"}`,
-      isCredit: true,
-    })
-  );
+    // Transfers (sent)
+    setupListener(
+      query(collection(db, "transferFunds"), where("senderId", "==", uid)),
+      "transfer",
+      (d) => ({
+        ...d,
+        source: "transfer",
+        displayType: `Transfer → ${d.recipientUsername || "User"}`,
+        isCredit: false,
+      })
+    );
 
-  // ➕ Payback Entries
-  setupListener(
-    query(collection(db, "paybackEntries"), where("userId", "==", uid)),
-    "payback",
-    (d) => ({
-      ...d,
-      source: "payback",
-      displayType: `Payback Entry (${d.role || "N/A"})`,
-      isCredit: false, // deduction
-    })
-  );
+    // Transfers (received)
+    setupListener(
+      query(collection(db, "transferFunds"), where("recipientUsername", "==", username)),
+      "received",
+      (d) => ({
+        ...d,
+        source: "received",
+        displayType: `Transfer credited ₱${d.netAmount || d.amount || 0} from ${d.senderUsername || d.senderName || "User"}`,
+        isCredit: true,
+      })
+    );
 
-  return () => unsubscribers.forEach((unsub) => unsub());
-}, [db, auth, username, listenersReady, mergeAndSort]);
+    // Payback Entries
+    setupListener(
+      query(collection(db, "paybackEntries"), where("userId", "==", uid)),
+      "payback",
+      (d) => ({
+        ...d,
+        source: "payback",
+        displayType: `Payback Entry (${d.role || "N/A"})`,
+        isCredit: false,
+      })
+    );
+
+    return () => unsubscribers.forEach((unsub) => unsub());
+  }, [db, auth, username, mergeAndSort]);
 
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
@@ -155,8 +148,16 @@ useEffect(() => {
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3, background: "rgba(25,25,25,0.95)", color: "#fff", p: 1, boxShadow: "0 8px 32px rgba(0,0,0,0.6)" } }}>
-      <DialogTitle sx={{ textAlign: "center", fontWeight: 600, borderBottom: "1px solid rgba(255,255,255,0.15)" }}>E-Wallet History</DialogTitle>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="xs"
+      fullWidth
+      PaperProps={{ sx: { borderRadius: 3, background: "rgba(25,25,25,0.95)", color: "#fff", p: 1, boxShadow: "0 8px 32px rgba(0,0,0,0.6)" } }}
+    >
+      <DialogTitle sx={{ textAlign: "center", fontWeight: 600, borderBottom: "1px solid rgba(255,255,255,0.15)" }}>
+        E-Wallet History
+      </DialogTitle>
       <DialogContent>
         {history.length > 0 ? (
           <List dense sx={{ maxHeight: 400, overflowY: "auto" }}>
@@ -166,7 +167,16 @@ useEffect(() => {
               if (item.source === "received" && item.status !== "Approved") return null;
 
               return (
-                <ListItem key={item.id} sx={{ borderBottom: "1px solid rgba(255,255,255,0.08)", py: 0.8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <ListItem
+                  key={item.id}
+                  sx={{
+                    borderBottom: "1px solid rgba(255,255,255,0.08)",
+                    py: 0.8,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
                   <ListItemText
                     primary={
                       <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
@@ -194,7 +204,9 @@ useEffect(() => {
         )}
       </DialogContent>
       <DialogActions sx={{ justifyContent: "center", pb: 2 }}>
-        <Button onClick={onClose} variant="outlined" color="inherit" sx={{ borderColor: "rgba(255,255,255,0.3)", color: "#fff", "&:hover": { background: "rgba(255,255,255,0.1)" } }}>Close</Button>
+        <Button onClick={onClose} variant="outlined" color="inherit" sx={{ borderColor: "rgba(255,255,255,0.3)", color: "#fff", "&:hover": { background: "rgba(255,255,255,0.1)" } }}>
+          Close
+        </Button>
       </DialogActions>
     </Dialog>
   );

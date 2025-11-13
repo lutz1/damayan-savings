@@ -11,14 +11,12 @@ import {
   Button,
   CircularProgress,
   Divider,
-  Snackbar,
-  Alert,
   List,
   ListItem,
   ListItemText,
   Chip,
 } from "@mui/material";
-import { Wallet, CheckCircle } from "@mui/icons-material";
+import { Wallet, CheckCircle, ErrorOutline } from "@mui/icons-material";
 import {
   doc,
   updateDoc,
@@ -29,12 +27,12 @@ import {
   where,
   onSnapshot,
 } from "firebase/firestore";
+import DepositDialog from "./DepositDialog";
 
 const PurchaseCodesDialog = ({
   open,
   onClose,
   userData,
-  availableCodes,
   db,
   auth,
   onBalanceUpdate,
@@ -42,16 +40,15 @@ const PurchaseCodesDialog = ({
   const [loading, setLoading] = useState(false);
   const [codeType, setCodeType] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [purchaseLogs, setPurchaseLogs] = useState([]);
+  const [confirmDialog, setConfirmDialog] = useState(false);
+  const [depositOpen, setDepositOpen] = useState(false);
 
-  // Define code prices
   const codePrices = {
     capital: 500,
     downline: 600,
   };
 
-  // ✅ Real-time purchase logs
   useEffect(() => {
     if (!open || !auth?.currentUser) return;
 
@@ -71,20 +68,25 @@ const PurchaseCodesDialog = ({
   }, [open, auth, db]);
 
   const handlePurchase = async () => {
+    if (!codeType) {
+      return;
+    }
+
+    const amount = codePrices[codeType];
+    if (userData.eWallet < amount) {
+      setConfirmDialog(true); // show insufficient balance prompt
+      return;
+    }
+
+    await performPurchase(amount);
+  };
+
+  const performPurchase = async (amount) => {
+    setLoading(true);
     try {
-      if (!codeType) return alert("Please select a code type.");
-
-      const amount = codePrices[codeType];
-      if (userData.eWallet < amount)
-        return alert("Insufficient eWallet balance.");
-
-      setLoading(true);
-
-      // Generate random code
       const randomCode =
         "TCLC-" + Math.random().toString(36).substring(2, 10).toUpperCase();
 
-      // Store code purchase in Firestore
       await addDoc(collection(db, "purchaseCodes"), {
         userId: auth.currentUser.uid,
         name: userData.name,
@@ -100,25 +102,20 @@ const PurchaseCodesDialog = ({
         createdAt: serverTimestamp(),
       });
 
-      // Deduct balance
       const userRef = doc(db, "users", auth.currentUser.uid);
-      await updateDoc(userRef, {
-        eWallet: userData.eWallet - amount,
-      });
-
-      // ✅ Instantly update topbar balance
-      if (onBalanceUpdate) onBalanceUpdate(userData.eWallet - amount);
+      const newBalance = userData.eWallet - amount;
+      await updateDoc(userRef, { eWallet: newBalance });
+      if (onBalanceUpdate) onBalanceUpdate(newBalance);
 
       setSuccessMessage(
         codeType === "capital"
           ? "Capital Share Activation Code purchased!"
           : "Downline Code purchased!"
       );
-      setSnackbarOpen(true);
+
       setCodeType("");
     } catch (err) {
-      console.error("Purchase failed:", err);
-      alert("Failed to purchase code. Try again later.");
+      console.error("❌ Purchase failed:", err);
     } finally {
       setLoading(false);
     }
@@ -127,6 +124,10 @@ const PurchaseCodesDialog = ({
   const handleClose = () => {
     setSuccessMessage("");
     onClose();
+  };
+
+  const handleDepositClose = () => {
+    setDepositOpen(false);
   };
 
   const getStatusColor = (status) => {
@@ -171,7 +172,6 @@ const PurchaseCodesDialog = ({
         </DialogTitle>
 
         <DialogContent>
-          {/* 💰 Wallet Info */}
           <Box sx={{ textAlign: "center", mt: 2 }}>
             <Wallet sx={{ fontSize: 40, color: "#4FC3F7" }} />
             <Typography variant="h6" sx={{ mt: 1 }}>
@@ -190,44 +190,35 @@ const PurchaseCodesDialog = ({
 
           <Divider sx={{ my: 2, borderColor: "rgba(255,255,255,0.1)" }} />
 
-          {/* ✅ Success State */}
           {successMessage ? (
             <Box sx={{ textAlign: "center", py: 4 }}>
               <CheckCircle sx={{ fontSize: 50, color: "#4CAF50" }} />
-              <Typography
-                sx={{ mt: 1, color: "#4CAF50", fontWeight: 600 }}
-              >
+              <Typography sx={{ mt: 1, color: "#4CAF50", fontWeight: 600 }}>
                 {successMessage}
               </Typography>
             </Box>
           ) : (
-            <>
-              {/* 🧾 Code Type Select */}
-              <TextField
-                select
-                fullWidth
-                label="Select Code Type"
-                value={codeType}
-                onChange={(e) => setCodeType(e.target.value)}
-                sx={{
-                  mb: 2,
-                  "& .MuiInputBase-root": { color: "#fff" },
-                  "& .MuiInputLabel-root": {
-                    color: "rgba(255,255,255,0.7)",
-                  },
-                }}
-              >
-                <MenuItem value="capital">
-                  Capital Share Activation Code — ₱500
-                </MenuItem>
-                <MenuItem value="downline">
-                  Downline Code — ₱600
-                </MenuItem>
-              </TextField>
-            </>
+            <TextField
+              select
+              fullWidth
+              label="Select Code Type"
+              value={codeType}
+              onChange={(e) => setCodeType(e.target.value)}
+              sx={{
+                mb: 2,
+                "& .MuiInputBase-root": { color: "#fff" },
+                "& .MuiInputLabel-root": { color: "rgba(255,255,255,0.7)" },
+              }}
+            >
+              <MenuItem value="capital">
+                Capital Share Activation Code — ₱500
+              </MenuItem>
+              <MenuItem value="downline">
+                Downline Code — ₱600
+              </MenuItem>
+            </TextField>
           )}
 
-          {/* 📜 Purchase Logs */}
           {purchaseLogs.length > 0 && (
             <>
               <Divider sx={{ my: 2, borderColor: "rgba(255,255,255,0.1)" }} />
@@ -235,41 +226,29 @@ const PurchaseCodesDialog = ({
                 variant="subtitle1"
                 sx={{ mb: 1, fontWeight: 600, color: "#90CAF9" }}
               >
-                Purchase Codes Logs
+                Purchase Code Logs
               </Typography>
               <List dense sx={{ maxHeight: 150, overflowY: "auto" }}>
                 {purchaseLogs.map((log) => (
                   <ListItem
                     key={log.id}
-                    sx={{
-                      borderBottom: "1px solid rgba(255,255,255,0.1)",
-                      py: 0.5,
-                    }}
+                    sx={{ borderBottom: "1px solid rgba(255,255,255,0.1)", py: 0.5 }}
                   >
                     <ListItemText
                       primary={`${log.code} (${log.type})`}
                       secondary={
                         log.createdAt
-                          ? new Date(
-                              log.createdAt.seconds * 1000
-                            ).toLocaleString("en-PH")
+                          ? new Date(log.createdAt.seconds * 1000).toLocaleString("en-PH")
                           : "Processing..."
                       }
                       primaryTypographyProps={{ color: "#fff" }}
-                      secondaryTypographyProps={{
-                        color: "rgba(255,255,255,0.6)",
-                        fontSize: 12,
-                      }}
+                      secondaryTypographyProps={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}
                     />
                     <Chip
                       size="small"
                       label={log.status}
                       color={getStatusColor(log.status)}
-                      sx={{
-                        textTransform: "capitalize",
-                        fontWeight: 600,
-                        fontSize: 11,
-                      }}
+                      sx={{ textTransform: "capitalize", fontWeight: 600, fontSize: 11 }}
                     />
                   </ListItem>
                 ))}
@@ -283,11 +262,7 @@ const PurchaseCodesDialog = ({
             onClick={handleClose}
             variant="outlined"
             color="inherit"
-            sx={{
-              borderColor: "rgba(255,255,255,0.3)",
-              color: "#fff",
-              "&:hover": { background: "rgba(255,255,255,0.1)" },
-            }}
+            sx={{ borderColor: "rgba(255,255,255,0.3)", color: "#fff", "&:hover": { background: "rgba(255,255,255,0.1)" } }}
           >
             {successMessage ? "Close" : "Cancel"}
           </Button>
@@ -297,38 +272,60 @@ const PurchaseCodesDialog = ({
               onClick={handlePurchase}
               variant="contained"
               disabled={loading}
-              sx={{
-                bgcolor: "#4FC3F7",
-                color: "#000",
-                fontWeight: 600,
-                "&:hover": { bgcolor: "#29B6F6" },
-              }}
+              sx={{ bgcolor: "#4FC3F7", color: "#000", fontWeight: 600, "&:hover": { bgcolor: "#29B6F6" } }}
             >
-              {loading ? (
-                <CircularProgress size={24} sx={{ color: "#000" }} />
-              ) : (
-                "Purchase"
-              )}
+              {loading ? <CircularProgress size={24} sx={{ color: "#000" }} /> : "Purchase"}
             </Button>
           )}
         </DialogActions>
       </Dialog>
 
-      {/* ✅ Snackbar */}
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={2500}
-        onClose={() => setSnackbarOpen(false)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      {/* Insufficient Balance Prompt */}
+      <Dialog
+        open={confirmDialog}
+        onClose={() => setConfirmDialog(false)}
+        maxWidth="xs"
+        fullWidth
       >
-        <Alert
-          onClose={() => setSnackbarOpen(false)}
-          severity="success"
-          sx={{ width: "100%" }}
-        >
-          Balance updated!
-        </Alert>
-      </Snackbar>
+        <DialogTitle sx={{ textAlign: "center", fontWeight: 600 }}>
+          <ErrorOutline sx={{ color: "#F44336", fontSize: 40, mb: 1 }} />
+          Insufficient Balance
+        </DialogTitle>
+        <DialogContent>
+          <Typography align="center" sx={{ mb: 2 }}>
+            Your eWallet balance is not enough to complete this purchase.
+            Would you like to top up now?
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: "center", pb: 2 }}>
+          <Button onClick={() => setConfirmDialog(false)} variant="outlined" color="inherit">
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              setConfirmDialog(false);
+              setDepositOpen(true); // Redirect to DepositDialog
+            }}
+            variant="contained"
+            color="primary"
+          >
+            Top Up
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Deposit Dialog */}
+      <DepositDialog
+        open={depositOpen}
+        onClose={handleDepositClose}
+        userData={userData}
+        db={db}
+        auth={auth}
+        onDepositSuccess={() => {
+          handleDepositClose();
+          if (onBalanceUpdate) onBalanceUpdate();
+        }}
+      />
     </>
   );
 };

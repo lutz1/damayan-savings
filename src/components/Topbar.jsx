@@ -15,6 +15,11 @@ import {
   Backdrop,
   Tooltip,
   Slide,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
   useMediaQuery,
 } from "@mui/material";
 import {
@@ -62,6 +67,7 @@ const Topbar = ({ open, onToggleSidebar }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [slideIn, setSlideIn] = useState(false);
   const [dialog, setDialog] = useState(null);
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
   const [userData, setUserData] = useState({
     username: "",
     email: "",
@@ -133,6 +139,9 @@ const Topbar = ({ open, onToggleSidebar }) => {
 
   const handleOpenDialog = (type) => setDialog(type);
   const handleCloseDialog = () => setDialog(null);
+
+  const handleOpenLogoutDialog = () => setLogoutDialogOpen(true);
+  const handleCloseLogoutDialog = () => setLogoutDialogOpen(false);
 
   return (
     <>
@@ -387,105 +396,64 @@ const Topbar = ({ open, onToggleSidebar }) => {
                 )}
 
                 {/* Menu */}
-                  <List>
-                    {[
-                      {
-                        icon: <PurchaseIcon sx={{ color: "#4FC3F7" }} />,
-                        label: "Purchase Codes",
-                        dialog: "purchase",
-                      },
-                      {
-                        icon: <WithdrawIcon sx={{ color: "#FF7043" }} />,
-                        label: "Withdrawal",
-                        dialog: "withdraw",
-                      },
-                      {
-                        icon: <DepositIcon sx={{ color: "#81C784" }} />,
-                        label: "Deposit",
-                        dialog: "deposit",
-                      },
-                      {
-                        icon: <TransferIcon sx={{ color: "#BA68C8" }} />,
-                        label: "Transfer Funds",
-                        dialog: "transfer",
-                      },
-                      {
-                        icon: <InviteIcon sx={{ color: "#FFB300" }} />,
-                        label: "Invite & Earn",
-                        dialog: "invite",
-                      },
-                      {
-                        icon: <LogoutIcon sx={{ color: "#FF5252" }} />,
-                        label: "Logout",
-                        action: handleLogout, // Use action instead of dialog
-                      },
-                    ].map((item, i) => (
-                      <ListItem disablePadding key={i}>
-                        <ListItemButton onClick={() => item.dialog ? handleOpenDialog(item.dialog) : item.action?.()}>
-                          <ListItemIcon>{item.icon}</ListItemIcon>
-                          <ListItemText
-                            primary={item.label}
-                            sx={{
-                              color: item.label === "Logout" ? "#FF5252" : "inherit",
-                              "& .MuiListItemText-primary": {
-                                fontWeight: item.label === "Logout" ? 600 : "inherit",
-                              },
-                            }}
-                          />
-                        </ListItemButton>
-                      </ListItem>
-                    ))}
-                  </List>
-              </Box>  
+                <List>
+                  {[
+                    { icon: <PurchaseIcon sx={{ color: "#4FC3F7" }} />, label: "Purchase Codes", dialog: "purchase" },
+                    { icon: <WithdrawIcon sx={{ color: "#FF7043" }} />, label: "Withdrawal", dialog: "withdraw" },
+                    { icon: <DepositIcon sx={{ color: "#81C784" }} />, label: "Deposit", dialog: "deposit" },
+                    { icon: <TransferIcon sx={{ color: "#BA68C8" }} />, label: "Transfer Funds", dialog: "transfer" },
+                    { icon: <InviteIcon sx={{ color: "#FFB300" }} />, label: "Invite & Earn", dialog: "invite" },
+                    { icon: <LogoutIcon sx={{ color: "#FF5252" }} />, label: "Logout", action: handleOpenLogoutDialog },
+                  ].map((item, i) => (
+                    <ListItem disablePadding key={i}>
+                      <ListItemButton onClick={() => item.dialog ? handleOpenDialog(item.dialog) : item.action?.()}>
+                        <ListItemIcon>{item.icon}</ListItemIcon>
+                        <ListItemText
+                          primary={item.label}
+                          sx={{
+                            color: item.label === "Logout" ? "#FF5252" : "inherit",
+                            "& .MuiListItemText-primary": {
+                              fontWeight: item.label === "Logout" ? 600 : "inherit",
+                            },
+                          }}
+                        />
+                      </ListItemButton>
+                    </ListItem>
+                  ))}
+                </List>
+              </Box>
             </Box>
           </Slide>
         </Box>
       )}
 
       {/* 🔹 Dialogs */}
-      <PurchaseCodesDialog
-        open={dialog === "purchase"}
-        onClose={handleCloseDialog}
-        userData={userData}
-        availableCodes={availableCodes}
-        db={db}
-        auth={auth}
-      />
-      <WithdrawDialog
-        open={dialog === "withdraw"}
-        onClose={handleCloseDialog}
-        userData={userData}
-        db={db}
-        auth={auth}
-      />
-      <DepositDialog
-        open={dialog === "deposit"}
-        onClose={handleCloseDialog}
-        userData={userData}
-        db={db}
-        auth={auth}
-      />
-      <TransferFundsDialog
-        open={dialog === "transfer"}
-        onClose={handleCloseDialog}
-        userData={userData}
-        db={db}
-        auth={auth}
-      />
-      <InviteEarnDialog
-        open={dialog === "invite"}
-        onClose={handleCloseDialog}
-        userData={userData}
-        availableCodes={availableCodes}
-        db={db}
-        auth={auth}
-      />
-      <EwalletHistoryDialog
-      open={dialog === "walletHistory"}
-      onClose={handleCloseDialog}
-      db={db}
-      auth={auth}
-    />
+      <PurchaseCodesDialog open={dialog === "purchase"} onClose={handleCloseDialog} userData={userData} availableCodes={availableCodes} db={db} auth={auth} />
+      <WithdrawDialog open={dialog === "withdraw"} onClose={handleCloseDialog} userData={userData} db={db} auth={auth} />
+      <DepositDialog open={dialog === "deposit"} onClose={handleCloseDialog} userData={userData} db={db} auth={auth} />
+      <TransferFundsDialog open={dialog === "transfer"} onClose={handleCloseDialog} userData={userData} db={db} auth={auth} />
+      <InviteEarnDialog open={dialog === "invite"} onClose={handleCloseDialog} userData={userData} availableCodes={availableCodes} db={db} auth={auth} />
+      <EwalletHistoryDialog open={dialog === "walletHistory"} onClose={handleCloseDialog} db={db} auth={auth} />
+
+      {/* 🔹 Logout Confirmation Dialog */}
+      <Dialog open={logoutDialogOpen} onClose={handleCloseLogoutDialog}>
+        <DialogTitle>Confirm Logout</DialogTitle>
+        <DialogContent>
+          <Typography>Are you sure you want to logout?</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseLogoutDialog}>Cancel</Button>
+          <Button
+            onClick={() => {
+              handleCloseLogoutDialog();
+              handleLogout();
+            }}
+            color="error"
+          >
+            Logout
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 };
