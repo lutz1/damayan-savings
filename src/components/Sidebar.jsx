@@ -13,6 +13,9 @@ import {
   Collapse,
   useMediaQuery,
   Typography,
+  Dialog,
+  DialogTitle,
+  DialogContent,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -27,6 +30,11 @@ import {
   PieChart as PieChartIcon,
   SwapHoriz as SwapHorizIcon,
   AccountBalanceWallet,
+  ShoppingCart as ShoppingCartIcon,
+  Fastfood as FastfoodIcon,
+  LocalGroceryStore as LocalGroceryStoreIcon,
+  PhoneAndroid as PhoneAndroidIcon,
+  Send as SendIcon,
 } from "@mui/icons-material";
 import damayanLogo from "../assets/damayan.png";
 
@@ -37,6 +45,8 @@ const Sidebar = ({ open, onToggleSidebar }) => {
   const location = useLocation();
   const [financialsOpen, setFinancialsOpen] = useState(false);
   const [incomeOpen, setIncomeOpen] = useState(false);
+  const [comingSoonOpen, setComingSoonOpen] = useState(false);
+  const [comingSoonItem, setComingSoonItem] = useState("");
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
@@ -65,47 +75,86 @@ const Sidebar = ({ open, onToggleSidebar }) => {
       ],
     },
     { text: "Profile", icon: <AccountCircleIcon />, path: "/member/profile" },
+
+    // Additional member-only sections (coming soon)
+    { text: "Market Place", icon: <ShoppingCartIcon />, comingSoon: true },
+    { text: "Groceries", icon: <LocalGroceryStoreIcon />, comingSoon: true },
+    { text: "Food", icon: <FastfoodIcon />, comingSoon: true },
+    { text: "E-Load", icon: <PhoneAndroidIcon />, comingSoon: true },
+    { text: "Remittances", icon: <SendIcon />, comingSoon: true },
   ];
 
   const navItems = ["ADMIN", "CEO"].includes(upperRole) ? adminNav : memberNav;
 
-  const handleNavigate = (path) => {
-    navigate(path);
+  const handleNavigate = (item) => {
+    if (item.comingSoon) {
+      setComingSoonItem(item.text);
+      setComingSoonOpen(true);
+      return;
+    }
+    navigate(item.path);
     if (isMobile) onToggleSidebar();
   };
 
   const drawerContent = (
-    <>
-      {/* Logo + Toggle */}
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: open ? "space-between" : "center", p: 3, mt: 1 }}>
-        {open && (
-          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", mt: -1 }}>
-            <Box
-              component="img"
-              src={damayanLogo}
-              alt="Damayan Logo"
-              sx={{
-                width: 160,
-                height: "auto",
-                ml: 1,
-                cursor: "pointer",
-                filter: "drop-shadow(0 0 6px rgba(255,255,255,0.7)) drop-shadow(0 0 12px rgba(0,200,255,0.5))",
-                transition: "transform 0.3s ease, filter 0.3s ease",
-                "&:hover": { transform: "scale(1.05)", filter: "drop-shadow(0 0 10px rgba(255,255,255,0.8)) drop-shadow(0 0 20px rgba(0,200,255,0.6))" },
-              }}
-              onClick={() => navigate("/")}
-            />
-            <Box sx={{ mt: 1, fontSize: "0.8rem", color: "rgba(255,255,255,0.8)", fontWeight: "bold", letterSpacing: "0.5px", textTransform: "uppercase" }}>
-              {upperRole}
-            </Box>
+  <>
+    {/* Logo + Toggle */}
+    <Box
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: open ? "space-between" : "center",
+        p: 3,
+        mt: 1,
+      }}
+    >
+      {open && (
+        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", mt: -1 }}>
+          <Box
+            component="img"
+            src={damayanLogo}
+            alt="Damayan Logo"
+            sx={{
+              width: 160,
+              height: "auto",
+              ml: 1,
+              cursor: "pointer",
+              filter:
+                "drop-shadow(0 0 6px rgba(255,255,255,0.7)) drop-shadow(0 0 12px rgba(0,200,255,0.5))",
+              transition: "transform 0.3s ease, filter 0.3s ease",
+              "&:hover": {
+                transform: "scale(1.05)",
+                filter:
+                  "drop-shadow(0 0 10px rgba(255,255,255,0.8)) drop-shadow(0 0 20px rgba(0,200,255,0.6))",
+              },
+            }}
+            onClick={() => navigate("/")}
+          />
+          <Box
+            sx={{
+              mt: 1,
+              fontSize: "0.8rem",
+              color: "rgba(255,255,255,0.8)",
+              fontWeight: "bold",
+              letterSpacing: "0.5px",
+              textTransform: "uppercase",
+            }}
+          >
+            {upperRole}
           </Box>
-        )}
-        <IconButton onClick={onToggleSidebar} color="inherit" size="small" sx={{ "&:hover": { backgroundColor: "rgba(255,255,255,0.2)" } }}>
-          <MenuIcon />
-        </IconButton>
-      </Box>
+        </Box>
+      )}
+      <IconButton
+        onClick={onToggleSidebar}
+        color="inherit"
+        size="small"
+        sx={{ "&:hover": { backgroundColor: "rgba(255,255,255,0.2)" } }}
+      >
+        <MenuIcon />
+      </IconButton>
+    </Box>
 
-      <Divider sx={{ borderColor: "rgba(255,255,255,0.2)" }} />
+    <Divider sx={{ borderColor: "rgba(255,255,255,0.2)" }} />
 
       <List>
         {navItems.map((item) => {
@@ -116,8 +165,13 @@ const Sidebar = ({ open, onToggleSidebar }) => {
             return (
               <Box key={item.text}>
                 <Tooltip title={open ? "" : item.text} placement="right" arrow>
-                  <ListItemButton onClick={() => setIncomeOpen(!incomeOpen)} sx={{ color: "#fff", "&:hover": { backgroundColor: "rgba(255,255,255,0.15)" } }}>
-                    <ListItemIcon sx={{ color: "#fff", minWidth: open ? 40 : "auto" }}>{item.icon}</ListItemIcon>
+                  <ListItemButton
+                    onClick={() => setIncomeOpen(!incomeOpen)}
+                    sx={{ color: "#fff", "&:hover": { backgroundColor: "rgba(255,255,255,0.15)" } }}
+                  >
+                    <ListItemIcon sx={{ color: "#fff", minWidth: open ? 40 : "auto" }}>
+                      {item.icon}
+                    </ListItemIcon>
                     {open && <ListItemText primary={item.text} />}
                     {open && (incomeOpen ? <ExpandLess /> : <ExpandMore />)}
                   </ListItemButton>
@@ -130,12 +184,15 @@ const Sidebar = ({ open, onToggleSidebar }) => {
                         sx={{
                           pl: open ? 6 : 2,
                           color: "#fff",
-                          backgroundColor: location.pathname === child.path ? "rgba(255,255,255,0.25)" : "transparent",
+                          backgroundColor:
+                            location.pathname === child.path ? "rgba(255,255,255,0.25)" : "transparent",
                           "&:hover": { backgroundColor: "rgba(255,255,255,0.15)" },
                         }}
-                        onClick={() => handleNavigate(child.path)}
+                        onClick={() => handleNavigate(child)}
                       >
-                        <ListItemIcon sx={{ color: "#fff", minWidth: open ? 40 : "auto" }}>{child.icon}</ListItemIcon>
+                        <ListItemIcon sx={{ color: "#fff", minWidth: open ? 40 : "auto" }}>
+                          {child.icon}
+                        </ListItemIcon>
                         {open && <ListItemText primary={child.text} />}
                       </ListItemButton>
                     ))}
@@ -149,14 +206,17 @@ const Sidebar = ({ open, onToggleSidebar }) => {
           return (
             <Tooltip title={open ? "" : item.text} placement="right" key={item.text} arrow>
               <ListItemButton
-                onClick={() => handleNavigate(item.path)}
+                onClick={() => handleNavigate(item)}
                 sx={{
                   color: "#fff",
                   backgroundColor: isActive ? "rgba(255,255,255,0.25)" : "transparent",
                   "&:hover": { backgroundColor: "rgba(255,255,255,0.15)" },
+                  cursor: item.comingSoon ? "default" : "pointer",
                 }}
               >
-                <ListItemIcon sx={{ color: "#fff", minWidth: open ? 40 : "auto" }}>{item.icon}</ListItemIcon>
+                <ListItemIcon sx={{ color: "#fff", minWidth: open ? 40 : "auto" }}>
+                  {item.icon}
+                </ListItemIcon>
                 {open && <ListItemText primary={item.text} />}
               </ListItemButton>
             </Tooltip>
@@ -181,7 +241,10 @@ const Sidebar = ({ open, onToggleSidebar }) => {
                 Financials
               </Typography>
             )}
-            <ListItemButton onClick={() => setFinancialsOpen(!financialsOpen)} sx={{ color: "#fff", "&:hover": { backgroundColor: "rgba(255,255,255,0.15)" } }}>
+            <ListItemButton
+              onClick={() => setFinancialsOpen(!financialsOpen)}
+              sx={{ color: "#fff", "&:hover": { backgroundColor: "rgba(255,255,255,0.15)" } }}
+            >
               <ListItemIcon sx={{ color: "#fff", minWidth: open ? 40 : "auto" }}>
                 <MonetizationOnIcon />
               </ListItemIcon>
@@ -203,9 +266,11 @@ const Sidebar = ({ open, onToggleSidebar }) => {
                       backgroundColor: location.pathname === child.path ? "rgba(255,255,255,0.25)" : "transparent",
                       "&:hover": { backgroundColor: "rgba(255,255,255,0.15)" },
                     }}
-                    onClick={() => handleNavigate(child.path)}
+                    onClick={() => handleNavigate(child)}
                   >
-                    <ListItemIcon sx={{ color: "#fff", minWidth: open ? 40 : "auto" }}>{child.icon}</ListItemIcon>
+                    <ListItemIcon sx={{ color: "#fff", minWidth: open ? 40 : "auto" }}>
+                      {child.icon}
+                    </ListItemIcon>
                     {open && <ListItemText primary={child.text} />}
                   </ListItemButton>
                 ))}
@@ -214,6 +279,29 @@ const Sidebar = ({ open, onToggleSidebar }) => {
           </Box>
         )}
       </List>
+
+        {/* Footer */}
+    {open && (
+      <Box
+        sx={{
+          mt: "auto",
+          mb: 2,
+          textAlign: "center",
+          fontSize: "0.7rem",
+          color: "rgba(255,255,255,0.5)",
+        }}
+      >
+        © 2025 All Rights Reserved
+      </Box>
+    )}
+
+      {/* Coming Soon Dialog */}
+      <Dialog open={comingSoonOpen} onClose={() => setComingSoonOpen(false)}>
+        <DialogTitle>Coming Soon</DialogTitle>
+        <DialogContent>
+          <Typography>{comingSoonItem} feature is coming soon!</Typography>
+        </DialogContent>
+      </Dialog>
     </>
   );
 

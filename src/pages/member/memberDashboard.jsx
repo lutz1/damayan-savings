@@ -201,13 +201,9 @@ useEffect(() => {
   // 🔹 Fetch Payback Total Contribution and Capital Share
 const fetchPaybackAndCapital = async (uid) => {
   try {
-    // ✅ Payback entries from main collection (not subcollection)
+    // ✅ Fetch Payback Entries
     const paybackRef = collection(db, "paybackEntries");
-    const paybackQuery = query(
-      paybackRef,
-      where("userId", "==", uid),
-      where("status", "==", "Approved")
-    );
+    const paybackQuery = query(paybackRef, where("userId", "==", uid));
     const paybackSnap = await getDocs(paybackQuery);
 
     const totalPayback = paybackSnap.docs.reduce(
@@ -216,10 +212,11 @@ const fetchPaybackAndCapital = async (uid) => {
     );
     setTotalContribution(totalPayback);
 
-    // ✅ Capital Share from capitalShares collection
-    const capitalRef = collection(db, "capitalShares");
+    // ✅ Fetch Capital Share Entries
+    const capitalRef = collection(db, "capitalShareEntries");
     const capitalQuery = query(capitalRef, where("userId", "==", uid));
     const capitalSnap = await getDocs(capitalQuery);
+
     const totalCapital = capitalSnap.docs.reduce(
       (acc, doc) => acc + (Number(doc.data().amount) || 0),
       0
@@ -352,7 +349,7 @@ const fetchPaybackAndCapital = async (uid) => {
           mt: 0,
           color: "white",
           zIndex: 1,
-          width: `calc(100% - ${sidebarOpen ? 240 : 60}px)`,
+          width: `calc(99% - ${sidebarOpen ? 240 : 60}px)`,
           transition: "all 0.3s ease",
           position: "relative",
         }}
@@ -383,7 +380,7 @@ const fetchPaybackAndCapital = async (uid) => {
                 sx={{
                   background: "rgba(255,255,255,0.1)",
                   backdropFilter: "blur(10px)",
-                  width: "350px",
+                  width: "340px",
                   color: "#fff",
                   borderRadius: 3,
                   boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
@@ -408,7 +405,7 @@ const fetchPaybackAndCapital = async (uid) => {
                 sx={{
                   background: "rgba(255,255,255,0.1)",
                   backdropFilter: "blur(10px)",
-                  width: "350px",
+                  width: "340px",
                   color: "#fff",
                   borderRadius: 3,
                   boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
@@ -434,7 +431,7 @@ const fetchPaybackAndCapital = async (uid) => {
     sx={{
       background: "rgba(255,255,255,0.1)",
       backdropFilter: "blur(10px)",
-      width: "350px",
+      width: "340px",
       color: "#fff",
       borderRadius: 3,
       boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
@@ -491,7 +488,7 @@ const fetchPaybackAndCapital = async (uid) => {
     sx={{
       background: "rgba(255,255,255,0.1)",
       backdropFilter: "blur(10px)",
-      width: "350px",
+      width: "340px",
       color: "#fff",
       borderRadius: 3,
       boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
@@ -557,7 +554,7 @@ const fetchPaybackAndCapital = async (uid) => {
                   <Grid item xs={12} sm={6} md={3} key={role}>
                     <Card
                       sx={{
-                        width: "350px",
+                        width: "340px",
                         background: "rgba(255,255,255,0.1)",
                         backdropFilter: "blur(10px)",
                         color: "#fff",

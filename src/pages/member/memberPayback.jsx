@@ -64,6 +64,7 @@ const MemberPayback = () => {
   const [uplineUsername, setUplineUsername] = useState("");
   const [amount, setAmount] = useState("");
   const [adding, setAdding] = useState(false);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
 
   // View Entry Dialog
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
@@ -243,12 +244,13 @@ const fetchPaybackData = useCallback(async (userId) => {
     setAmount("");
     setSelectedDate(null);
   };
-
+const handleOpenConfirmDialog = () => {
+  if (!uplineUsername || !amount) return alert("Please confirm upline and amount.");
+  setConfirmDialogOpen(true);
+};
   // ===================== Add Payback Entry (continued) =====================
   const handleAddPayback = async () => {
-  if (!uplineUsername || !amount) return alert("Please confirm upline and amount.");
-  setAdding(true);
-
+  
   try {
     const user = auth.currentUser;
     if (!user) return;
@@ -440,7 +442,7 @@ const onNavigate = (date, view, action) => {
         {/* Totals */}
         <Grid container spacing={3} sx={{ mb: 2 }}>
           <Grid item xs={12} md={6}>
-            <Card sx={{ backgroundColor: "rgba(231,237,241,0.53)", borderRadius: 3 }}>
+            <Card sx={{ backgroundColor: "rgba(231,237,241,0.53)", borderRadius: 3}}>
               <CardContent>
                 <Typography variant="h6">Total Contribution</Typography>
                 <Typography variant="h4">₱{Number(totalContribution).toFixed(2)}</Typography>
@@ -505,13 +507,49 @@ const onNavigate = (date, view, action) => {
           <Button onClick={() => setOpenAddDialog(false)} color="error">
             Cancel
           </Button>
-          <Button onClick={handleAddPayback} color="primary" variant="contained" disabled={adding}>
-            {adding ? <CircularProgress size={18} color="inherit" /> : "Submit"}
-          </Button>
+         <Button
+          onClick={handleOpenConfirmDialog}
+          color="primary"
+          variant="contained"
+          disabled={adding}
+        >
+          {adding ? <CircularProgress size={18} color="inherit" /> : "Submit"}
+        </Button>
         </DialogActions>
       </Dialog>
 
       {/* View Entry */}
+
+      <Dialog
+  open={confirmDialogOpen}
+  onClose={() => setConfirmDialogOpen(false)}
+  fullWidth
+  maxWidth="xs"
+>
+  <DialogTitle>Confirm Payback Entry</DialogTitle>
+  <DialogContent dividers>
+    <Typography>
+      Are you sure you want to submit this payback entry of ₱{amount}?
+    </Typography>
+  </DialogContent>
+  <DialogActions>
+    <Button onClick={() => setConfirmDialogOpen(false)} color="error">
+      Cancel
+    </Button>
+    <Button
+      onClick={async () => {
+        setConfirmDialogOpen(false);
+        await handleAddPayback(); // Proceed with adding
+      }}
+      color="primary"
+      variant="contained"
+      disabled={adding}
+    >
+      {adding ? <CircularProgress size={18} color="inherit" /> : "Confirm"}
+    </Button>
+  </DialogActions>
+</Dialog>
+
       <Dialog open={viewDialogOpen} onClose={() => setViewDialogOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>Payback Entry Details</DialogTitle>
         {selectedEntry && (

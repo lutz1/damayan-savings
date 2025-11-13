@@ -40,6 +40,7 @@ import Sidebar from "../../components/Sidebar";
 import bgImage from "../../assets/bg.jpg";
 import { auth, db } from "../../firebase";
 
+
 const MIN_AMOUNT = 1000;
 const LOCK_IN = 5000;
 const MONTHLY_RATE = 0.05;
@@ -77,6 +78,7 @@ const MemberCapitalShare = () => {
   const [capitalAmount, setCapitalAmount] = useState(0);
   const [monthlyProfit, setMonthlyProfit] = useState(0);
   const [calendarEntries, setCalendarEntries] = useState([]);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
 
   // 🔹 CHANGE: map calendarEntries to events for react-big-calendar
   const events = useMemo(() => {
@@ -451,7 +453,7 @@ const MemberCapitalShare = () => {
         sx={{
           flexGrow: 1,
           p: { xs: 2, sm: 4 },
-          mt: 8,
+          mt: 0,
           color: "white",
           overflowY: "auto",
           position: "relative",
@@ -547,6 +549,12 @@ const MemberCapitalShare = () => {
         </Grid>
       </Grid>
 
+      <Box sx={{ mt: 4 }}>
+          <Button variant="contained" onClick={() => setHistoryDialogOpen(true)}>
+            View Capital Share Transaction History
+          </Button>
+      </Box>
+
         <Card sx={{ mt: 4, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 3, p: 3 }}>
           <Typography variant="h6" sx={{ mb: 2 }}>
             📅 Capital Share Calendar
@@ -564,6 +572,7 @@ const MemberCapitalShare = () => {
             eventPropGetter={eventStyleGetter}
           />
         </Card>
+
 
         {/* Add Entry Dialog */}
         <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)} fullWidth maxWidth="xs">
@@ -590,13 +599,41 @@ const MemberCapitalShare = () => {
           />
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setOpenAddDialog(false)}>Cancel</Button>
-            <Button onClick={handleAddEntry} variant="contained">
-              Submit
+          <Button onClick={() => setOpenAddDialog(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={() => setConfirmDialogOpen(true)}
+          >
+            Submit
+          </Button>
+        </DialogActions>
+
+        <Dialog
+          open={confirmDialogOpen}
+          onClose={() => setConfirmDialogOpen(false)}
+          fullWidth
+          maxWidth="xs"
+        >
+          <DialogTitle>Confirm Submission</DialogTitle>
+          <DialogContent>
+            <Typography>
+              Are you sure you want to add a capital share entry of ₱{Number(amount).toLocaleString()} on {selectedDate?.toDateString()}?
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setConfirmDialogOpen(false)}>Cancel</Button>
+            <Button
+              variant="contained"
+              onClick={async () => {
+                setConfirmDialogOpen(false);
+                await handleAddEntry();
+              }}
+            >
+              Confirm
             </Button>
           </DialogActions>
+                </Dialog>
         </Dialog>
-
         {/* Activation Overlay */}
         {!userData?.capitalShareActive && (
           <Box
@@ -671,11 +708,6 @@ const MemberCapitalShare = () => {
         </Dialog>
 
         {/* History Dialog */}
-        <Box sx={{ mt: 4 }}>
-          <Button variant="contained" onClick={() => setHistoryDialogOpen(true)}>
-            View Capital Share Transaction History
-          </Button>
-        </Box>
 
         <Dialog open={historyDialogOpen} onClose={() => setHistoryDialogOpen(false)} fullWidth maxWidth="sm">
           <DialogTitle>Transaction History</DialogTitle>

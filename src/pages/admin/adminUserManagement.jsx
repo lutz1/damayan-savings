@@ -28,6 +28,8 @@ import {
   useMediaQuery,
 } from "@mui/material";
 import { motion } from "framer-motion";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
 import {
   collection,
   query,
@@ -56,6 +58,7 @@ const AdminUserManagement = () => {
   const [pendingInvites, setPendingInvites] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [newUser, setNewUser] = useState({
     username: "",
     name: "",
@@ -68,11 +71,46 @@ const AdminUserManagement = () => {
   });
 
   // Pagination states
+  // 2️⃣ Filter users based on searchQuery (before pagination)
+  const filteredUsers = users.filter((user) =>
+    Object.values(user)
+      .join(" ")
+      .toLowerCase()
+      .includes(searchQuery.toLowerCase())
+  );
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const isMobile = useMediaQuery("(max-width:768px)");
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
+
+  const handleExportExcel = () => {
+  if (!users || users.length === 0) {
+    alert("No users to export!");
+    return;
+  }
+
+  // Prepare data
+  const exportData = filteredUsers.map(({ username, name, email, role, referredBy }) => ({
+    Username: username,
+    Name: name,
+    Email: email,
+    Role: role,
+    "Referred By": referredBy || "—",
+  }));
+
+  // Create worksheet
+  const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+  // Create workbook and append worksheet
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Users");
+
+  // Generate Excel file and download
+  const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+  const data = new Blob([excelBuffer], { type: "application/octet-stream" });
+  saveAs(data, "Users.xlsx");
+};
 
   // 🔥 Fetch users
   useEffect(() => {
@@ -389,10 +427,10 @@ const AdminUserManagement = () => {
   };
 
   // Paginated slice
-  const paginatedUsers = users.slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage
-  );
+  const paginatedUsers = filteredUsers.slice(
+  page * rowsPerPage,
+  page * rowsPerPage + rowsPerPage
+);
 
   return (
     <Box
@@ -453,16 +491,29 @@ const AdminUserManagement = () => {
             👥 User Management
           </Typography>
 
-          <Button
-            variant="contained"
-            onClick={() => setOpenDialog(true)}
-            sx={{
-              backgroundColor: "#1976d2",
-              "&:hover": { backgroundColor: "#1565c0" },
-            }}
-          >
-            + Create User
-          </Button>
+          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+            <Button
+              variant="contained"
+              onClick={handleExportExcel}
+              sx={{
+                backgroundColor: "#2e7d32",
+                "&:hover": { backgroundColor: "#27632a" },
+              }}
+            >
+              📄 Export Excel
+            </Button>
+
+            <Button
+              variant="contained"
+              onClick={() => setOpenDialog(true)}
+              sx={{
+                backgroundColor: "#1976d2",
+                "&:hover": { backgroundColor: "#1565c0" },
+              }}
+            >
+              + Create User
+            </Button>
+          </Box>
         </Box>
 
         {/* Role Filter */}
@@ -497,6 +548,24 @@ const AdminUserManagement = () => {
               <MenuItem value="Member">Member</MenuItem>
             </Select>
           </FormControl>
+        </Box>
+
+        {/* 🔍 Search Box */}
+        <Box sx={{ mb: 2 }}>
+          <TextField
+            label="Search Users..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            fullWidth
+            size="small"
+            sx={{
+              background: "rgba(255,255,255,0.1)",
+              borderRadius: "8px",
+              input: { color: "white" },
+              "& .MuiInputLabel-root": { color: "white" },
+              "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(255,255,255,0.3)" },
+            }}
+          />
         </Box>
 
         {/* ✅ Users Table with Pagination */}

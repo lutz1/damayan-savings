@@ -73,6 +73,7 @@ const Topbar = ({ open, onToggleSidebar }) => {
     email: "",
     eWallet: 0,
     role: "member",
+    profilePicture: "",
   });
   const [availableCodes, setAvailableCodes] = useState([]);
 
@@ -85,7 +86,9 @@ const Topbar = ({ open, onToggleSidebar }) => {
       if (!currentUser) return;
 
       const userRef = doc(db, "users", currentUser.uid);
+    
       unsubscribeUser = onSnapshot(userRef, (docSnap) => {
+;
         if (docSnap.exists()) {
           const data = docSnap.data();
           setUserData({
@@ -93,7 +96,9 @@ const Topbar = ({ open, onToggleSidebar }) => {
             email: data.email || currentUser.email || "No email",
             eWallet: Number(data.eWallet) || 0,
             role: data.role || "member",
+            profilePicture: data.profilePicture || "", // ✅ added
           });
+         
 
           const codesRef = collection(db, "purchaseCodes");
           const q = query(
@@ -182,18 +187,18 @@ const Topbar = ({ open, onToggleSidebar }) => {
 
           {/* Right */}
           <IconButton color="inherit" onClick={openDrawer}>
-            <Avatar
-              alt={userData.username}
-              src="/images/avatar-placeholder.png"
-              sx={{
-                bgcolor: "secondary.main",
-                border: "2px solid rgba(255,255,255,0.3)",
-                boxShadow: "0 0 8px rgba(255,255,255,0.4)",
-                transition: "transform 0.2s ease",
-                "&:hover": { transform: "scale(1.08)" },
-              }}
-            />
-          </IconButton>
+          <Avatar
+            alt={userData.username}
+            src={userData.profilePicture || "/images/avatar-placeholder.png"} // ✅ use profile picture if exists
+            sx={{
+              bgcolor: "secondary.main",
+              border: "2px solid rgba(255,255,255,0.3)",
+              boxShadow: "0 0 8px rgba(255,255,255,0.4)",
+              transition: "transform 0.2s ease",
+              "&:hover": { transform: "scale(1.08)" },
+            }}
+          />
+        </IconButton>
         </Toolbar>
       </AppBar>
 
@@ -277,7 +282,7 @@ const Topbar = ({ open, onToggleSidebar }) => {
                 <Box sx={{ textAlign: "center", mt: 2 }}>
                   <Avatar
                     alt={userData.username}
-                    src="/images/avatar-placeholder.png"
+                    src={userData.profilePicture || "/images/avatar-placeholder.png"} // ✅ updated
                     sx={{
                       width: 80,
                       height: 80,

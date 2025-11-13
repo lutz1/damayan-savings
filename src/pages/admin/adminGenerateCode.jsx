@@ -13,8 +13,15 @@ import {
   TablePagination,
   useMediaQuery,
   TableContainer,
+  Button,
+  TextField,
+  InputAdornment
 } from "@mui/material";
-import { collection, onSnapshot, doc, getDoc } from "firebase/firestore";
+import SearchIcon from "@mui/icons-material/Search";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+import { collection, onSnapshot, doc, getDoc, getDocs, query, where,
+} from "firebase/firestore";
 import { db } from "../../firebase";
 import Sidebar from "../../components/Sidebar";
 import Topbar from "../../components/Topbar";
@@ -31,10 +38,72 @@ const AdminGenerateCode = () => {
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-
+  const [searchQuery, setSearchQuery] = useState("");
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
+
+  // Memoized filtered codes
+const filteredCodes = useMemo(() => {
+  if (!searchQuery) return codes;
+  const lowerQuery = searchQuery.toLowerCase();
+  return codes.filter((code) =>
+    [
+      code.code,
+      code.amount?.toString(),
+      code.userDisplay,
+      code.createdAt?.seconds
+        ? new Date(code.createdAt.seconds * 1000).toLocaleString()
+        : "",
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(lowerQuery)
+  );
+}, [codes, searchQuery]);
+
+  const handleExportCapitalShareUsers = async () => {
+  try {
+    // Fetch users with capitalShareActive: true
+    const usersSnapshot = await getDocs(
+      query(collection(db, "users"), where("capitalShareActive", "==", true))
+    );
+
+    if (usersSnapshot.empty) {
+      alert("No users with active capital share found.");
+      return;
+    }
+
+    const exportData = usersSnapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        Username: data.username || "",
+        Name: data.name || data.fullName || "",
+        Email: data.email || "",
+        Role: data.role || "",
+        "Capital Share Active": data.capitalShareActive ? "Yes" : "No",
+        "Created At": data.createdAt?.toDate
+          ? data.createdAt.toDate().toLocaleString()
+          : "--",
+      };
+    });
+
+    // Create worksheet
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+    // Create workbook and append worksheet
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "CapitalShareUsers");
+
+    // Write workbook and download
+    const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+    const data = new Blob([excelBuffer], { type: "application/octet-stream" });
+    saveAs(data, "CapitalShareUsers.xlsx");
+  } catch (error) {
+    console.error("Error exporting users:", error);
+    alert("Failed to export users: " + error.message);
+  }
+};
 
   // 🔥 Real-time Firestore fetch with user lookup
   useEffect(() => {
@@ -112,6 +181,7 @@ const AdminGenerateCode = () => {
   };
 
   return (
+    
     <Box
       sx={{
         display: "flex",
@@ -148,7 +218,7 @@ const AdminGenerateCode = () => {
               sx={{
                 flexGrow: 1,
                 p: isMobile ? 1 : 3,
-                mt: 2,
+                mt: 0,
                 color: "white",
                 zIndex: 1,
                 width: "96%",
@@ -156,7 +226,25 @@ const AdminGenerateCode = () => {
               }}
             >
         <Toolbar />
-
+               <Box
+          sx={{
+            display: "flex",
+            justifyContent: "flex-end",
+            mb: 2, // margin-bottom
+            gap: 2,
+          }}
+        >
+          <Button
+            variant="contained"
+            onClick={handleExportCapitalShareUsers}
+            sx={{
+              backgroundColor: "#2e7d32",
+              "&:hover": { backgroundColor: "#27632a" },
+            }}
+          >
+            📄 Export Capital Share Users
+          </Button>
+        </Box>
         <motion.div
           variants={fadeIn}
           initial="hidden"
@@ -169,9 +257,11 @@ const AdminGenerateCode = () => {
             padding: "24px",
           }}
         >
+              
           <Typography variant="h4" gutterBottom fontWeight={700}>
             Purchase Codes Analytics
           </Typography>
+          
           <Typography variant="subtitle1" sx={{ mb: 3, opacity: 0.9 }}>
             Real-time sales overview of all purchased codes.
           </Typography>
@@ -301,7 +391,33 @@ const AdminGenerateCode = () => {
                   >
                     Purchase Details
                   </Typography>
-
+                    {/* Search Box */}
+               <Box sx={{ mb: 2, width: "100%" }}>
+                <TextField
+                  fullWidth
+                  placeholder="Search all columns..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  variant="filled"
+                  size="small"
+                  sx={{
+                    backgroundColor: "rgba(255,255,255,0.1)",
+                    borderRadius: 2,
+                    "& .MuiInputBase-input": { color: "#fff" },
+                    "& .MuiInputLabel-root": { color: "#fff" },
+                    "& .MuiFilledInput-root": {
+                      backgroundColor: "rgba(255,255,255,0.1)",
+                    },
+                  }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon sx={{ color: "white" }} />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Box>
                   <Paper
                     sx={{
                       p: { xs: 1.5, sm: 2 },
@@ -345,7 +461,7 @@ const AdminGenerateCode = () => {
                             </TableRow>
                           </TableHead>
                           <TableBody>
-                            {codes
+                            {filteredCodes
                               .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                               .map((code) => (
                                 <TableRow

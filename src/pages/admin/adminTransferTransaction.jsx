@@ -81,7 +81,7 @@ const AdminTransferTransaction = () => {
         sx={{
           flexGrow: 1,
           p: 4,
-          mt: 8,
+          mt: 0,
           color: "white",
           zIndex: 1,
           width: `calc(100% - ${sidebarOpen ? 240 : 60}px)`,
