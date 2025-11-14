@@ -43,6 +43,7 @@ const PurchaseCodesDialog = ({
   const [purchaseLogs, setPurchaseLogs] = useState([]);
   const [confirmDialog, setConfirmDialog] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
+  const [purchaseConfirmOpen, setPurchaseConfirmOpen] = useState(false);
 
   const codePrices = {
     capital: 500,
@@ -67,19 +68,19 @@ const PurchaseCodesDialog = ({
     return () => unsubscribe();
   }, [open, auth, db]);
 
-  const handlePurchase = async () => {
-    if (!codeType) {
-      return;
-    }
+  const handlePurchase = () => {
+  if (!codeType) return;
 
-    const amount = codePrices[codeType];
-    if (userData.eWallet < amount) {
-      setConfirmDialog(true); // show insufficient balance prompt
-      return;
-    }
+  const amount = codePrices[codeType];
 
-    await performPurchase(amount);
-  };
+  if (userData.eWallet < amount) {
+    setConfirmDialog(true); // insufficient balance prompt
+    return;
+  }
+
+  // Ask for confirmation before performing purchase
+  setPurchaseConfirmOpen(true);
+};
 
   const performPurchase = async (amount) => {
     setLoading(true);
@@ -313,6 +314,50 @@ const PurchaseCodesDialog = ({
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Dialog
+  open={purchaseConfirmOpen}
+  onClose={() => setPurchaseConfirmOpen(false)}
+  maxWidth="xs"
+  fullWidth
+  PaperProps={{
+    sx: {
+      borderRadius: 3,
+      background: "rgba(30,30,30,0.95)",
+      backdropFilter: "blur(16px)",
+      color: "#fff",
+      p: 2,
+      textAlign: "center",
+    },
+  }}
+>
+  <DialogTitle sx={{ fontWeight: 600 }}>Confirm Purchase</DialogTitle>
+  <DialogContent>
+    <Typography sx={{ mt: 1 }}>
+      Are you sure you want to purchase this {codeType === "capital" ? "Capital Share Activation Code" : "Downline Code"} for ₱{codePrices[codeType]}?
+    </Typography>
+  </DialogContent>
+  <DialogActions sx={{ justifyContent: "center", mt: 1 }}>
+    <Button
+      onClick={() => setPurchaseConfirmOpen(false)}
+      variant="outlined"
+      color="inherit"
+      sx={{ color: "#fff", borderColor: "rgba(255,255,255,0.4)" }}
+    >
+      Cancel
+    </Button>
+    <Button
+  onClick={async () => {
+    setPurchaseConfirmOpen(false);
+    await performPurchase(codePrices[codeType]); // ✅ purchase runs only once here
+  }}
+  variant="contained"
+  sx={{ bgcolor: "#4FC3F7", color: "#000", "&:hover": { bgcolor: "#29B6F6" } }}
+>
+  Confirm
+</Button>
+  </DialogActions>
+</Dialog>
 
       {/* Deposit Dialog */}
       <DepositDialog

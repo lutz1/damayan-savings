@@ -77,6 +77,8 @@ const Topbar = ({ open, onToggleSidebar }) => {
   });
   const [availableCodes, setAvailableCodes] = useState([]);
 
+  const restrictedForAdmin = ["Purchase Codes", "Withdrawal", "Deposit", "Transfer Funds", "Invite & Earn"];
+
   // 🔹 Real-time Firestore listeners
   useEffect(() => {
     let unsubscribeUser = null;
@@ -402,16 +404,24 @@ const Topbar = ({ open, onToggleSidebar }) => {
 
                 {/* Menu */}
                 <List>
-                  {[
-                    { icon: <PurchaseIcon sx={{ color: "#4FC3F7" }} />, label: "Purchase Codes", dialog: "purchase" },
-                    { icon: <WithdrawIcon sx={{ color: "#FF7043" }} />, label: "Withdrawal", dialog: "withdraw" },
-                    { icon: <DepositIcon sx={{ color: "#81C784" }} />, label: "Deposit", dialog: "deposit" },
-                    { icon: <TransferIcon sx={{ color: "#BA68C8" }} />, label: "Transfer Funds", dialog: "transfer" },
-                    { icon: <InviteIcon sx={{ color: "#FFB300" }} />, label: "Invite & Earn", dialog: "invite" },
-                    { icon: <LogoutIcon sx={{ color: "#FF5252" }} />, label: "Logout", action: handleOpenLogoutDialog },
-                  ].map((item, i) => (
+                {[
+                  { icon: <PurchaseIcon sx={{ color: "#4FC3F7" }} />, label: "Purchase Codes", dialog: "purchase" },
+                  { icon: <WithdrawIcon sx={{ color: "#FF7043" }} />, label: "Withdrawal", dialog: "withdraw" },
+                  { icon: <DepositIcon sx={{ color: "#81C784" }} />, label: "Deposit", dialog: "deposit" },
+                  { icon: <TransferIcon sx={{ color: "#BA68C8" }} />, label: "Transfer Funds", dialog: "transfer" },
+                  { icon: <InviteIcon sx={{ color: "#FFB300" }} />, label: "Invite & Earn", dialog: "invite" },
+                  { icon: <LogoutIcon sx={{ color: "#FF5252" }} />, label: "Logout", action: handleOpenLogoutDialog },
+                ].map((item, i) => {
+                  const isDisabled = ["ADMIN", "CEO"].includes(userData.role?.toUpperCase()) && restrictedForAdmin.includes(item.label);
+                  return (
                     <ListItem disablePadding key={i}>
-                      <ListItemButton onClick={() => item.dialog ? handleOpenDialog(item.dialog) : item.action?.()}>
+                      <ListItemButton
+                        onClick={() => !isDisabled && (item.dialog ? handleOpenDialog(item.dialog) : item.action?.())}
+                        sx={{
+                          opacity: isDisabled ? 0.5 : 1,
+                          cursor: isDisabled ? "not-allowed" : "pointer",
+                        }}
+                      >
                         <ListItemIcon>{item.icon}</ListItemIcon>
                         <ListItemText
                           primary={item.label}
@@ -424,8 +434,9 @@ const Topbar = ({ open, onToggleSidebar }) => {
                         />
                       </ListItemButton>
                     </ListItem>
-                  ))}
-                </List>
+                  );
+                })}
+              </List>
               </Box>
             </Box>
           </Slide>
