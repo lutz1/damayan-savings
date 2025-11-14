@@ -42,6 +42,19 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
   const [newUserRole, setNewUserRole] = useState("MD");
   const [selectedCode, setSelectedCode] = useState("");
   const [availableCodes, setAvailableCodes] = useState([]);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  
+const isEmailInUse = async (email) => {
+  if (!email) return false;
+  const q = query(collection(db, "users"), where("email", "==", email));
+  const snap = await getDocs(q);
+  return !snap.empty;
+};
+
+const isValidEmail = (email) => {
+  // Regex ensures no spaces and proper format
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+};
 
   const referralCode =
     userData?.referralCode || auth?.currentUser?.uid?.slice(0, 6);
@@ -78,8 +91,21 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
       return;
     }
 
+    if (!isValidEmail(newUserEmail)) {
+      setError("Please enter a valid email address (no spaces).");
+      return;
+    }
+
     setError("");
     setLoading(true);
+
+    // Check if email is already in use
+  const emailExists = await isEmailInUse(newUserEmail);
+  if (emailExists) {
+    setError("This email is already in use. Please use another email.");
+    setLoading(false);
+    return;
+  }
 
     try {
       // 1️⃣ Add pending invite record
@@ -365,15 +391,25 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
         />
 
         <TextField
-          fullWidth
-          type="email"
-          label="Email"
-          value={newUserEmail}
-          onChange={(e) => setNewUserEmail(e.target.value)}
-          InputProps={{ sx: { color: "#fff" } }}
-          InputLabelProps={{ sx: { color: "rgba(255,255,255,0.7)" } }}
-          sx={{ mb: 2 }}
-        />
+        fullWidth
+        type="email"
+        label="Email"
+        value={newUserEmail}
+        onChange={async (e) => {
+          setNewUserEmail(e.target.value);
+          if (isValidEmail(e.target.value)) {
+            const exists = await isEmailInUse(e.target.value);
+            setError(exists ? "This email is already in use." : "");
+          } else {
+            setError("Invalid email format (no spaces allowed)");
+          }
+        }}
+        error={Boolean(error)}
+        helperText={error}
+        InputProps={{ sx: { color: "#fff" } }}
+        InputLabelProps={{ sx: { color: "rgba(255,255,255,0.7)" } }}
+        sx={{ mb: 2 }}
+      />
 
         <TextField
           fullWidth
@@ -420,15 +456,58 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
           Close
         </Button>
         <Button
-          onClick={handleRegisterInvitee}
-          variant="contained"
-          disabled={loading}
-          sx={{ bgcolor: "#FFD54F", color: "#000", "&:hover": { bgcolor: "#FFCA28" } }}
-        >
-          {loading ? <CircularProgress size={24} sx={{ color: "#000" }} /> : "Invite"}
-        </Button>
+        onClick={() => setConfirmOpen(true)}
+        variant="contained"
+        disabled={loading}
+        sx={{ bgcolor: "#FFD54F", color: "#000", "&:hover": { bgcolor: "#FFCA28" } }}
+      >
+        {loading ? <CircularProgress size={24} sx={{ color: "#000" }} /> : "Invite"}
+      </Button>
       </DialogActions>
+
+      <Dialog
+  open={confirmOpen}
+  onClose={() => setConfirmOpen(false)}
+  maxWidth="xs"
+  fullWidth
+  PaperProps={{
+    sx: {
+      borderRadius: 3,
+      background: "rgba(30,30,30,0.95)",
+      backdropFilter: "blur(16px)",
+      color: "#fff",
+      p: 2,
+      textAlign: "center",
+    },
+  }}
+>
+  <DialogTitle sx={{ fontWeight: 600 }}>Confirm Invite</DialogTitle>
+  <DialogContent>
+    Are you sure you want to send this invite?
+  </DialogContent>
+  <DialogActions sx={{ justifyContent: "center", mt: 1 }}>
+    <Button
+      onClick={() => setConfirmOpen(false)}
+      variant="outlined"
+      color="inherit"
+      sx={{ color: "#fff", borderColor: "rgba(255,255,255,0.4)" }}
+    >
+      Cancel
+    </Button>
+    <Button
+      onClick={() => {
+        setConfirmOpen(false);
+        handleRegisterInvitee();
+      }}
+      variant="contained"
+      sx={{ bgcolor: "#FFD54F", color: "#000", "&:hover": { bgcolor: "#FFCA28" } }}
+    >
+      Confirm
+    </Button>
+  </DialogActions>
+</Dialog>
     </Dialog>
+    
   );
 };
 

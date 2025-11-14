@@ -21,7 +21,7 @@ import { Savings, CheckCircle, CloudUpload, HelpOutline } from "@mui/icons-mater
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { collection, addDoc, serverTimestamp, query, where, onSnapshot } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-import gcashImage from "../../../assets/gcash.jpg";
+import gcashImage from "../../../assets/bpii.jpg";
 import { app } from "../../../firebase";
 
 // ✅ Reusable confirmation dialog
