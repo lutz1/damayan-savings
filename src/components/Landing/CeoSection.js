@@ -4,6 +4,7 @@ import { Parallax } from "react-scroll-parallax";
 import { motion } from "framer-motion";
 import RevealOnScroll from "../RevealOnScroll";
 import damayanLogo from "../../assets/damayan.png";
+import ceobg from "../../assets/ceobg.png";
  // ✅ replace with your real file later
 
 const CeoSection = () => {
@@ -17,6 +18,22 @@ const CeoSection = () => {
         overflow: "hidden",
       }}
     >
+      {/* Background Image */}
+                <Box
+                  component="img"
+                  src={ceobg}
+                  alt="Leadership Background"
+                  sx={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    opacity: 0.80, // adjust opacity here
+                    zIndex: 0,
+                  }}
+                />
       {/* ✅ Parallax Background */}
       <Parallax speed={-15}>
         <Box
@@ -36,31 +53,42 @@ const CeoSection = () => {
         />
       </Parallax>
 
-      {/* ✅ Gradient Overlay */}
-      <Box
-        sx={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          width: "100%",
-          height: "100%",
-          background:
-            "linear-gradient(180deg, rgba(0,0,0,0.7) 0%, rgba(25,118,210,0.5) 100%)",
-          zIndex: 1,
-        }}
-      />
 
       {/* ✅ Content */}
       <Container sx={{ position: "relative", zIndex: 2 }}>
         <RevealOnScroll>
           <Typography
-            variant="h4"
-            align="center"
-            gutterBottom
-            sx={{ fontWeight: "bold", mb: 6 }}
-          >
-            Leadership & Ownership
-          </Typography>
+  variant="h3"
+  align="center"
+  fontWeight={800}
+  gutterBottom
+  sx={{
+    color: "#ffffff",
+    mb: 7,
+    textTransform: "uppercase",
+    letterSpacing: 3,
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 1.5,
+  }}
+>
+  <Box
+    sx={{
+      width: 55,
+      height: 55,
+      borderRadius: "50%",
+      background: "linear-gradient(135deg, #1976d2, #42a5f5)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      boxShadow: "0 0 18px rgba(25,118,210,0.45)",
+    }}
+  >
+    <i className="fas fa-user-tie" style={{ fontSize: 26 }} />
+  </Box>
+  Leadership & Ownership
+</Typography>
         </RevealOnScroll>
 
         <Grid container spacing={6} alignItems="center">
@@ -211,6 +239,8 @@ const CeoSection = () => {
                     empowering members and helping them live financially free.
                   </Typography>
                 </Paper>
+
+                
               </motion.div>
             </RevealOnScroll>
           </Grid>

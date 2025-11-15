@@ -13,6 +13,9 @@ import slide7 from "../../assets/slide7.jpg";
 import slide8 from "../../assets/slide8.jpg";
 import slide9 from "../../assets/slide9.jpg";
 import slide10 from "../../assets/slide10.jpg";
+import slide11 from "../../assets/slide11.jpg";
+import slide12 from "../../assets/slide12.jpg";
+import slide13 from "../../assets/slide13.jpg";
 
 const slides = [
   { image: slide1, caption: "Empowering Families through Damayan Savings Program" },
@@ -25,6 +28,9 @@ const slides = [
   { image: slide8, caption: "Investing in Local Community Growth" },
   { image: slide9, caption: "Empowering Women and Youth for a Brighter Future" },
   { image: slide10, caption: "Join Damayan: Building a Compassionate Society Together" },
+  { image: slide11, caption: "Empowering Families through Damayan Savings Program" },
+  { image: slide12, caption: "Together, Building Financial Security and Compassion" },
+  { image: slide13, caption: "TCLC – Lingap, Malasakit, at Kalinga sa Kapwa" },
 ];
 
 const glassmorphicStyle = {

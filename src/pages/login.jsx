@@ -12,7 +12,8 @@ import { motion } from "framer-motion";
 import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
-
+import { Visibility, VisibilityOff } from "@mui/icons-material";
+import { InputAdornment, IconButton } from "@mui/material";
 import bgImage from "../assets/bg.jpg";
 import tclcLogo from "../assets/tclc-logo1.png";
 import damayanLogo from "../assets/damayan.png";
@@ -22,6 +23,7 @@ const Login = () => {
   const [error, setError] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   // ✅ Redirect users based on role
   const handleRedirect = (role) => {
@@ -185,15 +187,28 @@ const Login = () => {
               sx={textFieldStyle}
             />
             <TextField
-              label="Password"
-              type="password"
-              fullWidth
-              required
-              margin="normal"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              sx={textFieldStyle}
-            />
+  label="Password"
+  type={showPassword ? "text" : "password"}
+  fullWidth
+  required
+  margin="normal"
+  value={password}
+  onChange={(e) => setPassword(e.target.value)}
+  sx={textFieldStyle}
+  InputProps={{
+    endAdornment: (
+      <InputAdornment position="end">
+        <IconButton
+          onClick={() => setShowPassword((prev) => !prev)}
+          edge="end"
+          sx={{ color: "#fff" }}
+        >
+          {showPassword ? <VisibilityOff /> : <Visibility />}
+        </IconButton>
+      </InputAdornment>
+    ),  
+  }}
+/>
             <Button
               type="submit"
               variant="contained"
