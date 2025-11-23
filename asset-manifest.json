@@ -1,20 +1,23 @@
 {
   "files": {
     "main.css": "/damayan-savings/static/css/main.5d5dd027.css",
-    "main.js": "/damayan-savings/static/js/main.3fbf8a82.js",
+    "main.js": "/damayan-savings/static/js/main.1fd2564b.js",
     "static/js/453.4ca22cd3.chunk.js": "/damayan-savings/static/js/453.4ca22cd3.chunk.js",
-    "static/media/certificate.jpg": "/damayan-savings/static/media/certificate.b4b51d629a34e396ae1f.jpg",
+    "static/media/slide11.jpg": "/damayan-savings/static/media/slide11.6066d1a89e38ab1750b3.jpg",
     "static/media/bpii.jpg": "/damayan-savings/static/media/bpii.6da8918af22d7ed8a156.jpg",
     "static/media/slide3.jpg": "/damayan-savings/static/media/slide3.5fad8d2b5e2fb90e2af0.jpg",
     "static/media/tclc-logo1.png": "/damayan-savings/static/media/tclc-logo1.bb5ca32be2e40fa9359e.png",
     "static/media/damayan.png": "/damayan-savings/static/media/damayan.32a2a10ffdd812210e8c.png",
     "static/media/slide10.jpg": "/damayan-savings/static/media/slide10.0e7e6ddd0edbc4ce115a.jpg",
+    "static/media/slide13.jpg": "/damayan-savings/static/media/slide13.f7df0c2562bfe5baac2e.jpg",
     "static/media/slide2.jpg": "/damayan-savings/static/media/slide2.62f212bd5ea9402bba87.jpg",
     "static/media/contact.png": "/damayan-savings/static/media/contact.9284e7b3c1f9e1f92e3e.png",
-    "static/media/cert.jpg": "/damayan-savings/static/media/cert.1e511a53d75be70ffe5b.jpg",
+    "static/media/slide12.jpg": "/damayan-savings/static/media/slide12.3dc39267d4c79b126456.jpg",
     "static/media/slide6.jpg": "/damayan-savings/static/media/slide6.db99284139cb607704a4.jpg",
+    "static/media/aboutbg.png": "/damayan-savings/static/media/aboutbg.8d7eff6cde200c28a267.png",
     "static/media/slide4.jpg": "/damayan-savings/static/media/slide4.3de02ed402aa0725b391.jpg",
     "static/media/slide8.jpg": "/damayan-savings/static/media/slide8.21769f89e204d57b6543.jpg",
+    "static/media/ceobg.png": "/damayan-savings/static/media/ceobg.2986d3026b8480e14ab7.png",
     "static/media/slide7.jpg": "/damayan-savings/static/media/slide7.d8be30962b3c417eeb01.jpg",
     "static/media/slide9.jpg": "/damayan-savings/static/media/slide9.c139fdd880cfd23fd4e7.jpg",
     "static/media/slide1.jpg": "/damayan-savings/static/media/slide1.a1840fe1159287bb9c18.jpg",
@@ -23,11 +26,11 @@
     "index.html": "/damayan-savings/index.html",
     "static/media/en-US.cjs": "/damayan-savings/static/media/en-US.c3a6319ea4f219498e6f.cjs",
     "main.5d5dd027.css.map": "/damayan-savings/static/css/main.5d5dd027.css.map",
-    "main.3fbf8a82.js.map": "/damayan-savings/static/js/main.3fbf8a82.js.map",
+    "main.1fd2564b.js.map": "/damayan-savings/static/js/main.1fd2564b.js.map",
     "453.4ca22cd3.chunk.js.map": "/damayan-savings/static/js/453.4ca22cd3.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.5d5dd027.css",
-    "static/js/main.3fbf8a82.js"
+    "static/js/main.1fd2564b.js"
   ]
 }
