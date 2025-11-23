@@ -156,7 +156,7 @@ const Topbar = ({ open, onToggleSidebar }) => {
       <AppBar
         position="fixed"
         sx={{
-          width: { xs: "100%", md: `calc(100% - ${open ? 240 : 60}px)` },
+          width: { xs: "100%", md: `calc(100% - ${open ? 250 : 60}px)` },
           ml: { xs: 0, md: `${open ? 240 : 60}px` },
           transition: "all 0.3s ease",
           background: "rgba(255, 255, 255, 0.1)",
