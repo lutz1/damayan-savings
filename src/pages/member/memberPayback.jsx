@@ -77,11 +77,11 @@ const MemberPayback = () => {
   // History
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
 
-  // ===================== Upline ₱90 Reward Logic (Stored in Override) =====================
-// ===================== Upline ₱90 Reward Logic (Stored in Override) =====================
+// ===================== Upline ₱65 Reward Logic (Stored in Override) =====================
+
 const handleUplineReward = useCallback(async (entries) => {
   const today = moment().startOf("day");
-  console.log("🟡 Checking for expired payback entries eligible for ₱90 upline reward...");
+  console.log("🟡 Checking for expired payback entries eligible for ₱65 upline reward...");
   console.log("📅 Today's Date:", today.format("YYYY-MM-DD"));
   console.log("📄 Total entries to check:", entries.length);
 
@@ -99,21 +99,21 @@ const handleUplineReward = useCallback(async (entries) => {
           const uplineDoc = snap.docs[0];
           const uplineData = uplineDoc.data();
 
-          // ✅ Store ₱90 in override (not credited yet)
+          // ✅ Store ₱65 in override (not credited yet)
           const overrideRef = await addDoc(collection(db, "override"), {
             uplineId: uplineDoc.id,
             uplineUsername: uplineData.username,
             memberId: entry.userId,
             memberUsername: entry.memberUsername || "",
             paybackEntryId: entry.id,
-            amount: 90,
+            amount: 65,
             credited: false, // not yet credited
             createdAt: new Date().toISOString(),
             expirationDate: entry.expirationDate, // for reference
             type: "UplineReward",
           });
 
-          console.log(`💰 ₱90 override created for upline: ${uplineData.username} | Override ID: ${overrideRef.id}`);
+          console.log(`💰 ₱65 override created for upline: ${uplineData.username} | Override ID: ${overrideRef.id}`);
 
           // ✅ Mark payback entry as rewarded so it won’t repeat
           const entryRef = doc(db, "paybackEntries", entry.id);
@@ -297,7 +297,7 @@ const handleOpenConfirmDialog = () => {
     console.log("Upline Role:", uplineDoc.role);
     console.log("Entry Date:", entryDate);
     console.log("Expiration Date:", expirationDate);
-    console.log("RewardGiven: false (Upline ₱90 pending after expiration)");
+    console.log("RewardGiven: false (Upline ₱65 pending after expiration)");
 
     // Add payback entry
     await addDoc(collection(db, "paybackEntries"), {
