@@ -1,33 +1,9 @@
 // src/components/Topbar/dialogs/InviteEarnDialog.jsx
 import React, { useState, useEffect } from "react";
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Box,
-  Button,
-  TextField,
-  CircularProgress,
-  Alert,
-  Divider,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
+import {Dialog,DialogTitle,DialogContent,DialogActions,Box,Button,TextField,CircularProgress,Alert,Divider,FormControl,InputLabel,Select,MenuItem,
 } from "@mui/material";
 import { PersonAdd } from "@mui/icons-material";
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  addDoc,
-  serverTimestamp,
-  doc,
-  updateDoc,
-  limit,
-  getDocs,
+import {collection,query,where,onSnapshot,addDoc,serverTimestamp,doc,updateDoc,limit,getDocs,
 } from "firebase/firestore";
 
 const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
@@ -160,7 +136,6 @@ const isValidEmail = (email) => {
 
       // 4️⃣ Network Bonuses
       let currentUplineUsername = userData?.referredBy || null;
-      const mdBonusSlots = [50, 10];
       let mdSlotIndex = 0;
 
       while (currentUplineUsername) {
@@ -199,23 +174,30 @@ const isValidEmail = (email) => {
           console.log(`💸 Network Bonus ₱15 → ${uplineUser.username} (MasterMD)`);
         }
 
-        // MD bonuses
-        if (role?.toLowerCase() === "md" && mdSlotIndex < mdBonusSlots.length) {
-          const bonusAmount = mdBonusSlots[mdSlotIndex];
-          await addDoc(collection(db, "referralReward"), {
-            userId: uplineId,
-            username: uplineUser.username,
-            role,
-            amount: bonusAmount,
-            source: newUserUsername,
-            type: "Network Bonus",
-            approved: false,
-            payoutReleased: false,
-            createdAt: serverTimestamp(),
-          });
-          console.log(`💸 Network Bonus ₱${bonusAmount} → ${uplineUser.username} (MD)`);
-          mdSlotIndex++;
-        }
+        // MD bonuses (updated logic)
+if (role?.toLowerCase() === "md") {
+  if (mdSlotIndex === 0) {
+    // First MD upline → ₱10
+    await addDoc(collection(db, "referralReward"), {
+      userId: uplineId,
+      username: uplineUser.username,
+      role,
+      amount: 10,
+      source: newUserUsername,
+      type: "MD Network Bonus",
+      approved: false,
+      payoutReleased: false,
+      createdAt: serverTimestamp(),
+    });
+    console.log(`💸 MD Bonus ₱10 → ${uplineUser.username}`);
+  }
+
+  // After first MD, do NOT give any more MD bonuses
+  mdSlotIndex++;
+
+  // Stop MD bonuses completely (only 1 MD earns)
+  continue;
+}
 
         // MI & MS fixed bonuses
         const roleBonusMap = { mi: 20, ms: 20 };
