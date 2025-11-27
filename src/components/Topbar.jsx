@@ -76,9 +76,9 @@ const Topbar = ({ open, onToggleSidebar }) => {
     profilePicture: "",
   });
   const [availableCodes, setAvailableCodes] = useState([]);
-
+  /*
   const restrictedForAdmin = ["Purchase Codes", "Withdrawal", "Deposit", "Transfer Funds", "Invite & Earn"];
-
+*/
   // 🔹 Real-time Firestore listeners
   useEffect(() => {
     let unsubscribeUser = null;
@@ -412,7 +412,9 @@ const Topbar = ({ open, onToggleSidebar }) => {
                   { icon: <InviteIcon sx={{ color: "#FFB300" }} />, label: "Invite & Earn", dialog: "invite" },
                   { icon: <LogoutIcon sx={{ color: "#FF5252" }} />, label: "Logout", action: handleOpenLogoutDialog },
                 ].map((item, i) => {
-                  const isDisabled = ["ADMIN", "CEO"].includes(userData.role?.toUpperCase()) && restrictedForAdmin.includes(item.label);
+                  
+                  const isDisabled = false;
+
                   return (
                     <ListItem disablePadding key={i}>
                       <ListItemButton
