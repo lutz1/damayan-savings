@@ -39,6 +39,7 @@ import { motion } from "framer-motion";
 import Topbar from "../../components/Topbar";
 import Sidebar from "../../components/Sidebar";
 import bgImage from "../../assets/bg.jpg";
+import GroupSalesDialog from "../../components/GroupSalesDialog";
 
 const MemberDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -73,6 +74,8 @@ const [overrideList, setOverrideList] = useState([]);
 const [overrideDialogOpen, setOverrideDialogOpen] = useState(false);
 
 const [loadingTransfer, setLoadingTransfer] = useState(false);
+
+const [groupSalesOpen, setGroupSalesOpen] = useState(false);
 
 const handleTransferToWallet = async ({ amount, type, rewardId = null }) => {
   if (!user) return;
@@ -153,25 +156,7 @@ const handleTransferToWallet = async ({ amount, type, rewardId = null }) => {
           const newBalance = (userSnap.data().eWallet || 0) + overrideSnap.data().amount;
           transaction.update(userRef, { eWallet: newBalance, updatedAt: Date.now() });
         });
-      } else {
-        // Bulk override transfer
-        await runTransaction(db, async (transaction) => {
-          const overridesToCredit = overrideList.filter(o => o.status !== "Credited");
-          if (overridesToCredit.length === 0) throw new Error("No overrides to transfer.");
-
-          let totalAmount = overridesToCredit.reduce((sum, o) => sum + o.amount, 0);
-
-          const userSnap = await transaction.get(userRef);
-          if (!userSnap.exists()) throw new Error("User not found.");
-
-          const newBalance = (userSnap.data().eWallet || 0) + totalAmount;
-          transaction.update(userRef, { eWallet: newBalance, updatedAt: Date.now() });
-
-          overridesToCredit.forEach((o) => {
-            transaction.update(doc(db, "override", o.id), { status: "Credited" });
-          });
-        });
-      }
+      } 
     }
 
     alert(`₱${amount.toLocaleString()} successfully transferred to eWallet!`);
@@ -573,17 +558,6 @@ const fetchPaybackAndCapital = async (uid) => {
         Credited rewards (after expiration date)
       </Typography>
 
-  <Button
-  variant="contained"
-  color="primary"
-  size="small"
-  sx={{ mt: 1 }}
-  onClick={() => handleTransferToWallet(overrideEarnings, "override")}
-  disabled={overrideEarnings <= 0}
->
-  Transfer to eWallet
-</Button>
-
     </CardContent>
   </Card>
 </Grid>
@@ -610,6 +584,20 @@ const fetchPaybackAndCapital = async (uid) => {
               <Typography variant="h6" sx={{ mb: 3, opacity: 0.9 }}>
                 Welcome <strong>{userData.name}</strong>! Here’s your current network summary:
               </Typography>
+
+              <Button
+              variant="contained"
+              sx={{
+                mb: 3,
+                backgroundColor: "#FFD54F",
+                color: "#000",
+                fontWeight: 600,
+                "&:hover": { backgroundColor: "#FFC107" },
+              }}
+              onClick={() => setGroupSalesOpen(true)}
+            >
+              📊 Network Group Sales
+            </Button>
 
               <Grid container spacing={3}>
                 {["MD", "MS", "MI", "Agent"].map((role) => (
@@ -828,18 +816,62 @@ const fetchPaybackAndCapital = async (uid) => {
     .map((o) => {
       const isExpired = o.expirationDate && new Date(o.expirationDate) < new Date();
       const credited = o.status === "Credited" || isExpired;
+
+      const handleSingleOverrideTransfer = async () => {
+        if (!user) return;
+        if (credited) return alert("Already credited.");
+
+        const confirmed = window.confirm(
+          `Are you sure you want to transfer ₱${o.amount.toLocaleString()} to your eWallet?`
+        );
+        if (!confirmed) return;
+
+        try {
+          setLoadingTransfer((prev) => ({ ...prev, [o.id]: true }));
+
+          const userRef = doc(db, "users", user.uid);
+          const overrideRef = doc(db, "override", o.id);
+
+          await runTransaction(db, async (transaction) => {
+            const userSnap = await transaction.get(userRef);
+            const overrideSnap = await transaction.get(overrideRef);
+
+            if (!userSnap.exists()) throw new Error("User not found.");
+            if (!overrideSnap.exists()) throw new Error("Reward not found.");
+
+            const newBalance = (userSnap.data().eWallet || 0) + overrideSnap.data().amount;
+            transaction.update(userRef, { eWallet: newBalance, updatedAt: Date.now() });
+            transaction.update(overrideRef, { status: "Credited" });
+          });
+
+          alert(`₱${o.amount.toLocaleString()} successfully transferred to eWallet!`);
+        } catch (err) {
+          console.error(err);
+          alert(err.message || "Transfer failed.");
+        } finally {
+          setLoadingTransfer((prev) => ({ ...prev, [o.id]: false }));
+        }
+      };
+
       return (
         <ListItem key={o.id} divider>
           <ListItemText
-            primary={`₱${o.amount.toLocaleString()} — ${
-              credited ? "Credited" : "Pending"
-            }`}
+            primary={`₱${o.amount.toLocaleString()} — ${credited ? "Credited" : "Pending"}`}
             secondary={`From: ${o.source || "N/A"} | Expiration: ${
-              o.expirationDate
-                ? new Date(o.expirationDate).toLocaleDateString()
-                : "N/A"
+              o.expirationDate ? new Date(o.expirationDate).toLocaleDateString() : "N/A"
             }`}
           />
+          {!credited && (
+            <Button
+              variant="contained"
+              size="small"
+              color="primary"
+              onClick={handleSingleOverrideTransfer}
+              disabled={loadingTransfer?.[o.id]}
+            >
+              {loadingTransfer?.[o.id] ? "Processing..." : "Transfer to eWallet"}
+            </Button>
+          )}
         </ListItem>
       );
     })}
@@ -850,6 +882,13 @@ const fetchPaybackAndCapital = async (uid) => {
     <Button onClick={() => setOverrideDialogOpen(false)}>Close</Button>
   </DialogActions>
 </Dialog>
+
+<GroupSalesDialog
+  open={groupSalesOpen}
+  onClose={() => setGroupSalesOpen(false)}
+  username={userData?.username}
+  user={userData}
+/>
 
     </Box>
   );

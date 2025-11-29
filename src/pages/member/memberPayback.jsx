@@ -15,11 +15,6 @@ import {
   DialogActions,
   TextField,
   CircularProgress,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { Calendar, momentLocalizer } from "react-big-calendar";
@@ -606,41 +601,83 @@ const onNavigate = (date, view, action) => {
 </DialogContent>
       </Dialog>
 
-      {/* Transaction History */}
-      <Dialog open={historyDialogOpen} onClose={() => setHistoryDialogOpen(false)} fullWidth maxWidth="md">
-        <DialogTitle>Payback Transaction History</DialogTitle>
-        <DialogContent dividers>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Date</TableCell>
-                <TableCell>Upline</TableCell>
-                <TableCell>Amount</TableCell>
-                <TableCell>2 % Profit</TableCell>
-                <TableCell>Expiration</TableCell>
-                <TableCell>Status</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {paybackEntries.map((e) => (
-                <TableRow key={e.id}>
-                  <TableCell>{moment(e.date).format("LL")}</TableCell>
-                  <TableCell>{e.uplineUsername}</TableCell>
-                  <TableCell>₱{e.amount.toFixed(2)}</TableCell>
-                  <TableCell>₱{(e.amount * 0.02).toFixed(2)}</TableCell>
-                  <TableCell>{moment(e.expirationDate).format("LL")}</TableCell>
-                  <TableCell>{e.isExpired ? "Expired" : e.status}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setHistoryDialogOpen(false)} color="primary">
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* Payback Transaction History */}
+<Dialog open={historyDialogOpen} onClose={() => setHistoryDialogOpen(false)} fullWidth maxWidth="md">
+  <DialogTitle sx={{ bgcolor: "#1976d2", color: "#fff" }}>Payback Transaction History</DialogTitle>
+  <DialogContent dividers sx={{ bgcolor: "#f5f5f5" }}>
+    {paybackEntries.length > 0 ? (
+      paybackEntries.map((e, idx) => {
+        const now = new Date();
+        const expirationDate = e.expirationDate instanceof Date ? e.expirationDate : new Date(e.expirationDate);
+        const profitStatus = expirationDate > now ? "Pending" : "Profit Earn";
+        const profitIcon = profitStatus === "Pending" ? "⏳" : "✅";
+
+        return (
+          <Box
+            key={e.id}
+            sx={{
+              mb: 2,
+              p: 2,
+              borderRadius: 2,
+              bgcolor: "#fff",
+              boxShadow: "0px 2px 6px rgba(0,0,0,0.15)",
+            }}
+          >
+            <Typography variant="subtitle2" color="text.secondary">Amount</Typography>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: "#4caf50" }}>
+              ₱{e.amount.toFixed(2)}
+            </Typography>
+
+            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 1 }}>
+              <Typography
+                sx={{
+                  px: 1.5,
+                  py: 0.5,
+                  borderRadius: 1,
+                  bgcolor: e.status === "Approved" ? "#e0f7fa" : "#ffe0e0",
+                  color: e.status === "Approved" ? "#006064" : "#c62828",
+                  fontWeight: 600,
+                  fontSize: 12,
+                }}
+              >
+                Status: {e.status || "Pending"}
+              </Typography>
+
+              <Typography
+                sx={{
+                  px: 1.5,
+                  py: 0.5,
+                  borderRadius: 1,
+                  bgcolor: profitStatus === "Profit Earn" ? "#e8f5e9" : "#fff3e0",
+                  color: profitStatus === "Profit Earn" ? "#2e7d32" : "#ef6c00",
+                  fontWeight: 600,
+                  fontSize: 12,
+                }}
+              >
+                Profit: {profitIcon} {profitStatus}
+              </Typography>
+            </Box>
+
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              Next Profit Date: {expirationDate ? expirationDate.toDateString() : "-"}
+            </Typography>
+
+            <Typography variant="body2">
+              Upline: {e.uplineUsername} | 2% Profit: ₱{(e.amount * 0.02).toFixed(2)}
+            </Typography>
+          </Box>
+        );
+      })
+    ) : (
+      <Typography sx={{ textAlign: "center", py: 3 }}>No payback entries.</Typography>
+    )}
+  </DialogContent>
+  <DialogActions>
+    <Button onClick={() => setHistoryDialogOpen(false)} variant="contained">
+      Close
+    </Button>
+  </DialogActions>
+</Dialog>
 
       {/* Transfer Dialog */}
       <Dialog open={transferDialogOpen} onClose={() => setTransferDialogOpen(false)} fullWidth maxWidth="xs">

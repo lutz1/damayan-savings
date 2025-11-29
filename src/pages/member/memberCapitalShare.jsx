@@ -709,35 +709,88 @@ const MemberCapitalShare = () => {
 
         {/* History Dialog */}
 
-        <Dialog open={historyDialogOpen} onClose={() => setHistoryDialogOpen(false)} fullWidth maxWidth="sm">
-          <DialogTitle>Transaction History</DialogTitle>
-          <DialogContent dividers>
-            {transactionHistory.length > 0 ? (
-              transactionHistory.map((t, idx) => (
-                <Box key={idx} sx={{ mb: 2, borderBottom: "1px solid #444", pb: 1 }}>
-                  <Typography>Amount: ₱{t.amount.toLocaleString()}</Typography>
-                  <Typography>Status: {t.status}</Typography>
-                  <Typography>
-                    Lock-in: ₱{t.lockIn?.toLocaleString()} | Transferable: ₱{t.transferable?.toLocaleString()}
-                  </Typography>
-                  <Typography>
-                    Next Profit Date: {t.nextProfitDate ? t.nextProfitDate.toDateString() : "-"}
-                  </Typography>
-                  {t.transferable > 0 && (
-                    <Button variant="contained" size="small" sx={{ mt: 1 }} onClick={() => handleTransferCapitalShare(t)}>
-                      Transfer Capital to Wallet
-                    </Button>
-                  )}
-                </Box>
-              ))
-            ) : (
-              <Typography>No transaction history.</Typography>
-            )}
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setHistoryDialogOpen(false)}>Close</Button>
-          </DialogActions>
-        </Dialog>
+        {/* History Dialog */}
+{/* History Dialog */}
+<Dialog open={historyDialogOpen} onClose={() => setHistoryDialogOpen(false)} fullWidth maxWidth="sm">
+  <DialogTitle sx={{ bgcolor: "#1976d2", color: "#fff" }}>Transaction History</DialogTitle>
+  <DialogContent dividers sx={{ bgcolor: "#f5f5f5" }}>
+    {transactionHistory.length > 0 ? (
+      transactionHistory.map((t, idx) => {
+        const now = new Date();
+        const nextProfitDate = t.nextProfitDate instanceof Date 
+          ? t.nextProfitDate 
+          : t.nextProfitDate?.toDate?.();
+
+        const profitStatus = nextProfitDate
+          ? nextProfitDate > now
+            ? "Pending"
+            : "Profit Earn"
+          : "-";
+
+        const profitIcon = profitStatus === "Pending" ? "⏳" : profitStatus === "Profit Earn" ? "✅" : "";
+
+        return (
+          <Box
+            key={idx}
+            sx={{
+              mb: 2,
+              p: 2,
+              borderRadius: 2,
+              bgcolor: "#fff",
+              boxShadow: "0px 2px 6px rgba(0,0,0,0.15)",
+            }}
+          >
+            <Typography variant="subtitle2" color="text.secondary">Amount</Typography>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: "#4caf50" }}>
+              ₱{t.amount.toLocaleString()}
+            </Typography>
+
+            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 1 }}>
+              <Typography
+                sx={{
+                  px: 1.5,
+                  py: 0.5,
+                  borderRadius: 1,
+                  bgcolor: t.status === "Approved" ? "#e0f7fa" : "#ffe0e0",
+                  color: t.status === "Approved" ? "#006064" : "#c62828",
+                  fontWeight: 600,
+                  fontSize: 12,
+                }}
+              >
+                Status: {t.status}
+              </Typography>
+
+              <Typography
+                sx={{
+                  px: 1.5,
+                  py: 0.5,
+                  borderRadius: 1,
+                  bgcolor: profitStatus === "Profit Earn" ? "#e8f5e9" : "#fff3e0",
+                  color: profitStatus === "Profit Earn" ? "#2e7d32" : "#ef6c00",
+                  fontWeight: 600,
+                  fontSize: 12,
+                }}
+              >
+                Profit: {profitIcon} {profitStatus}
+              </Typography>
+            </Box>
+
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              Next Profit Date: {nextProfitDate ? nextProfitDate.toDateString() : "-"}
+            </Typography>
+          </Box>
+        );
+      })
+    ) : (
+      <Typography sx={{ textAlign: "center", py: 3 }}>No transaction history.</Typography>
+    )}
+  </DialogContent>
+  <DialogActions>
+    <Button onClick={() => setHistoryDialogOpen(false)} variant="contained">
+      Close
+    </Button>
+  </DialogActions>
+</Dialog>
       </Box>
 
       <style>{`
