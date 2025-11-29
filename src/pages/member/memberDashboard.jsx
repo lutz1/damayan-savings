@@ -32,12 +32,12 @@ import {
   getDoc,
   getDocs,
   updateDoc,
+  runTransaction
 } from "firebase/firestore";
 import { auth, db } from "../../firebase";
 import { motion } from "framer-motion";
 import Topbar from "../../components/Topbar";
 import Sidebar from "../../components/Sidebar";
-import ReferralEarningsDialog from "../../components/ReferralEarningsDialog"
 import bgImage from "../../assets/bg.jpg";
 
 const MemberDashboard = () => {
@@ -72,44 +72,114 @@ const [overrideEarnings, setOverrideEarnings] = useState(0);
 const [overrideList, setOverrideList] = useState([]);
 const [overrideDialogOpen, setOverrideDialogOpen] = useState(false);
 
-const [referralDialogOpen, setReferralDialogOpen] = useState(false);
+const [loadingTransfer, setLoadingTransfer] = useState(false);
 
-const handleTransferToWallet = async (amount, type) => {
+const handleTransferToWallet = async ({ amount, type, rewardId = null }) => {
   if (!user) return;
   if (!amount || amount <= 0) return alert("No funds to transfer.");
 
+  const confirmed = window.confirm(
+    `Are you sure you want to transfer ₱${amount.toLocaleString()} to your eWallet?`
+  );
+  if (!confirmed) return;
+
   try {
+    setLoadingTransfer(true);
+
     const userRef = doc(db, "users", user.uid);
-    const userSnap = await getDoc(userRef);
-    if (!userSnap.exists()) return alert("User not found.");
 
-    const currentBalance = userSnap.data().eWallet || 0;
-    await updateDoc(userRef, {
-      eWallet: currentBalance + amount,
-    });
-
-    // ✅ Update relevant reward documents as transferred
     if (type === "referral") {
-      const batchPromises = rewardHistory
-        .filter((r) => r.payoutReleased) // Only unreleased or approved
-        .map((r) =>
-          updateDoc(doc(db, "referralReward", r.id), { payoutReleased: true })
-        );
-      await Promise.all(batchPromises);
+      if (rewardId) {
+        // Single reward transfer
+        const rewardRef = doc(db, "referralReward", rewardId);
+
+        await runTransaction(db, async (transaction) => {
+          const userSnap = await transaction.get(userRef);
+          const rewardSnap = await transaction.get(rewardRef);
+
+          if (!userSnap.exists()) throw new Error("User not found.");
+          if (!rewardSnap.exists()) throw new Error("Reward not found.");
+
+          if (rewardSnap.data().transferredAmount)
+            throw new Error("Reward already transferred.");
+
+          const newBalance = (userSnap.data().eWallet || 0) + rewardSnap.data().amount;
+
+          transaction.update(userRef, { eWallet: newBalance, updatedAt: Date.now() });
+          transaction.update(rewardRef, {
+            transferredAmount: rewardSnap.data().amount,
+            dateTransferred: Date.now(),
+          });
+        });
+      } else {
+        // Bulk transfer for all approved rewards
+        await runTransaction(db, async (transaction) => {
+          const userSnap = await transaction.get(userRef);
+          if (!userSnap.exists()) throw new Error("User not found.");
+
+          let totalAmount = 0;
+
+          const rewardRefs = rewardHistory.filter(r => r.payoutReleased && !r.transferredAmount)
+            .map(r => {
+              totalAmount += r.amount;
+              return doc(db, "referralReward", r.id);
+            });
+
+          if (totalAmount === 0) throw new Error("No rewards to transfer.");
+
+          const newBalance = (userSnap.data().eWallet || 0) + totalAmount;
+          transaction.update(userRef, { eWallet: newBalance, updatedAt: Date.now() });
+
+          rewardRefs.forEach((ref) => {
+            const reward = rewardHistory.find(r => r.id === ref.id);
+            transaction.update(ref, {
+              transferredAmount: reward.amount,
+              dateTransferred: Date.now(),
+            });
+          });
+        });
+      }
     } else if (type === "override") {
-      const batchPromises = overrideList
-        .filter((o) => o.status !== "Credited") // Only pending
-        .map((o) =>
-          updateDoc(doc(db, "override", o.id), { status: "Credited" })
-        );
-      await Promise.all(batchPromises);
+      if (rewardId) {
+        const overrideRef = doc(db, "override", rewardId);
+        await runTransaction(db, async (transaction) => {
+          const overrideSnap = await transaction.get(overrideRef);
+          if (!overrideSnap.exists()) throw new Error("Override not found.");
+          if (overrideSnap.data().status === "Credited") throw new Error("Already credited.");
+
+          transaction.update(overrideRef, { status: "Credited" });
+
+          const userSnap = await transaction.get(userRef);
+          const newBalance = (userSnap.data().eWallet || 0) + overrideSnap.data().amount;
+          transaction.update(userRef, { eWallet: newBalance, updatedAt: Date.now() });
+        });
+      } else {
+        // Bulk override transfer
+        await runTransaction(db, async (transaction) => {
+          const overridesToCredit = overrideList.filter(o => o.status !== "Credited");
+          if (overridesToCredit.length === 0) throw new Error("No overrides to transfer.");
+
+          let totalAmount = overridesToCredit.reduce((sum, o) => sum + o.amount, 0);
+
+          const userSnap = await transaction.get(userRef);
+          if (!userSnap.exists()) throw new Error("User not found.");
+
+          const newBalance = (userSnap.data().eWallet || 0) + totalAmount;
+          transaction.update(userRef, { eWallet: newBalance, updatedAt: Date.now() });
+
+          overridesToCredit.forEach((o) => {
+            transaction.update(doc(db, "override", o.id), { status: "Credited" });
+          });
+        });
+      }
     }
 
-    alert(`₱${amount.toLocaleString()} transferred to eWallet!`);
-
+    alert(`₱${amount.toLocaleString()} successfully transferred to eWallet!`);
   } catch (err) {
     console.error("Error transferring funds:", err);
-    alert("Failed to transfer funds.");
+    alert(err.message || "Failed to transfer funds.");
+  } finally {
+    setLoadingTransfer(false);
   }
 };
 
@@ -470,28 +540,6 @@ const fetchPaybackAndCapital = async (uid) => {
         Total earned from your referrals
       </Typography>
 
-        <Button
-  variant="contained"
-  color="success"
-  size="small"
-  sx={{ mt: 1 }}
-  onClick={() => setReferralDialogOpen(true)}
-  disabled={totalEarnings <= 0}
->
-  Transfer to eWallet
-</Button>
-
-<ReferralEarningsDialog
-  open={referralDialogOpen}
-  onClose={() => setReferralDialogOpen(false)}
-  balance={totalEarnings}
-  userId={user?.uid}
-  onSuccess={(amountTransferred) => {
-    setTotalEarnings((prev) => prev - amountTransferred);
-    setReferralDialogOpen(false);
-  }}
-/>
-
     </CardContent>
   </Card>
 </Grid>
@@ -673,7 +721,7 @@ const fetchPaybackAndCapital = async (uid) => {
           <Button onClick={() => setOpenDialog(false)}>Close</Button>
         </DialogActions>
       </Dialog>
-      {/* 🧾 Reward History Dialog */}
+    {/* 🧾 Reward History Dialog */}
 <Dialog
   open={rewardDialogOpen}
   onClose={() => setRewardDialogOpen(false)}
@@ -683,23 +731,79 @@ const fetchPaybackAndCapital = async (uid) => {
   <DialogTitle>Reward History</DialogTitle>
   <DialogContent dividers>
     {rewardHistory.length === 0 ? (
-  <Typography variant="body2">No approved rewards yet.</Typography>
-) : (
-  <List>
-    {rewardHistory
-      .sort((a, b) => (b.releasedAt?.seconds || 0) - (a.releasedAt?.seconds || 0))
-      .map((reward) => (
-        <ListItem key={reward.id} divider>
-          <ListItemText
-            primary={`₱${reward.amount.toLocaleString()} earned`}
-            secondary={`From: ${reward.source} | ${new Date(
-            (reward.releasedAt?.seconds || 0) * 1000
-          ).toLocaleString()}`}
-          />
-        </ListItem>
-      ))}
-  </List>
-)}
+      <Typography variant="body2">No approved rewards yet.</Typography>
+    ) : (
+      <List>
+        {rewardHistory
+          .sort((a, b) => (b.releasedAt?.seconds || 0) - (a.releasedAt?.seconds || 0))
+          .map((reward) => {
+            const transferred = reward.transferredAmount && reward.dateTransferred;
+            const transferredText = transferred
+              ? ` | Transferred: ₱${(reward.transferredAmount || 0).toLocaleString()} on ${new Date(
+                  reward.dateTransferred
+                ).toLocaleString()}`
+              : " | Not yet transferred";
+
+            const handleSingleTransfer = async () => {
+              if (!user) return;
+              if (transferred) return alert("Reward already transferred.");
+
+              // ✅ Ask user for confirmation
+              const confirmed = window.confirm(
+                `Are you sure you want to transfer ₱${reward.amount.toLocaleString()} to your eWallet?`
+              );
+              if (!confirmed) return;
+
+              try {
+                setLoadingTransfer((prev) => ({ ...prev, [reward.id]: true }));
+
+                const userRef = doc(db, "users", user.uid);
+                const userSnap = await getDoc(userRef);
+                if (!userSnap.exists()) return alert("User not found.");
+
+                const currentBalance = userSnap.data().eWallet || 0;
+                await updateDoc(userRef, {
+                  eWallet: currentBalance + reward.amount,
+                  updatedAt: Date.now(),
+                });
+
+                // Mark this reward as transferred
+                await updateDoc(doc(db, "referralReward", reward.id), {
+                  transferredAmount: reward.amount,
+                  dateTransferred: Date.now(),
+                });
+
+                alert(`₱${reward.amount.toLocaleString()} transferred to eWallet!`);
+              } catch (err) {
+                console.error("Error transferring reward:", err);
+                alert("Failed to transfer reward.");
+              } finally {
+                setLoadingTransfer((prev) => ({ ...prev, [reward.id]: false }));
+              }
+            };
+
+            return (
+              <ListItem key={reward.id} divider>
+                <ListItemText
+                  primary={`₱${reward.amount.toLocaleString()} earned`}
+                  secondary={`From: ${reward.source}${transferredText}`}
+                />
+                {!transferred && (
+                  <Button
+                    variant="contained"
+                    size="small"
+                    color="success"
+                    onClick={handleSingleTransfer}
+                    disabled={loadingTransfer?.[reward.id]}
+                  >
+                    {loadingTransfer?.[reward.id] ? "Processing..." : "Transfer to eWallet"}
+                  </Button>
+                )}
+              </ListItem>
+            );
+          })}
+      </List>
+    )}
   </DialogContent>
   <DialogActions>
     <Button onClick={() => setRewardDialogOpen(false)}>Close</Button>
