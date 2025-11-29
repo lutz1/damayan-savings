@@ -37,6 +37,7 @@ import { auth, db } from "../../firebase";
 import { motion } from "framer-motion";
 import Topbar from "../../components/Topbar";
 import Sidebar from "../../components/Sidebar";
+import ReferralEarningsDialog from "../../components/ReferralEarningsDialog"
 import bgImage from "../../assets/bg.jpg";
 
 const MemberDashboard = () => {
@@ -70,6 +71,8 @@ const [rewardDialogOpen, setRewardDialogOpen] = useState(false);
 const [overrideEarnings, setOverrideEarnings] = useState(0);
 const [overrideList, setOverrideList] = useState([]);
 const [overrideDialogOpen, setOverrideDialogOpen] = useState(false);
+
+const [referralDialogOpen, setReferralDialogOpen] = useState(false);
 
 const handleTransferToWallet = async (amount, type) => {
   if (!user) return;
@@ -472,11 +475,22 @@ const fetchPaybackAndCapital = async (uid) => {
   color="success"
   size="small"
   sx={{ mt: 1 }}
-  onClick={() => handleTransferToWallet(totalEarnings, "referral")}
+  onClick={() => setReferralDialogOpen(true)}
   disabled={totalEarnings <= 0}
 >
   Transfer to eWallet
 </Button>
+
+<ReferralEarningsDialog
+  open={referralDialogOpen}
+  onClose={() => setReferralDialogOpen(false)}
+  balance={totalEarnings}
+  userId={user?.uid}
+  onSuccess={(amountTransferred) => {
+    setTotalEarnings((prev) => prev - amountTransferred);
+    setReferralDialogOpen(false);
+  }}
+/>
 
     </CardContent>
   </Card>
