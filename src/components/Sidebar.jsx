@@ -104,9 +104,8 @@ const Sidebar = ({ open, onToggleSidebar }) => {
 
   // Wellness Products group
   const wellnessGroup = [
-    { text: "Coffee", icon: <CoffeeIcon />, comingSoon: true },
-  ];
-
+  { text: "Coffee", icon: <CoffeeIcon />, path: "/merchant/wellness-coffee" },
+];
   // Combine nav depending on role
   const baseNav = ["ADMIN", "CEO"].includes(upperRole) ? adminNav : memberNav;
 
@@ -229,14 +228,31 @@ const Sidebar = ({ open, onToggleSidebar }) => {
           );
         })}
 
+            {!["ADMIN", "CEO"].includes(upperRole) && (
+      <>
+
         {/* Shopping Section */}
-        <Box sx={{ mt: 1, mb: 1 }}><Divider sx={{ borderColor: "rgba(255,255,255,0.08)" }} /></Box>
+        <Box sx={{ mt: 1, mb: 1 }}>
+          <Divider sx={{ borderColor: "rgba(255,255,255,0.08)" }} />
+        </Box>
         <Box sx={{ display: "flex", alignItems: "center", px: open ? 2 : 1, pb: 0 }}>
-          <ListItemIcon sx={{ color: "rgba(255,255,255,0.85)", minWidth: open ? 40 : "auto" }}><LocalMallIcon /></ListItemIcon>
+          <ListItemIcon sx={{ color: "rgba(255,255,255,0.85)", minWidth: open ? 40 : "auto" }}>
+            <LocalMallIcon />
+          </ListItemIcon>
           {open && (
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
-              <Typography sx={{ color: "rgba(255,255,255,0.75)", fontSize: "0.75rem", textTransform: "uppercase" }}>Shopping</Typography>
-              <IconButton onClick={() => toggleSection("Shopping")} size="small" sx={{ color: "rgba(255,255,255,0.6)", transform: openSections.Shopping ? "rotate(-180deg)" : "rotate(0deg)", transition: "transform 220ms ease" }}>
+              <Typography sx={{ color: "rgba(255,255,255,0.75)", fontSize: "0.75rem", textTransform: "uppercase" }}>
+                Shopping
+              </Typography>
+              <IconButton
+                onClick={() => toggleSection("Shopping")}
+                size="small"
+                sx={{
+                  color: "rgba(255,255,255,0.6)",
+                  transform: openSections.Shopping ? "rotate(-180deg)" : "rotate(0deg)",
+                  transition: "transform 220ms ease",
+                }}
+              >
                 {openSections.Shopping ? <ExpandLess /> : <ExpandMore />}
               </IconButton>
             </Box>
@@ -245,11 +261,24 @@ const Sidebar = ({ open, onToggleSidebar }) => {
         <Collapse in={openSections.Shopping} timeout={300} unmountOnExit>
           <List component="div" disablePadding>
             {shoppingGroup.map((item) => {
-              const comingStyle = item.comingSoon ? { opacity: 0.6, color: "rgba(255,255,255,0.6)", cursor: "default" } : {};
+              const comingStyle = item.comingSoon
+                ? { opacity: 0.6, color: "rgba(255,255,255,0.6)", cursor: "default" }
+                : {};
               return (
                 <Tooltip title={open ? "" : item.text} placement="right" key={item.text} arrow>
-                  <ListItemButton onClick={() => handleNavigate(item)} sx={{ pl: open ? 4 : 2, color: "#fff", backgroundColor: location.pathname === item.path ? "rgba(255,255,255,0.2)" : "transparent", "&:hover": { backgroundColor: "rgba(255,255,255,0.12)" }, ...comingStyle }}>
-                    <ListItemIcon sx={{ color: "inherit", minWidth: open ? 40 : "auto" }}>{item.icon}</ListItemIcon>
+                  <ListItemButton
+                    onClick={() => handleNavigate(item)}
+                    sx={{
+                      pl: open ? 4 : 2,
+                      color: "#fff",
+                      backgroundColor: location.pathname === item.path ? "rgba(255,255,255,0.2)" : "transparent",
+                      "&:hover": { backgroundColor: "rgba(255,255,255,0.12)" },
+                      ...comingStyle,
+                    }}
+                  >
+                    <ListItemIcon sx={{ color: "inherit", minWidth: open ? 40 : "auto" }}>
+                      {item.icon}
+                    </ListItemIcon>
                     {open && <ListItemText primary={item.text} />}
                   </ListItemButton>
                 </Tooltip>
@@ -259,13 +288,27 @@ const Sidebar = ({ open, onToggleSidebar }) => {
         </Collapse>
 
         {/* Wellness Products Section */}
-        <Box sx={{ mt: 1, mb: 1 }}><Divider sx={{ borderColor: "rgba(255,255,255,0.08)" }} /></Box>
+        <Box sx={{ mt: 1, mb: 1 }}>
+          <Divider sx={{ borderColor: "rgba(255,255,255,0.08)" }} />
+        </Box>
         <Box sx={{ display: "flex", alignItems: "center", px: open ? 2 : 1, pb: 0 }}>
-          <ListItemIcon sx={{ color: "rgba(255,255,255,0.85)", minWidth: open ? 40 : "auto" }}><SpaIcon /></ListItemIcon>
+          <ListItemIcon sx={{ color: "rgba(255,255,255,0.85)", minWidth: open ? 40 : "auto" }}>
+            <SpaIcon />
+          </ListItemIcon>
           {open && (
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
-              <Typography sx={{ color: "rgba(255,255,255,0.75)", fontSize: "0.75rem", textTransform: "uppercase" }}>Wellness Products</Typography>
-              <IconButton onClick={() => toggleSection("Wellness Products")} size="small" sx={{ color: "rgba(255,255,255,0.6)", transform: openSections["Wellness Products"] ? "rotate(-180deg)" : "rotate(0deg)", transition: "transform 220ms ease" }}>
+              <Typography sx={{ color: "rgba(255,255,255,0.75)", fontSize: "0.75rem", textTransform: "uppercase" }}>
+                Wellness Products
+              </Typography>
+              <IconButton
+                onClick={() => toggleSection("Wellness Products")}
+                size="small"
+                sx={{
+                  color: "rgba(255,255,255,0.6)",
+                  transform: openSections["Wellness Products"] ? "rotate(-180deg)" : "rotate(0deg)",
+                  transition: "transform 220ms ease",
+                }}
+              >
                 {openSections["Wellness Products"] ? <ExpandLess /> : <ExpandMore />}
               </IconButton>
             </Box>
@@ -273,28 +316,49 @@ const Sidebar = ({ open, onToggleSidebar }) => {
         </Box>
         <Collapse in={openSections["Wellness Products"]} timeout={300} unmountOnExit>
           <List component="div" disablePadding>
-            {wellnessGroup.map((item) => {
-              const comingStyle = item.comingSoon ? { opacity: 0.6, color: "rgba(255,255,255,0.6)", cursor: "default" } : {};
-              return (
-                <Tooltip title={open ? "" : item.text} placement="right" key={item.text} arrow>
-                  <ListItemButton onClick={() => handleNavigate(item)} sx={{ pl: open ? 4 : 2, color: "#fff", backgroundColor: location.pathname === item.path ? "rgba(255,255,255,0.2)" : "transparent", "&:hover": { backgroundColor: "rgba(255,255,255,0.12)" }, ...comingStyle }}>
-                    <ListItemIcon sx={{ color: "inherit", minWidth: open ? 40 : "auto" }}>{item.icon}</ListItemIcon>
-                    {open && <ListItemText primary={item.text} />}
-                  </ListItemButton>
-                </Tooltip>
-              );
-            })}
+            {wellnessGroup.map((item) => (
+              <Tooltip title={open ? "" : item.text} placement="right" key={item.text} arrow>
+                <ListItemButton
+                  onClick={() => handleNavigate(item)}
+                  sx={{
+                    pl: open ? 4 : 2,
+                    color: "#fff",
+                    backgroundColor: location.pathname === item.path ? "rgba(255,255,255,0.2)" : "transparent",
+                    "&:hover": { backgroundColor: "rgba(255,255,255,0.12)" },
+                  }}
+                >
+                  <ListItemIcon sx={{ color: "inherit", minWidth: open ? 40 : "auto" }}>
+                    {item.icon}
+                  </ListItemIcon>
+                  {open && <ListItemText primary={item.text} />}
+                </ListItemButton>
+              </Tooltip>
+            ))}
           </List>
         </Collapse>
 
         {/* Digital Services Section */}
-        <Box sx={{ mt: 1, mb: 1 }}><Divider sx={{ borderColor: "rgba(255,255,255,0.08)" }} /></Box>
+        <Box sx={{ mt: 1, mb: 1 }}>
+          <Divider sx={{ borderColor: "rgba(255,255,255,0.08)" }} />
+        </Box>
         <Box sx={{ display: "flex", alignItems: "center", px: open ? 2 : 1, pb: 0 }}>
-          <ListItemIcon sx={{ color: "rgba(255,255,255,0.85)", minWidth: open ? 40 : "auto" }}><WifiIcon /></ListItemIcon>
+          <ListItemIcon sx={{ color: "rgba(255,255,255,0.85)", minWidth: open ? 40 : "auto" }}>
+            <WifiIcon />
+          </ListItemIcon>
           {open && (
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
-              <Typography sx={{ color: "rgba(255,255,255,0.75)", fontSize: "0.75rem", textTransform: "uppercase" }}>Digital Services</Typography>
-              <IconButton onClick={() => toggleSection("Digital Services")} size="small" sx={{ color: "rgba(255,255,255,0.6)", transform: openSections["Digital Services"] ? "rotate(-180deg)" : "rotate(0deg)", transition: "transform 220ms ease" }}>
+              <Typography sx={{ color: "rgba(255,255,255,0.75)", fontSize: "0.75rem", textTransform: "uppercase" }}>
+                Digital Services
+              </Typography>
+              <IconButton
+                onClick={() => toggleSection("Digital Services")}
+                size="small"
+                sx={{
+                  color: "rgba(255,255,255,0.6)",
+                  transform: openSections["Digital Services"] ? "rotate(-180deg)" : "rotate(0deg)",
+                  transition: "transform 220ms ease",
+                }}
+              >
                 {openSections["Digital Services"] ? <ExpandLess /> : <ExpandMore />}
               </IconButton>
             </Box>
@@ -302,45 +366,150 @@ const Sidebar = ({ open, onToggleSidebar }) => {
         </Box>
         <Collapse in={openSections["Digital Services"]} timeout={300} unmountOnExit>
           <List component="div" disablePadding>
-            {digitalGroup.map((item) => {
-              const comingStyle = item.comingSoon ? { opacity: 0.6, color: "rgba(255,255,255,0.6)", cursor: "default" } : {};
-              return (
-                <Tooltip title={open ? "" : item.text} placement="right" key={item.text} arrow>
-                  <ListItemButton onClick={() => handleNavigate(item)} sx={{ pl: open ? 4 : 2, color: "#fff", backgroundColor: location.pathname === item.path ? "rgba(255,255,255,0.2)" : "transparent", "&:hover": { backgroundColor: "rgba(255,255,255,0.12)" }, ...comingStyle }}>
-                    <ListItemIcon sx={{ color: "inherit", minWidth: open ? 40 : "auto" }}>{item.icon}</ListItemIcon>
-                    {open && <ListItemText primary={item.text} />}
-                  </ListItemButton>
-                </Tooltip>
-              );
-            })}
+            {digitalGroup.map((item) => (
+              <Tooltip title={open ? "" : item.text} placement="right" key={item.text} arrow>
+                <ListItemButton
+                  onClick={() => handleNavigate(item)}
+                  sx={{
+                    pl: open ? 4 : 2,
+                    color: "#fff",
+                    backgroundColor: location.pathname === item.path ? "rgba(255,255,255,0.2)" : "transparent",
+                    "&:hover": { backgroundColor: "rgba(255,255,255,0.12)" },
+                  }}
+                >
+                  <ListItemIcon sx={{ color: "inherit", minWidth: open ? 40 : "auto" }}>
+                    {item.icon}
+                  </ListItemIcon>
+                  {open && <ListItemText primary={item.text} />}
+                </ListItemButton>
+              </Tooltip>
+            ))}
           </List>
         </Collapse>
 
-        {/* Admin Financials Section */}
-        {["ADMIN", "CEO"].includes(upperRole) && (
-          <>
-            <Box sx={{ mt: 1, mb: 1 }}><Divider sx={{ borderColor: "rgba(255,255,255,0.08)" }} /></Box>
-            {open && <Typography sx={{ pl: 3, pt: 1, pb: 1, color: "rgba(255,255,255,0.6)", fontSize: "0.75rem", fontStyle: "italic", textTransform: "uppercase" }}>Financials</Typography>}
-            <ListItemButton onClick={() => toggleSection("Financials")} sx={{ color: "#fff", "&:hover": { backgroundColor: "rgba(255,255,255,0.12)" } }}>
-              <ListItemIcon sx={{ color: "#fff", minWidth: open ? 40 : "auto" }}><MonetizationOnIcon /></ListItemIcon>
-              {open && <ListItemText primary="Financials" />}
-              {open && (openSections.Financials ? <ExpandLess /> : <ExpandMore />)}
-            </ListItemButton>
-            <Collapse in={openSections.Financials} timeout={300} unmountOnExit>
-              <List component="div" disablePadding>
-                {[{ text: "Withdrawals", icon: <AccountBalanceWallet />, path: "/admin/withdrawals" },
-                  { text: "Deposits", icon: <AccountBalanceWallet />, path: "/admin/deposits" },
-                  { text: "Wallet-to-Wallet", icon: <SwapHorizIcon />, path: "/admin/wallet-to-wallet" },
-                ].map((child) => (
-                  <ListItemButton key={child.text} sx={{ pl: open ? 6 : 2, color: "#fff", backgroundColor: location.pathname === child.path ? "rgba(255,255,255,0.25)" : "transparent", "&:hover": { backgroundColor: "rgba(255,255,255,0.12)" } }} onClick={() => handleNavigate(child)}>
-                    <ListItemIcon sx={{ color: "#fff", minWidth: open ? 40 : "auto" }}>{child.icon}</ListItemIcon>
-                    {open && <ListItemText primary={child.text} />}
-                  </ListItemButton>
-                ))}
-              </List>
-            </Collapse>
-          </>
-        )}
+      </>
+    )}
+
+       {/* Admin Financials Section */}
+{["ADMIN", "CEO"].includes(upperRole) && (
+  <>
+    {/* Financials */}
+    <Box sx={{ mt: 1, mb: 1 }}>
+      <Divider sx={{ borderColor: "rgba(255,255,255,0.08)" }} />
+    </Box>
+    {open && (
+      <Typography
+        sx={{
+          pl: 3,
+          pt: 1,
+          pb: 1,
+          color: "rgba(255,255,255,0.6)",
+          fontSize: "0.75rem",
+          fontStyle: "italic",
+          textTransform: "uppercase",
+        }}
+      >
+        Financials
+      </Typography>
+    )}
+    <ListItemButton
+      onClick={() => toggleSection("Financials")}
+      sx={{ color: "#fff", "&:hover": { backgroundColor: "rgba(255,255,255,0.12)" } }}
+    >
+      <ListItemIcon sx={{ color: "#fff", minWidth: open ? 40 : "auto" }}>
+        <MonetizationOnIcon />
+      </ListItemIcon>
+      {open && <ListItemText primary="Financials" />}
+      {open && (openSections.Financials ? <ExpandLess /> : <ExpandMore />)}
+    </ListItemButton>
+    <Collapse in={openSections.Financials} timeout={300} unmountOnExit>
+      <List component="div" disablePadding>
+        {[
+          { text: "Withdrawals", icon: <AccountBalanceWallet />, path: "/admin/withdrawals" },
+          { text: "Deposits", icon: <AccountBalanceWallet />, path: "/admin/deposits" },
+          { text: "Wallet-to-Wallet", icon: <SwapHorizIcon />, path: "/admin/wallet-to-wallet" },
+        ].map((child) => (
+          <ListItemButton
+            key={child.text}
+            sx={{
+              pl: open ? 6 : 2,
+              color: "#fff",
+              backgroundColor: location.pathname === child.path ? "rgba(255,255,255,0.25)" : "transparent",
+              "&:hover": { backgroundColor: "rgba(255,255,255,0.12)" },
+            }}
+            onClick={() => handleNavigate(child)}
+          >
+            <ListItemIcon sx={{ color: "#fff", minWidth: open ? 40 : "auto" }}>{child.icon}</ListItemIcon>
+            {open && <ListItemText primary={child.text} />}
+          </ListItemButton>
+        ))}
+      </List>
+    </Collapse>
+
+    {/* Manage Merchant Section */}
+    <Box sx={{ mt: 1, mb: 1 }}>
+      <Divider sx={{ borderColor: "rgba(255,255,255,0.08)" }} />
+    </Box>
+    {open && (
+      <Typography
+        sx={{
+          pl: 3,
+          pt: 1,
+          pb: 1,
+          color: "rgba(255,255,255,0.6)",
+          fontSize: "0.75rem",
+          fontStyle: "italic",
+          textTransform: "uppercase",
+        }}
+      >
+        Manage Merchant
+      </Typography>
+    )}
+    <ListItemButton
+      onClick={() => toggleSection("Manage Merchant")}
+      sx={{ color: "#fff", "&:hover": { backgroundColor: "rgba(255,255,255,0.12)" } }}
+    >
+      <ListItemIcon sx={{ color: "#fff", minWidth: open ? 40 : "auto" }}>
+        <LocalMallIcon />
+      </ListItemIcon>
+      {open && <ListItemText primary="Manage Merchant" />}
+      {open && (openSections["Manage Merchant"] ? <ExpandLess /> : <ExpandMore />)}
+    </ListItemButton>
+    <Collapse in={openSections["Manage Merchant"]} timeout={300} unmountOnExit>
+      <List component="div" disablePadding>
+        {[
+          { text: "Market Place", icon: <ShoppingCartIcon />, comingSoon: true },
+          { text: "Groceries", icon: <LocalGroceryStoreIcon />, comingSoon: true },
+          { text: "Food", icon: <FastfoodIcon />, comingSoon: true },
+          { text: "Coffee", icon: <CoffeeIcon />, path: "/merchant/wellness-coffee" },
+          { text: "E-Load", icon: <PhoneAndroidIcon />, comingSoon: true },
+          { text: "Remittances", icon: <SendIcon />, comingSoon: true },
+        ].map((item) => {
+          const comingStyle = item.comingSoon
+            ? { opacity: 0.6, color: "rgba(255,255,255,0.6)", cursor: "default" }
+            : {};
+          return (
+            <Tooltip title={open ? "" : item.text} placement="right" key={item.text} arrow>
+              <ListItemButton
+                onClick={() => handleNavigate(item)}
+                sx={{
+                  pl: open ? 6 : 2,
+                  color: "#fff",
+                  backgroundColor: location.pathname === item.path ? "rgba(255,255,255,0.2)" : "transparent",
+                  "&:hover": { backgroundColor: "rgba(255,255,255,0.12)" },
+                  ...comingStyle,
+                }}
+              >
+                <ListItemIcon sx={{ color: "inherit", minWidth: open ? 40 : "auto" }}>{item.icon}</ListItemIcon>
+                {open && <ListItemText primary={item.text} />}
+              </ListItemButton>
+            </Tooltip>
+          );
+        })}
+      </List>
+    </Collapse>
+  </>
+)}
       </List>
 
       {/* Footer */}
