@@ -417,7 +417,8 @@ const Topbar = ({ open, onToggleSidebar }) => {
     const loggedInEmail = "dionesiovelasquez@gmail.com"; // Example, fetch from your auth context/state
 
     // Disable list if logged-in email matches
-    const isDisabled = ["dionesiovelasquez@gmail.com", "ericalvarez@gmail.com"].includes(loggedInEmail);
+    const isDisabled = ["dionesiovelasquez@gmail.com", "ericalvarez@gmail.com"].includes(loggedInEmail) &&
+      item.label !== "Logout";
 
     return (
       <ListItem disablePadding key={i}>
