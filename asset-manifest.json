@@ -1,7 +1,7 @@
 {
   "files": {
     "main.css": "/damayan-savings/static/css/main.5d5dd027.css",
-    "main.js": "/damayan-savings/static/js/main.dfdaddfd.js",
+    "main.js": "/damayan-savings/static/js/main.6042fda6.js",
     "static/js/453.4ca22cd3.chunk.js": "/damayan-savings/static/js/453.4ca22cd3.chunk.js",
     "static/media/slide11.jpg": "/damayan-savings/static/media/slide11.6066d1a89e38ab1750b3.jpg",
     "static/media/bpii.jpg": "/damayan-savings/static/media/bpii.6da8918af22d7ed8a156.jpg",
@@ -26,11 +26,11 @@
     "index.html": "/damayan-savings/index.html",
     "static/media/en-US.cjs": "/damayan-savings/static/media/en-US.c3a6319ea4f219498e6f.cjs",
     "main.5d5dd027.css.map": "/damayan-savings/static/css/main.5d5dd027.css.map",
-    "main.dfdaddfd.js.map": "/damayan-savings/static/js/main.dfdaddfd.js.map",
+    "main.6042fda6.js.map": "/damayan-savings/static/js/main.6042fda6.js.map",
     "453.4ca22cd3.chunk.js.map": "/damayan-savings/static/js/453.4ca22cd3.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.5d5dd027.css",
-    "static/js/main.dfdaddfd.js"
+    "static/js/main.6042fda6.js"
   ]
 }
