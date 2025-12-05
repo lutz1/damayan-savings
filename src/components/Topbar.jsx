@@ -413,12 +413,7 @@ const Topbar = ({ open, onToggleSidebar }) => {
     { icon: <LogoutIcon sx={{ color: "#FF5252" }} />, label: "Logout", action: handleOpenLogoutDialog },
   ].map((item, i) => {
     
-    // Replace this with your actual logged-in user email
-    const loggedInEmail = "dionesiovelasquez@gmail.com"; // Example, fetch from your auth context/state
-
-    // Disable list if logged-in email matches
-    const isDisabled = ["dionesiovelasquez@gmail.com", "ericalvarez@gmail.com"].includes(loggedInEmail) &&
-      item.label !== "Logout";
+    const isDisabled = false;
 
     return (
       <ListItem disablePadding key={i}>
