@@ -1,7 +1,6 @@
 import React from "react";
 import { Box, Typography, Container, Grid, Paper, Divider } from "@mui/material";
 import { motion } from "framer-motion";
-import aboutbg from "../../assets/aboutbg.png";
 
 const containerVariants = {
   hidden: { opacity: 0, y: 30 },
@@ -24,22 +23,6 @@ const AboutSection = () => {
         
       }}
     >
-    {/* Background Image */}
-          <Box
-            component="img"
-            src={aboutbg}
-            alt="About Us Background"
-            sx={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              opacity: 0.80, // adjust opacity here
-              zIndex: 0,
-            }}
-          />
       <Container maxWidth="lg" sx={{ position: "relative", zIndex: 2 }}>
         {/* Header */}
         <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={containerVariants}>

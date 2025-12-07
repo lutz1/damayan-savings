@@ -19,7 +19,7 @@ import { MapContainer, TileLayer, Marker, Circle, Popup } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { motion } from "framer-motion";
-import contactBg from "../../assets/contact.png"; // ✅ Correct path
+import contactBg from "../../assets/contact.png"; 
 import TelegramIcon from "@mui/icons-material/Telegram";
 import SvgIcon from "@mui/material/SvgIcon";
 // Fix default marker icon

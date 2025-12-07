@@ -1,36 +1,17 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Box, Typography, Button, Stack } from "@mui/material";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useState, useEffect } from "react";
+import { Box, Typography, Button, Stack, useMediaQuery } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
+import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import slideMobile from "../../assets/group.jpg";
+import slide1 from "../../assets/herosec.png";
 
-import slide1 from "../../assets/slide1.jpg";
-import slide2 from "../../assets/slide2.jpg";
-import slide3 from "../../assets/slide3.jpg";
-import slide4 from "../../assets/slide4.jpg";
-import slide5 from "../../assets/slide5.jpg";
-import slide6 from "../../assets/slide6.jpg";
-import slide7 from "../../assets/slide7.jpg";
-import slide8 from "../../assets/slide8.jpg";
-import slide9 from "../../assets/slide9.jpg";
-import slide10 from "../../assets/slide10.jpg";
-import slide11 from "../../assets/slide11.jpg";
-import slide12 from "../../assets/slide12.jpg";
-import slide13 from "../../assets/slide13.jpg";
 
 const slides = [
-  { image: slide1, caption: "Empowering Families through Damayan Savings Program" },
-  { image: slide2, caption: "Together, Building Financial Security and Compassion" },
-  { image: slide3, caption: "TCLC – Lingap, Malasakit, at Kalinga sa Kapwa" },
-  { image: slide4, caption: "Supporting Communities with Education and Health Initiatives" },
-  { image: slide5, caption: "Bridging Financial Gaps for the Underprivileged" },
-  { image: slide6, caption: "Creating Sustainable Livelihood Programs" },
-  { image: slide7, caption: "Uniting People through Acts of Kindness" },
-  { image: slide8, caption: "Investing in Local Community Growth" },
-  { image: slide9, caption: "Empowering Women and Youth for a Brighter Future" },
-  { image: slide10, caption: "Join Damayan: Building a Compassionate Society Together" },
-  { image: slide11, caption: "Empowering Families through Damayan Savings Program" },
-  { image: slide12, caption: "Together, Building Financial Security and Compassion" },
-  { image: slide13, caption: "TCLC – Lingap, Malasakit, at Kalinga sa Kapwa" },
+  { caption: "Empowering Families through Damayan Savings Program" },
+  { caption: "Together, Building Financial Security and Compassion" },
+  { caption: "TCLC – Lingap, Malasakit, at Kalinga sa Kapwa" },
+  { caption: "Supporting Communities with Education and Health Initiatives" }
 ];
 
 const glassmorphicStyle = {
@@ -42,18 +23,17 @@ const glassmorphicStyle = {
 
 const HeroSection = () => {
   const [index, setIndex] = useState(0);
-  const [direction, setDirection] = useState(1);
-  const slideContainerRef = useRef(null);
-  const navigate = useNavigate(); // ✅ for redirect
+  const navigate = useNavigate();
 
-  // Automatic slide transition
   useEffect(() => {
     const timer = setInterval(() => {
-      setDirection(1);
       setIndex((prev) => (prev + 1) % slides.length);
-    }, 6000);
+    }, 5000);
     return () => clearInterval(timer);
   }, []);
+
+const theme = useTheme();
+const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   return (
     <Box
@@ -70,58 +50,36 @@ const HeroSection = () => {
         textAlign: "center",
       }}
     >
-      {/* Background slideshow */}
-      <AnimatePresence mode="wait" custom={direction}>
-        <motion.div
-          ref={slideContainerRef}
-          style={{
-            display: "flex",
-            width: `${(slides.length + 1) * 100}%`,
-            position: "absolute",
-            top: 0,
-            left: 0,
-            height: "100vh",
-          }}
-          animate={{ x: `-${(index * 100) / (slides.length + 1)}%` }}
-          transition={{ duration: 1.2, ease: "easeInOut" }}
-          onAnimationComplete={() => {
-            if (index === slides.length) setIndex(0);
-          }}
-        >
-          {[...slides, slides[0]].map((slide, i) => (
-            <Box
-              key={i}
-              sx={{
-                flex: `0 0 ${100 / (slides.length + 1)}%`,
-                height: "100vh",
-                backgroundImage: `url(${slide.image})`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-              }}
-            />
-          ))}
-        </motion.div>
-      </AnimatePresence>
+      {/* FIXED BACKGROUND */}
+       <Box
+        sx={{
+          position: "absolute",
+          inset: 0,
+          backgroundImage: `url(${isMobile ? slideMobile : slide1})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          zIndex: 0,
+        }}
+      />
 
-      {/* Gradient overlay */}
+      {/* DARK OVERLAY */}
       <Box
         sx={{
           position: "absolute",
           inset: 0,
-          background: "linear-gradient(to bottom, rgba(0,0,0,0.4), rgba(25,118,210,0.3))",
+          background: "rgba(0, 0, 0, 0)",
           zIndex: 1,
         }}
       />
-
-      {/* Foreground content */}
-      <Box sx={{ position: "relative", zIndex: 2, maxWidth: 900, px: 1, mt: 0 }}>
-        {/* Main Title */}
+      
+      {/* FOREGROUND CONTENT */}
+      <Box sx={{ position: "relative", zIndex: 2, maxWidth: 900, px: 1 }}>
+        {/* Title */}
         <motion.div
-          key={`title-${index}`}
+          key={`title`}
           initial={{ opacity: 0, y: -50 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -50 }}
-          transition={{ duration: 1.2, ease: "easeOut", delay: 0.2 }}
+          transition={{ duration: 1.2 }}
         >
           <Typography
             variant="h4"
@@ -134,11 +92,10 @@ const HeroSection = () => {
 
         {/* Subtitle */}
         <motion.div
-          key={`subtitle-${index}`}
+          key={`subtitle`}
           initial={{ opacity: 0, x: 50 }}
           animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: 50 }}
-          transition={{ duration: 1, ease: "easeOut", delay: 0.5 }}
+          transition={{ duration: 1 }}
         >
           <Box sx={glassmorphicStyle} display="inline-block" mb={4}>
             <Typography variant="h6" sx={{ opacity: 0.9 }}>
@@ -147,13 +104,12 @@ const HeroSection = () => {
           </Box>
         </motion.div>
 
-        {/* Caption */}
+        {/* ROTATING CAPTION TEXT ONLY */}
         <motion.div
           key={`caption-${index}`}
           initial={{ opacity: 0, x: -50 }}
           animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -50 }}
-          transition={{ duration: 1, ease: "easeOut", delay: 0.8 }}
+          transition={{ duration: 1 }}
         >
           <Box sx={{ ...glassmorphicStyle, mb: 20, maxWidth: "80%", margin: "0 auto" }}>
             <Typography variant="subtitle1" sx={{ fontStyle: "italic" }}>
@@ -162,13 +118,11 @@ const HeroSection = () => {
           </Box>
         </motion.div>
 
-        {/* Call to Action Button */}
+        {/* CTA Button */}
         <motion.div
-          key={`button-${index}`}
           initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 50 }}
-          transition={{ duration: 1.2, ease: "easeOut", delay: 1.1 }}
+          transition={{ duration: 1.2 }}
           whileHover={{ scale: 1.08 }}
         >
           <Button
@@ -185,28 +139,25 @@ const HeroSection = () => {
               "&:hover": { backgroundColor: "#ffca28" },
               mt: 5,
             }}
-            onClick={() => navigate("/login")} // ✅ redirect to login
+            onClick={() => navigate("/login")}
           >
             Apply for Damayan Savings
           </Button>
         </motion.div>
 
-        {/* Slide Indicators */}
+        {/* Indicators */}
         <Stack direction="row" spacing={1} justifyContent="center" sx={{ mt: 8 }}>
           {slides.map((_, i) => (
             <Box
               key={i}
-              onClick={() => {
-                setDirection(i > index ? 1 : -1);
-                setIndex(i);
-              }}
+              onClick={() => setIndex(i)}
               sx={{
                 width: 12,
                 height: 12,
                 borderRadius: "50%",
                 backgroundColor: i === index ? "#FFD700" : "rgba(255,255,255,0.6)",
                 cursor: "pointer",
-                transition: "background-color 0.3s",
+                transition: "0.3s",
               }}
             />
           ))}
