@@ -218,7 +218,6 @@ const Login = () => {
             <motion.div
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.97 }}
-              onClick={() => setOpenTerms(true)}
               style={{ width: "100%" }}
             >
               <Box
@@ -227,7 +226,7 @@ const Login = () => {
                   alignItems: "center",
                   mt: 1.5,
                   cursor: "pointer",
-                  color: acceptedTerms ? "#00e676" : "#fff", // turns green when accepted
+                  color: acceptedTerms ? "#f8f8faff" : "#fff", // turns green when accepted
                   fontSize: "0.85rem",
                   backgroundColor: "rgba(255,255,255,0.08)",
                   px: 1.5,
@@ -235,7 +234,7 @@ const Login = () => {
                   borderRadius: 2,
                   transition: "0.25s ease",
                   border: acceptedTerms
-                    ? "1px solid #00e676"
+                    ? "1px solid #2aa2f3ff"
                     : "1px solid rgba(255,255,255,0.2)",
                   "&:hover": {
                     backgroundColor: "rgba(255,255,255,0.15)",
@@ -246,9 +245,16 @@ const Login = () => {
                   type="checkbox"
                   checked={acceptedTerms}
                   onChange={(e) => {
-                    e.stopPropagation(); // prevents opening dialog instantly
-                    if (e.target.checked) setOpenTerms(true);
-                    else setAcceptedTerms(false);
+                    e.stopPropagation(); // Prevent row click
+                    const checked = e.target.checked;
+
+                    if (checked) {
+                      // Only open dialog when CHECKING
+                      setOpenTerms(true);
+                    } else {
+                      // If unchecked, just remove acceptance without opening dialog
+                      setAcceptedTerms(false);
+                    }
                   }}
                   whileTap={{ scale: 0.7 }}
                   style={{
@@ -256,10 +262,9 @@ const Login = () => {
                     width: 20,
                     height: 20,
                     cursor: "pointer",
-                    accentColor: acceptedTerms ? "#00e676" : "#1976d2",
+                    accentColor: acceptedTerms ? "#2aa2f3ff" : "#1976d2",
                   }}
                 />
-
                 <Typography
                   sx={{
                     textDecoration: "underline",
