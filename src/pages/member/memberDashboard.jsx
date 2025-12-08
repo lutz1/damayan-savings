@@ -42,7 +42,19 @@ import bgImage from "../../assets/bg.jpg";
 import GroupSalesDialog from "../../components/GroupSalesDialog";
 
 const MemberDashboard = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+  // Optional: detect mobile width
+  return window.innerWidth >= 960 ? true : false; // desktop open, mobile closed
+});
+
+useEffect(() => {
+  const handleResize = () => {
+    setSidebarOpen(window.innerWidth >= 960);
+  };
+  window.addEventListener("resize", handleResize);
+  return () => window.removeEventListener("resize", handleResize);
+}, []);
+
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
