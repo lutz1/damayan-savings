@@ -55,9 +55,9 @@ const Sidebar = ({ open, onToggleSidebar }) => {
   const [openSections, setOpenSections] = useState({
     Income: false,
     Financials: false,
-    Shopping: true,
-    "Digital Services": true,
-    "Wellness Products": true,
+    Shopping: false,
+    "Digital Services": false,
+    "Wellness Products": false,
   });
 
   const [comingSoonOpen, setComingSoonOpen] = useState(false);
