@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react"; 
+import React, { useEffect, useState, useCallback } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -20,17 +20,6 @@ import { collection, query, where, onSnapshot, doc, getDoc } from "firebase/fire
 
 const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
   const [history, setHistory] = useState([]);
-  const [username, setUsername] = useState("");
-
-  // Fetch username once
-  useEffect(() => {
-    const fetchUsername = async () => {
-      if (!auth?.currentUser) return;
-      const snap = await getDoc(doc(db, "users", auth.currentUser.uid));
-      if (snap.exists()) setUsername(snap.data().username || "");
-    };
-    fetchUsername();
-  }, [auth, db]);
 
   const getTimestampValue = useCallback((ts) => {
     if (!ts) return 0;
@@ -51,78 +40,99 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
   );
 
   useEffect(() => {
-    if (!auth?.currentUser || !username) return;
+    if (!open) return; // Only setup listeners when dialog is open
+    if (!auth?.currentUser) return;
 
-    const uid = auth.currentUser.uid;
-    const unsubscribers = [];
+    const init = async () => {
+      const uid = auth.currentUser.uid;
 
-    const setupListener = (q, sourceLabel, transformFn) => {
-      const unsub = onSnapshot(q, (snapshot) => {
-        const data = snapshot.docs.map((doc) => transformFn({ id: doc.id, ...doc.data() }));
-        setHistory((prev) => mergeAndSort(prev, data, sourceLabel));
-      });
-      unsubscribers.push(unsub);
+      // Fetch username
+      const snap = await getDoc(doc(db, "users", uid));
+      const username = snap.exists() ? snap.data().username || "" : "";
+      if (!username) return;
+
+      const unsubscribers = [];
+
+      const setupListener = (q, sourceLabel, transformFn) => {
+        const unsub = onSnapshot(q, (snapshot) => {
+          const data = snapshot.docs.map((doc) => transformFn({ id: doc.id, ...doc.data() }));
+          setHistory((prev) => mergeAndSort(prev, data, sourceLabel));
+        });
+        unsubscribers.push(unsub);
+      };
+
+      // Purchase Codes
+      setupListener(
+        query(collection(db, "purchaseCodes"), where("userId", "==", uid)),
+        "purchase",
+        (d) => ({ ...d, source: "purchase", displayType: "Purchase Codes", isCredit: false })
+      );
+
+      // Withdrawals
+      setupListener(
+        query(collection(db, "withdrawals"), where("userId", "==", uid)),
+        "withdrawal",
+        (d) => ({ ...d, source: "withdrawal", displayType: "Withdrawal", isCredit: false })
+      );
+
+      // Deposits
+      setupListener(
+        query(collection(db, "deposits"), where("userId", "==", uid)),
+        "deposit",
+        (d) => ({ ...d, source: "deposit", displayType: "Deposit", isCredit: true })
+      );
+
+      // Transfers (sent)
+      setupListener(
+        query(collection(db, "transferFunds"), where("senderId", "==", uid)),
+        "transfer",
+        (d) => ({
+          ...d,
+          source: "transfer",
+          displayType: `Transfer → ${d.recipientUsername || "User"}`,
+          isCredit: false,
+        })
+      );
+
+      // Transfers (received)
+      setupListener(
+        query(collection(db, "transferFunds"), where("recipientUsername", "==", username)),
+        "received",
+        (d) => ({
+          ...d,
+          source: "received",
+          displayType: `Transfer credited ₱${d.netAmount || d.amount || 0} from ${d.senderUsername || d.senderName || "User"}`,
+          isCredit: true,
+        })
+      );
+
+      // Payback Entries
+      setupListener(
+        query(collection(db, "paybackEntries"), where("userId", "==", uid)),
+        "payback",
+        (d) => ({
+          ...d,
+          source: "payback",
+          displayType: `Payback Entry (${d.role || "N/A"})`,
+          isCredit: false,
+        })
+      );
+
+      return () => unsubscribers.forEach((unsub) => unsub());
     };
 
-    // Purchase Codes
-    setupListener(
-      query(collection(db, "purchaseCodes"), where("userId", "==", uid)),
-      "purchase",
-      (d) => ({ ...d, source: "purchase", displayType: "Purchase Codes", isCredit: false })
-    );
+    const cleanup = init();
 
-    // Withdrawals
-    setupListener(
-      query(collection(db, "withdrawals"), where("userId", "==", uid)),
-      "withdrawal",
-      (d) => ({ ...d, source: "withdrawal", displayType: "Withdrawal", isCredit: false })
-    );
-
-    // Deposits
-    setupListener(
-      query(collection(db, "deposits"), where("userId", "==", uid)),
-      "deposit",
-      (d) => ({ ...d, source: "deposit", displayType: "Deposit", isCredit: true })
-    );
-
-    // Transfers (sent)
-    setupListener(
-      query(collection(db, "transferFunds"), where("senderId", "==", uid)),
-      "transfer",
-      (d) => ({
-        ...d,
-        source: "transfer",
-        displayType: `Transfer → ${d.recipientUsername || "User"}`,
-        isCredit: false,
-      })
-    );
-
-    // Transfers (received)
-    setupListener(
-      query(collection(db, "transferFunds"), where("recipientUsername", "==", username)),
-      "received",
-      (d) => ({
-        ...d,
-        source: "received",
-        displayType: `Transfer credited ₱${d.netAmount || d.amount || 0} from ${d.senderUsername || d.senderName || "User"}`,
-        isCredit: true,
-      })
-    );
-
-    // Payback Entries
-    setupListener(
-      query(collection(db, "paybackEntries"), where("userId", "==", uid)),
-      "payback",
-      (d) => ({
-        ...d,
-        source: "payback",
-        displayType: `Payback Entry (${d.role || "N/A"})`,
-        isCredit: false,
-      })
-    );
-
-    return () => unsubscribers.forEach((unsub) => unsub());
-  }, [db, auth, username, mergeAndSort]);
+    // Cleanup listeners on close
+    return () => {
+      setHistory([]); // Reset history when dialog closes
+      if (cleanup?.then) {
+        cleanup.then((fn) => fn && fn());
+      } else if (typeof cleanup === "function") {
+        cleanup();
+      }
+    };
+  }, [open, auth, db, mergeAndSort]);
 
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
@@ -153,17 +163,36 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
       onClose={onClose}
       maxWidth="xs"
       fullWidth
-      PaperProps={{ sx: { borderRadius: 3, background: "rgba(25,25,25,0.95)", color: "#fff", p: 1, boxShadow: "0 8px 32px rgba(0,0,0,0.6)" } }}
+      PaperProps={{
+        sx: {
+          borderRadius: 3,
+          background: "rgba(25,25,25,0.95)",
+          color: "#fff",
+          p: 1,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+        },
+      }}
     >
-      <DialogTitle sx={{ textAlign: "center", fontWeight: 600, borderBottom: "1px solid rgba(255,255,255,0.15)" }}>
+      <DialogTitle
+        sx={{
+          textAlign: "center",
+          fontWeight: 600,
+          borderBottom: "1px solid rgba(255,255,255,0.15)",
+        }}
+      >
         E-Wallet History
       </DialogTitle>
       <DialogContent>
         {history.length > 0 ? (
           <List dense sx={{ maxHeight: 400, overflowY: "auto" }}>
             {history.map((item) => {
-              const amount = item.source === "received" && item.status === "Approved" ? item.netAmount || item.amount : item.amount;
-              const formattedAmount = Number(amount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 });
+              const amount =
+                item.source === "received" && item.status === "Approved"
+                  ? item.netAmount || item.amount
+                  : item.amount;
+              const formattedAmount = Number(amount || 0).toLocaleString("en-PH", {
+                minimumFractionDigits: 2,
+              });
               if (item.source === "received" && item.status !== "Approved") return null;
 
               return (
@@ -180,31 +209,66 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
                   <ListItemText
                     primary={
                       <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                        {item.isCredit ? <CreditIcon sx={{ color: "#4CAF50", fontSize: 22 }} /> : <DebitIcon sx={{ color: "#FF5252", fontSize: 22 }} />}
-                        <Typography component="span" sx={{ fontWeight: 600, color: item.isCredit ? "#4CAF50" : "#FF5252" }}>
+                        {item.isCredit ? (
+                          <CreditIcon sx={{ color: "#4CAF50", fontSize: 22 }} />
+                        ) : (
+                          <DebitIcon sx={{ color: "#FF5252", fontSize: 22 }} />
+                        )}
+                        <Typography
+                          component="span"
+                          sx={{
+                            fontWeight: 600,
+                            color: item.isCredit ? "#4CAF50" : "#FF5252",
+                          }}
+                        >
                           {item.isCredit ? `+₱${formattedAmount}` : `-₱${formattedAmount}`}
                         </Typography>
                       </Box>
                     }
                     secondary={
-                      <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.75)", fontSize: 12 }}>
+                      <Typography
+                        variant="body2"
+                        sx={{ color: "rgba(255,255,255,0.75)", fontSize: 12 }}
+                      >
                         {item.displayType} • {formatDate(item.createdAt)}
                       </Typography>
                     }
                   />
-                  <Chip size="small" label={item.status || "Pending"} color={getStatusColor(item.status)} sx={{ textTransform: "capitalize", fontWeight: 600, fontSize: 11, ml: 1 }} />
+                  <Chip
+                    size="small"
+                    label={item.status || "Pending"}
+                    color={getStatusColor(item.status)}
+                    sx={{
+                      textTransform: "capitalize",
+                      fontWeight: 600,
+                      fontSize: 11,
+                      ml: 1,
+                    }}
+                  />
                 </ListItem>
               );
             })}
           </List>
         ) : (
-          <Typography variant="body2" sx={{ textAlign: "center", color: "rgba(255,255,255,0.7)", py: 3 }}>
+          <Typography
+            variant="body2"
+            sx={{ textAlign: "center", color: "rgba(255,255,255,0.7)", py: 3 }}
+          >
             No wallet history yet.
           </Typography>
         )}
       </DialogContent>
       <DialogActions sx={{ justifyContent: "center", pb: 2 }}>
-        <Button onClick={onClose} variant="outlined" color="inherit" sx={{ borderColor: "rgba(255,255,255,0.3)", color: "#fff", "&:hover": { background: "rgba(255,255,255,0.1)" } }}>
+        <Button
+          onClick={onClose}
+          variant="outlined"
+          color="inherit"
+          sx={{
+            borderColor: "rgba(255,255,255,0.3)",
+            color: "#fff",
+            "&:hover": { background: "rgba(255,255,255,0.1)" },
+          }}
+        >
           Close
         </Button>
       </DialogActions>
