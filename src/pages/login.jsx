@@ -17,6 +17,7 @@ import { InputAdornment, IconButton } from "@mui/material";
 import bgImage from "../assets/bg.jpg";
 import tclcLogo from "../assets/tclc-logo1.png";
 import damayanLogo from "../assets/damayan.png";
+import TermsAndConditions from "../components/TermsAndConditions";
 
 const Login = () => {
   const [loading, setLoading] = useState(false);
@@ -24,6 +25,9 @@ const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [openTerms, setOpenTerms] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+
 
   // ✅ Redirect users based on role
   const handleRedirect = (role) => {
@@ -187,37 +191,96 @@ const Login = () => {
               sx={textFieldStyle}
             />
             <TextField
-  label="Password"
-  type={showPassword ? "text" : "password"}
-  fullWidth
-  required
-  margin="normal"
-  value={password}
-  onChange={(e) => setPassword(e.target.value)}
-  sx={textFieldStyle}
-  InputProps={{
-    endAdornment: (
-      <InputAdornment position="end">
-        <IconButton
-          onClick={() => setShowPassword((prev) => !prev)}
-          edge="end"
-          sx={{ color: "#fff" }}
-        >
-          {showPassword ? <VisibilityOff /> : <Visibility />}
-        </IconButton>
-      </InputAdornment>
-    ),  
-  }}
-/>
-            <Button
-              type="submit"
-              variant="contained"
+              label="Password"
+              type={showPassword ? "text" : "password"}
               fullWidth
-              disabled={loading}
-              sx={buttonStyle}
+              required
+              margin="normal"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              sx={textFieldStyle}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      edge="end"
+                      sx={{ color: "#fff" }}
+                    >
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),  
+              }}
+            />
+
+            {/* Terms & Conditions */}
+            <motion.div
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => setOpenTerms(true)}
+              style={{ width: "100%" }}
             >
-              {loading ? <CircularProgress size={24} color="inherit" /> : "Login"}
-            </Button>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  mt: 1.5,
+                  cursor: "pointer",
+                  color: acceptedTerms ? "#00e676" : "#fff", // turns green when accepted
+                  fontSize: "0.85rem",
+                  backgroundColor: "rgba(255,255,255,0.08)",
+                  px: 1.5,
+                  py: 1,
+                  borderRadius: 2,
+                  transition: "0.25s ease",
+                  border: acceptedTerms
+                    ? "1px solid #00e676"
+                    : "1px solid rgba(255,255,255,0.2)",
+                  "&:hover": {
+                    backgroundColor: "rgba(255,255,255,0.15)",
+                  },
+                }}
+              >
+                <motion.input
+                  type="checkbox"
+                  checked={acceptedTerms}
+                  onChange={(e) => {
+                    e.stopPropagation(); // prevents opening dialog instantly
+                    if (e.target.checked) setOpenTerms(true);
+                    else setAcceptedTerms(false);
+                  }}
+                  whileTap={{ scale: 0.7 }}
+                  style={{
+                    marginRight: "10px",
+                    width: 20,
+                    height: 20,
+                    cursor: "pointer",
+                    accentColor: acceptedTerms ? "#00e676" : "#1976d2",
+                  }}
+                />
+
+                <Typography
+                  sx={{
+                    textDecoration: "underline",
+                    userSelect: "none",
+                    fontSize: "0.88rem",
+                  }}
+                >
+                  I agree to the Standard Terms & Conditions Policy
+                </Typography>
+              </Box>
+            </motion.div>
+
+           <Button
+            type="submit"
+            variant="contained"
+            fullWidth
+            disabled={loading || !acceptedTerms}
+            sx={buttonStyle}
+          >
+            {loading ? <CircularProgress size={24} color="inherit" /> : "Login"}
+          </Button>
           </form>
 
           <Typography
@@ -231,6 +294,16 @@ const Login = () => {
             © 2025 Damayan Savings. All rights reserved.
           </Typography>
         </Paper>
+
+        {/* Terms & Conditions Dialog */}
+        <TermsAndConditions
+          open={openTerms}
+          onClose={() => setOpenTerms(false)}
+          onAccept={() => {
+            setAcceptedTerms(true);
+            setOpenTerms(false);
+          }}
+        />
       </motion.div>
     </Box>
   );

@@ -12,7 +12,6 @@ import {
   TableHead,
   TableRow,
   CircularProgress,
-  Button,
   Stack,
   Snackbar,
   Alert,
@@ -34,7 +33,6 @@ import {
   doc,
   getDocs,
   where,
-  getDoc,
 } from "firebase/firestore";
 import { db } from "../../firebase";
 import Topbar from "../../components/Topbar";
@@ -134,9 +132,9 @@ const AdminWalletToWallet = () => {
       const dataWithNames = await Promise.all(
         data.map(async (t) => {
           if (!t.senderName) {
-            const senderName = await fetchSenderName(t.senderEmail || t.userId);
-            return { ...t, senderName };
+            t.senderName = await fetchSenderName(t.senderEmail || t.userId);
           }
+          await autoApproveTransfer(t); // ✅ Auto approve pending transfers
           return t;
         })
       );
@@ -155,58 +153,40 @@ const AdminWalletToWallet = () => {
     return () => unsubscribe();
   }, []);
 
-  // Approve/Reject
-  const handleAction = async (id, status) => {
-    try {
-      const transferRef = doc(db, "transferFunds", id);
-      const transferSnap = await getDoc(transferRef);
-      if (!transferSnap.exists()) throw new Error("Transfer not found.");
-      const transfer = transferSnap.data();
+  const autoApproveTransfer = async (transfer) => {
+  try {
+    if (transfer.status !== "Pending") return;
 
-      if (status === "Approved") {
-        const senderQuery = query(
-          collection(db, "users"),
-          where("email", "==", transfer.senderEmail)
-        );
-        const senderSnapshot = await getDocs(senderQuery);
-        if (senderSnapshot.empty) throw new Error("Sender not found.");
-        const senderDoc = senderSnapshot.docs[0];
-        const senderData = senderDoc.data();
-        const senderRef = doc(db, "users", senderDoc.id);
-        if (senderData.eWallet < transfer.amount) throw new Error("Sender has insufficient balance.");
+    const transferRef = doc(db, "transferFunds", transfer.id);
 
-        await updateDoc(senderRef, { eWallet: senderData.eWallet - transfer.amount });
+    // Deduct from sender
+    const senderQuery = query(collection(db, "users"), where("email", "==", transfer.senderEmail));
+    const senderSnapshot = await getDocs(senderQuery);
+    if (senderSnapshot.empty) throw new Error("Sender not found.");
+    const senderDoc = senderSnapshot.docs[0];
+    const senderData = senderDoc.data();
+    const senderRef = doc(db, "users", senderDoc.id);
 
-        const recipientQuery = query(
-          collection(db, "users"),
-          where("username", "==", transfer.recipientUsername)
-        );
-        const recipientSnapshot = await getDocs(recipientQuery);
-        if (recipientSnapshot.empty) throw new Error("Recipient not found.");
-        const recipientDoc = recipientSnapshot.docs[0];
-        const recipientData = recipientDoc.data();
-        const recipientRef = doc(db, "users", recipientDoc.id);
+    if (senderData.eWallet < transfer.amount) throw new Error("Sender has insufficient balance.");
+    await updateDoc(senderRef, { eWallet: senderData.eWallet - transfer.amount });
 
-        await updateDoc(recipientRef, { eWallet: (recipientData.eWallet || 0) + transfer.netAmount });
-        await updateDoc(transferRef, { status: "Approved" });
-      } else {
-        await updateDoc(transferRef, { status: "Rejected" });
-      }
+    // Add to recipient
+    const recipientQuery = query(collection(db, "users"), where("username", "==", transfer.recipientUsername));
+    const recipientSnapshot = await getDocs(recipientQuery);
+    if (recipientSnapshot.empty) throw new Error("Recipient not found.");
+    const recipientDoc = recipientSnapshot.docs[0];
+    const recipientData = recipientDoc.data();
+    const recipientRef = doc(db, "users", recipientDoc.id);
 
-      setSnackbar({
-        open: true,
-        message: `Transfer ${status}`,
-        severity: status === "Approved" ? "success" : "error",
-      });
-    } catch (err) {
-      console.error("Error updating transfer:", err);
-      setSnackbar({
-        open: true,
-        message: err.message || "Failed to update transfer.",
-        severity: "error",
-      });
-    }
-  };
+    await updateDoc(recipientRef, { eWallet: (recipientData.eWallet || 0) + transfer.netAmount });
+
+    // Mark transfer as approved
+    await updateDoc(transferRef, { status: "Approved" });
+  } catch (err) {
+    console.error("Error auto-approving transfer:", err);
+    setSnackbar({ open: true, message: err.message, severity: "error" });
+  }
+};
 
   const chartData = [
     { name: "Pending", value: summary.totalPending },
@@ -452,58 +432,7 @@ const AdminWalletToWallet = () => {
                               <TableCell sx={{ color: "white" }}>
                                 ₱{t.netAmount?.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                               </TableCell>
-                              <TableCell
-                                sx={{
-                                  color:
-                                    t.status === "Approved"
-                                      ? "#81C784"
-                                      : t.status === "Rejected"
-                                      ? "#E57373"
-                                      : "#FFB74D",
-                                  fontWeight: 600,
-                                }}
-                              >
-                                {t.status}
-                              </TableCell>
-                              <TableCell sx={{ color: "white" }}>
-                                {t.createdAt ? new Date(t.createdAt.seconds * 1000).toLocaleString("en-PH") : "—"}
-                              </TableCell>
-                              <TableCell>
-                                {t.status === "Pending" ? (
-                                  <Stack direction="row" spacing={1}>
-                                    <Button
-                                      size="small"
-                                      variant="contained"
-                                      sx={{
-                                        bgcolor: "#81C784",
-                                        color: "#000",
-                                        "&:hover": { bgcolor: "#66BB6A" },
-                                        fontWeight: 600,
-                                      }}
-                                      onClick={() => handleAction(t.id, "Approved")}
-                                    >
-                                      Approve
-                                    </Button>
-                                    <Button
-                                      size="small"
-                                      variant="contained"
-                                      sx={{
-                                        bgcolor: "#E57373",
-                                        color: "#000",
-                                        "&:hover": { bgcolor: "#EF5350" },
-                                        fontWeight: 600,
-                                      }}
-                                      onClick={() => handleAction(t.id, "Rejected")}
-                                    >
-                                      Reject
-                                    </Button>
-                                  </Stack>
-                                ) : (
-                                  <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.6)" }}>
-                                    No actions
-                                  </Typography>
-                                )}
-                              </TableCell>
+                              
                             </motion.tr>
                           ))}
                       </TableBody>
