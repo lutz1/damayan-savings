@@ -18,6 +18,7 @@ import { motion } from "framer-motion";
 import Topbar from "../../components/Topbar";
 import Sidebar from "../../components/Sidebar";
 import bgImage from "../../assets/bg.jpg";
+import { ResponsiveLine } from "@nivo/line";
 import {
   LineChart,
   Line,
@@ -36,7 +37,7 @@ import {
 const chartTypes = ["line", "bar", "area"];
 
 const AdminDashboard = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chartType, setChartType] = useState("line");
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
 
@@ -133,42 +134,159 @@ const AdminDashboard = () => {
       <Box component="main" sx={{ flexGrow: 1, p: 4, mt: 0, color: "white", zIndex: 1, width: `calc(100% - ${sidebarOpen ? 240 : 60}px)`, transition: "all 0.3s ease", position: "relative" }}>
         <Toolbar />
         <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, letterSpacing: 0.5, mb: 3, textShadow: "1px 1px 3px rgba(0,0,0,0.4)" }}>📊 Admin Dashboard Overview</Typography>
+    
+    {/* Stats Cards */}
+<Grid container spacing={3} sx={{ mb: 4, justifyContent: { xs: "center", md: "flex-start" } }}>
+  {[
+    { label: "MD", value: userCounts.MD, icon: "👨‍💼" },
+    { label: "MS", value: userCounts.MS, icon: "👩‍💼" },
+    { label: "MI", value: userCounts.MI, icon: "🧑‍💼" },
+    { label: "Agents", value: userCounts.Agent, icon: "🕵️" },
+  ].map((item, index) => (
+    <Grid item xs={12} sm={10} md="auto" key={index}>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: index * 0.1 }}
+      >
+        <Card
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            p: 3,
+            width: { xs: "85%", md: "450px" }, // full width mobile/tablet, 500px on desktop
+            flexDirection: "row",
+            background: "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.05))",
+            backdropFilter: "blur(15px)",
+            color: "white",
+            borderRadius: "20px",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
+            transition: "transform 0.3s ease, box-shadow 0.3s ease",
+            "&:hover": {
+              transform: "translateY(-5px)",
+              boxShadow: "0 15px 35px rgba(0,0,0,0.5)",
+            },
+          }}
+        >
+          <Box sx={{ fontSize: "3rem" }}>{item.icon}</Box>
+          <Box sx={{ textAlign: "right" }}>
+            <Typography variant="subtitle2" sx={{ opacity: 0.7, textTransform: "uppercase" }}>
+              {item.label}
+            </Typography>
+            <Typography variant="h3" fontWeight="bold" sx={{ mt: 0.5 }}>
+              {item.value}
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.8 }}>
+              Total {item.label} referrals under your network
+            </Typography>
+          </Box>
+        </Card>
+      </motion.div>
+    </Grid>
+  ))}
+</Grid>
 
-        {/* Stats Cards */}
-        <Grid container spacing={2} sx={{ mb: 4 }}>
-          {[{ label: "MD", value: userCounts.MD }, { label: "MS", value: userCounts.MS }, { label: "MI", value: userCounts.MI }, { label: "Agents", value: userCounts.Agent }, { label: "Total Sales", value: `₱${totalSales.toLocaleString()}` }].map((item, index) => (
-            <Grid item xs={12} sm={6} md={2.4} key={index}>
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: index * 0.1 }}>
-                <Card sx={{ background: "linear-gradient(145deg, rgba(255,255,255,0.18), rgba(255,255,255,0.08))", backdropFilter: "blur(12px)", color: "white", borderRadius: "18px", width: "160px", boxShadow: "0 8px 24px rgba(0,0,0,0.3)", transition: "transform 0.3s ease, box-shadow 0.3s ease", "&:hover": { transform: "translateY(-5px)", boxShadow: "0 12px 30px rgba(0,0,0,0.4)" } }}>
-                  <CardContent><Typography variant="subtitle1" sx={{ opacity: 0.8 }}>{item.label}</Typography><Typography variant="h4" fontWeight="bold" sx={{ mt: 1 }}>{item.value}</Typography></CardContent>
-                </Card>
-              </motion.div>
-            </Grid>
-          ))}
-        </Grid>
+    {/* Purchased Codes Analytics */}
+    <Box sx={{ mt: 4 }}>
+      <Typography variant="h5" sx={{ mb: 2, fontWeight: 600, textShadow: "1px 1px 2px rgba(0,0,0,0.4)" }}>
+        🎟 Purchased Codes Analytics
+      </Typography>
 
-        {/* Chart Controls */}
-        <Box sx={{ mb: 2, display: "flex", gap: 2, flexWrap: "wrap", alignItems: "center" }}>
-          <ToggleButtonGroup value={chartType} exclusive onChange={handleChartTypeChange} size="small">
-            {chartTypes.map(type => <ToggleButton key={type} value={type}>{type.toUpperCase()}</ToggleButton>)}
-          </ToggleButtonGroup>
-          <TextField type="date" label="From" InputLabelProps={{ shrink: true }} size="small" value={dateRange.from} onChange={e => setDateRange(prev => ({ ...prev, from: e.target.value }))} />
-          <TextField type="date" label="To" InputLabelProps={{ shrink: true }} size="small" value={dateRange.to} onChange={e => setDateRange(prev => ({ ...prev, to: e.target.value }))} />
-        </Box>
+      <Card
+        sx={{
+          p: 2,
+          background: "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.05))",
+          backdropFilter: "blur(12px)",
+          color: "#fff",
+          borderRadius: "20px",
+          boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
+          width: { xs: "95%", md: "500px" },
+          mx: "auto",
+        }}
+      >
+        <CardContent>
+          {purchasedCodes.length === 0 ? (
+            <Typography>No purchased codes data available</Typography>
+          ) : (
+            <Box sx={{ height: 300 }}>
+              <ResponsiveLine
+                data={[
+                  {
+                    id: "Purchased Codes",
+                    color: "hsl(200, 70%, 50%)",
+                    data: aggregateByDate(purchasedCodes, "amount").map(d => ({ x: d.date, y: d.value })),
+                  },
+                ]}
+                margin={{ top: 20, right: 30, bottom: 50, left: 60 }}
+                xScale={{ type: "point" }}
+                yScale={{ type: "linear", min: 0, max: "auto", stacked: false }}
+                axisTop={null}
+                axisRight={null}
+                axisBottom={{
+                  orient: "bottom",
+                  tickRotation: -45,
+                  legend: "Date",
+                  legendOffset: 40,
+                  legendPosition: "middle",
+                }}
+                axisLeft={{
+                  orient: "left",
+                  legend: "Amount",
+                  legendOffset: -50,
+                  legendPosition: "middle",
+                }}
+                colors={{ scheme: "nivo" }}
+                pointSize={8}
+                pointColor={{ theme: "background" }}
+                pointBorderWidth={2}
+                pointBorderColor={{ from: "serieColor" }}
+                pointLabelYOffset={-12}
+                useMesh={true}
+                enableSlices="x"
+                legends={[
+                  {
+                    anchor: "top-left",
+                    direction: "row",
+                    justify: false,
+                    translateX: 0,
+                    translateY: -20,
+                    itemsSpacing: 0,
+                    itemDirection: "left-to-right",
+                    itemWidth: 120,
+                    itemHeight: 20,
+                    itemOpacity: 0.75,
+                    symbolSize: 12,
+                    symbolShape: "circle",
+                  },
+                ]}
+              />
+            </Box>
+          )}
+        </CardContent>
+      </Card>
 
-        {/* Dynamic Charts Section */}
-        <Grid container spacing={3}>
-          {[{ title: "Purchased Codes", data: purchasedCodes }, { title: "User Management", data: Object.values(userCounts).map((v, i) => ({ amount: v, createdAt: { toDate: () => new Date() } })) }, { title: "Transfer Transactions", data: transfers }, { title: "Withdrawals", data: withdrawals }, { title: "Deposits", data: deposits }, { title: "Wallet-to-Wallet", data: wallets }].map((chart, idx) => (
-            <Grid item xs={12} md={6} key={idx}>
-              <Card sx={{ p: 2, background: "rgba(255,255,255,0.1)", backdropFilter: "blur(10px)", color: "#fff" }}>
-                <CardContent>
-                  <Typography variant="h6" sx={{ mb: 2 }}>{chart.title} (Interactive)</Typography>
-                  {aggregateByDate(chart.data).length === 0 ? <Typography>No data available</Typography> : <ResponsiveContainer width="100%" height={250}>{renderChart(aggregateByDate(chart.data))}</ResponsiveContainer>}
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
+      {/* Optional: Date range filters */}
+      <Box sx={{ mt: 2, display: "flex", gap: 2, flexWrap: "wrap", alignItems: "center" }}>
+        <TextField
+          type="date"
+          label="From"
+          InputLabelProps={{ shrink: true }}
+          size="small"
+          value={dateRange.from}
+          onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))}
+        />
+        <TextField
+          type="date"
+          label="To"
+          InputLabelProps={{ shrink: true }}
+          size="small"
+          value={dateRange.to}
+          onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))}
+        />
+      </Box>
+    </Box>
+
       </Box>
     </Box>
   );

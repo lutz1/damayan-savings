@@ -12,7 +12,7 @@ import { motion } from "framer-motion";
 import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
-import { Visibility, VisibilityOff } from "@mui/icons-material";
+import { Visibility, VisibilityOff, Email, Lock} from "@mui/icons-material";
 import { InputAdornment, IconButton } from "@mui/material";
 import bgImage from "../assets/bg.jpg";
 import tclcLogo from "../assets/tclc-logo1.png";
@@ -110,27 +110,40 @@ const Login = () => {
     }
   };
 
+  useEffect(() => {
+  document.body.style.overflow = "hidden";
+  return () => {
+    document.body.style.overflow = "auto";
+  };
+}, []);
+
+
   return (
-    <Box
+   <Box
       sx={{
-        minHeight: "100vh",
+       height: { xs: "85vh", sm: "95vh", md: "100vh" }, // 🔥 reduced mobile height
+        overflow: "hidden",
         backgroundImage: `url(${bgImage})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
+        backgroundAttachment: { xs: "scroll", md: "fixed" },
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
         p: { xs: 2, sm: 3, md: 0 },
         position: "relative",
+
         "&::before": {
           content: '""',
           position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "rgba(13,135,184,0.3)",
+          inset: 0,
           zIndex: 0,
+          background: {
+            xs: "rgba(13,135,184,0.45)",
+            sm: "rgba(13,135,184,0.35)",
+            md: "rgba(13,135,184,0.28)",
+          },
+          backdropFilter: { xs: "blur(0px)", md: "blur(2px)" },
         },
       }}
     >
@@ -143,7 +156,8 @@ const Login = () => {
         <Paper
           elevation={10}
           sx={{
-            p: { xs: 3, sm: 4, md: 5 },
+            p: { xs: "18px 20px", sm: 4, md: 3.5 },  // 🔥 reduced mobile top/bottom padding
+            maxHeight: { md: 650 },
             borderRadius: 4,
             textAlign: "center",
             backdropFilter: "blur(18px)",
@@ -151,6 +165,7 @@ const Login = () => {
             border: "1px solid rgba(255,255,255,0.3)",
             color: "#fff",
             boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+            overflowY: "auto",
           }}
         >
           {/* LOGOS */}
@@ -179,40 +194,68 @@ const Login = () => {
             </Alert>
           )}
 
+            <Alert
+              severity="info"
+              sx={{
+                mb: 1.5,
+                fontSize: { xs: "0.75rem", sm: "0.85rem" },
+                background: "rgba(255,255,255,0.2)",
+                color: "#fff",
+                border: "1px solid rgba(255,255,255,0.3)",
+                backdropFilter: "blur(4px)",
+                "& .MuiAlert-icon": { color: "#fff" }
+              }}
+            >
+              Please use your <strong>official company email</strong> to log in.
+            </Alert>
+
+
           <form onSubmit={handleLogin}>
             <TextField
-              label="Email Address"
-              type="email"
-              fullWidth
-              required
-              margin="normal"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              sx={textFieldStyle}
-            />
+                label="Email Address"
+                type="email"
+                fullWidth
+                required
+                margin="normal"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                sx={textFieldStyle}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Email sx={{ color: "#fff" }} />
+                    </InputAdornment>
+                  ),
+                }}
+              />
             <TextField
-              label="Password"
-              type={showPassword ? "text" : "password"}
-              fullWidth
-              required
-              margin="normal"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              sx={textFieldStyle}
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => setShowPassword((prev) => !prev)}
-                      edge="end"
-                      sx={{ color: "#fff" }}
-                    >
-                      {showPassword ? <VisibilityOff /> : <Visibility />}
-                    </IconButton>
-                  </InputAdornment>
-                ),  
-              }}
-            />
+                label="Password"
+                type={showPassword ? "text" : "password"}
+                fullWidth
+                required
+                margin="normal"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                sx={textFieldStyle}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Lock sx={{ color: "#fff" }} /> {/* optional default icon */}
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => setShowPassword((prev) => !prev)}
+                        edge="end"
+                        sx={{ color: "#fff" }}
+                      >
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
 
             {/* Terms & Conditions */}
             <motion.div
