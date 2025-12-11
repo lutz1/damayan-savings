@@ -55,6 +55,19 @@ const MobileInstall = () => {
     }
   };
 
+  // iOS detection: beforeinstallprompt is not supported on iOS Safari.
+  const isIos = typeof window !== "undefined" && /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
+  const isInStandaloneMode =
+    typeof window !== "undefined" && (window.navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches);
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+    } catch (err) {
+      console.error("Copy failed", err);
+    }
+  };
+
   return (
     <Box sx={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", p: 2, bgcolor: "#f5f5f5" }}>
       <Paper sx={{ p: 3, maxWidth: 520, textAlign: "center" }} elevation={6}>
@@ -65,7 +78,22 @@ const MobileInstall = () => {
           For the best experience on mobile devices, please install the Damayan app to your device.
         </Typography>
 
-        {isInstallable ? (
+        {isIos && !isInStandaloneMode ? (
+          <>
+            <Typography sx={{ mb: 2 }}>
+              On iPhone/iPad the browser must be Safari to add the app to your Home Screen.
+            </Typography>
+            <Typography variant="body2" sx={{ textAlign: "left", mb: 2 }}>
+              Steps: 1) Open this page in Safari. 2) Tap the Share button (box with up-arrow). 3) Choose "Add to Home Screen".
+            </Typography>
+            <Button variant="contained" color="primary" onClick={copyLink} sx={{ mb: 2 }}>
+              Copy Link (Open in Safari)
+            </Button>
+            <Typography variant="body2" sx={{ color: "rgba(0,0,0,0.6)", mb: 1 }}>
+              If you already opened in Safari and don't see the option, ensure your iOS is updated and that you're not in an embedded browser.
+            </Typography>
+          </>
+        ) : isInstallable ? (
           <Button variant="contained" color="primary" onClick={handlePrompt} sx={{ mb: 2 }}>
             Install App
           </Button>
