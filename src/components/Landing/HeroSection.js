@@ -139,7 +139,7 @@ const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
               "&:hover": { backgroundColor: "#ffca28" },
               mt: 5,
             }}
-            onClick={() => navigate("/login")}
+            onClick={() => navigate("/mobile-install")}
           >
             Apply for Damayan Savings
           </Button>
