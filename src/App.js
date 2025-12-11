@@ -1,4 +1,3 @@
-// src/App.js
 import React, { useEffect, useState } from "react";
 import {
   BrowserRouter as Router,
@@ -11,10 +10,15 @@ import { ParallaxProvider } from "react-scroll-parallax";
 import { LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterMoment } from "@mui/x-date-pickers/AdapterMoment";
 
+/* ======================
+   PUBLIC
+====================== */
 import LandingPage from "./pages/LandingPage";
 import Login from "./pages/login";
 
-// Admin pages
+/* ======================
+   ADMIN
+====================== */
 import AdminDashboard from "./pages/admin/adminDashboard";
 import AdminGenerateCode from "./pages/admin/adminGenerateCode";
 import AdminProfile from "./pages/admin/adminProfile";
@@ -23,12 +27,22 @@ import AdminTransferTransaction from "./pages/admin/adminTransferTransaction";
 import AdminWalletToWallet from "./pages/admin/adminWallettoWallet";
 import AdminWithdrawals from "./pages/admin/adminWithdrawals";
 import AdminDeposits from "./pages/admin/adminDeposits";
+import AdminMerchantManagement from "./pages/admin/adminMerchantManagement";
 
-// Member pages
+/* ======================
+   MERCHANT (PWA)
+====================== */
+import MerchantDashboard from "./pages/merchant/merchantDashboard";
+import AddProductPage from "./pages/merchant/addProduct";
+import MerchantProfile from "./pages/merchant/merchantProfile";
+
+/* ======================
+   MEMBER
+====================== */
 import MemberDashboard from "./pages/member/memberDashboard";
 import MemberPayback from "./pages/member/memberPayback";
 import MemberCapitalShare from "./pages/member/memberCapitalShare";
-import MemberProfile from "./pages/member/memberProfile"; // ✅ Added
+import MemberProfile from "./pages/member/memberProfile";
 
 import "leaflet/dist/leaflet.css";
 
@@ -43,32 +57,56 @@ function App() {
   }, []);
 
   if (!initialized) {
-    return <div style={{ textAlign: "center", marginTop: "20%" }}>Loading...</div>;
+    return (
+      <div style={{ textAlign: "center", marginTop: "20%" }}>
+        Loading...
+      </div>
+    );
   }
 
+  /* ======================
+     ROUTE GUARDS
+  ====================== */
+
   const AdminRoute = ({ children }) =>
-    ["ADMIN", "CEO"].includes(role?.toUpperCase()) ? children : <Navigate to="/login" />;
+    ["ADMIN", "CEO"].includes(role?.toUpperCase())
+      ? children
+      : <Navigate to="/login" replace />;
+
+  const MerchantRoute = ({ children }) =>
+    role?.toUpperCase() === "MERCHANT"
+      ? children
+      : <Navigate to="/login" replace />;
 
   const MemberRoute = ({ children }) =>
-    ["MASTERMD", "MD", "MS", "MI", "AGENT", "MEMBER"].includes(role?.toUpperCase())
+    ["MASTERMD", "MD", "MS", "MI", "AGENT", "MEMBER"].includes(
+      role?.toUpperCase()
+    )
       ? children
-      : <Navigate to="/login" />;
+      : <Navigate to="/login" replace />;
+
+  /* ======================
+     AUTO REDIRECT
+  ====================== */
 
   const AutoRedirect = () => {
     const location = useLocation();
 
     useEffect(() => {
-      const userRole = localStorage.getItem("userRole");
+      const userRole = localStorage.getItem("userRole")?.toUpperCase();
       const path = location.pathname;
-      const upperRole = userRole?.toUpperCase();
 
-      if (["/damayan-savings/", "/damayan-savings/login"].includes(path)) {
-        if (["ADMIN", "CEO"].includes(upperRole)) {
-          window.location.replace("/damayan-savings/admin/dashboard");
+      if (!userRole) return;
+
+      if (path === "/" || path === "/login") {
+        if (["ADMIN", "CEO"].includes(userRole)) {
+          window.location.replace("/admin/dashboard");
+        } else if (userRole === "MERCHANT") {
+          window.location.replace("/merchant/dashboard");
         } else if (
-          ["MASTERMD", "MD", "MS", "MI", "AGENT", "MEMBER"].includes(upperRole)
+          ["MASTERMD", "MD", "MS", "MI", "AGENT", "MEMBER"].includes(userRole)
         ) {
-          window.location.replace("/damayan-savings/member/dashboard");
+          window.location.replace("/member/dashboard");
         }
       }
     }, [location]);
@@ -79,32 +117,168 @@ function App() {
   return (
     <ParallaxProvider>
       <LocalizationProvider dateAdapter={AdapterMoment}>
-        <Router basename="/damayan-savings">
+        <Router>
           <AutoRedirect />
 
           <Routes>
-            {/* Public Routes */}
+            {/* ======================
+                PUBLIC
+            ====================== */}
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<Login />} />
 
-            {/* Admin Routes */}
-            <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
-            <Route path="/admin/generate-codes" element={<AdminRoute><AdminGenerateCode /></AdminRoute>} />
-            <Route path="/admin/user-management" element={<AdminRoute><AdminUserManagement /></AdminRoute>} />
-            <Route path="/admin/transfer-transactions" element={<AdminRoute><AdminTransferTransaction /></AdminRoute>} />
-            <Route path="/admin/wallet-to-wallet" element={<AdminRoute><AdminWalletToWallet /></AdminRoute>} />
-            <Route path="/admin/withdrawals" element={<AdminRoute><AdminWithdrawals /></AdminRoute>} />
-            <Route path="/admin/deposits" element={<AdminRoute><AdminDeposits /></AdminRoute>} />
-            <Route path="/admin/profile" element={<AdminRoute><AdminProfile /></AdminRoute>} />
+            {/* ======================
+                ADMIN
+            ====================== */}
+            <Route
+              path="/admin/dashboard"
+              element={
+                <AdminRoute>
+                  <AdminDashboard />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/generate-codes"
+              element={
+                <AdminRoute>
+                  <AdminGenerateCode />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/user-management"
+              element={
+                <AdminRoute>
+                  <AdminUserManagement />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/transfer-transactions"
+              element={
+                <AdminRoute>
+                  <AdminTransferTransaction />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/wallet-to-wallet"
+              element={
+                <AdminRoute>
+                  <AdminWalletToWallet />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/withdrawals"
+              element={
+                <AdminRoute>
+                  <AdminWithdrawals />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/deposits"
+              element={
+                <AdminRoute>
+                  <AdminDeposits />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/profile"
+              element={
+                <AdminRoute>
+                  <AdminProfile />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/merchants"
+              element={
+                <AdminRoute>
+                  <AdminMerchantManagement />
+                </AdminRoute>
+              }
+            />
 
-            {/* Member Routes */}
-            <Route path="/member/dashboard" element={<MemberRoute><MemberDashboard /></MemberRoute>} />
-            <Route path="/member/income/payback" element={<MemberRoute><MemberPayback /></MemberRoute>} />
-            <Route path="/member/income/capital-share" element={<MemberRoute><MemberCapitalShare /></MemberRoute>} />
-            <Route path="/member/profile" element={<MemberRoute><MemberProfile /></MemberRoute>} /> {/* ✅ New route */}
+            {/* ======================
+                MERCHANT (PWA)
+            ====================== */}
+           <Route
+              path="/merchant/dashboard"
+              element={
+                <MerchantRoute>
+                  <MerchantDashboard /> 
+                </MerchantRoute>
+              }
+            />
+            <Route
+              path="/merchant/add-product"
+              element={
+                <MerchantRoute>
+                  <AddProductPage />
+                </MerchantRoute>
+              }
+            />
+            <Route
+              path="/merchant/products"
+              element={
+                <MerchantRoute>
+                  <MerchantDashboard /> 
+                </MerchantRoute>
+              }
+            />
+            <Route
+              path="/merchant/profile"
+              element={
+                <MerchantRoute>
+                  <MerchantProfile />
+                </MerchantRoute>
+              }
+            />
 
-            {/* Fallback */}
-            <Route path="*" element={<Navigate to="/" />} />
+            {/* ======================
+                MEMBER
+            ====================== */}
+            <Route
+              path="/member/dashboard"
+              element={
+                <MemberRoute>
+                  <MemberDashboard />
+                </MemberRoute>
+              }
+            />
+            <Route
+              path="/member/income/payback"
+              element={
+                <MemberRoute>
+                  <MemberPayback />
+                </MemberRoute>
+              }
+            />
+            <Route
+              path="/member/income/capital-share"
+              element={
+                <MemberRoute>
+                  <MemberCapitalShare />
+                </MemberRoute>
+              }
+            />
+            <Route
+              path="/member/profile"
+              element={
+                <MemberRoute>
+                  <MemberProfile />
+                </MemberRoute>
+              }
+            />
+
+            {/* ======================
+                FALLBACK
+            ====================== */}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Router>
       </LocalizationProvider>

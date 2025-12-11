@@ -15,6 +15,7 @@
     "@mui/x-charts": "^8.14.0",
     "@mui/x-data-grid": "^8.14.1",
     "@mui/x-date-pickers": "^8.14.1",
+    "@nivo/bar": "^0.99.0",
     "@nivo/core": "^0.99.0",
     "@nivo/line": "^0.99.0",
     "@react-google-maps/api": "^2.20.7",

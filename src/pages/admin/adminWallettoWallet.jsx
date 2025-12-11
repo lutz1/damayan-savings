@@ -29,10 +29,10 @@ import {
   onSnapshot,
   query,
   orderBy,
-  updateDoc,
   doc,
   getDocs,
   where,
+  runTransaction,
 } from "firebase/firestore";
 import { db } from "../../firebase";
 import Topbar from "../../components/Topbar";
@@ -154,39 +154,52 @@ const AdminWalletToWallet = () => {
   }, []);
 
   const autoApproveTransfer = async (transfer) => {
-  try {
-    if (transfer.status !== "Pending") return;
+    try {
+      if (transfer.status !== "Pending") return;
 
-    const transferRef = doc(db, "transferFunds", transfer.id);
+      const transferRef = doc(db, "transferFunds", transfer.id);
 
-    // Deduct from sender
-    const senderQuery = query(collection(db, "users"), where("email", "==", transfer.senderEmail));
-    const senderSnapshot = await getDocs(senderQuery);
-    if (senderSnapshot.empty) throw new Error("Sender not found.");
-    const senderDoc = senderSnapshot.docs[0];
-    const senderData = senderDoc.data();
-    const senderRef = doc(db, "users", senderDoc.id);
+      // Find sender and recipient documents first
+      const senderQuery = query(collection(db, "users"), where("email", "==", transfer.senderEmail));
+      const senderSnapshot = await getDocs(senderQuery);
+      if (senderSnapshot.empty) throw new Error("Sender not found.");
+      const senderDoc = senderSnapshot.docs[0];
+      const senderRef = doc(db, "users", senderDoc.id);
 
-    if (senderData.eWallet < transfer.amount) throw new Error("Sender has insufficient balance.");
-    await updateDoc(senderRef, { eWallet: senderData.eWallet - transfer.amount });
+      const recipientQuery = query(collection(db, "users"), where("username", "==", transfer.recipientUsername));
+      const recipientSnapshot = await getDocs(recipientQuery);
+      if (recipientSnapshot.empty) throw new Error("Recipient not found.");
+      const recipientDoc = recipientSnapshot.docs[0];
+      const recipientRef = doc(db, "users", recipientDoc.id);
 
-    // Add to recipient
-    const recipientQuery = query(collection(db, "users"), where("username", "==", transfer.recipientUsername));
-    const recipientSnapshot = await getDocs(recipientQuery);
-    if (recipientSnapshot.empty) throw new Error("Recipient not found.");
-    const recipientDoc = recipientSnapshot.docs[0];
-    const recipientData = recipientDoc.data();
-    const recipientRef = doc(db, "users", recipientDoc.id);
+      // Use a transaction so approval (status update) and balance updates are atomic
+      await runTransaction(db, async (tx) => {
+        const transferSnap = await tx.get(transferRef);
+        if (!transferSnap.exists()) throw new Error("Transfer not found.");
 
-    await updateDoc(recipientRef, { eWallet: (recipientData.eWallet || 0) + transfer.netAmount });
+        const currentStatus = transferSnap.data().status;
+        if (currentStatus !== "Pending") return; // already processed by another worker
 
-    // Mark transfer as approved
-    await updateDoc(transferRef, { status: "Approved" });
-  } catch (err) {
-    console.error("Error auto-approving transfer:", err);
-    setSnackbar({ open: true, message: err.message, severity: "error" });
-  }
-};
+        const senderSnap = await tx.get(senderRef);
+        if (!senderSnap.exists()) throw new Error("Sender not found (during transaction).");
+        const senderData = senderSnap.data();
+
+        if (senderData.eWallet < transfer.amount) throw new Error("Sender has insufficient balance.");
+
+        const recipientSnap = await tx.get(recipientRef);
+        if (!recipientSnap.exists()) throw new Error("Recipient not found (during transaction).");
+        const recipientData = recipientSnap.data();
+
+        // Apply updates
+        tx.update(senderRef, { eWallet: senderData.eWallet - transfer.amount });
+        tx.update(recipientRef, { eWallet: (recipientData.eWallet || 0) + transfer.netAmount });
+        tx.update(transferRef, { status: "Approved" });
+      });
+    } catch (err) {
+      console.error("Error auto-approving transfer:", err);
+      setSnackbar({ open: true, message: err.message, severity: "error" });
+    }
+  };
 
   const chartData = [
     { name: "Pending", value: summary.totalPending },

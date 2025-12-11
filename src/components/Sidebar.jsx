@@ -38,7 +38,8 @@ import {
   LocalMall as LocalMallIcon,
   Wifi as WifiIcon,
   Spa as SpaIcon,
-  Coffee as CoffeeIcon
+  Coffee as CoffeeIcon,
+  Store as StoreIcon
    // Wellness icon
 } from "@mui/icons-material";
 import damayanLogo from "../assets/damayan.png";
@@ -58,6 +59,8 @@ const Sidebar = ({ open, onToggleSidebar }) => {
     Shopping: false,
     "Digital Services": false,
     "Wellness Products": false,
+    "Merchant List": false,
+    "Manage Merchant": false, 
   });
 
   const [comingSoonOpen, setComingSoonOpen] = useState(false);
@@ -89,6 +92,15 @@ const Sidebar = ({ open, onToggleSidebar }) => {
     { text: "Profile", icon: <AccountCircleIcon />, path: "/member/profile" },
   ];
 
+  // Merchant Navigation
+const merchantNav = [
+  { text: "Dashboard", icon: <DashboardIcon />, path: "/merchant/dashboard" },
+  { text: "Profile", icon: <AccountCircleIcon />, path: "/merchant/profile" },
+  { text: "Add Product", icon: <CoffeeIcon />, path: "/merchant/add-product" },
+  { text: "Manage Product", icon: <StoreIcon />, path: "/merchant/manage-products" },
+];
+
+
   // Shopping group
   const shoppingGroup = [
     { text: "Market Place", icon: <ShoppingCartIcon />, comingSoon: true },
@@ -107,7 +119,14 @@ const Sidebar = ({ open, onToggleSidebar }) => {
   { text: "Coffee", icon: <CoffeeIcon />, path: "/merchant/wellness-coffee" },
 ];
   // Combine nav depending on role
-  const baseNav = ["ADMIN", "CEO"].includes(upperRole) ? adminNav : memberNav;
+let baseNav = [];
+if (["ADMIN", "CEO"].includes(upperRole)) {
+  baseNav = adminNav;
+} else if (upperRole === "MERCHANT") {
+  baseNav = merchantNav;
+} else {
+  baseNav = memberNav;
+}
 
   // handle navigation / coming soon
   const handleNavigate = (item) => {
@@ -228,7 +247,7 @@ const Sidebar = ({ open, onToggleSidebar }) => {
           );
         })}
 
-            {!["ADMIN", "CEO"].includes(upperRole) && (
+            {!["ADMIN", "CEO", "MERCHANT"].includes(upperRole) && (
       <>
 
         {/* Shopping Section */}
@@ -448,6 +467,72 @@ const Sidebar = ({ open, onToggleSidebar }) => {
 
     {/* Manage Merchant Section */}
     <Box sx={{ mt: 1, mb: 1 }}>
+        <Divider sx={{ borderColor: "rgba(255,255,255,0.08)" }} />
+      </Box>
+
+      {open && (
+        <Typography
+          sx={{
+            pl: 3,
+            pt: 1,
+            pb: 1,
+            color: "rgba(255,255,255,0.6)",
+            fontSize: "0.75rem",
+            fontStyle: "italic",
+            textTransform: "uppercase",
+          }}
+        >
+          Manage Merchant
+        </Typography>
+      )}
+
+      <ListItemButton
+        onClick={() => toggleSection("Manage Merchant")}
+        sx={{
+          color: "#fff",
+          "&:hover": { backgroundColor: "rgba(255,255,255,0.12)" },
+        }}
+      >
+        <ListItemIcon sx={{ color: "#fff", minWidth: open ? 40 : "auto" }}>
+          <LocalMallIcon />
+        </ListItemIcon>
+        {open && <ListItemText primary="Manage Merchant" />}
+        {open && (openSections["Manage Merchant"] ? <ExpandLess /> : <ExpandMore />)}
+      </ListItemButton>
+
+      <Collapse in={openSections["Manage Merchant"]} timeout={300} unmountOnExit>
+        <List component="div" disablePadding>
+          <Tooltip title={open ? "" : "Add Product"} placement="right" arrow>
+            <ListItemButton
+              onClick={() => navigate("/merchant/manage")}
+              sx={{
+                pl: open ? 6 : 2,
+                color: "#fff",
+                backgroundColor:
+                  location.pathname === "/merchant/manage"
+                    ? "rgba(255,255,255,0.25)"
+                    : "transparent",
+                "&:hover": { backgroundColor: "rgba(255,255,255,0.12)" },
+              }}
+            >
+              <ListItemIcon sx={{ color: "inherit", minWidth: open ? 40 : "auto" }}>
+                <CoffeeIcon />
+              </ListItemIcon>
+              {open && <ListItemText primary="Add Product" />}
+            </ListItemButton>
+
+             {/* MERCHANTS MENU */}
+          <ListItemButton sx={{ pl: 6 }} onClick={() => navigate("/admin/merchants")}>
+            <ListItemIcon><StoreIcon /></ListItemIcon>
+            {open && <ListItemText primary="Merchants" />}
+          </ListItemButton>
+          </Tooltip>
+        </List>
+      </Collapse>
+
+    {/* Merchant List */}
+
+    <Box sx={{ mt: 1, mb: 1 }}>
       <Divider sx={{ borderColor: "rgba(255,255,255,0.08)" }} />
     </Box>
     {open && (
@@ -462,20 +547,20 @@ const Sidebar = ({ open, onToggleSidebar }) => {
           textTransform: "uppercase",
         }}
       >
-        Manage Merchant
+        Merchant List
       </Typography>
     )}
     <ListItemButton
-      onClick={() => toggleSection("Manage Merchant")}
+      onClick={() => toggleSection("Merchant List")}
       sx={{ color: "#fff", "&:hover": { backgroundColor: "rgba(255,255,255,0.12)" } }}
     >
       <ListItemIcon sx={{ color: "#fff", minWidth: open ? 40 : "auto" }}>
         <LocalMallIcon />
       </ListItemIcon>
-      {open && <ListItemText primary="Manage Merchant" />}
-      {open && (openSections["Manage Merchant"] ? <ExpandLess /> : <ExpandMore />)}
+      {open && <ListItemText primary="Merchant List" />}
+      {open && (openSections["Merchant List"] ? <ExpandLess /> : <ExpandMore />)}
     </ListItemButton>
-    <Collapse in={openSections["Manage Merchant"]} timeout={300} unmountOnExit>
+    <Collapse in={openSections["Merchant List"]} timeout={300} unmountOnExit>
       <List component="div" disablePadding>
         {[
           { text: "Market Place", icon: <ShoppingCartIcon />, comingSoon: true },

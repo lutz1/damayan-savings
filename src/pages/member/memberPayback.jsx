@@ -32,6 +32,7 @@ import {
   updateDoc,
   query,
   where,
+  runTransaction,
 } from "firebase/firestore";
 import { db, auth } from "../../firebase";
 
@@ -277,9 +278,15 @@ const handleOpenConfirmDialog = () => {
     const uplineDoc = snap.docs[0].data();
     console.log("👥 Upline data:", uplineDoc);
 
-    // Deduct wallet
-    await updateDoc(userRef, { eWallet: walletBalance - amountNum });
-    console.log(`✅ Deducted ₱${amountNum} from user eWallet`);
+    // Deduct wallet using transaction to avoid race conditions
+    await runTransaction(db, async (tx) => {
+      const uSnap = await tx.get(userRef);
+      if (!uSnap.exists()) throw new Error("User not found during transaction.");
+      const current = uSnap.data().eWallet || 0;
+      if (current < amountNum) throw new Error("Insufficient wallet balance.");
+      tx.update(userRef, { eWallet: current - amountNum });
+    });
+    console.log(`✅ Deducted ₱${amountNum} from user eWallet (transaction)`);
 
     // Prepare payback entry
     const entryDate = moment(selectedDate || new Date()).toISOString();
@@ -343,13 +350,14 @@ const handleOpenConfirmDialog = () => {
       createdAt: new Date().toISOString(),
     });
 
-    // ✅ Update user eWallet balance
+    // ✅ Update user eWallet balance using transaction
     const userRef = doc(db, "users", user.uid);
-    const snap = await getDoc(userRef);
-    if (snap.exists()) {
-      const currentWallet = snap.data().eWallet || 0;
-      await updateDoc(userRef, { eWallet: currentWallet + net });
-    }
+    await runTransaction(db, async (tx) => {
+      const uSnap = await tx.get(userRef);
+      if (!uSnap.exists()) throw new Error("User not found during transaction.");
+      const currentWallet = uSnap.data().eWallet || 0;
+      tx.update(userRef, { eWallet: currentWallet + net });
+    });
 
     // ✅ Update UI
     setTotalPassiveIncome((prev) => prev - amountNum);

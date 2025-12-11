@@ -76,6 +76,11 @@ const Topbar = ({ open, onToggleSidebar }) => {
     profilePicture: "",
   });
   const [availableCodes, setAvailableCodes] = useState([]);
+  // Emails that should have some actions disabled
+  const restrictedEmails = [
+    "dionesiovelasquez@gmail.com",
+    "ericalvarez@gmail.com",
+  ];
   /*
   const restrictedForAdmin = ["Purchase Codes", "Withdrawal", "Deposit", "Transfer Funds", "Invite & Earn"];
 */
@@ -403,7 +408,7 @@ const Topbar = ({ open, onToggleSidebar }) => {
                 )}
 
                 {/* Menu */}
-               <List>
+                <List>
   {[
     { icon: <PurchaseIcon sx={{ color: "#4FC3F7" }} />, label: "Purchase Codes", dialog: "purchase" },
     { icon: <WithdrawIcon sx={{ color: "#FF7043" }} />, label: "Withdrawal", dialog: "withdraw" },
@@ -412,8 +417,10 @@ const Topbar = ({ open, onToggleSidebar }) => {
     { icon: <InviteIcon sx={{ color: "#FFB300" }} />, label: "Invite & Earn", dialog: "invite" },
     { icon: <LogoutIcon sx={{ color: "#FF5252" }} />, label: "Logout", action: handleOpenLogoutDialog },
   ].map((item, i) => {
-    
-    const isDisabled = false;
+    // disable specific actions for restricted emails
+    const isRestrictedUser = restrictedEmails.includes((userData.email || "").toLowerCase());
+    const disabledForRestricted = ["Purchase Codes", "Withdrawal", "Transfer Funds", "Invite & Earn"];
+    const isDisabled = isRestrictedUser && disabledForRestricted.includes(item.label);
 
     return (
       <ListItem disablePadding key={i}>

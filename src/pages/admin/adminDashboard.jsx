@@ -18,7 +18,7 @@ import { motion } from "framer-motion";
 import Topbar from "../../components/Topbar";
 import Sidebar from "../../components/Sidebar";
 import bgImage from "../../assets/bg.jpg";
-import { ResponsiveLine } from "@nivo/line";
+import PurchaseCodesAnalytics from "../../components/purchaseCodesAnalytics";
 import {
   LineChart,
   Line,
@@ -188,104 +188,12 @@ const AdminDashboard = () => {
 </Grid>
 
     {/* Purchased Codes Analytics */}
-    <Box sx={{ mt: 4 }}>
-      <Typography variant="h5" sx={{ mb: 2, fontWeight: 600, textShadow: "1px 1px 2px rgba(0,0,0,0.4)" }}>
-        🎟 Purchased Codes Analytics
-      </Typography>
-
-      <Card
-        sx={{
-          p: 2,
-          background: "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.05))",
-          backdropFilter: "blur(12px)",
-          color: "#fff",
-          borderRadius: "20px",
-          boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
-          width: { xs: "95%", md: "500px" },
-          mx: "auto",
-        }}
-      >
-        <CardContent>
-          {purchasedCodes.length === 0 ? (
-            <Typography>No purchased codes data available</Typography>
-          ) : (
-            <Box sx={{ height: 300 }}>
-              <ResponsiveLine
-                data={[
-                  {
-                    id: "Purchased Codes",
-                    color: "hsl(200, 70%, 50%)",
-                    data: aggregateByDate(purchasedCodes, "amount").map(d => ({ x: d.date, y: d.value })),
-                  },
-                ]}
-                margin={{ top: 20, right: 30, bottom: 50, left: 60 }}
-                xScale={{ type: "point" }}
-                yScale={{ type: "linear", min: 0, max: "auto", stacked: false }}
-                axisTop={null}
-                axisRight={null}
-                axisBottom={{
-                  orient: "bottom",
-                  tickRotation: -45,
-                  legend: "Date",
-                  legendOffset: 40,
-                  legendPosition: "middle",
-                }}
-                axisLeft={{
-                  orient: "left",
-                  legend: "Amount",
-                  legendOffset: -50,
-                  legendPosition: "middle",
-                }}
-                colors={{ scheme: "nivo" }}
-                pointSize={8}
-                pointColor={{ theme: "background" }}
-                pointBorderWidth={2}
-                pointBorderColor={{ from: "serieColor" }}
-                pointLabelYOffset={-12}
-                useMesh={true}
-                enableSlices="x"
-                legends={[
-                  {
-                    anchor: "top-left",
-                    direction: "row",
-                    justify: false,
-                    translateX: 0,
-                    translateY: -20,
-                    itemsSpacing: 0,
-                    itemDirection: "left-to-right",
-                    itemWidth: 120,
-                    itemHeight: 20,
-                    itemOpacity: 0.75,
-                    symbolSize: 12,
-                    symbolShape: "circle",
-                  },
-                ]}
-              />
-            </Box>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Optional: Date range filters */}
-      <Box sx={{ mt: 2, display: "flex", gap: 2, flexWrap: "wrap", alignItems: "center" }}>
-        <TextField
-          type="date"
-          label="From"
-          InputLabelProps={{ shrink: true }}
-          size="small"
-          value={dateRange.from}
-          onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))}
-        />
-        <TextField
-          type="date"
-          label="To"
-          InputLabelProps={{ shrink: true }}
-          size="small"
-          value={dateRange.to}
-          onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))}
-        />
-      </Box>
-    </Box>
+   <PurchaseCodesAnalytics
+      purchasedCodes={purchasedCodes}
+      dateRange={dateRange}
+      setDateRange={setDateRange}
+      aggregateByDate={aggregateByDate}
+    />
 
       </Box>
     </Box>

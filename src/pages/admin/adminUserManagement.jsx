@@ -175,6 +175,8 @@ const AdminUserManagement = () => {
 
       const uid = userCredential.user.uid;
 
+      const isMerchant = role === "MERCHANT";
+
       await setDoc(doc(db, "users", uid), {
         username,
         name,
@@ -182,8 +184,15 @@ const AdminUserManagement = () => {
         contactNumber,
         address,
         role,
-        referredBy,
-        referrerRole,
+        referredBy: isMerchant ? null : referredBy,
+        referrerRole: isMerchant ? null : referrerRole,
+        merchantProfile: isMerchant
+          ? {
+              merchantName: name,
+              status: "active", // active | suspended
+              createdAt: serverTimestamp(),
+            }
+          : null,
         createdAt: serverTimestamp(),
       });
 
@@ -565,6 +574,7 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
               <MenuItem value="MI">MI</MenuItem>
               <MenuItem value="AGENT">Agent</MenuItem>
               <MenuItem value="Member">Member</MenuItem>
+              <MenuItem value="MERCHANT">Merchant</MenuItem>
             </Select>
           </FormControl>
         </Box>
@@ -752,15 +762,18 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
                 <MenuItem value="MI">MI</MenuItem>
                 <MenuItem value="AGENT">Agent</MenuItem>
                 <MenuItem value="Member">Member</MenuItem>
+                <MenuItem value="MERCHANT">Merchant</MenuItem>
               </Select>
             </FormControl>
-            <TextField
-              label="Referred By (Username)"
-              value={newUser.referredBy}
-              onChange={(e) => setNewUser({ ...newUser, referredBy: e.target.value })}
-              fullWidth
-              margin="normal"
-            />
+            {newUser.role !== "MERCHANT" && (
+              <TextField
+                label="Referred By (Username)"
+                value={newUser.referredBy}
+                onChange={(e) => setNewUser({ ...newUser, referredBy: e.target.value })}
+                fullWidth
+                margin="normal"
+              />
+            )}
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setOpenDialog(false)} color="error">

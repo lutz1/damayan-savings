@@ -17,6 +17,7 @@ import { InputAdornment, IconButton } from "@mui/material";
 import bgImage from "../assets/bg.jpg";
 import tclcLogo from "../assets/tclc-logo1.png";
 import damayanLogo from "../assets/damayan.png";
+import Splashscreen from "../components/splashscreen";
 import TermsAndConditions from "../components/TermsAndConditions";
 
 const Login = () => {
@@ -27,6 +28,10 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [openTerms, setOpenTerms] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [showSplash, setShowSplash] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [isInstallable, setIsInstallable] = useState(false);
 
 
   // ✅ Redirect users based on role
@@ -34,10 +39,21 @@ const Login = () => {
     const base = "/damayan-savings";
     const upper = role.toUpperCase();
 
+    // mark that a redirect flow is in progress to avoid duplicate/contradictory redirects
+    setRedirecting(true);
+
+    const goTo = (path) => window.location.replace(`${base}${path}`);
+
+    // Show splash for merchants before redirecting
+    if (upper === "MERCHANT") {
+      setShowSplash(true);
+      return;
+    }
+
     switch (upper) {
       case "ADMIN":
       case "CEO":
-        window.location.replace(`${base}/admin/dashboard`);
+        goTo("/admin/dashboard");
         break;
       case "MASTERMD":
       case "MD":
@@ -45,10 +61,10 @@ const Login = () => {
       case "MI":
       case "AGENT":
       case "MEMBER":
-        window.location.replace(`${base}/member/dashboard`);
+        goTo("/member/dashboard");
         break;
       default:
-        window.location.replace(`${base}/`);
+        goTo("/");
     }
   };
 
@@ -59,6 +75,9 @@ const Login = () => {
         localStorage.removeItem("userRole");
         return;
       }
+
+      // if a redirect flow is already in progress, skip extra redirects
+      if (redirecting) return;
 
       let role = localStorage.getItem("userRole");
       if (!role) {
@@ -73,7 +92,7 @@ const Login = () => {
       handleRedirect(role);
     });
     return () => unsubscribe();
-  }, []);
+  }, [redirecting]);
 
   // --- LOGIN HANDLER ---
   const handleLogin = async (e) => {
@@ -116,6 +135,31 @@ const Login = () => {
     document.body.style.overflow = "auto";
   };
 }, []);
+
+  // PWA: capture beforeinstallprompt and appinstalled
+  useEffect(() => {
+    const beforeHandler = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setIsInstallable(true);
+    };
+
+    const installedHandler = () => {
+      setDeferredPrompt(null);
+      setIsInstallable(false);
+      try {
+        localStorage.setItem("pwa_installed", "true");
+      } catch (err) {}
+    };
+
+    window.addEventListener("beforeinstallprompt", beforeHandler);
+    window.addEventListener("appinstalled", installedHandler);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", beforeHandler);
+      window.removeEventListener("appinstalled", installedHandler);
+    };
+  }, []);
 
 
   return (
@@ -187,6 +231,38 @@ const Login = () => {
               }}
             />
           </Box>
+          {isInstallable && (
+            <>
+              <Button
+                variant="outlined"
+                sx={{ mb: 0.5, color: "#fff", borderColor: "rgba(255,255,255,0.3)" }}
+                onClick={async () => {
+                  if (!deferredPrompt) return;
+                  try {
+                    deferredPrompt.prompt();
+                    const choice = await deferredPrompt.userChoice;
+                    if (choice && choice.outcome === "accepted") {
+                      try {
+                        localStorage.setItem("pwa_installed", "true");
+                      } catch (err) {}
+                      setIsInstallable(false);
+                      setDeferredPrompt(null);
+                    }
+                  } catch (err) {
+                    console.error("PWA install prompt failed:", err);
+                  }
+                }}
+              >
+                Install App
+              </Button>
+              <Typography
+                variant="caption"
+                sx={{ display: "block", color: "rgba(255,255,255,0.8)", mb: 1 }}
+              >
+                Install for faster access and a home-screen shortcut.
+              </Typography>
+            </>
+          )}
 
           {error && (
             <Alert severity="error" sx={{ mb: 2, fontSize: { xs: "0.8rem", sm: "0.9rem" } }}>
@@ -350,6 +426,18 @@ const Login = () => {
           onAccept={() => {
             setAcceptedTerms(true);
             setOpenTerms(false);
+          }}
+        />
+        <Splashscreen
+          open={showSplash}
+          logo={damayanLogo}
+          duration={1400}
+          onClose={() => {
+            setShowSplash(false);
+            (function () {
+              const base = "/damayan-savings";
+              window.location.replace(`${base}/merchant/dashboard`);
+            })();
           }}
         />
       </motion.div>
