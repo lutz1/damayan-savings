@@ -118,7 +118,7 @@ function App() {
   return (
     <ParallaxProvider>
       <LocalizationProvider dateAdapter={AdapterMoment}>
-        <Router>
+        <Router basename={process.env.PUBLIC_URL || ""}>
           <AutoRedirect />
 
           <Routes>
