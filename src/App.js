@@ -93,6 +93,7 @@ function App() {
     const location = useLocation();
 
     useEffect(() => {
+      const base = process.env.PUBLIC_URL || "";
       const userRole = localStorage.getItem("userRole")?.toUpperCase();
       const path = location.pathname;
 
@@ -100,13 +101,13 @@ function App() {
 
       if (path === "/" || path === "/login") {
         if (["ADMIN", "CEO"].includes(userRole)) {
-          window.location.replace("/admin/dashboard");
+          window.location.replace(`${base}/admin/dashboard`);
         } else if (userRole === "MERCHANT") {
-          window.location.replace("/merchant/dashboard");
+          window.location.replace(`${base}/merchant/dashboard`);
         } else if (
           ["MASTERMD", "MD", "MS", "MI", "AGENT", "MEMBER"].includes(userRole)
         ) {
-          window.location.replace("/member/dashboard");
+          window.location.replace(`${base}/member/dashboard`);
         }
       }
     }, [location]);
