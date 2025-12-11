@@ -8,7 +8,8 @@ import reportWebVitals from './reportWebVitals';
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
-      const reg = await navigator.serviceWorker.register('/service-worker.js');
+      const base = process.env.PUBLIC_URL || '';
+      const reg = await navigator.serviceWorker.register(`${base}/service-worker.js`);
       console.log('Service worker registered:', reg.scope);
     } catch (err) {
       console.warn('Service worker registration failed:', err);
