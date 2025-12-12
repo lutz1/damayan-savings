@@ -1,13 +1,35 @@
 import React, { useEffect, useState } from "react";
 import { Box, Typography, Button, Paper } from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import usePwaInstall from "../hooks/usePwaInstall";
 
 const MobileInstall = () => {
   const navigate = useNavigate();
-  const { isInstallable, promptInstall, markInstalled } = usePwaInstall();
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [isInstallable, setIsInstallable] = useState(false);
   const [installed, setInstalled] = useState(false);
 
+  useEffect(() => {
+    const beforeHandler = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setIsInstallable(true);
+    };
+
+    const installedHandler = () => {
+      setInstalled(true);
+      try {
+        localStorage.setItem("pwa_installed", "true");
+      } catch (err) {}
+    };
+
+    window.addEventListener("beforeinstallprompt", beforeHandler);
+    window.addEventListener("appinstalled", installedHandler);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", beforeHandler);
+      window.removeEventListener("appinstalled", installedHandler);
+    };
+  }, []);
 
   useEffect(() => {
     if (installed) {
@@ -18,9 +40,14 @@ const MobileInstall = () => {
   }, [installed, navigate]);
 
   const handlePrompt = async () => {
+    if (!deferredPrompt) return;
     try {
-      const choice = await promptInstall();
+      deferredPrompt.prompt();
+      const choice = await deferredPrompt.userChoice;
       if (choice && choice.outcome === "accepted") {
+        try {
+          localStorage.setItem("pwa_installed", "true");
+        } catch (err) {}
         setInstalled(true);
       }
     } catch (err) {
@@ -80,17 +107,7 @@ const MobileInstall = () => {
           If the install prompt doesn't appear, open your browser menu and select "Install app" (or "Add to Home screen").
         </Typography>
 
-        <Button
-          variant="outlined"
-          onClick={() => {
-            try {
-              markInstalled();
-            } catch (err) {}
-            navigate("/login");
-          }}
-        >
-          Continue without Installing
-        </Button>
+        <Button variant="outlined" onClick={() => navigate("/login")}>Continue without Installing</Button>
       </Paper>
     </Box>
   );
