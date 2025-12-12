@@ -135,7 +135,7 @@ function App() {
       <LocalizationProvider dateAdapter={AdapterMoment}>
         <Splashscreen
           open={showSplash}
-          logo="/damayan-savings/tclc-logo1.png"
+          logo="/damayan-savings/damayan.png"
           duration={2000}
           onClose={() => setShowSplash(false)}
         />
