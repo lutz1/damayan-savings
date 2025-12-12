@@ -15,15 +15,41 @@ const MobileInstall = () => {
       setIsInstallable(true);
     };
 
-    const installedHandler = () => {
+    const markInstalled = () => {
       setInstalled(true);
       try {
         localStorage.setItem("pwa_installed", "true");
       } catch (err) {}
     };
 
+    const installedHandler = () => {
+      markInstalled();
+    };
+
     window.addEventListener("beforeinstallprompt", beforeHandler);
     window.addEventListener("appinstalled", installedHandler);
+
+    // Initial check: localStorage flag, display-mode, or installed related apps
+    try {
+      const stored = localStorage.getItem("pwa_installed");
+      if (stored === "true") {
+        markInstalled();
+      }
+    } catch (err) {}
+
+    if (!installed) {
+      try {
+        if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) {
+          markInstalled();
+        } else if (window.navigator && typeof window.navigator.getInstalledRelatedApps === "function") {
+          window.navigator.getInstalledRelatedApps().then((apps) => {
+            if (apps && apps.length > 0) {
+              markInstalled();
+            }
+          }).catch(() => {});
+        }
+      } catch (err) {}
+    }
 
     return () => {
       window.removeEventListener("beforeinstallprompt", beforeHandler);
@@ -107,7 +133,17 @@ const MobileInstall = () => {
           If the install prompt doesn't appear, open your browser menu and select "Install app" (or "Add to Home screen").
         </Typography>
 
-        <Button variant="outlined" onClick={() => navigate("/login")}>Continue without Installing</Button>
+        <Button
+          variant="outlined"
+          onClick={() => {
+            try {
+              localStorage.setItem("pwa_installed", "true");
+            } catch (err) {}
+            navigate("/login");
+          }}
+        >
+          Continue without Installing
+        </Button>
       </Paper>
     </Box>
   );
