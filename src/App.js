@@ -9,6 +9,7 @@ import {
 import { ParallaxProvider } from "react-scroll-parallax";
 import { LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterMoment } from "@mui/x-date-pickers/AdapterMoment";
+import Splashscreen from "./components/splashscreen";
 
 /* ======================
    PUBLIC
@@ -50,12 +51,25 @@ import "leaflet/dist/leaflet.css";
 function App() {
   const [initialized, setInitialized] = useState(false);
   const [role, setRole] = useState(() => localStorage.getItem("userRole"));
+  const [showSplash, setShowSplash] = useState(() => {
+    // Show splash on standalone app launch (iOS or Android PWA)
+    const isStandalone =
+      window.navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
+    const splashShown = sessionStorage.getItem("splash_shown");
+    return isStandalone && !splashShown;
+  });
 
   useEffect(() => {
     const storedRole = localStorage.getItem("userRole");
     if (storedRole) setRole(storedRole);
     setInitialized(true);
   }, []);
+
+  useEffect(() => {
+    if (showSplash) {
+      sessionStorage.setItem("splash_shown", "true");
+    }
+  }, [showSplash]);
 
   if (!initialized) {
     return (
@@ -119,6 +133,12 @@ function App() {
   return (
     <ParallaxProvider>
       <LocalizationProvider dateAdapter={AdapterMoment}>
+        <Splashscreen
+          open={showSplash}
+          logo="/damayan-savings/tclc-logo1.png"
+          duration={2000}
+          onClose={() => setShowSplash(false)}
+        />
         <Router basename={process.env.PUBLIC_URL || ""}>
           <AutoRedirect />
 
