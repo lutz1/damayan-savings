@@ -46,7 +46,11 @@ const Splashscreen = ({ open = false, logo, duration = 1800, onClose }) => {
                 src={logo}
                 alt="Company logo"
                 sx={{
-                  width: { xs: 160, sm: 220 },
+                  // Use viewport-relative sizing so the logo appears large on small screens
+                  width: { xs: "45vw", sm: "32vw", md: "28vw" },
+                  maxWidth: 420,
+                  minWidth: 140,
+                  height: "auto",
                   mb: 2,
                   filter: "drop-shadow(0 6px 16px rgba(0,0,0,0.6))",
                   display: "block",
