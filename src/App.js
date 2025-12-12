@@ -139,10 +139,11 @@ function App() {
           duration={2000}
           onClose={() => setShowSplash(false)}
         />
-        <Router basename={process.env.PUBLIC_URL || ""}>
-          <AutoRedirect />
+        {!showSplash && (
+          <Router basename={process.env.PUBLIC_URL || ""}>
+            <AutoRedirect />
 
-          <Routes>
+            <Routes>
             {/* ======================
                 PUBLIC
             ====================== */}
@@ -302,8 +303,13 @@ function App() {
                 FALLBACK
             ====================== */}
             <Route path="*" element={<Navigate to="/" replace />} />
+            {/* ======================
+                FALLBACK
+            ====================== */}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </Router>
+          </Router>
+        )}
       </LocalizationProvider>
     </ParallaxProvider>
   );
