@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import usePwaInstall from "../hooks/usePwaInstall";
 import {
   Box,
   Typography,
@@ -17,6 +18,7 @@ import { InputAdornment, IconButton } from "@mui/material";
 import bgImage from "../assets/bg.jpg";
 import tclcLogo from "../assets/tclc-logo1.png";
 import damayanLogo from "../assets/damayan.png";
+import merchantLogo from "../assets/merchantlogo.jpg";
 import Splashscreen from "../components/splashscreen";
 import TermsAndConditions from "../components/TermsAndConditions";
 
@@ -29,13 +31,14 @@ const Login = () => {
   const [openTerms, setOpenTerms] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
+  const [splashLogo, setSplashLogo] = useState(damayanLogo);
+  const [postSplashTarget, setPostSplashTarget] = useState(null);
   const [redirecting, setRedirecting] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [isInstallable, setIsInstallable] = useState(false);
+  const { isInstallable, promptInstall } = usePwaInstall();
 
-
+  
   // ✅ Redirect users based on role
-  const handleRedirect = (role) => {
+  const handleRedirect = (role) => { 
     const base = "/damayan-savings";
     const upper = role.toUpperCase();
 
@@ -46,14 +49,16 @@ const Login = () => {
 
     // Show splash for merchants before redirecting
     if (upper === "MERCHANT") {
+      setSplashLogo(merchantLogo);
+      setPostSplashTarget("/location-access");
       setShowSplash(true);
       return;
     }
 
     switch (upper) {
-      case "ADMIN":
-      case "CEO":
-        goTo("/admin/dashboard");
+        case "ADMIN":
+        case "CEO":
+          goTo("/admin/dashboard");
         break;
       case "MASTERMD":
       case "MD":
@@ -80,7 +85,7 @@ const Login = () => {
       if (redirecting) return;
 
       let role = localStorage.getItem("userRole");
-      if (!role) {
+      if (!role) { 
         const userRef = doc(db, "users", user.uid);
         const userSnap = await getDoc(userRef);
         if (userSnap.exists()) {
@@ -136,30 +141,6 @@ const Login = () => {
   };
 }, []);
 
-  // PWA: capture beforeinstallprompt and appinstalled
-  useEffect(() => {
-    const beforeHandler = (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setIsInstallable(true);
-    };
-
-    const installedHandler = () => {
-      setDeferredPrompt(null);
-      setIsInstallable(false);
-      try {
-        localStorage.setItem("pwa_installed", "true");
-      } catch (err) {}
-    };
-
-    window.addEventListener("beforeinstallprompt", beforeHandler);
-    window.addEventListener("appinstalled", installedHandler);
-
-    return () => {
-      window.removeEventListener("beforeinstallprompt", beforeHandler);
-      window.removeEventListener("appinstalled", installedHandler);
-    };
-  }, []);
 
 
   return (
@@ -237,19 +218,10 @@ const Login = () => {
                 variant="outlined"
                 sx={{ mb: 0.5, color: "#fff", borderColor: "rgba(255,255,255,0.3)" }}
                 onClick={async () => {
-                  if (!deferredPrompt) return;
                   try {
-                    deferredPrompt.prompt();
-                    const choice = await deferredPrompt.userChoice;
-                    if (choice && choice.outcome === "accepted") {
-                      try {
-                        localStorage.setItem("pwa_installed", "true");
-                      } catch (err) {}
-                      setIsInstallable(false);
-                      setDeferredPrompt(null);
-                    }
+                    await promptInstall();
                   } catch (err) {
-                    console.error("PWA install prompt failed:", err);
+                    console.error("PWA install failed:", err);
                   }
                 }}
               >
@@ -430,13 +402,17 @@ const Login = () => {
         />
         <Splashscreen
           open={showSplash}
-          logo={damayanLogo}
+          logo={splashLogo}
           duration={1400}
           onClose={() => {
             setShowSplash(false);
             (function () {
               const base = "/damayan-savings";
-              window.location.replace(`${base}/merchant/dashboard`);
+              if (postSplashTarget) {
+                window.location.replace(`${base}${postSplashTarget}`);
+              } else {
+                window.location.replace(`${base}/merchant/dashboard`);
+              }
             })();
           }}
         />

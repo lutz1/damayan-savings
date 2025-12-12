@@ -1,61 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { Box, Typography, Button, Paper } from "@mui/material";
 import { useNavigate } from "react-router-dom";
+import usePwaInstall from "../hooks/usePwaInstall";
 
 const MobileInstall = () => {
   const navigate = useNavigate();
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [isInstallable, setIsInstallable] = useState(false);
+  const { isInstallable, promptInstall, markInstalled } = usePwaInstall();
   const [installed, setInstalled] = useState(false);
 
-  useEffect(() => {
-    const beforeHandler = (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setIsInstallable(true);
-    };
-
-    const markInstalled = () => {
-      setInstalled(true);
-      try {
-        localStorage.setItem("pwa_installed", "true");
-      } catch (err) {}
-    };
-
-    const installedHandler = () => {
-      markInstalled();
-    };
-
-    window.addEventListener("beforeinstallprompt", beforeHandler);
-    window.addEventListener("appinstalled", installedHandler);
-
-    // Initial check: localStorage flag, display-mode, or installed related apps
-    try {
-      const stored = localStorage.getItem("pwa_installed");
-      if (stored === "true") {
-        markInstalled();
-      }
-    } catch (err) {}
-
-    if (!installed) {
-      try {
-        if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) {
-          markInstalled();
-        } else if (window.navigator && typeof window.navigator.getInstalledRelatedApps === "function") {
-          window.navigator.getInstalledRelatedApps().then((apps) => {
-            if (apps && apps.length > 0) {
-              markInstalled();
-            }
-          }).catch(() => {});
-        }
-      } catch (err) {}
-    }
-
-    return () => {
-      window.removeEventListener("beforeinstallprompt", beforeHandler);
-      window.removeEventListener("appinstalled", installedHandler);
-    };
-  }, []);
 
   useEffect(() => {
     if (installed) {
@@ -66,14 +18,9 @@ const MobileInstall = () => {
   }, [installed, navigate]);
 
   const handlePrompt = async () => {
-    if (!deferredPrompt) return;
     try {
-      deferredPrompt.prompt();
-      const choice = await deferredPrompt.userChoice;
+      const choice = await promptInstall();
       if (choice && choice.outcome === "accepted") {
-        try {
-          localStorage.setItem("pwa_installed", "true");
-        } catch (err) {}
         setInstalled(true);
       }
     } catch (err) {
@@ -137,7 +84,7 @@ const MobileInstall = () => {
           variant="outlined"
           onClick={() => {
             try {
-              localStorage.setItem("pwa_installed", "true");
+              markInstalled();
             } catch (err) {}
             navigate("/login");
           }}

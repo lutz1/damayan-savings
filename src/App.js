@@ -37,6 +37,7 @@ import MerchantDashboard from "./pages/merchant/merchantDashboard";
 import AddProductPage from "./pages/merchant/addProduct";
 import MerchantProfile from "./pages/merchant/merchantProfile";
 import MobileInstall from "./pages/MobileInstall";
+import LocationAccess from "./pages/LocationAccess";
 
 /* ======================
    MEMBER
@@ -150,6 +151,7 @@ function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/mobile-install" element={<MobileInstall />} />
+            <Route path="/location-access" element={<LocationAccess />} />
 
             {/* ======================
                 ADMIN

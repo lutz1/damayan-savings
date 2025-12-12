@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { Box, Fade } from "@mui/material";
+import { motion } from "framer-motion";
 
 const Splashscreen = ({ open = false, logo, duration = 1800, onClose }) => {
   useEffect(() => {
@@ -40,7 +41,11 @@ const Splashscreen = ({ open = false, logo, duration = 1800, onClose }) => {
       >
         <Box sx={{ textAlign: "center", color: "#fff" }}>
           {logo && (
-            <Fade in={open} timeout={1000}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: [1, 1.08, 0.98, 1] }}
+              transition={{ duration: 1.2, ease: "easeOut" }}
+            >
               <Box
                 component="img"
                 src={logo}
@@ -57,7 +62,7 @@ const Splashscreen = ({ open = false, logo, duration = 1800, onClose }) => {
                   mx: "auto",
                 }}
               />
-            </Fade>
+            </motion.div>
           )}
         </Box>
       </Box>
