@@ -18,7 +18,7 @@ import { InputAdornment, IconButton } from "@mui/material";
 import bgImage from "../assets/bg.jpg";
 import tclcLogo from "../assets/tclc-logo1.png";
 import damayanLogo from "../assets/damayan.png";
-import merchantLogo from "../assets/merchantlogo.jpg";
+import merchantLogo from "../assets/merchantlogo.png";
 import Splashscreen from "../components/splashscreen";
 import TermsAndConditions from "../components/TermsAndConditions";
 
@@ -35,6 +35,19 @@ const Login = () => {
   const [postSplashTarget, setPostSplashTarget] = useState(null);
   const [redirecting, setRedirecting] = useState(false);
   const { isInstallable, promptInstall } = usePwaInstall();
+
+  // iOS detection and standalone check (for Add to Home Screen guidance)
+  const isIos = typeof window !== "undefined" && /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
+  const isInStandaloneMode =
+    typeof window !== "undefined" && (window.navigator.standalone === true || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches));
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+    } catch (err) {
+      console.error("Copy failed", err);
+    }
+  };
 
   
   // ✅ Redirect users based on role
@@ -134,20 +147,16 @@ const Login = () => {
     }
   };
 
-  useEffect(() => {
-  document.body.style.overflow = "hidden";
-  return () => {
-    document.body.style.overflow = "auto";
-  };
-}, []);
+  // NOTE: do not forcibly hide body overflow here — allow normal scrolling
+  // so the background can fill the full viewport height responsively.
 
 
 
   return (
-   <Box
-      sx={{
-       height: { xs: "85vh", sm: "95vh", md: "100vh" }, // 🔥 reduced mobile height
-        overflow: "hidden",
+  <Box
+    sx={{
+     minHeight: "100vh",
+      overflow: "auto",
         backgroundImage: `url(${bgImage})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
@@ -212,7 +221,23 @@ const Login = () => {
               }}
             />
           </Box>
-          {isInstallable && (
+          {isIos && !isInStandaloneMode ? (
+            <>
+              <Typography sx={{ mb: 1 }}>
+                On iPhone/iPad the browser must be Safari to add the app to your Home Screen.
+              </Typography>
+              <Typography variant="body2" sx={{ textAlign: "left", mb: 1.5 }}>
+                Steps: 1) Open this page in Safari. 2) Tap the Share button (box with up-arrow). 3) Choose "Add to Home Screen".
+              </Typography>
+              <Button
+                variant="outlined"
+                sx={{ mb: 0.5, color: "#fff", borderColor: "rgba(255,255,255,0.3)" }}
+                onClick={copyLink}
+              >
+                Copy Link (Open in Safari)
+              </Button>
+            </>
+          ) : isInstallable ? (
             <>
               <Button
                 variant="outlined"
@@ -234,7 +259,7 @@ const Login = () => {
                 Install for faster access and a home-screen shortcut.
               </Typography>
             </>
-          )}
+          ) : null}
 
           {error && (
             <Alert severity="error" sx={{ mb: 2, fontSize: { xs: "0.8rem", sm: "0.9rem" } }}>
@@ -404,6 +429,7 @@ const Login = () => {
           open={showSplash}
           logo={splashLogo}
           duration={1400}
+          overlayColor={splashLogo === merchantLogo ? "#f1f3c7" : undefined}
           onClose={() => {
             setShowSplash(false);
             (function () {

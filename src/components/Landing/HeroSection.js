@@ -24,21 +24,6 @@ const glassmorphicStyle = {
 const HeroSection = () => {
   const [index, setIndex] = useState(0);
   const navigate = useNavigate();
-  const isInstalledSync = () => {
-    try {
-      const stored = localStorage.getItem("pwa_installed");
-      if (stored === "true") return true;
-    } catch (err) {}
-
-    try {
-      if (typeof window !== "undefined") {
-        if (window.navigator && window.navigator.standalone === true) return true;
-        if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) return true;
-      }
-    } catch (err) {}
-
-    return false;
-  };
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -140,7 +125,7 @@ const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
           transition={{ duration: 1.2 }}
           whileHover={{ scale: 1.08 }}
         >
-          <Button
+            <Button
             variant="contained"
             color="secondary"
             size="large"
@@ -154,13 +139,7 @@ const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
               "&:hover": { backgroundColor: "#ffca28" },
               mt: 5,
             }}
-            onClick={() => {
-              if (isInstalledSync()) {
-                navigate("/login");
-              } else {
-                navigate("/mobile-install");
-              }
-            }}
+            onClick={() => navigate("/login")}
           >
             Apply for Damayan Savings
           </Button>

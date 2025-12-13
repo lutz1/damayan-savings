@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { Box, Fade } from "@mui/material";
 import { motion } from "framer-motion";
 
-const Splashscreen = ({ open = false, logo, duration = 1800, onClose }) => {
+const Splashscreen = ({ open = false, logo, duration = 1800, onClose, overlayColor = "rgba(0,0,0,0.9)" }) => {
   useEffect(() => {
     if (!open) return;
 
@@ -35,7 +35,7 @@ const Splashscreen = ({ open = false, logo, duration = 1800, onClose }) => {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          bgcolor: "rgba(0,0,0,0.9)",
+          bgcolor: overlayColor,
           px: 2,
         }}
       >
@@ -43,7 +43,7 @@ const Splashscreen = ({ open = false, logo, duration = 1800, onClose }) => {
           {logo && (
             <motion.div
               initial={{ opacity: 0, scale: 0.85 }}
-              animate={{ opacity: 1, scale: [1, 1.08, 0.98, 1] }}
+              animate={{ opacity: 1, scale: [1, 1.18, 0.98, 1] }}
               transition={{ duration: 1.2, ease: "easeOut" }}
             >
               <Box
@@ -51,13 +51,11 @@ const Splashscreen = ({ open = false, logo, duration = 1800, onClose }) => {
                 src={logo}
                 alt="Company logo"
                 sx={{
-                  // Use viewport-relative sizing so the logo appears large on small screens
-                  width: { xs: "45vw", sm: "32vw", md: "28vw" },
-                  maxWidth: 420,
-                  minWidth: 140,
+                  width: "auto",
+                  maxWidth: { xs: "90vw", sm: "70vw", md: "60vw" },
+                  maxHeight: { xs: "55vh", sm: "65vh", md: "75vh" },
                   height: "auto",
-                  mb: 2,
-                  filter: "drop-shadow(0 6px 16px rgba(0,0,0,0.6))",
+                  filter: "drop-shadow(0 6px 20px rgba(0,0,0,0.65))",
                   display: "block",
                   mx: "auto",
                 }}

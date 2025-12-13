@@ -57,6 +57,15 @@
           ) {
             window.history.replaceState(null, null, redirect);
           }
+        } else {
+          // No saved redirect — if user landed on the site root on GitHub Pages,
+          // load the login page by default.
+          if (
+            window.location.pathname === "/damayan-savings/" ||
+            window.location.pathname === "/damayan-savings"
+          ) {
+            window.history.replaceState(null, null, "/damayan-savings/login");
+          }
         }
       })();
     </script>
