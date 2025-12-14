@@ -8,10 +8,22 @@ import {
   Avatar,
   Button,
   Divider,
+  IconButton,
+  Stack,
+  CircularProgress,
+  Alert,
+  Snackbar,
 } from "@mui/material";
+import {
+  AttachFile,
+  Download,
+  Delete as DeleteIcon,
+  Description,
+} from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
-import { doc, getDoc } from "firebase/firestore";
-import { db, auth } from "../../firebase";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { db, auth, storage } from "../../firebase";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import BottomNav from "../../components/BottomNav";
 
@@ -22,6 +34,13 @@ const MerchantProfile = () => {
   );
 
   const [merchantData, setMerchantData] = useState(null);
+  const [attachments, setAttachments] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [snack, setSnack] = useState({
+    open: false,
+    severity: "success",
+    message: "",
+  });
 
   /* ======================
      LOAD MERCHANT DATA
@@ -34,7 +53,9 @@ useEffect(() => {
       const snap = await getDoc(doc(db, "users", merchantId));
       console.log("User doc:", snap.data());
       if (snap.exists()) {
-        setMerchantData(snap.data());
+        const data = snap.data();
+        setMerchantData(data);
+        setAttachments(data.attachments || []);
       } else {
         console.warn("No merchant found for UID:", merchantId);
       }
@@ -61,6 +82,91 @@ useEffect(() => {
     });
     return unsub;
   }, [merchantId]);
+
+  const handleFileUpload = async (e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploading(true);
+
+    try {
+      const uploadPromises = Array.from(files).map(async (file) => {
+        const storageRef = ref(
+          storage,
+          `merchant-documents/${merchantId}/${Date.now()}_${file.name}`
+        );
+        await uploadBytes(storageRef, file);
+        const url = await getDownloadURL(storageRef);
+        return {
+          name: file.name,
+          url,
+          uploadedAt: new Date().toISOString(),
+          size: file.size,
+          type: file.type,
+        };
+      });
+
+      const newAttachments = await Promise.all(uploadPromises);
+      const updatedAttachments = [...attachments, ...newAttachments];
+
+      await updateDoc(doc(db, "users", merchantId), {
+        attachments: updatedAttachments,
+      });
+
+      setAttachments(updatedAttachments);
+      setSnack({
+        open: true,
+        severity: "success",
+        message: `${newAttachments.length} file(s) uploaded successfully`,
+      });
+    } catch (err) {
+      console.error("Upload failed:", err);
+      setSnack({
+        open: true,
+        severity: "error",
+        message: "Failed to upload files",
+      });
+    }
+
+    setUploading(false);
+    e.target.value = null;
+  };
+
+  const handleDeleteAttachment = async (index) => {
+    if (!window.confirm("Are you sure you want to delete this attachment?")) return;
+
+    try {
+      const attachment = attachments[index];
+      
+      // Delete from storage
+      try {
+        const fileRef = ref(storage, attachment.url);
+        await deleteObject(fileRef);
+      } catch (err) {
+        console.warn("Failed to delete from storage:", err);
+      }
+
+      // Update Firestore
+      const updatedAttachments = attachments.filter((_, i) => i !== index);
+      await updateDoc(doc(db, "users", merchantId), {
+        attachments: updatedAttachments,
+      });
+
+      setAttachments(updatedAttachments);
+      setSnack({
+        open: true,
+        severity: "success",
+        message: "Attachment deleted",
+      });
+    } catch (err) {
+      console.error("Delete failed:", err);
+      setSnack({
+        open: true,
+        severity: "error",
+        message: "Failed to delete attachment",
+      });
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -140,7 +246,86 @@ useEffect(() => {
           <Typography variant="subtitle2" color="gray">
             Address
           </Typography>
-          <Typography variant="body1">{address}</Typography>
+          <Typography variant="body1" mb={2}>{address}</Typography>
+
+          <Divider sx={{ my: 2 }} />
+
+          <Typography variant="subtitle2" color="gray" mb={1}>
+            Company Documents
+          </Typography>
+          
+          <Button
+            component="label"
+            variant="outlined"
+            startIcon={uploading ? <CircularProgress size={20} /> : <AttachFile />}
+            disabled={uploading}
+            fullWidth
+            sx={{ mb: 2 }}
+          >
+            {uploading ? "Uploading..." : "Upload Attachments"}
+            <input
+              hidden
+              type="file"
+              multiple
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+              onChange={handleFileUpload}
+            />
+          </Button>
+
+          {attachments.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", py: 2 }}>
+              No documents uploaded yet
+            </Typography>
+          ) : (
+            <Stack spacing={1}>
+              {attachments.map((file, index) => (
+                <Card key={index} variant="outlined" sx={{ bgcolor: "#f8f9fa" }}>
+                  <CardContent sx={{ py: 1.5, px: 2, "&:last-child": { pb: 1.5 } }}>
+                    <Stack direction="row" alignItems="center" justifyContent="space-between">
+                      <Stack direction="row" alignItems="center" spacing={1} flex={1}>
+                        <Description color="primary" />
+                        <Box sx={{ minWidth: 0, flex: 1 }}>
+                          <Typography 
+                            variant="body2" 
+                            fontWeight={500}
+                            sx={{ 
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {file.name}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {file.size ? `${(file.size / 1024).toFixed(1)} KB` : ""}
+                            {file.uploadedAt && ` • ${new Date(file.uploadedAt).toLocaleDateString()}`}
+                          </Typography>
+                        </Box>
+                      </Stack>
+                      <Stack direction="row" spacing={0.5}>
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          onClick={() => window.open(file.url, "_blank")}
+                          title="Download"
+                        >
+                          <Download fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => handleDeleteAttachment(index)}
+                          title="Delete"
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Stack>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              ))}
+            </Stack>
+          )}
         </CardContent>
       </Card>
 
@@ -164,6 +349,17 @@ useEffect(() => {
       </Button>
 
       <Divider sx={{ my: 2 }} />
+
+      <Snackbar
+        open={snack.open}
+        autoHideDuration={3000}
+        onClose={() => setSnack({ ...snack, open: false })}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+      >
+        <Alert severity={snack.severity} variant="filled">
+          {snack.message}
+        </Alert>
+      </Snackbar>
 
       <BottomNav />
     </Box>

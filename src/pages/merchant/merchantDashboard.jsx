@@ -54,7 +54,7 @@ useEffect(() => {
         console.log("User doc:", data);
 
         setMerchantName(
-          data.merchantProfile?.merchantName || "Merchant"
+          data.name || data.merchantProfile?.merchantName || "Merchant"
         );
       } else {
         console.warn("User doc not found:", merchantId);
@@ -129,31 +129,198 @@ useEffect(() => {
     .sort((a, b) => b.sales - a.sales)
     .slice(0, 5);
 
+  // Revenue Insights
+  const revenueInsights = useMemo(() => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+
+    const todaySales = sales.filter(s => {
+      const saleDate = s.createdAt?.toDate ? s.createdAt.toDate() : new Date(s.createdAt);
+      return saleDate >= today;
+    }).reduce((sum, s) => sum + Number(s.total || 0), 0);
+
+    const weekSales = sales.filter(s => {
+      const saleDate = s.createdAt?.toDate ? s.createdAt.toDate() : new Date(s.createdAt);
+      return saleDate >= weekAgo;
+    }).reduce((sum, s) => sum + Number(s.total || 0), 0);
+
+    const monthSales = sales.filter(s => {
+      const saleDate = s.createdAt?.toDate ? s.createdAt.toDate() : new Date(s.createdAt);
+      return saleDate >= monthAgo;
+    }).reduce((sum, s) => sum + Number(s.total || 0), 0);
+
+    const avgOrderValue = sales.length > 0 ? totalSales / sales.length : 0;
+    
+    return {
+      today: todaySales,
+      week: weekSales,
+      month: monthSales,
+      avgOrder: avgOrderValue,
+      totalOrders: sales.length,
+    };
+  }, [sales, totalSales]);
+
+  // Customer Insights
+  const customerInsights = useMemo(() => {
+    const uniqueCustomers = new Set(sales.map(s => s.customerId)).size;
+    const repeatCustomers = sales.reduce((acc, sale) => {
+      acc[sale.customerId] = (acc[sale.customerId] || 0) + 1;
+      return acc;
+    }, {});
+    const repeatCount = Object.values(repeatCustomers).filter(count => count > 1).length;
+    
+    return {
+      total: uniqueCustomers,
+      repeat: repeatCount,
+      repeatRate: uniqueCustomers > 0 ? (repeatCount / uniqueCustomers * 100).toFixed(1) : 0,
+    };
+  }, [sales]);
+
+  // Product Performance
+  const productPerformance = useMemo(() => {
+    const activeProducts = products.filter(p => p.status === 'active' || !p.status).length;
+    const lowStock = products.filter(p => Number(p.stock || 0) < 10).length;
+    
+    return {
+      active: activeProducts,
+      lowStock,
+    };
+  }, [products]);
+
+  /* ======================
+     TIME-BASED GREETING
+  ====================== */
+  const getTimeBasedGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good Morning";
+    if (hour < 18) return "Good Afternoon";
+    return "Good Evening";
+  };
+
   /* ======================
      UI
   ====================== */
   return (
     <Box sx={{ pb: 10, px: 2, pt: 2, minHeight: "100vh", bgcolor: "#f5f5f5" }}>
-      {/* Header */}
-      <Typography variant="h5" fontWeight="bold" mb={2}>
-        {merchantName || "Merchant"} Dashboard
-      </Typography>
+      {/* Welcome Greeting Header */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h5" fontWeight="bold" color="primary">
+          Welcome back, {merchantName || "Merchant"}
+        </Typography>
+        <Typography variant="h6" fontWeight="500" color="text.secondary" sx={{ mt: 0.5 }}>
+          {getTimeBasedGreeting()} 👋
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1, lineHeight: 1.6 }}>
+          Insights So You Can Keep Track of Your Revenue and Performance and watch your business grow.
+        </Typography>
+      </Box>
 
-      {/* ===== Stats ===== */}
-      <Grid container spacing={2} mb={2}>
+      {/* ===== Revenue Overview ===== */}
+      <Typography variant="h6" fontWeight={600} mb={2}>
+        📊 Revenue Overview
+      </Typography>
+      <Grid container spacing={2} mb={3}>
+        <Grid item xs={6}>
+          <Card sx={{ bgcolor: '#e3f2fd' }}>
+            <CardContent>
+              <Typography variant="body2" color="text.secondary">Today</Typography>
+              <Typography variant="h6" fontWeight="bold">₱{revenueInsights.today.toFixed(2)}</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={6}>
+          <Card sx={{ bgcolor: '#f3e5f5' }}>
+            <CardContent>
+              <Typography variant="body2" color="text.secondary">This Week</Typography>
+              <Typography variant="h6" fontWeight="bold">₱{revenueInsights.week.toFixed(2)}</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={6}>
+          <Card sx={{ bgcolor: '#e8f5e9' }}>
+            <CardContent>
+              <Typography variant="body2" color="text.secondary">This Month</Typography>
+              <Typography variant="h6" fontWeight="bold">₱{revenueInsights.month.toFixed(2)}</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={6}>
+          <Card sx={{ bgcolor: '#fff3e0' }}>
+            <CardContent>
+              <Typography variant="body2" color="text.secondary">Total Revenue</Typography>
+              <Typography variant="h6" fontWeight="bold">₱{totalSales.toFixed(2)}</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* ===== Performance Metrics ===== */}
+      <Typography variant="h6" fontWeight={600} mb={2}>
+        📈 Performance Metrics
+      </Typography>
+      <Grid container spacing={2} mb={3}>
         <Grid item xs={6}>
           <Card>
             <CardContent>
-              <Typography variant="body2">Products</Typography>
-              <Typography variant="h5">{products.length}</Typography>
+              <Typography variant="body2" color="text.secondary">Total Orders</Typography>
+              <Typography variant="h5" fontWeight="bold">{revenueInsights.totalOrders}</Typography>
             </CardContent>
           </Card>
         </Grid>
         <Grid item xs={6}>
           <Card>
             <CardContent>
-              <Typography variant="body2">Total Sales</Typography>
-              <Typography variant="h5">₱{totalSales}</Typography>
+              <Typography variant="body2" color="text.secondary">Avg Order Value</Typography>
+              <Typography variant="h5" fontWeight="bold">₱{revenueInsights.avgOrder.toFixed(2)}</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="body2" color="text.secondary">Total Customers</Typography>
+              <Typography variant="h5" fontWeight="bold">{customerInsights.total}</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="body2" color="text.secondary">Repeat Rate</Typography>
+              <Typography variant="h5" fontWeight="bold">{customerInsights.repeatRate}%</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* ===== Product Stats ===== */}
+      <Typography variant="h6" fontWeight={600} mb={2}>
+        📦 Product Statistics
+      </Typography>
+      <Grid container spacing={2} mb={3}>
+        <Grid item xs={4}>
+          <Card>
+            <CardContent>
+              <Typography variant="body2" color="text.secondary">Total Products</Typography>
+              <Typography variant="h5" fontWeight="bold">{products.length}</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={4}>
+          <Card>
+            <CardContent>
+              <Typography variant="body2" color="text.secondary">Active</Typography>
+              <Typography variant="h5" fontWeight="bold" color="success.main">{productPerformance.active}</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={4}>
+          <Card>
+            <CardContent>
+              <Typography variant="body2" color="text.secondary">Low Stock</Typography>
+              <Typography variant="h5" fontWeight="bold" color="error.main">{productPerformance.lowStock}</Typography>
             </CardContent>
           </Card>
         </Grid>

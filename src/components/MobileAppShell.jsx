@@ -10,7 +10,7 @@ const MobileAppShell = ({ title, children }) => {
         height: "100dvh", // ✅ modern mobile height
         display: "flex",
         flexDirection: "column",
-        backgroundColor: "#0f172a",
+        backgroundColor: "#F4F6F8",
         color: "white",
         overflow: "hidden",
       }}

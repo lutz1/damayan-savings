@@ -29,6 +29,7 @@ const BottomNav = () => {
     borderTopRightRadius: 16,
     overflow: "hidden",
     height: 80, // increase the overall height
+    zIndex: 1000, // ensure it stays on top of content
   }}
 >
   <BottomNavigation
