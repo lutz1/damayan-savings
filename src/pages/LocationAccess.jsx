@@ -13,11 +13,11 @@ const LocationAccess = () => {
     <Container maxWidth="sm" disableGutters sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', py: 4 }}>
       <Stack spacing={2} alignItems="center" sx={{ width: '100%' }}>
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>
-          <img src={merchantLogo} alt="Merchant" style={{ width: '48vw', maxWidth: 260, display: 'block', margin: '0 auto' }} />
+          <img src={merchantLogo} alt="Merchant" style={{ width: '100%', maxWidth: 260, display: 'block', margin: '0 auto' }} />
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.15 }} style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
-          <div style={{ width: '80vw', maxWidth: 320, borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ width: '100%', maxWidth: 320, borderRadius: 8, overflow: 'hidden' }}>
             <motion.img
               src={mapImg}
               alt="Map"
