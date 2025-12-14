@@ -133,7 +133,15 @@ const Topbar = ({ open, onToggleSidebar }) => {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      localStorage.clear();
+      try {
+        localStorage.removeItem('locationCompleted');
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('uid');
+        localStorage.clear();
+      } catch (e) {}
+      try {
+        sessionStorage.removeItem('redirect');
+      } catch (e) {}
       navigate("/login", { replace: true });
     } catch (error) {
       console.error("Logout failed:", error);

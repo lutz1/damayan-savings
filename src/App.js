@@ -14,7 +14,7 @@ import Splashscreen from "./components/splashscreen";
 /* ======================
    PUBLIC
 ====================== */
-import LandingPage from "./pages/LandingPage";
+// Landing page removed — redirect root to login
 import Login from "./pages/login";
 
 /* ======================
@@ -110,6 +110,7 @@ function App() {
     useEffect(() => {
       const base = process.env.PUBLIC_URL || "";
       const userRole = localStorage.getItem("userRole")?.toUpperCase();
+      const locationCompleted = localStorage.getItem('locationCompleted') === 'true';
       const path = location.pathname;
 
       if (!userRole) return;
@@ -118,7 +119,12 @@ function App() {
         if (["ADMIN", "CEO"].includes(userRole)) {
           window.location.replace(`${base}/admin/dashboard`);
         } else if (userRole === "MERCHANT") {
-          window.location.replace(`${base}/merchant/dashboard`);
+          // Ensure merchant completes the LocationAccess flow before landing on dashboard
+          if (locationCompleted) {
+            window.location.replace(`${base}/merchant/dashboard`);
+          } else {
+            window.location.replace(`${base}/location-access`);
+          }
         } else if (
           ["MASTERMD", "MD", "MS", "MI", "AGENT", "MEMBER"].includes(userRole)
         ) {
@@ -147,7 +153,7 @@ function App() {
             {/* ======================
                 PUBLIC
             ====================== */}
-            <Route path="/" element={<LandingPage />} />
+            <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<Login />} />
             {/* Mobile install handled inline on the login page */}
             <Route path="/location-access" element={<LocationAccess />} />

@@ -70,6 +70,9 @@ useEffect(() => {
     }
 
     try {
+      localStorage.removeItem('locationCompleted');
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('uid');
       localStorage.clear();
     } catch (e) {
       /* ignore storage errors */
