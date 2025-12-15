@@ -279,6 +279,22 @@ if (["ADMIN", "CEO"].includes(upperRole)) {
         </Box>
         <Collapse in={openSections.Shopping} timeout={300} unmountOnExit>
           <List component="div" disablePadding>
+            <Tooltip title={open ? "" : "Shop"} placement="right" arrow>
+              <ListItemButton
+                onClick={() => navigate("/shop")}
+                sx={{
+                  pl: open ? 4 : 2,
+                  color: "#fff",
+                  backgroundColor: location.pathname === "/shop" ? "rgba(255,255,255,0.2)" : "transparent",
+                  "&:hover": { backgroundColor: "rgba(255,255,255,0.12)" },
+                }}
+              >
+                <ListItemIcon sx={{ color: "inherit", minWidth: open ? 40 : "auto" }}>
+                  <LocalMallIcon />
+                </ListItemIcon>
+                {open && <ListItemText primary="Shop" />}
+              </ListItemButton>
+            </Tooltip>
             {shoppingGroup.map((item) => {
               const comingStyle = item.comingSoon
                 ? { opacity: 0.6, color: "rgba(255,255,255,0.6)", cursor: "default" }

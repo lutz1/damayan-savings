@@ -38,7 +38,8 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import MobileAppShell from "../../components/MobileAppShell";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { db, storage } from "../../firebase";
+import { db, storage, auth } from "../../firebase";
+import { onAuthStateChanged } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const motionCard = {
@@ -49,7 +50,9 @@ const motionCard = {
 };
 
 export default function AddProductPage() {
-  const merchantId = localStorage.getItem("uid");
+  const [merchantId, setMerchantId] = useState(
+    localStorage.getItem("uid") || null
+  );
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
@@ -69,6 +72,23 @@ export default function AddProductPage() {
     message: "",
   });
   const [formErrors, setFormErrors] = useState({});
+
+  useEffect(() => {
+    if (merchantId) return;
+
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (!user) return;
+
+      setMerchantId(user.uid);
+      try {
+        localStorage.setItem("uid", user.uid);
+      } catch (_err) {
+        // non-blocking: storage might be disabled
+      }
+    });
+
+    return unsub;
+  }, [merchantId]);
 
   useEffect(() => {
     const stored = JSON.parse(localStorage.getItem("categories") || "[]");
@@ -152,6 +172,15 @@ export default function AddProductPage() {
         open: true,
         severity: "error",
         message: "Please fix the form errors",
+      });
+      return;
+    }
+
+    if (!merchantId) {
+      setSnack({
+        open: true,
+        severity: "error",
+        message: "Missing merchant session. Please log in again.",
       });
       return;
     }

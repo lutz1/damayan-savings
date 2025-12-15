@@ -35,8 +35,15 @@ import AdminMerchantManagement from "./pages/admin/adminMerchantManagement";
 ====================== */
 import MerchantDashboard from "./pages/merchant/merchantDashboard";
 import AddProductPage from "./pages/merchant/addProduct";
+import ManageProductPage from "./pages/merchant/manageProduct";
+import StoreProfilePage from "./pages/merchant/storeProfile";
 import MerchantProfile from "./pages/merchant/merchantProfile";
 import LocationAccess from "./pages/LocationAccess";
+
+/* ======================
+   CUSTOMER SHOP
+====================== */
+import ShopPage from "./pages/shop";
 
 /* ======================
    MEMBER
@@ -257,7 +264,15 @@ function App() {
               path="/merchant/products"
               element={
                 <MerchantRoute>
-                  <MerchantDashboard /> 
+                  <ManageProductPage /> 
+                </MerchantRoute>
+              }
+            />
+            <Route
+              path="/merchant/store-profile"
+              element={
+                <MerchantRoute>
+                  <StoreProfilePage />
                 </MerchantRoute>
               }
             />
@@ -269,6 +284,11 @@ function App() {
                 </MerchantRoute>
               }
             />
+
+            {/* ======================
+                CUSTOMER SHOP
+            ====================== */}
+            <Route path="/shop" element={<ShopPage />} />
 
             {/* ======================
                 MEMBER

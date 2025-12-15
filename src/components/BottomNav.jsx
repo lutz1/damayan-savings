@@ -10,6 +10,7 @@ import {
   Storefront,
   AddBox,
   AccountCircle,
+  Store as StoreIcon,
 } from "@mui/icons-material";
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -58,6 +59,12 @@ const BottomNav = () => {
       label="Products"
       value="/merchant/products"
       icon={<Storefront />}
+    />
+
+    <BottomNavigationAction
+      label="Store"
+      value="/merchant/store-profile"
+      icon={<StoreIcon />}
     />
 
     <BottomNavigationAction
