@@ -6,7 +6,6 @@ import {
   CardMedia,
   Stack,
   Typography,
-  TextField,
   Select,
   MenuItem,
   InputLabel,
@@ -23,18 +22,17 @@ import {
   Skeleton,
   Snackbar,
   Alert,
-  Badge,
   Avatar,
 } from "@mui/material";
 import {
-  Search as SearchIcon,
-  ShoppingCart as CartIcon,
   Add as AddIcon,
   Remove as RemoveIcon,
   Store as StoreIcon,
+  ShoppingCart as CartIcon,
 } from "@mui/icons-material";
 import { collection, query, where, onSnapshot, doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
+import ShopTopNav from "../components/ShopTopNav";
 
 const currency = (n) =>
   typeof n === "number"
@@ -64,7 +62,10 @@ export default function ShopPage() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [snack, setSnack] = useState({ open: false, severity: "success", message: "" });
+  const [headerHidden, setHeaderHidden] = useState(false);
+  const [adHidden, setAdHidden] = useState(false);
   const fetchedMerchants = useRef(new Set());
+  const lastScrollY = useRef(0);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     setLoading(true);
@@ -102,6 +103,27 @@ export default function ShopPage() {
     );
 
     return unsub;
+  }, []);
+
+  // Hide top nav on scroll down, show on scroll up; fade ad based on direction
+  useEffect(() => {
+    const onScroll = () => {
+      const y = window.scrollY;
+      const diff = y - lastScrollY.current;
+      if (y > 30 && diff > 8) {
+        setHeaderHidden(true);
+      } else if (diff < -8) {
+        setHeaderHidden(false);
+      }
+      if (diff > 6) {
+        setAdHidden(true); // scrolling down hides ad
+      } else if (diff < -6 && y < 220) {
+        setAdHidden(false); // scrolling up near top shows ad
+      }
+      lastScrollY.current = y;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   // Derived: categories
@@ -174,29 +196,47 @@ export default function ShopPage() {
     saveCart(newCart);
   };
 
-  const cartCount = cart.reduce((sum, item) => sum + item.qty, 0);
+  const firstMerchant = merchants[products[0]?.merchantId];
+  const locationText = firstMerchant?.location ? firstMerchant.location.split(" ")[0] : "Location";
+  const locationSubtext = firstMerchant?.location || "Set delivery location";
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "#f5f5f5", pb: 12 }}>
-      <Box sx={{ bgcolor: "#1976d2", color: "white", p: 2, sticky: 0, zIndex: 100, boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
-        <Container maxWidth="sm" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <Typography variant="h6" fontWeight="bold">Shop</Typography>
-          <Badge badgeContent={cartCount} color="error">
-            <Button
-              variant="contained"
-              color="inherit"
-              startIcon={<CartIcon />}
-              sx={{
-                bgcolor: "rgba(255,255,255,0.2)",
-                color: "white",
-                "&:hover": { bgcolor: "rgba(255,255,255,0.3)" },
-              }}
-            >
-              Cart
-            </Button>
-          </Badge>
-        </Container>
-      </Box>
+      <ShopTopNav
+        search={search}
+        onSearchChange={(e) => setSearch(e.target.value)}
+        headerHidden={headerHidden}
+        locationText={locationText}
+        locationSubtext={locationSubtext}
+      />
+
+      <Container maxWidth="sm" sx={{ pt: 1 }}>
+        <Card
+          sx={{
+            mb: 2,
+            borderRadius: 2,
+            boxShadow: "0 12px 24px rgba(0,0,0,0.08)",
+            background: "linear-gradient(135deg, #ffeaf3 0%, #fff4f8 50%, #fff8fb 100%)",
+            opacity: adHidden ? 0 : 1,
+            transform: adHidden ? "translateY(-10px)" : "translateY(0)",
+            transition: "opacity 0.35s ease, transform 0.35s ease",
+          }}
+        >
+          <CardContent>
+            <Stack direction="row" spacing={2} alignItems="center">
+              <Avatar sx={{ bgcolor: "#e91e63", width: 44, height: 44 }}>★</Avatar>
+              <Stack spacing={0.5}>
+                <Typography variant="subtitle1" fontWeight={700} color="#ad1457">
+                  Discover deals near you
+                </Typography>
+                <Typography variant="body2" color="#c2185b">
+                  Fresh picks updated daily. Tap to explore.
+                </Typography>
+              </Stack>
+            </Stack>
+          </CardContent>
+        </Card>
+      </Container>
 
       <Container maxWidth="sm" sx={{ pt: 2 }}>
         {/* Store Header - Show first merchant's store info */}
@@ -247,23 +287,14 @@ export default function ShopPage() {
         {/* Search & Filter */}
         <Card sx={{ mb: 2, boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}>
           <CardContent>
-            <Stack spacing={1}>
-              <TextField
-                fullWidth
-                placeholder="Search products..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                InputProps={{ startAdornment: <SearchIcon sx={{ mr: 1, color: "#607d8b" }} /> }}
-              />
-              <FormControl fullWidth>
-                <InputLabel>Category</InputLabel>
-                <Select label="Category" value={category} onChange={(e) => setCategory(e.target.value)}>
-                  {categories.map((c) => (
-                    <MenuItem key={c} value={c}>{c === "all" ? "All Categories" : c}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Stack>
+            <FormControl fullWidth>
+              <InputLabel>Category</InputLabel>
+              <Select label="Category" value={category} onChange={(e) => setCategory(e.target.value)}>
+                {categories.map((c) => (
+                  <MenuItem key={c} value={c}>{c === "all" ? "All Categories" : c}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </CardContent>
         </Card>
 
