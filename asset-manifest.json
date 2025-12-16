@@ -1,24 +1,22 @@
 {
   "files": {
-    "main.css": "/damayan-savings/static/css/main.5d5dd027.css",
-    "main.js": "/damayan-savings/static/js/main.a8636564.js",
+    "main.css": "/damayan-savings/static/css/main.81585d4a.css",
+    "main.js": "/damayan-savings/static/js/main.83df62e7.js",
     "static/js/453.4ca22cd3.chunk.js": "/damayan-savings/static/js/453.4ca22cd3.chunk.js",
-    "static/media/herosec.png": "/damayan-savings/static/media/herosec.896838e7484b971082c4.png",
-    "static/media/group.jpg": "/damayan-savings/static/media/group.85a101cb3e4ce771bafd.jpg",
+    "static/media/merchantlogo.png": "/damayan-savings/static/media/merchantlogo.564fca123f6b9e6b0915.png",
     "static/media/bpii.jpg": "/damayan-savings/static/media/bpii.6da8918af22d7ed8a156.jpg",
     "static/media/tclc-logo1.png": "/damayan-savings/static/media/tclc-logo1.bb5ca32be2e40fa9359e.png",
     "static/media/damayan.png": "/damayan-savings/static/media/damayan.32a2a10ffdd812210e8c.png",
-    "static/media/contact.png": "/damayan-savings/static/media/contact.9284e7b3c1f9e1f92e3e.png",
-    "static/media/ceobg.png": "/damayan-savings/static/media/ceobg.2986d3026b8480e14ab7.png",
+    "static/media/map.png": "/damayan-savings/static/media/map.4cc8c678de4eccdde993.png",
     "static/media/bg.jpg": "/damayan-savings/static/media/bg.df8bc4a5288d8bc33ec2.jpg",
     "index.html": "/damayan-savings/index.html",
     "static/media/en-US.cjs": "/damayan-savings/static/media/en-US.c3a6319ea4f219498e6f.cjs",
-    "main.5d5dd027.css.map": "/damayan-savings/static/css/main.5d5dd027.css.map",
-    "main.a8636564.js.map": "/damayan-savings/static/js/main.a8636564.js.map",
+    "main.81585d4a.css.map": "/damayan-savings/static/css/main.81585d4a.css.map",
+    "main.83df62e7.js.map": "/damayan-savings/static/js/main.83df62e7.js.map",
     "453.4ca22cd3.chunk.js.map": "/damayan-savings/static/js/453.4ca22cd3.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.5d5dd027.css",
-    "static/js/main.a8636564.js"
+    "static/css/main.81585d4a.css",
+    "static/js/main.83df62e7.js"
   ]
 }
