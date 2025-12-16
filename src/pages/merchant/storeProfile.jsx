@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
+import { useJsApiLoader } from "@react-google-maps/api";
 import {
   Box,
   Card,
@@ -30,6 +31,9 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 
+// Keep libraries array stable
+const GOOGLE_MAP_LIBRARIES = ["places"];
+
 const motionCard = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
@@ -52,6 +56,13 @@ export default function StoreProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
+  const autocompleteContainerRef = useRef(null);
+  const placeAutocompleteElRef = useRef(null);
+
+  const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY || "YOUR_API_KEY_HERE",
+    libraries: GOOGLE_MAP_LIBRARIES,
+  });
 
   const [storeName, setStoreName] = useState("");
   const [storeDesc, setStoreDesc] = useState("");
@@ -97,6 +108,45 @@ export default function StoreProfilePage() {
 
     loadStore();
   }, [uid]);
+
+  // Google Places Autocomplete for location field
+  useEffect(() => {
+    if (!isLoaded || !autocompleteContainerRef.current) return;
+    const placesApi = window.google?.maps?.places;
+    const ElementCtor = placesApi?.PlaceAutocompleteElement;
+    if (!ElementCtor) return;
+
+    const pac = new ElementCtor();
+    pac.placeholder = "Search for your shop location";
+    pac.style.width = "100%";
+    pac.style.boxSizing = "border-box";
+    pac.style.borderRadius = "4px";
+
+    const onSelect = async (e) => {
+      const place = e.detail?.place;
+      if (!place || !place.fetchFields) return;
+      try {
+        await place.fetchFields({ fields: ["displayName", "formattedAddress", "location"] });
+        const addr = place.formattedAddress || place.displayName || "";
+        setLocation(addr);
+      } catch (_) {
+        // ignore errors
+      }
+    };
+
+    pac.addEventListener("gmp-placeselect", onSelect);
+    autocompleteContainerRef.current.innerHTML = "";
+    autocompleteContainerRef.current.appendChild(pac);
+    placeAutocompleteElRef.current = pac;
+
+    return () => {
+      pac.removeEventListener("gmp-placeselect", onSelect);
+      if (placeAutocompleteElRef.current && placeAutocompleteElRef.current.parentNode) {
+        placeAutocompleteElRef.current.parentNode.removeChild(placeAutocompleteElRef.current);
+      }
+      placeAutocompleteElRef.current = null;
+    };
+  }, [isLoaded]);
 
   const handleImageSelect = async (e) => {
     const file = e.target.files?.[0];
@@ -320,21 +370,33 @@ export default function StoreProfilePage() {
                     disabled={loading}
                   />
 
-                  <TextField
-                    label="Location / Address"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    fullWidth
-                    placeholder="Your shop address"
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <LocationOn />
-                        </InputAdornment>
-                      ),
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1,
+                      p: 1,
+                      bgcolor: "#f5f5f5",
+                      borderRadius: 1,
+                      border: "1px solid #ddd",
                     }}
-                    disabled={loading}
-                  />
+                  >
+                    <LocationOn sx={{ color: "#666" }} />
+                    <Box
+                      ref={autocompleteContainerRef}
+                      sx={{
+                        flex: 1,
+                        "& gmp-place-autocomplete": {
+                          width: "100%",
+                        },
+                      }}
+                    />
+                  </Box>
+                  {location && (
+                    <Typography variant="caption" sx={{ color: "#666", mt: 1 }}>
+                      ✓ Selected: {location}
+                    </Typography>
+                  )}
 
                   <Button
                     variant="contained"
