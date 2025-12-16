@@ -36,6 +36,17 @@ const motionCard = {
   transition: { duration: 0.3 },
 };
 
+// Helper to extract storage path from Firebase Storage URL
+const getStoragePathFromUrl = (url) => {
+  try {
+    const urlObj = new URL(url);
+    const path = urlObj.pathname.split('/o/')[1];
+    return decodeURIComponent(path.split('?')[0]);
+  } catch (e) {
+    return null;
+  }
+};
+
 export default function StoreProfilePage() {
   const [uid, setUid] = useState(localStorage.getItem("uid") || null);
   const [loading, setLoading] = useState(true);
@@ -115,7 +126,14 @@ export default function StoreProfilePage() {
           const url = await getDownloadURL(task.snapshot.ref);
           // delete previous if exists
           if (coverImage) {
-            try { await deleteObject(ref(storage, coverImage)); } catch (_) {}
+            try { 
+              const path = getStoragePathFromUrl(coverImage);
+              if (path) {
+                await deleteObject(ref(storage, path)); 
+              }
+            } catch (err) {
+              console.log('Could not delete old image:', err.code);
+            }
           }
           setCoverImage(url);
           setSnack({ open: true, severity: "success", message: "Image uploaded" });
@@ -213,10 +231,17 @@ export default function StoreProfilePage() {
                         }}
                         onClick={async () => {
                           try {
-                            await deleteObject(ref(storage, coverImage));
+                            const path = getStoragePathFromUrl(coverImage);
+                            if (path) {
+                              await deleteObject(ref(storage, path));
+                            }
                             setCoverImage("");
+                            setSnack({ open: true, severity: "success", message: "Image removed" });
                           } catch (e) {
-                            console.error(e);
+                            console.log('Delete error:', e.code);
+                            // Even if delete fails, clear the UI
+                            setCoverImage("");
+                            setSnack({ open: true, severity: "warning", message: "Image reference cleared" });
                           }
                         }}
                       >
