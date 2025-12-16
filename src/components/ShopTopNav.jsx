@@ -23,6 +23,7 @@ export default function ShopTopNav({
   locationText,
   locationSubtext,
   adHidden,
+  onLocationClick,
 }) {
   return (
     <Box
@@ -50,11 +51,20 @@ export default function ShopTopNav({
             }}
           >
             <LocationOn sx={{ opacity: 0.9, color: "white" }} />
-            <Box sx={{ lineHeight: 1 }}>
+            <Box
+              sx={{
+                lineHeight: 1,
+                cursor: "pointer",
+                flex: 1,
+                transition: "opacity 0.2s ease",
+                "&:hover": { opacity: 0.8 },
+              }}
+              onClick={onLocationClick}
+            >
               <Typography variant="subtitle2" sx={{ fontWeight: 700, whiteSpace: "nowrap", color: "white" }}>
-                {locationText}
+                Current Location
               </Typography>
-              <Typography variant="caption" sx={{ display: "block", whiteSpace: "nowrap", opacity: 0.9, color: "white" }}>
+              <Typography variant="caption" sx={{ display: "block", whiteSpace: "normal", opacity: 0.9, color: "white", overflow: "hidden", textOverflow: "ellipsis", maxLines: 1 }}>
                 {locationSubtext}
               </Typography>
             </Box>

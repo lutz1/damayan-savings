@@ -44,6 +44,7 @@ import LocationAccess from "./pages/LocationAccess";
    CUSTOMER SHOP
 ====================== */
 import ShopPage from "./pages/shop";
+import AddAddress from "./pages/addAddress";
 
 /* ======================
    MEMBER
@@ -289,6 +290,7 @@ function App() {
                 CUSTOMER SHOP
             ====================== */}
             <Route path="/shop" element={<ShopPage />} />
+            <Route path="/shop/add-address" element={<AddAddress />} />
 
             {/* ======================
                 MEMBER

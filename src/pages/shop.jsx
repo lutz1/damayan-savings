@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Box,
   Card,
@@ -33,7 +34,8 @@ import {
 import { collection, query, where, onSnapshot, doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import ShopTopNav from "../components/ShopTopNav";
-import BottomNav from "../components/BottomNav";
+import ShopBottomNav from "../components/ShopBottomNav";
+import ShopLocationDialog from "../components/ShopLocationDialog";
 
 const currency = (n) =>
   typeof n === "number"
@@ -48,6 +50,7 @@ const stockBadge = (stock) => {
 };
 
 export default function ShopPage() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true); 
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState("");
@@ -65,8 +68,46 @@ export default function ShopPage() {
   const [snack, setSnack] = useState({ open: false, severity: "success", message: "" });
   const [headerHidden, setHeaderHidden] = useState(false);
   const [adHidden, setAdHidden] = useState(false);
+  const [navValue, setNavValue] = useState("none");
+  const [cartDialogOpen, setCartDialogOpen] = useState(false);
+  const [locationDialogOpen, setLocationDialogOpen] = useState(false);
+  const [savedAddresses, setSavedAddresses] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("savedAddresses") || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [currentLocation, setCurrentLocation] = useState(() => {
+    try {
+      return localStorage.getItem("selectedDeliveryAddress") || null;
+    } catch {
+      return null;
+    }
+  });
+  const [currentLocationCityProvince, setCurrentLocationCityProvince] = useState(() => {
+    try {
+      return localStorage.getItem("selectedDeliveryAddressCityProvince") || null;
+    } catch {
+      return null;
+    }
+  });
   const fetchedMerchants = useRef(new Set());
   const lastScrollY = useRef(0);
+  const categoryToNav = (cat) => {
+    if (!cat) return "none";
+    const lookup = {
+      Food: "food",
+      Grocery: "grocery",
+      Leisure: "leisure",
+    };
+    return lookup[cat] || "none";
+  };
+  const navToCategory = {
+    food: "Food",
+    grocery: "Grocery",
+    leisure: "Leisure",
+  };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     setLoading(true);
@@ -142,6 +183,10 @@ export default function ShopPage() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  useEffect(() => {
+    setNavValue(categoryToNav(category));
+  }, [category]);
+
   // Derived: categories
   const categories = useMemo(() => {
     const set = new Set();
@@ -164,6 +209,51 @@ export default function ShopPage() {
 
     return list;
   }, [products, search, category]);
+
+  const cartTotal = useMemo(
+    () => cart.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0),
+    [cart]
+  );
+
+  const handleBottomNavChange = (value) => {
+    if (!value) return;
+    setNavValue(value);
+
+    if (navToCategory[value]) {
+      setCategory(navToCategory[value]);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } else if (value === "cart") {
+      setCartDialogOpen(true);
+    } else if (value === "account") {
+      navigate("/login");
+    }
+  };
+
+  const handleSelectAddress = (locationData) => {
+    // Handle both object and string formats for backward compatibility
+    const address = typeof locationData === "string" ? locationData : locationData.address;
+    const cityProvince = typeof locationData === "string" ? "" : locationData.cityProvince;
+    
+    localStorage.setItem("selectedDeliveryAddress", address);
+    if (cityProvince) {
+      localStorage.setItem("selectedDeliveryAddressCityProvince", cityProvince);
+      setCurrentLocationCityProvince(cityProvince);
+    }
+    setCurrentLocation(address);
+    setLocationDialogOpen(false);
+    setSnack({ open: true, severity: "success", message: `Delivery location set to: ${address}` });
+  };
+
+  const handleLocationDialogAddAddress = ({ success, address }) => {
+    if (success && address.trim()) {
+      const newAddresses = [...savedAddresses, address];
+      setSavedAddresses(newAddresses);
+      localStorage.setItem("savedAddresses", JSON.stringify(newAddresses));
+      setSnack({ open: true, severity: "success", message: "Address added successfully" });
+    } else {
+      setSnack({ open: true, severity: "warning", message: "Please enter a valid address" });
+    }
+  };
 
   // Cart management
   const saveCart = (newCart) => {
@@ -212,9 +302,10 @@ export default function ShopPage() {
     saveCart(newCart);
   };
 
-  const firstMerchant = merchants[products[0]?.merchantId];
-  const locationText = firstMerchant?.location ? firstMerchant.location.split(" ")[0] : "Location";
-  const locationSubtext = firstMerchant?.location || "Set delivery location";
+  const locationText = currentLocation 
+    ? (currentLocation.split(",")[0] || "My Location")
+    : "Location";
+  const locationSubtext = currentLocationCityProvince || currentLocation || "Set delivery location";
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "#f5f5f5", pb: 12 }}>
@@ -225,6 +316,7 @@ export default function ShopPage() {
         locationText={locationText}
         locationSubtext={locationSubtext}
         adHidden={adHidden}
+        onLocationClick={() => setLocationDialogOpen(true)}
       />
 
       <Container maxWidth="sm" sx={{ pt: 2 }}>
@@ -426,6 +518,79 @@ export default function ShopPage() {
         )}
       </Dialog>
 
+      <Dialog
+        open={cartDialogOpen}
+        onClose={() => setCartDialogOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Your Cart ({cart.length})</DialogTitle>
+        <DialogContent dividers>
+          {cart.length === 0 ? (
+            <Typography variant="body1">Your cart is empty.</Typography>
+          ) : (
+            <Stack spacing={2}>
+              {cart.map((item) => (
+                <Stack key={item.id} direction="row" spacing={1.5} alignItems="center">
+                  <Box
+                    component="img"
+                    src={item.image || "/icons/icon-192x192.png"}
+                    alt={item.name}
+                    sx={{ width: 64, height: 64, borderRadius: 1, objectFit: "cover", bgcolor: "#eee" }}
+                  />
+                  <Stack flex={1} spacing={0.5} minWidth={0}>
+                    <Typography variant="subtitle2" noWrap>{item.name}</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {currency(Number(item.price || 0))}
+                    </Typography>
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <IconButton
+                        size="small"
+                        onClick={() => updateQty(item.id, item.qty - 1)}
+                        sx={{ color: "#d32f2f" }}
+                      >
+                        <RemoveIcon fontSize="small" />
+                      </IconButton>
+                      <Typography variant="body2" sx={{ minWidth: 30, textAlign: "center" }}>
+                        {item.qty}
+                      </Typography>
+                      <IconButton
+                        size="small"
+                        onClick={() => updateQty(item.id, item.qty + 1)}
+                        sx={{ color: "#2e7d32" }}
+                      >
+                        <AddIcon fontSize="small" />
+                      </IconButton>
+                      <Button size="small" color="error" onClick={() => removeFromCart(item.id)}>
+                        Remove
+                      </Button>
+                    </Stack>
+                  </Stack>
+                </Stack>
+              ))}
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Typography flex={1} fontWeight={700} sx={{ px: 1 }}>
+            Subtotal: {currency(cartTotal)}
+          </Typography>
+          <Button onClick={() => setCartDialogOpen(false)}>Close</Button>
+          <Button variant="contained" disabled={cart.length === 0}>
+            Checkout
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Location/Delivery Address Dialog - Bottom Sheet */}
+      <ShopLocationDialog
+        open={locationDialogOpen}
+        onClose={() => setLocationDialogOpen(false)}
+        savedAddresses={savedAddresses}
+        onSelectAddress={handleSelectAddress}
+        onAddAddress={handleLocationDialogAddAddress}
+      / >
+
       <Snackbar
         open={snack.open}
         autoHideDuration={2500}
@@ -438,7 +603,11 @@ export default function ShopPage() {
       </Snackbar>
 
       {/* Bottom Navigation */}
-      <BottomNav />
+      <ShopBottomNav
+        value={navValue}
+        onChange={handleBottomNavChange}
+        cartCount={cart.length}
+      />
     </Box>
   );
 }
