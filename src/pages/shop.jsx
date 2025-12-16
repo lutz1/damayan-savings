@@ -33,6 +33,7 @@ import {
 import { collection, query, where, onSnapshot, doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import ShopTopNav from "../components/ShopTopNav";
+import BottomNav from "../components/BottomNav";
 
 const currency = (n) =>
   typeof n === "number"
@@ -47,7 +48,7 @@ const stockBadge = (stock) => {
 };
 
 export default function ShopPage() {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); 
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
@@ -107,20 +108,35 @@ export default function ShopPage() {
 
   // Hide top nav on scroll down, show on scroll up; fade ad based on direction
   useEffect(() => {
+    let ticking = false;
     const onScroll = () => {
-      const y = window.scrollY;
-      const diff = y - lastScrollY.current;
-      if (y > 30 && diff > 8) {
-        setHeaderHidden(true);
-      } else if (diff < -8) {
-        setHeaderHidden(false);
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const y = window.scrollY;
+          const diff = y - lastScrollY.current;
+          
+          // Show ad when at the top
+          if (y < 50) {
+            setAdHidden(false);
+          } else if (Math.abs(diff) > 3) {
+            if (y > 50 && diff > 5) {
+              setHeaderHidden(true);
+            } else if (diff < -5) {
+              setHeaderHidden(false);
+            }
+            
+            if (diff > 3) {
+              setAdHidden(true); // scrolling down hides ad
+            } else if (diff < -3 && y < 200) {
+              setAdHidden(false); // scrolling up near top shows ad
+            }
+          }
+          
+          lastScrollY.current = y;
+          ticking = false;
+        });
+        ticking = true;
       }
-      if (diff > 6) {
-        setAdHidden(true); // scrolling down hides ad
-      } else if (diff < -6 && y < 220) {
-        setAdHidden(false); // scrolling up near top shows ad
-      }
-      lastScrollY.current = y;
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
@@ -208,40 +224,13 @@ export default function ShopPage() {
         headerHidden={headerHidden}
         locationText={locationText}
         locationSubtext={locationSubtext}
+        adHidden={adHidden}
       />
-
-      <Container maxWidth="sm" sx={{ pt: 1 }}>
-        <Card
-          sx={{
-            mb: 2,
-            borderRadius: 2,
-            boxShadow: "0 12px 24px rgba(0,0,0,0.08)",
-            background: "linear-gradient(135deg, #ffeaf3 0%, #fff4f8 50%, #fff8fb 100%)",
-            opacity: adHidden ? 0 : 1,
-            transform: adHidden ? "translateY(-10px)" : "translateY(0)",
-            transition: "opacity 0.35s ease, transform 0.35s ease",
-          }}
-        >
-          <CardContent>
-            <Stack direction="row" spacing={2} alignItems="center">
-              <Avatar sx={{ bgcolor: "#e91e63", width: 44, height: 44 }}>★</Avatar>
-              <Stack spacing={0.5}>
-                <Typography variant="subtitle1" fontWeight={700} color="#ad1457">
-                  Discover deals near you
-                </Typography>
-                <Typography variant="body2" color="#c2185b">
-                  Fresh picks updated daily. Tap to explore.
-                </Typography>
-              </Stack>
-            </Stack>
-          </CardContent>
-        </Card>
-      </Container>
 
       <Container maxWidth="sm" sx={{ pt: 2 }}>
         {/* Store Header - Show first merchant's store info */}
         {!loading && products.length > 0 && merchants[products[0]?.merchantId] && (
-          <Card sx={{ mb: 3, boxShadow: "0 2px 8px rgba(0,0,0,0.08)", overflow: "hidden" }}>
+          <Card sx={{ mb: 3, boxShadow: "0 2px 8px rgba(0,0,0,0.08)", overflow: "hidden", borderRadius: 1 }}>
             {merchants[products[0].merchantId]?.coverImage && (
               <CardMedia
                 component="img"
@@ -447,6 +436,9 @@ export default function ShopPage() {
           {snack.message}
         </Alert>
       </Snackbar>
+
+      {/* Bottom Navigation */}
+      <BottomNav />
     </Box>
   );
 }

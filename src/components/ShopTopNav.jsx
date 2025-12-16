@@ -12,6 +12,7 @@ import {
   LocationOn,
   Favorite,
 } from "@mui/icons-material";
+import AdvertisementBanner from "./AdvertisementBanner";
 
 const TOP_NAV_COLOR = "#e91e63"; // Foodpanda-inspired pink
 
@@ -21,6 +22,7 @@ export default function ShopTopNav({
   headerHidden,
   locationText,
   locationSubtext,
+  adHidden,
 }) {
   return (
     <Box
@@ -42,8 +44,9 @@ export default function ShopTopNav({
               overflow: "hidden",
               opacity: headerHidden ? 0 : 1,
               maxHeight: headerHidden ? 0 : 48,
-              transition: "opacity 0.2s ease, max-height 0.25s ease, margin 0.25s ease",
+              transition: "opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), margin 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
               mb: headerHidden ? 0 : 0.5,
+              willChange: "opacity, max-height, margin",
             }}
           >
             <LocationOn sx={{ opacity: 0.9, color: "white" }} />
@@ -70,6 +73,8 @@ export default function ShopTopNav({
             InputProps={{ startAdornment: <SearchIcon sx={{ mr: 1, color: "#607d8b" }} /> }}
             sx={{ bgcolor: "white", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", borderRadius: 1 }}
           />
+
+          <AdvertisementBanner hidden={adHidden} />
         </Stack>
       </Container>
     </Box>
