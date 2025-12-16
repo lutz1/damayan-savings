@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { GoogleMap, Marker, OverlayView, useJsApiLoader } from "@react-google-maps/api";
 import {
   Box,
   Button,
@@ -7,227 +8,509 @@ import {
   Stack,
   TextField,
   Typography,
-  Card,
-  CardContent,
   IconButton,
   Snackbar,
   Alert,
   useMediaQuery,
   useTheme,
+  InputAdornment,
+  CircularProgress,
 } from "@mui/material";
 import {
   ArrowBack as ArrowBackIcon,
   LocationOn as LocationOnIcon,
-  Delete as DeleteIcon,
-  Check as CheckIcon,
+  Search as SearchIcon,
+  MyLocation as MyLocationIcon,
 } from "@mui/icons-material";
+import mapImage from "../assets/map.png";
+
+// Keep libraries array stable to avoid reloading LoadScript
+const GOOGLE_MAP_LIBRARIES = ["places"];
+
+const mapContainerStyle = {
+  width: "100%",
+  height: "400px",
+};
+
+const defaultCenter = {
+  lat: 7.4474, // Tagum City, Davao del Norte
+  lng: 125.8077,
+};
 
 const AddAddress = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  const [fullAddress, setFullAddress] = useState("");
-  const [street, setStreet] = useState("");
-  const [city, setCity] = useState("");
-  const [postalCode, setPostalCode] = useState("");
-  const [phone, setPhone] = useState("");
-  const [savedAddresses, setSavedAddresses] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("savedAddresses") || "[]");
-    } catch {
-      return [];
-    }
-  });
-  const [snack, setSnack] = useState({ open: false, message: "", severity: "success" });
+  const mapRef = useRef(null);
+  const markerRef = useRef(null);
+  const inputRef = useRef(null);
+  const autocompleteRef = useRef(null);
 
-  const handleSaveAddress = () => {
-    if (!fullAddress.trim() && (!street.trim() || !city.trim())) {
-      setSnack({
-        open: true,
-        message: "Please enter a valid address",
-        severity: "error",
-      });
+  const [mapExpanded, setMapExpanded] = useState(false);
+  const [searchMode, setSearchMode] = useState(true); // true = search, false = confirmation
+  const [center, setCenter] = useState(defaultCenter);
+  const [markerPosition, setMarkerPosition] = useState(defaultCenter);
+  const [searchAddress, setSearchAddress] = useState("");
+  const [detectedAddress, setDetectedAddress] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [snack, setSnack] = useState({ open: false, message: "", severity: "success" });
+  const [markerAnimation, setMarkerAnimation] = useState(null);
+
+  const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY || "YOUR_API_KEY_HERE",
+    libraries: GOOGLE_MAP_LIBRARIES,
+  });
+
+  const onMapLoad = useCallback((map) => {
+    mapRef.current = map;
+  }, []);
+
+  const onMarkerLoad = useCallback((marker) => {
+    markerRef.current = marker;
+  }, []);
+
+  
+
+  const triggerMarkerDrop = useCallback(() => {
+    if (!(typeof window !== "undefined" && window.google && window.google.maps && window.google.maps.Animation)) return;
+    setMarkerAnimation(window.google.maps.Animation.DROP);
+    setTimeout(() => setMarkerAnimation(null), 700);
+  }, []);
+
+  // Reverse geocode to get address from coordinates
+  const reverseGeocode = useCallback(async (lat, lng) => {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        return data.display_name || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+      }
+    } catch (error) {
+      console.error("Reverse geocode error:", error);
+    }
+    return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+  }, []);
+
+  // Handle search address
+  const handleSearchAddress = useCallback(async () => {
+    if (!searchAddress.trim()) {
+      setSnack({ open: true, message: "Please enter an address", severity: "warning" });
       return;
     }
 
-    const addressToAdd = fullAddress.trim() || `${street}, ${city}${postalCode ? ", " + postalCode : ""}`;
+    setLoading(true);
+    try {
+      // Use OpenStreetMap Nominatim for geocoding
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchAddress)}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        if (data.length > 0) {
+          const { lat, lon, display_name } = data[0];
+          const newPos = { lat: parseFloat(lat), lng: parseFloat(lon) };
+          setCenter(newPos);
+          setMarkerPosition(newPos);
+          setDetectedAddress(display_name);
+          setMapExpanded(true);
+          setSearchMode(false);
+          if (mapRef.current) {
+            mapRef.current.panTo(newPos);
+            mapRef.current.setZoom(16);
+          }
+          triggerMarkerDrop();
+        } else {
+          setSnack({ open: true, message: "Address not found", severity: "error" });
+        }
+      }
+    } catch (error) {
+      setSnack({ open: true, message: "Failed to search address", severity: "error" });
+    } finally {
+      setLoading(false);
+    }
+  }, [searchAddress, triggerMarkerDrop]);
 
-    const newAddresses = [...savedAddresses, addressToAdd];
+  // Handle current location
+  const handleUseCurrentLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setSnack({ open: true, message: "Geolocation not supported", severity: "error" });
+      return;
+    }
+
+    setLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        const newPos = { lat: latitude, lng: longitude };
+        setCenter(newPos);
+        setMarkerPosition(newPos);
+
+        const address = await reverseGeocode(latitude, longitude);
+        setDetectedAddress(address);
+        setMapExpanded(true);
+        setSearchMode(false);
+        if (mapRef.current) {
+          mapRef.current.panTo(newPos);
+          mapRef.current.setZoom(16);
+        }
+        triggerMarkerDrop();
+        setLoading(false);
+      },
+      (error) => {
+        setSnack({
+          open: true,
+          message: "Failed to get your location. Please enable location access.",
+          severity: "error",
+        });
+        setLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  }, [reverseGeocode, triggerMarkerDrop]);
+
+  // Auto-locate if permission is already granted (no prompt)
+  const autoLocatedRef = useRef(false);
+  useEffect(() => {
+    if (!isLoaded || autoLocatedRef.current) return;
+    if (!("permissions" in navigator) || !navigator.permissions?.query) return;
+    navigator.permissions
+      .query({ name: "geolocation" })
+      .then((status) => {
+        if (status.state === "granted") {
+          autoLocatedRef.current = true;
+          navigator.geolocation.getCurrentPosition(
+            async (position) => {
+              const { latitude, longitude } = position.coords;
+              const newPos = { lat: latitude, lng: longitude };
+              setCenter(newPos);
+              setMarkerPosition(newPos);
+              const address = await reverseGeocode(latitude, longitude);
+              setDetectedAddress(address);
+              setMapExpanded(true);
+              setSearchMode(false);
+              if (mapRef.current) {
+                mapRef.current.panTo(newPos);
+                mapRef.current.setZoom(16);
+              }
+              triggerMarkerDrop();
+            },
+            () => {}
+          );
+        }
+      })
+      .catch(() => {});
+  }, [isLoaded, reverseGeocode, triggerMarkerDrop]);
+
+  // Inject pulsing CSS once
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const styleId = "gm-pulse-style";
+    if (document.getElementById(styleId)) return;
+    const css = `
+      .gm-pulse-wrap { position: absolute; transform: translate(-50%, -50%); pointer-events: none; }
+      .gm-pulse { position: relative; width: 16px; height: 16px; }
+      .gm-pulse .dot { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: #4285F4; top: 50%; left: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 0 2px #ffffff, 0 0 6px rgba(0,0,0,0.3); }
+      .gm-pulse .ring { position: absolute; width: 16px; height: 16px; border-radius: 50%; background: rgba(66,133,244,0.45); top: 50%; left: 50%; transform: translate(-50%, -50%); animation: gm-pulse 2s ease-out infinite; }
+      @keyframes gm-pulse { 0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0.9; } 70% { transform: translate(-50%, -50%) scale(2.2); opacity: 0; } 100% { transform: translate(-50%, -50%) scale(2.2); opacity: 0; } }
+    `;
+    const styleEl = document.createElement("style");
+    styleEl.id = styleId;
+    styleEl.textContent = css;
+    document.head.appendChild(styleEl);
+  }, []);
+
+  // Google Places Autocomplete on the search input
+  useEffect(() => {
+    if (!isLoaded || !inputRef.current || !(window.google && window.google.maps && window.google.maps.places)) return;
+    const ac = new window.google.maps.places.Autocomplete(inputRef.current, {
+      fields: ["geometry", "formatted_address", "name"],
+      // Limit to the Philippines (optional). Remove or adjust as needed.
+      // componentRestrictions: { country: ["ph"] },
+    });
+    autocompleteRef.current = ac;
+    const listener = ac.addListener("place_changed", () => {
+      const place = ac.getPlace();
+      if (!place || !place.geometry) return;
+      const loc = place.geometry.location;
+      const newPos = { lat: loc.lat(), lng: loc.lng() };
+      setCenter(newPos);
+      setMarkerPosition(newPos);
+      setDetectedAddress(place.formatted_address || place.name || "");
+      setMapExpanded(true);
+      setSearchMode(false);
+      if (mapRef.current) {
+        mapRef.current.panTo(newPos);
+        mapRef.current.setZoom(16);
+      }
+      triggerMarkerDrop();
+    });
+    return () => {
+      if (listener) listener.remove();
+    };
+  }, [isLoaded, triggerMarkerDrop]);
+
+  // Handle back arrow click
+  const handleBackClick = useCallback(() => {
+    if (mapExpanded && !searchMode) {
+      // Toggle back to search mode
+      setSearchMode(true);
+      setMapExpanded(false);
+    } else {
+      // Go back to previous page
+      navigate(-1);
+    }
+  }, [mapExpanded, searchMode, navigate]);
+
+  // Confirm location and save
+  const handleConfirmLocation = useCallback(async () => {
+    setLoading(true);
+    
+    // Get final address from current marker position
+    const address = await reverseGeocode(markerPosition.lat, markerPosition.lng);
+    
+    // Save to localStorage
+    const savedAddresses = JSON.parse(localStorage.getItem("savedAddresses") || "[]");
+    const newAddresses = [...savedAddresses, address];
     localStorage.setItem("savedAddresses", JSON.stringify(newAddresses));
-    setSavedAddresses(newAddresses);
+
+    // Also save as selected delivery address
+    localStorage.setItem("selectedDeliveryAddress", address);
 
     setSnack({
       open: true,
-      message: "Address saved successfully!",
+      message: "Location saved successfully!",
       severity: "success",
     });
 
+    setLoading(false);
     setTimeout(() => {
-      navigate(-1); // Go back to shop
+      navigate(-1);
     }, 1500);
-  };
+  }, [markerPosition, reverseGeocode, navigate]);
 
-  const handleDeleteAddress = (index) => {
-    const newAddresses = savedAddresses.filter((_, i) => i !== index);
-    localStorage.setItem("savedAddresses", JSON.stringify(newAddresses));
-    setSavedAddresses(newAddresses);
-    setSnack({
-      open: true,
-      message: "Address deleted",
-      severity: "info",
-    });
-  };
+  if (!isLoaded) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh" }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
-    <Container maxWidth="sm" sx={{ py: isMobile ? 2 : 4, minHeight: "100vh" }}>
-      {/* Header */}
-      <Box sx={{ display: "flex", alignItems: "center", mb: 3, gap: 2 }}>
-        <IconButton onClick={() => navigate(-1)} size="small">
-          <ArrowBackIcon />
-        </IconButton>
-        <Typography variant="h6" fontWeight={700}>
-          Add Delivery Address
-        </Typography>
+    <Box sx={{ minHeight: "100vh", bgcolor: "#f5f5f5" }}>
+      {/* Google Map - Full Width */}
+      <Box sx={{ position: "relative", width: "100%", height: mapExpanded ? "60vh" : "400px", transition: "height 0.3s ease" }}>
+        <GoogleMap
+          mapContainerStyle={{ ...mapContainerStyle, height: mapExpanded ? "60vh" : "400px" }}
+          center={center}
+          zoom={16}
+          onLoad={onMapLoad}
+          options={{
+            disableDefaultUI: false,
+            zoomControl: true,
+            streetViewControl: false,
+            mapTypeControl: false,
+            fullscreenControl: false,
+          }}
+        >
+          <Marker
+            position={markerPosition}
+            onLoad={onMarkerLoad}
+            draggable={true}
+            /* Use default Google pin for maximum compatibility */
+            animation={markerAnimation || undefined}
+            visible={true}
+            onDragEnd={(e) => {
+              const newPos = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+              setMarkerPosition(newPos);
+              setCenter(newPos);
+              reverseGeocode(newPos.lat, newPos.lng).then(setDetectedAddress);
+              if (typeof window !== "undefined" && window.google && window.google.maps && window.google.maps.Animation) {
+                setMarkerAnimation(window.google.maps.Animation.BOUNCE);
+                setTimeout(() => setMarkerAnimation(null), 700);
+              }
+            }}
+            zIndex={2}
+          />
+          {/* Current location pulsing indicator */}
+          {markerPosition && (
+            <OverlayView position={markerPosition} mapPaneName="markerLayer">
+              <div className="gm-pulse-wrap">
+                <div className="gm-pulse">
+                  <div className="ring" />
+                  <div className="dot" />
+                </div>
+              </div>
+            </OverlayView>
+          )}
+        </GoogleMap>
+
+        {/* Back Arrow + Search Bar Overlay */}
+        <Box
+          sx={{
+            position: "absolute",
+            top: 16,
+            left: 16,
+            right: 16,
+            zIndex: 10,
+            display: "flex",
+            gap: 1,
+            alignItems: "center",
+          }}
+        >
+          <IconButton
+            onClick={handleBackClick}
+            sx={{
+              bgcolor: "white",
+              boxShadow: 2,
+              "&:hover": { bgcolor: "#f5f5f5" },
+            }}
+          >
+            <ArrowBackIcon />
+          </IconButton>
+
+          {searchMode ? (
+            <TextField
+              fullWidth
+              placeholder="Enter your address"
+              value={searchAddress}
+              onChange={(e) => setSearchAddress(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === "Enter") handleSearchAddress();
+              }}
+              inputRef={inputRef}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton onClick={handleSearchAddress} edge="end">
+                      <SearchIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                bgcolor: "white",
+                borderRadius: 1,
+                "& .MuiOutlinedInput-root": {
+                  "& fieldset": { border: "none" },
+                },
+                boxShadow: 2,
+              }}
+            />
+          ) : (
+            <Box
+              sx={{
+                flex: 1,
+                bgcolor: "white",
+                borderRadius: 1,
+                boxShadow: 2,
+                p: 1.5,
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+              }}
+            >
+              <LocationOnIcon sx={{ color: "#e91e63" }} />
+              <Typography variant="body2" sx={{ flex: 1, fontSize: isMobile ? "0.85rem" : "0.95rem" }}>
+                Is this your location? See restaurants and shops in this area, and get your order delivered here.
+              </Typography>
+              <IconButton size="small" onClick={() => setSearchMode(true)}>
+                <SearchIcon />
+              </IconButton>
+            </Box>
+          )}
+        </Box>
       </Box>
 
-      {/* Address Form */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
+      {/* Content Below Map */}
+      <Container maxWidth="sm" sx={{ py: 3 }}>
+        {searchMode ? (
+          <Stack spacing={3} alignItems="center">
+            {/* Map Icon Placeholder */}
+            <Box
+              component="img"
+              src={mapImage}
+              alt="map"
+              sx={{ width: 120, height: 120, objectFit: "contain" }}
+            />
+
+            <Typography
+              variant="body1"
+              textAlign="center"
+              sx={{ color: "#666", maxWidth: 400, fontSize: isMobile ? "0.95rem" : "1rem" }}
+            >
+              Enter an address to explore restaurants around you
+            </Typography>
+
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={loading ? <CircularProgress size={20} /> : <MyLocationIcon />}
+              onClick={handleUseCurrentLocation}
+              disabled={loading}
+              sx={{
+                py: 1.5,
+                textTransform: "none",
+                fontWeight: 600,
+                borderColor: "#e91e63",
+                color: "#e91e63",
+                "&:hover": {
+                  borderColor: "#c2185b",
+                  bgcolor: "#fce4ec",
+                },
+              }}
+            >
+              {loading ? "Getting location..." : "Use my current location"}
+            </Button>
+          </Stack>
+        ) : (
           <Stack spacing={2}>
-            {/* Single Address Field (Quick Entry) */}
-            <Box>
+            {/* Detected Address Display */}
+            <Box
+              sx={{
+                p: 2,
+                bgcolor: "white",
+                borderRadius: 1,
+                boxShadow: 1,
+              }}
+            >
               <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
-                Full Address (Quick)
+                Selected Location
               </Typography>
-              <TextField
-                fullWidth
-                multiline
-                rows={3}
-                placeholder="e.g., 123 Mabini St., Makati, Metro Manila, 1210"
-                value={fullAddress}
-                onChange={(e) => setFullAddress(e.target.value)}
-                variant="outlined"
-                size="small"
-              />
-              <Typography variant="caption" sx={{ color: "#999", mt: 0.5, display: "block" }}>
-                Or fill in the fields below
+              <Typography variant="body2" sx={{ color: "#666" }}>
+                {detectedAddress}
               </Typography>
             </Box>
 
-            <Box sx={{ borderTop: "1px solid #e0e0e0", pt: 2 }}>
-              <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 2 }}>
-                Detailed Address (Optional)
-              </Typography>
+            {/* Note */}
+            <Alert severity="info" sx={{ fontSize: isMobile ? "0.85rem" : "0.9rem" }}>
+              <strong>Note:</strong> Your rider will deliver to the pinned location. You can edit your written
+              address on the next page.
+            </Alert>
 
-              <TextField
-                fullWidth
-                label="Street Address"
-                placeholder="e.g., 123 Mabini Street"
-                value={street}
-                onChange={(e) => setStreet(e.target.value)}
-                variant="outlined"
-                size="small"
-                sx={{ mb: 1.5 }}
-              />
-
-              <TextField
-                fullWidth
-                label="City / Barangay"
-                placeholder="e.g., Makati"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                variant="outlined"
-                size="small"
-                sx={{ mb: 1.5 }}
-              />
-
-              <TextField
-                fullWidth
-                label="Postal Code (Optional)"
-                placeholder="e.g., 1210"
-                value={postalCode}
-                onChange={(e) => setPostalCode(e.target.value)}
-                variant="outlined"
-                size="small"
-                sx={{ mb: 1.5 }}
-              />
-
-              <TextField
-                fullWidth
-                label="Phone Number (Optional)"
-                placeholder="e.g., +63 912 345 6789"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                variant="outlined"
-                size="small"
-              />
-            </Box>
-
+            {/* Confirm Button */}
             <Button
               fullWidth
               variant="contained"
               color="primary"
-              onClick={handleSaveAddress}
-              startIcon={<CheckIcon />}
-              sx={{ py: 1.5, fontWeight: 600, textTransform: "none" }}
+              onClick={handleConfirmLocation}
+              disabled={loading}
+              startIcon={loading ? <CircularProgress size={20} /> : <LocationOnIcon />}
+              sx={{
+                py: 1.5,
+                fontWeight: 600,
+                textTransform: "none",
+                bgcolor: "#e91e63",
+                "&:hover": { bgcolor: "#c2185b" },
+              }}
             >
-              Save Address
+              {loading ? "Saving..." : "Confirm Location"}
             </Button>
           </Stack>
-        </CardContent>
-      </Card>
-
-      {/* Saved Addresses List */}
-      {savedAddresses.length > 0 && (
-        <Box>
-          <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 2 }}>
-            Your Saved Addresses ({savedAddresses.length})
-          </Typography>
-
-          <Stack spacing={1.5}>
-            {savedAddresses.map((address, index) => (
-              <Card key={index}>
-                <CardContent
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    py: 1.5,
-                    px: 2,
-                    "&:last-child": { pb: 1.5 },
-                  }}
-                >
-                  <Box sx={{ flex: 1 }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
-                      <LocationOnIcon sx={{ fontSize: 20, color: "#e91e63" }} />
-                      <Typography variant="body2" fontWeight={600}>
-                        Address {index + 1}
-                      </Typography>
-                    </Box>
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: "#666",
-                        wordBreak: "break-word",
-                        ml: 0.5,
-                      }}
-                    >
-                      {address}
-                    </Typography>
-                  </Box>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleDeleteAddress(index)}
-                    sx={{ color: "#d32f2f" }}
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </CardContent>
-              </Card>
-            ))}
-          </Stack>
-        </Box>
-      )}
+        )}
+      </Container>
 
       {/* Snackbar */}
       <Snackbar
@@ -244,7 +527,7 @@ const AddAddress = () => {
           {snack.message}
         </Alert>
       </Snackbar>
-    </Container>
+    </Box>
   );
 };
 
