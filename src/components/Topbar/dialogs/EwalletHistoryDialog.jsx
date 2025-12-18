@@ -82,6 +82,18 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
         (d) => ({ ...d, source: "deposit", displayType: "Deposit", isCredit: true })
       );
 
+      // Monthly Profit Transfers to Wallet (logged as deposits)
+      setupListener(
+        query(collection(db, "deposits"), where("type", "==", "Monthly Profit Transfer"), where("userId", "==", uid)),
+        "profitTransfer",
+        (d) => ({
+          ...d,
+          source: "profitTransfer",
+          displayType: `Monthly Profit Transfer (${d.type || "Capital Share"})`,
+          isCredit: true,
+        })
+      );
+
       // Transfers (sent)
       setupListener(
         query(collection(db, "transferFunds"), where("senderId", "==", uid)),
@@ -189,7 +201,7 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
               const amount =
                 item.source === "received" && item.status === "Approved"
                   ? item.netAmount || item.amount
-                  : item.amount;
+                  : item.netAmount || item.amount;
               const formattedAmount = Number(amount || 0).toLocaleString("en-PH", {
                 minimumFractionDigits: 2,
               });

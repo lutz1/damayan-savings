@@ -80,6 +80,9 @@ const MemberCapitalShare = () => {
   const [calendarEntries, setCalendarEntries] = useState([]);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [profitHistoryOpen, setProfitHistoryOpen] = useState(false);
+  const [profitConfirmOpen, setProfitConfirmOpen] = useState(false);
+  const [selectedProfitEntry, setSelectedProfitEntry] = useState(null);
+  const [profitTransferLoading, setProfitTransferLoading] = useState(false);
 
   // 🔹 CHANGE: map calendarEntries to events for react-big-calendar
   const events = useMemo(() => {
@@ -393,22 +396,31 @@ const MemberCapitalShare = () => {
     if (!entry?.profit || entry.profit <= 0) return alert("No profit available for this entry.");
     if (entry.profitStatus === "Claimed") return alert("This profit was already claimed.");
 
-    const fee = entry.profit * TRANSFER_CHARGE;
-    const net = entry.profit - fee;
+    const net = entry.profit; // No fee for profit transfers
     const walletBalance = Number(userData?.eWallet || 0);
 
     try {
       const userRef = doc(db, "users", user.uid);
       await updateDoc(userRef, { eWallet: walletBalance + net });
 
+      // Log to deposits so wallet history can display (deposits create is permitted by rules)
+      await addDoc(collection(db, "deposits"), {
+        userId: user.uid,
+        amount: net,
+        status: "Approved",
+        type: "Monthly Profit Transfer",
+        sourceEntryId: entry.id,
+        createdAt: serverTimestamp(),
+      });
+
       const entryRef = doc(db, "capitalShareEntries", entry.id);
       await updateDoc(entryRef, {
-        profit: 0,
         profitStatus: "Claimed",
+        profitClaimedAmount: entry.profit,
         profitClaimedAt: serverTimestamp(),
       });
 
-      alert(`Transferred ₱${net.toLocaleString()} to wallet (1% fee applied).`);
+      alert(`Transferred ₱${net.toLocaleString()} to wallet.`);
       await fetchUserData(user);
       await fetchTransactionHistory();
     } catch (err) {
@@ -868,7 +880,10 @@ const MemberCapitalShare = () => {
                       variant="contained"
                       size="small"
                       disabled={!t.profit || t.profit <= 0 || t.profitStatus === "Claimed"}
-                      onClick={() => handleTransferProfitEntry(t)}
+                      onClick={() => {
+                        setSelectedProfitEntry(t);
+                        setProfitConfirmOpen(true);
+                      }}
                     >
                       Transfer To Wallet
                     </Button>
@@ -884,6 +899,56 @@ const MemberCapitalShare = () => {
           <DialogActions>
             <Button onClick={() => setProfitHistoryOpen(false)} variant="contained">
               Close
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Confirm Profit Transfer Dialog */}
+        <Dialog
+          open={profitConfirmOpen}
+          onClose={() => {
+            setProfitConfirmOpen(false);
+            setSelectedProfitEntry(null);
+          }}
+          fullWidth
+          maxWidth="xs"
+        >
+          <DialogTitle>Confirm Transfer</DialogTitle>
+          <DialogContent>
+            <Typography>
+              Transfer profit of ₱{Number(selectedProfitEntry?.profit || 0).toLocaleString()} to your wallet?
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button
+              onClick={() => {
+                setProfitConfirmOpen(false);
+                setSelectedProfitEntry(null);
+              }}
+              disabled={profitTransferLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              disabled={profitTransferLoading}
+              onClick={async () => {
+                if (!selectedProfitEntry) return;
+                setProfitTransferLoading(true);
+                try {
+                  await handleTransferProfitEntry(selectedProfitEntry);
+                  setProfitConfirmOpen(false);
+                  setSelectedProfitEntry(null);
+                } finally {
+                  setProfitTransferLoading(false);
+                }
+              }}
+            >
+              {profitTransferLoading ? (
+                <CircularProgress size={20} color="inherit" />
+              ) : (
+                "Confirm"
+              )}
             </Button>
           </DialogActions>
         </Dialog>
