@@ -593,14 +593,28 @@ const MemberCapitalShare = () => {
           >
             <CardContent>
               <Typography variant="h6" fontWeight={600}>
-                Quick Action
+                Instruction
+              </Typography>
+
+              <Typography variant="body2" sx={{ mt: 1, mb: 2, color: "text.secondary" }}>
+                📝 To add a capital share entry:
+              </Typography>
+              
+              <Typography variant="body2" sx={{ mb: 1, color: "text.secondary" }}>
+                1. Click "Add Capital Share" button below
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 1, color: "text.secondary" }}>
+                2. Select the date and enter amount (min ₱1,000)
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 2, color: "text.secondary" }}>
+                3. Confirm to deduct from your E-Wallet
               </Typography>
 
               <Button
                 variant="contained"
                 color="primary"
                 fullWidth
-                sx={{ mt: 2 }}
+                sx={{ mt: 1 }}
                 onClick={() => {
                   if (!userData?.capitalShareActive) {
                     alert("Activate Capital Share first.");
