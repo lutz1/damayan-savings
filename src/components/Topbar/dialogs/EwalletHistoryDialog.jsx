@@ -75,22 +75,15 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
         (d) => ({ ...d, source: "withdrawal", displayType: "Withdrawal", isCredit: false })
       );
 
-      // Deposits
+      // Deposits (including Monthly Profit Transfers)
       setupListener(
         query(collection(db, "deposits"), where("userId", "==", uid)),
         "deposit",
-        (d) => ({ ...d, source: "deposit", displayType: "Deposit", isCredit: true })
-      );
-
-      // Monthly Profit Transfers to Wallet (logged as deposits)
-      setupListener(
-        query(collection(db, "deposits"), where("type", "==", "Monthly Profit Transfer"), where("userId", "==", uid)),
-        "profitTransfer",
-        (d) => ({
-          ...d,
-          source: "profitTransfer",
-          displayType: `Monthly Profit Transfer (${d.type || "Capital Share"})`,
-          isCredit: true,
+        (d) => ({ 
+          ...d, 
+          source: "deposit", 
+          displayType: d.type === "Monthly Profit Transfer" ? "Monthly Profit Transfer" : "Deposit", 
+          isCredit: true 
         })
       );
 

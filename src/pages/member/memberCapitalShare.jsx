@@ -83,6 +83,8 @@ const MemberCapitalShare = () => {
   const [profitConfirmOpen, setProfitConfirmOpen] = useState(false);
   const [selectedProfitEntry, setSelectedProfitEntry] = useState(null);
   const [profitTransferLoading, setProfitTransferLoading] = useState(false);
+  const [entryDetailsOpen, setEntryDetailsOpen] = useState(false);
+  const [selectedEntry, setSelectedEntry] = useState(null);
 
   // 🔹 CHANGE: map calendarEntries to events for react-big-calendar
   const events = useMemo(() => {
@@ -271,12 +273,6 @@ const MemberCapitalShare = () => {
     }
   };
 
-  const handleDateClick = (date) => {
-    if (!userData?.capitalShareActive) return alert("Activate Capital Share first.");
-    setSelectedDate(date);
-    setOpenAddDialog(true);
-  };
-
   const handleAddEntry = async () => {
   const entryAmount = Number(amount);
   const walletBalance = Number(userData?.eWallet || 0);
@@ -436,9 +432,16 @@ const MemberCapitalShare = () => {
       </Backdrop>
     );
 
-  const handleSelectSlot = (slotInfo) => { // 🔹 CHANGE
-    const date = slotInfo.start;
-    handleDateClick(date);
+  const handleSelectEvent = (event) => {
+    // Find the full entry from transactionHistory
+    const entry = transactionHistory.find(t => {
+      const entryDate = t.date instanceof Date ? t.date : t.date?.toDate?.();
+      return entryDate?.toDateString() === event.start.toDateString();
+    });
+    if (entry) {
+      setSelectedEntry(entry);
+      setEntryDetailsOpen(true);
+    }
   };
 
   const eventStyleGetter = (event) => { // 🔹 CHANGE
@@ -496,7 +499,7 @@ const MemberCapitalShare = () => {
             sx={{
               backgroundColor: "rgba(231, 237, 241, 0.53)",
               borderRadius: 3,
-              width: { xs: "100%", sm: "380px" },
+              width: "100%",
             }}
           >
             <CardContent>
@@ -554,7 +557,8 @@ const MemberCapitalShare = () => {
             sx={{
               backgroundColor: "rgba(231, 237, 241, 0.53)",
               borderRadius: 3,
-              width: { xs: "100%", sm: "380px" },
+              width: "100%",
+              maxWidth: "100%",
             }}
           >
             <CardContent>
@@ -568,10 +572,45 @@ const MemberCapitalShare = () => {
 
               <Button
                 variant="contained"
-                sx={{ mt: 2, mr: 1, mb: 1 }}
+                sx={{ mt: 2, width: "100%" }}
                 onClick={() => setProfitHistoryOpen(true)}
               >
                 View Monthly Profit History
+              </Button>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* 🔹 Add Capital Share Button */}
+        <Grid item xs={12} md={4}>
+          <Card
+            sx={{
+              backgroundColor: "rgba(231, 237, 241, 0.53)",
+              borderRadius: 3,
+              width: "100%",
+              maxWidth: "100%",
+            }}
+          >
+            <CardContent>
+              <Typography variant="h6" fontWeight={600}>
+                Quick Action
+              </Typography>
+
+              <Button
+                variant="contained"
+                color="primary"
+                fullWidth
+                sx={{ mt: 2 }}
+                onClick={() => {
+                  if (!userData?.capitalShareActive) {
+                    alert("Activate Capital Share first.");
+                    return;
+                  }
+                  setSelectedDate(new Date());
+                  setOpenAddDialog(true);
+                }}
+              >
+                Add Capital Share
               </Button>
             </CardContent>
           </Card>
@@ -590,8 +629,7 @@ const MemberCapitalShare = () => {
             startAccessor="start"
             endAccessor="end"
             style={{ height: 500 }}
-            selectable
-            onSelectSlot={handleSelectSlot}
+            onSelectEvent={handleSelectEvent}
             eventPropGetter={eventStyleGetter}
           />
         </Card>
@@ -601,9 +639,15 @@ const MemberCapitalShare = () => {
         <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)} fullWidth maxWidth="xs">
           <DialogTitle>Add Capital Share Entry</DialogTitle>
           <DialogContent>
-            <Typography variant="body2" sx={{ mb: 2 }}>
-              Selected Date: <strong>{selectedDate?.toDateString()}</strong>
-            </Typography>
+            <TextField
+              label="Selected Date"
+              type="date"
+              fullWidth
+              value={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : ''}
+              onChange={(e) => setSelectedDate(new Date(e.target.value))}
+              sx={{ mb: 2, mt: 1 }}
+              InputLabelProps={{ shrink: true }}
+            />
             <TextField
               label="Amount (₱)"
               type="number"
@@ -949,6 +993,88 @@ const MemberCapitalShare = () => {
               ) : (
                 "Confirm"
               )}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Entry Details Dialog */}
+        <Dialog
+          open={entryDetailsOpen}
+          onClose={() => {
+            setEntryDetailsOpen(false);
+            setSelectedEntry(null);
+          }}
+          fullWidth
+          maxWidth="xs"
+        >
+          <DialogTitle sx={{ bgcolor: "#1976d2", color: "#fff" }}>
+            Capital Share Entry Details
+          </DialogTitle>
+          <DialogContent sx={{ mt: 2 }}>
+            {selectedEntry && (
+              <Box>
+                <Typography variant="subtitle2" color="text.secondary">
+                  Amount
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: "#4caf50", mb: 2 }}>
+                  ₱{Number(selectedEntry.amount || 0).toLocaleString()}
+                </Typography>
+
+                <Typography variant="subtitle2" color="text.secondary">
+                  Date Added
+                </Typography>
+                <Typography variant="body1" sx={{ mb: 2 }}>
+                  {selectedEntry.date instanceof Date
+                    ? selectedEntry.date.toDateString()
+                    : selectedEntry.date?.toDate?.().toDateString() || "N/A"}
+                </Typography>
+
+                <Typography variant="subtitle2" color="text.secondary">
+                  Current Profit
+                </Typography>
+                <Typography variant="body1" sx={{ mb: 2 }}>
+                  ₱{Number(selectedEntry.profit || 0).toLocaleString()}
+                </Typography>
+
+                <Typography variant="subtitle2" color="text.secondary">
+                  Profit Status
+                </Typography>
+                <Typography
+                  sx={{
+                    mb: 2,
+                    px: 1.5,
+                    py: 0.5,
+                    borderRadius: 1,
+                    bgcolor: selectedEntry.profitStatus === "Claimed" ? "#e8f5e9" : "#fff3e0",
+                    color: selectedEntry.profitStatus === "Claimed" ? "#2e7d32" : "#ef6c00",
+                    fontWeight: 600,
+                    fontSize: 14,
+                    display: "inline-block",
+                  }}
+                >
+                  {selectedEntry.profitStatus || "Pending"}
+                </Typography>
+
+                <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 1 }}>
+                  Next Profit Date
+                </Typography>
+                <Typography variant="body1">
+                  {selectedEntry.nextProfitDate instanceof Date
+                    ? selectedEntry.nextProfitDate.toDateString()
+                    : selectedEntry.nextProfitDate?.toDate?.().toDateString() || "N/A"}
+                </Typography>
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button
+              onClick={() => {
+                setEntryDetailsOpen(false);
+                setSelectedEntry(null);
+              }}
+              variant="contained"
+            >
+              Close
             </Button>
           </DialogActions>
         </Dialog>
