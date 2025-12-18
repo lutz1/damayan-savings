@@ -79,6 +79,7 @@ const MemberCapitalShare = () => {
   const [monthlyProfit, setMonthlyProfit] = useState(0);
   const [calendarEntries, setCalendarEntries] = useState([]);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [profitHistoryOpen, setProfitHistoryOpen] = useState(false);
 
   // 🔹 CHANGE: map calendarEntries to events for react-big-calendar
   const events = useMemo(() => {
@@ -179,38 +180,46 @@ const MemberCapitalShare = () => {
     let totalProfit = 0;
     const calendarData = [];
 
-    const history = snap.docs.map((doc) => {
-      const data = doc.data();
-      if (data.nextProfitDate && typeof data.nextProfitDate.toDate === "function") {
-        data.nextProfitDate = data.nextProfitDate.toDate();
+    const history = snap.docs.map((docSnap) => {
+      const data = docSnap.data();
+      const entry = { id: docSnap.id, ...data };
+
+      if (entry.nextProfitDate && typeof entry.nextProfitDate.toDate === "function") {
+        entry.nextProfitDate = entry.nextProfitDate.toDate();
       }
-      if (data.createdAt && typeof data.createdAt.toDate === "function") {
-        data.createdAt = data.createdAt.toDate();
+      if (entry.createdAt && typeof entry.createdAt.toDate === "function") {
+        entry.createdAt = entry.createdAt.toDate();
+      }
+      if (entry.date && typeof entry.date.toDate === "function") {
+        entry.date = entry.date.toDate();
       }
 
-      const createdAt = data.createdAt || new Date();
+      entry.profitStatus = entry.profitStatus || "Pending";
+      entry.profit = entry.profit || 0;
+
+      const createdAt = entry.createdAt || new Date();
       const expireDate = new Date(createdAt);
       expireDate.setFullYear(expireDate.getFullYear() + 1);
       const isActive = now <= expireDate;
 
       if (isActive) {
         // ✅ Include full amount (not just lock-in)
-        totalCapital += data.amount || 0;
+        totalCapital += entry.amount || 0;
 
-        // 🧮 Compute profit only if due
-        if (data.nextProfitDate && data.nextProfitDate <= now) {
-          totalProfit += (data.amount || 0) * MONTHLY_RATE;
+        // 🧮 Sum unclaimed profit
+        if (entry.profitStatus !== "Claimed") {
+          totalProfit += entry.profit || 0;
         }
 
         // 📅 Calendar entry
         calendarData.push({
-          date: new Date(data.date),
-          profitReady: data.nextProfitDate <= now,
+          date: new Date(entry.date),
+          profitReady: entry.nextProfitDate <= now,
           createdAt: createdAt,
         });
       }
 
-      return data;
+      return entry;
     });
 
     setTransactionHistory(history);
@@ -285,6 +294,7 @@ const MemberCapitalShare = () => {
       amount: entryAmount,
       date: selectedDate,
       profit: 0,
+      profitStatus: "Pending",
       lockIn: lockInAmount,
       transferable: transferableAmount,
       status: "Approved",
@@ -379,25 +389,26 @@ const MemberCapitalShare = () => {
     }
   };
 
-  const handleTransferProfit = async () => {
-    if (monthlyProfit <= 0) return alert("No profit to transfer.");
-    const fee = monthlyProfit * TRANSFER_CHARGE;
-    const net = monthlyProfit - fee;
+  const handleTransferProfitEntry = async (entry) => {
+    if (!entry?.profit || entry.profit <= 0) return alert("No profit available for this entry.");
+    if (entry.profitStatus === "Claimed") return alert("This profit was already claimed.");
+
+    const fee = entry.profit * TRANSFER_CHARGE;
+    const net = entry.profit - fee;
     const walletBalance = Number(userData?.eWallet || 0);
 
     try {
       const userRef = doc(db, "users", user.uid);
       await updateDoc(userRef, { eWallet: walletBalance + net });
 
-      // Reset monthly profit
-      const entriesRef = collection(db, "capitalShareEntries");
-      const q = query(entriesRef, where("userId", "==", user.uid));
-      const snap = await getDocs(q);
-      snap.forEach(async (docEntry) => {
-        await updateDoc(doc(db, "capitalShareEntries", docEntry.id), { profit: 0 });
+      const entryRef = doc(db, "capitalShareEntries", entry.id);
+      await updateDoc(entryRef, {
+        profit: 0,
+        profitStatus: "Claimed",
+        profitClaimedAt: serverTimestamp(),
       });
 
-      alert(`Transferred ₱${net.toLocaleString()} profit to wallet (1% fee applied).`);
+      alert(`Transferred ₱${net.toLocaleString()} to wallet (1% fee applied).`);
       await fetchUserData(user);
       await fetchTransactionHistory();
     } catch (err) {
@@ -513,6 +524,14 @@ const MemberCapitalShare = () => {
                   Transfer Capital to Wallet
                 </Button>
               )}
+
+              <Button
+                variant="contained"
+                sx={{ mt: 2, mr: 1, mb: 1 }}
+                onClick={() => setHistoryDialogOpen(true)}
+              >
+                View Capital Share Transaction History
+              </Button>
             </CardContent>
           </Card>
         </Grid>
@@ -535,25 +554,17 @@ const MemberCapitalShare = () => {
                 ₱{Number(monthlyProfit).toLocaleString()}
               </Typography>
 
-              {monthlyProfit > 0 && (
-                <Button
-                  variant="contained"
-                  sx={{ mt: 2 }}
-                  onClick={handleTransferProfit}
-                >
-                  Transfer Profit to Wallet
-                </Button>
-              )}
+              <Button
+                variant="contained"
+                sx={{ mt: 2, mr: 1, mb: 1 }}
+                onClick={() => setProfitHistoryOpen(true)}
+              >
+                View Monthly Profit History
+              </Button>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
-
-      <Box sx={{ mt: 4 }}>
-          <Button variant="contained" onClick={() => setHistoryDialogOpen(true)}>
-            View Capital Share Transaction History
-          </Button>
-      </Box>
 
         <Card sx={{ mt: 4, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 3, p: 3 }}>
           <Typography variant="h6" sx={{ mb: 2 }}>
@@ -791,6 +802,91 @@ const MemberCapitalShare = () => {
     </Button>
   </DialogActions>
 </Dialog>
+
+        {/* Monthly Profit History Dialog */}
+        <Dialog open={profitHistoryOpen} onClose={() => setProfitHistoryOpen(false)} fullWidth maxWidth="sm">
+          <DialogTitle sx={{ bgcolor: "#1976d2", color: "#fff" }}>
+            Monthly Profit History
+          </DialogTitle>
+          <DialogContent dividers sx={{ bgcolor: "#f5f5f5" }}>
+            {transactionHistory.length > 0 ? (
+              transactionHistory.map((t) => (
+                <Box
+                  key={t.id}
+                  sx={{
+                    mb: 2,
+                    p: 2,
+                    borderRadius: 2,
+                    bgcolor: "#fff",
+                    boxShadow: "0px 2px 6px rgba(0,0,0,0.15)",
+                  }}
+                >
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Profit Amount
+                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: "#4caf50" }}>
+                    ₱{Number(t.profit || 0).toLocaleString()}
+                  </Typography>
+
+                  <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 1 }}>
+                    <Typography
+                      sx={{
+                        px: 1.5,
+                        py: 0.5,
+                        borderRadius: 1,
+                        bgcolor: t.profitStatus === "Claimed" ? "#e8f5e9" : "#fff3e0",
+                        color: t.profitStatus === "Claimed" ? "#2e7d32" : "#ef6c00",
+                        fontWeight: 600,
+                        fontSize: 12,
+                      }}
+                    >
+                      Status: {t.profitStatus}
+                    </Typography>
+
+                    {t.nextProfitDate && (
+                      <Typography
+                        sx={{
+                          px: 1.5,
+                          py: 0.5,
+                          borderRadius: 1,
+                          bgcolor: "#e0f2f1",
+                          color: "#004d40",
+                          fontWeight: 600,
+                          fontSize: 12,
+                        }}
+                      >
+                        Next Profit: {t.nextProfitDate.toDateString()}
+                      </Typography>
+                    )}
+                  </Box>
+
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 1 }}>
+                    <Typography variant="body2">
+                      Capital: ₱{Number(t.amount || 0).toLocaleString()}
+                    </Typography>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      disabled={!t.profit || t.profit <= 0 || t.profitStatus === "Claimed"}
+                      onClick={() => handleTransferProfitEntry(t)}
+                    >
+                      Transfer To Wallet
+                    </Button>
+                  </Box>
+                </Box>
+              ))
+            ) : (
+              <Typography sx={{ textAlign: "center", py: 3 }}>
+                No profit history yet.
+              </Typography>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setProfitHistoryOpen(false)} variant="contained">
+              Close
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
 
       <style>{`
