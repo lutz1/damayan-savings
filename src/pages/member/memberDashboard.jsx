@@ -383,11 +383,13 @@ const fetchPaybackAndCapital = async (uid) => {
     <Box
       sx={{
         display: "flex",
-        minHeight: "100vh",
+        height: "100vh",
         backgroundImage: `url(${bgImage})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
+        backgroundAttachment: "fixed",
         position: "relative",
+        overflow: "hidden",
         "&::before": {
           content: '""',
           position: "absolute",
@@ -417,9 +419,12 @@ const fetchPaybackAndCapital = async (uid) => {
           flexGrow: 1,
           p: 4,
           mt: 0,
+          pb: { xs: 12, sm: 12, md: 12 },
           color: "white",
           zIndex: 1,
-          width: `calc(99% - ${sidebarOpen ? 240 : 60}px)`,
+          overflowY: "auto",
+          maxHeight: "100vh",
+          width: "100%",
           transition: "all 0.3s ease",
           position: "relative",
         }}

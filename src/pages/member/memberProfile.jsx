@@ -175,12 +175,13 @@ const MemberProfile = () => {
     <Box
       sx={{
         display: "flex",
-        minHeight: "100vh",
+        height: "100vh",
         backgroundImage: `url(${bgImage})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
+        backgroundAttachment: "fixed",
         position: "relative",
-        overflowX: "hidden",
+        overflow: "hidden",
       }}
     >
       {/* Topbar */}
@@ -206,11 +207,12 @@ const MemberProfile = () => {
           flexGrow: 1,
           p: { xs: 2, sm: 4 },
           mt: 1,
+          pb: { xs: 12, sm: 12, md: 12 },
           color: "white",
           minHeight: "100vh",
-          width: isMobile
-            ? "100%"
-            : `calc(100% - ${sidebarOpen ? 240 : 60}px)`,
+          overflowY: "auto",
+          maxHeight: "100vh",
+          width: "100%",
           transition: "all 0.3s ease",
         }}
       >

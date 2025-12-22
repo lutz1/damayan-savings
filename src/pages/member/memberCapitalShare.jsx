@@ -458,12 +458,13 @@ const MemberCapitalShare = () => {
     <Box
       sx={{
         display: "flex",
-        minHeight: "100vh",
+        height: "100vh",
         backgroundImage: `url(${bgImage})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
+        backgroundAttachment: "fixed",
         position: "relative",
-        overflowX: "hidden",
+        overflow: "hidden",
       }}
     >
       <Box sx={{ position: "fixed", width: "100%", zIndex: 10 }}>
@@ -480,10 +481,12 @@ const MemberCapitalShare = () => {
           flexGrow: 1,
           p: { xs: 2, sm: 4 },
           mt: 0,
+          pb: { xs: 12, sm: 12, md: 12 },
           color: "white",
           overflowY: "auto",
+          maxHeight: "100vh",
           position: "relative",
-          width: isMobile ? "100%" : `calc(100% - ${sidebarOpen ? 240 : 60}px)`,
+          width: "100%",
           transition: "all 0.3s ease",
         }}
       >

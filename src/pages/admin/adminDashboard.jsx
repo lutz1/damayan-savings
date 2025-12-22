@@ -131,7 +131,7 @@ const AdminDashboard = () => {
     <Box sx={{ display: "flex", minHeight: "100vh", backgroundImage: `url(${bgImage})`, backgroundSize: "cover", backgroundPosition: "center", position: "relative", "&::before": { content: '""', position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.1)", zIndex: 0 } }}>
       <Box sx={{ position: "fixed", width: "100%", zIndex: 10 }}><Topbar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} /></Box>
       <Box sx={{ zIndex: 5 }}><AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} /></Box>
-      <Box component="main" sx={{ flexGrow: 1, p: 4, mt: 0, color: "white", zIndex: 1, width: `calc(100% - ${sidebarOpen ? 240 : 60}px)`, transition: "all 0.3s ease", position: "relative" }}>
+      <Box component="main" sx={{ flexGrow: 1, p: 4, mt: 0, pb: { xs: 12, sm: 12, md: 12 }, color: "white", zIndex: 1, width: "100%", transition: "all 0.3s ease", position: "relative" }}>
         <Toolbar />
         <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, letterSpacing: 0.5, mb: 3, textShadow: "1px 1px 3px rgba(0,0,0,0.4)" }}>📊 Admin Dashboard Overview</Typography>
     

@@ -412,11 +412,12 @@ const onNavigate = (date, view, action) => {
     <Box
       sx={{
         display: "flex",
-        minHeight: "100vh",
+        height: "100vh",
         backgroundImage: `url(${bgImage})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
-        overflowX: "hidden",
+        backgroundAttachment: "fixed",
+        overflow: "hidden",
       }}
     >
       <Box sx={{ position: "fixed", width: "100%", zIndex: 10 }}>
@@ -432,9 +433,11 @@ const onNavigate = (date, view, action) => {
           flexGrow: 1,
           p: { xs: 2, sm: 4 },
           mt: 1,
+          pb: { xs: 12, sm: 12, md: 12 },
           color: "white",
           overflowY: "auto",
-          width: isMobile ? "100%" : `calc(100% - ${sidebarOpen ? 240 : 60}px)`,
+          maxHeight: "100vh",
+          width: "100%",
         }}
       >
         <Toolbar />

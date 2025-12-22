@@ -268,9 +268,10 @@ const AdminDeposits = () => {
           flexGrow: 1,
           p: isMobile ? 1 : 3,
           mt: 2,
+          pb: { xs: 12, sm: 12, md: 12 },
           color: "white",
           zIndex: 1,
-          width: "96%",
+          width: "100%",
           overflowX: "hidden",
         }}
       >
