@@ -23,7 +23,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { updatePassword, onAuthStateChanged } from "firebase/auth";
 import { auth, db, storage } from "../../firebase";
 import Topbar from "../../components/Topbar";
-import Sidebar from "../../components/Sidebar";
+import AppBottomNav from "../../components/AppBottomNav";
 import bgImage from "../../assets/bg.jpg";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -201,7 +201,7 @@ const AdminProfile = () => {
         <Topbar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
       </Box>
       <Box sx={{ zIndex: 5, position: isMobile ? "fixed" : "relative", height: "100%" }}>
-        <Sidebar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+        <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
       </Box>
 
       <Box

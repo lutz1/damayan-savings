@@ -37,7 +37,7 @@ import {
 import { auth, db } from "../../firebase";
 import { motion } from "framer-motion";
 import Topbar from "../../components/Topbar";
-import Sidebar from "../../components/Sidebar";
+import AppBottomNav from "../../components/AppBottomNav";
 import bgImage from "../../assets/bg.jpg";
 import GroupSalesDialog from "../../components/GroupSalesDialog";
 
@@ -407,7 +407,7 @@ const fetchPaybackAndCapital = async (uid) => {
 
       {/* 🧭 Sidebar */}
       <Box sx={{ zIndex: 5 }}>
-        <Sidebar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+        <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
       </Box>
 
       {/* 🧩 Main Content */}

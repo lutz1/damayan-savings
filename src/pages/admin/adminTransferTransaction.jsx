@@ -18,7 +18,7 @@ import { motion } from "framer-motion";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import { db } from "../../firebase";
 import Topbar from "../../components/Topbar";
-import Sidebar from "../../components/Sidebar";
+import AppBottomNav from "../../components/AppBottomNav";
 import bgImage from "../../assets/bg.jpg";
 
 const AdminTransferTransaction = () => {
@@ -72,7 +72,7 @@ const AdminTransferTransaction = () => {
 
       {/* 🧭 Sidebar */}
       <Box sx={{ zIndex: 5 }}>
-        <Sidebar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+        <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
       </Box>
 
       {/* 🧩 Main Content */}

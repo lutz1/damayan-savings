@@ -48,7 +48,7 @@ import {
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { db, secondaryAuth } from "../../firebase";
 import Topbar from "../../components/Topbar";
-import Sidebar from "../../components/Sidebar";
+import AppBottomNav from "../../components/AppBottomNav";
 import bgImage from "../../assets/bg.jpg";
 
 const AdminUserManagement = () => {
@@ -488,7 +488,7 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
 
       {/* 🧭 Sidebar */}
       <Box sx={{ zIndex: 5 }}>
-        <Sidebar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+        <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
       </Box>
 
       {/* 🧩 Main Content */}

@@ -37,7 +37,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../../firebase";
 import Topbar from "../../components/Topbar";
-import Sidebar from "../../components/Sidebar";
+import AppBottomNav from "../../components/AppBottomNav";
 import bgImage from "../../assets/bg.jpg";
 import { useTheme } from "@mui/material/styles";
 import { getAuth } from "firebase/auth";
@@ -245,7 +245,7 @@ const AdminDeposits = () => {
       {/* Sidebar for desktop */}
       {!isMobile && (
         <Box sx={{ zIndex: 5 }}>
-          <Sidebar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+          <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
         </Box>
       )}
 
@@ -257,7 +257,7 @@ const AdminDeposits = () => {
           onClose={handleToggleSidebar}
           ModalProps={{ keepMounted: true }}
         >
-          <Sidebar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+          <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
         </Drawer>
       )}
 

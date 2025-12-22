@@ -23,7 +23,7 @@ import { saveAs } from "file-saver";
 import { collection, onSnapshot, doc, getDoc, getDocs, query, where,
 } from "firebase/firestore";
 import { db } from "../../firebase";
-import Sidebar from "../../components/Sidebar";
+import AppBottomNav from "../../components/AppBottomNav";
 import Topbar from "../../components/Topbar";
 import bgImage from "../../assets/bg.jpg";
 import { LineChart } from "@mui/x-charts";
@@ -209,7 +209,7 @@ const filteredCodes = useMemo(() => {
 
       {/* Sidebar */}
       <Box sx={{ zIndex: 5 }}>
-        <Sidebar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+        <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
       </Box>
 
       {/* Main Content */}

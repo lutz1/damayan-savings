@@ -21,7 +21,7 @@ import { Calendar, momentLocalizer } from "react-big-calendar";
 import moment from "moment";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import Topbar from "../../components/Topbar";
-import Sidebar from "../../components/Sidebar";
+import AppBottomNav from "../../components/AppBottomNav";
 import bgImage from "../../assets/bg.jpg";
 import {
   collection,
@@ -423,7 +423,7 @@ const onNavigate = (date, view, action) => {
         <Topbar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
       </Box>
       <Box sx={{ zIndex: 5, position: isMobile ? "fixed" : "relative", height: "100%" }}>
-        <Sidebar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+        <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
       </Box>
 
       <Box

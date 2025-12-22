@@ -23,7 +23,6 @@ import {
   useMediaQuery,
 } from "@mui/material";
 import {
-  Menu as MenuIcon,
   Logout as LogoutIcon,
   Wallet as WalletIcon,
   Email as EmailIcon,
@@ -183,11 +182,6 @@ const Topbar = ({ open, onToggleSidebar }) => {
         <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
           {/* Left */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            {(isMobile || isTablet) && (
-              <IconButton color="inherit" onClick={onToggleSidebar}>
-                <MenuIcon />
-              </IconButton>
-            )}
             <Box
               component="img"
               src={tclcLogo}
