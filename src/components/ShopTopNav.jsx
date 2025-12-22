@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import {
   Box,
   Container,
@@ -11,6 +11,7 @@ import {
   Search as SearchIcon,
   LocationOn,
   Favorite,
+  ArrowBack,
 } from "@mui/icons-material";
 import AdvertisementBanner from "./AdvertisementBanner";
 
@@ -24,6 +25,7 @@ export default function ShopTopNav({
   locationSubtext,
   adHidden,
   onLocationClick,
+  onBackClick,
 }) {
   return (
     <Box
@@ -50,6 +52,9 @@ export default function ShopTopNav({
               willChange: "opacity, max-height, margin",
             }}
           >
+            <IconButton size="small" sx={{ color: "white" }} onClick={onBackClick} aria-label="back">
+              <ArrowBack />
+            </IconButton>
             <LocationOn sx={{ opacity: 0.9, color: "white" }} />
             <Box
               sx={{

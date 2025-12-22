@@ -317,6 +317,7 @@ export default function ShopPage() {
         locationSubtext={locationSubtext}
         adHidden={adHidden}
         onLocationClick={() => setLocationDialogOpen(true)}
+        onBackClick={() => navigate("/member/dashboard")}
       />
 
       <Container maxWidth="sm" sx={{ pt: 2 }}>
@@ -611,3 +612,4 @@ export default function ShopPage() {
     </Box>
   );
 }
+

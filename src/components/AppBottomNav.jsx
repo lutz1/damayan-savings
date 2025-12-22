@@ -34,14 +34,14 @@ const AppBottomNav = ({ open, onToggleSidebar }) => {
       { label: "Codes", value: "/admin/generate-codes", icon: <MonetizationOnIcon /> },
       { label: "Users", value: "/admin/user-management", icon: <PieChartIcon /> },
       { label: "Transfers", value: "/admin/transfer-transactions", icon: <SwapHorizIcon /> },
-      { label: "Profile", value: "/admin/profile", icon: <AccountCircleIcon /> },
+      { label: "Account", value: "/admin/profile", icon: <AccountCircleIcon /> },
     ];
   } else if (upperRole === "MERCHANT") {
     navItems = [
       { label: "Dashboard", value: "/merchant/dashboard", icon: <DashboardIcon /> },
       { label: "Add Product", value: "/merchant/add-product", icon: <CoffeeIcon /> },
       { label: "Products", value: "/merchant/manage-products", icon: <StoreIcon /> },
-      { label: "Profile", value: "/merchant/profile", icon: <AccountCircleIcon /> },
+      { label: "Account", value: "/merchant/profile", icon: <AccountCircleIcon /> },
     ];
   } else {
     navItems = [
@@ -49,7 +49,7 @@ const AppBottomNav = ({ open, onToggleSidebar }) => {
       { label: "Payback", value: "/member/income/payback", icon: <SavingsIcon /> },
       { label: "Capital", value: "/member/income/capital-share", icon: <PieChartIcon /> },
       { label: "Shop", value: "/shop", icon: <LocalMallIcon /> },
-      { label: "Profile", value: "/member/profile", icon: <AccountCircleIcon /> },
+      { label: "Account", value: "/member/profile", icon: <AccountCircleIcon /> },
     ];
   }
 
