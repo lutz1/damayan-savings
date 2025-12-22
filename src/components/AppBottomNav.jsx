@@ -74,6 +74,10 @@ const AppBottomNav = ({ open, onToggleSidebar }) => {
           overflow: "hidden",
           height: 80,
           zIndex: 1000,
+          background: "rgba(255, 255, 255, 0.1)",
+          backdropFilter: "blur(20px)",
+          borderTop: "1px solid rgba(255, 255, 255, 0.15)",
+          boxShadow: "0 8px 32px rgba(31, 38, 135, 0.25)",
         }}
       >
         <BottomNavigation
@@ -82,13 +86,23 @@ const AppBottomNav = ({ open, onToggleSidebar }) => {
           onChange={(_, value) => handleNavigate(value)}
           sx={{
             height: "100%",
+            backgroundColor: "transparent",
             "& .MuiBottomNavigationAction-root": {
               minWidth: 70,
               paddingTop: 5,
               paddingBottom: 8,
+              color: "rgba(255,255,255,0.8)",
+            },
+            "& .MuiBottomNavigationAction-root.Mui-selected": {
+              color: "#ffffff",
             },
             "& .MuiBottomNavigationAction-label": {
               fontSize: "0.75rem",
+              transition: "color 0.2s ease, opacity 0.2s ease",
+            },
+            "& .MuiBottomNavigationAction-root.Mui-selected .MuiBottomNavigationAction-label": {
+              fontWeight: 600,
+              letterSpacing: 0.2,
             },
           }}
         >
