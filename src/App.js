@@ -29,6 +29,7 @@ import AdminWalletToWallet from "./pages/admin/adminWallettoWallet";
 import AdminWithdrawals from "./pages/admin/adminWithdrawals";
 import AdminDeposits from "./pages/admin/adminDeposits";
 import AdminMerchantManagement from "./pages/admin/adminMerchantManagement";
+import AdminCategoryManagement from "./pages/admin/adminCategoryManagement";
 
 /* ======================
    MERCHANT (PWA)
@@ -238,6 +239,14 @@ function App() {
               element={
                 <AdminRoute>
                   <AdminMerchantManagement />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/categories"
+              element={
+                <AdminRoute>
+                  <AdminCategoryManagement />
                 </AdminRoute>
               }
             />

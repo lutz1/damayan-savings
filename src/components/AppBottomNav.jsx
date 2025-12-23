@@ -1,9 +1,11 @@
 // src/components/AppBottomNav.jsx
-import React from "react";
+import React, { useState } from "react";
 import {
   BottomNavigation,
   BottomNavigationAction,
   Paper,
+  Menu,
+  MenuItem,
 } from "@mui/material";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
@@ -19,11 +21,13 @@ import {
   FileDownload as WithdrawIcon,
   CompareArrows as WalletTransferIcon,
   Business as MerchantIcon,
+  Category as CategoryIcon,
 } from "@mui/icons-material";
 
 const AppBottomNav = ({ open, onToggleSidebar }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [merchantMenuAnchor, setMerchantMenuAnchor] = useState(null);
 
   const role = localStorage.getItem("userRole");
   const upperRole = role?.toUpperCase();
@@ -36,7 +40,7 @@ const AppBottomNav = ({ open, onToggleSidebar }) => {
       { label: "Dashboard", value: "/admin/dashboard", icon: <DashboardIcon /> },
       { label: "Codes", value: "/admin/generate-codes", icon: <MonetizationOnIcon /> },
       { label: "Users", value: "/admin/user-management", icon: <PieChartIcon /> },
-      { label: "Merchants", value: "/admin/merchant-management", icon: <MerchantIcon /> },
+      { label: "Merchants", value: "merchants-menu", icon: <MerchantIcon />, isMenu: true },
       { label: "Transfers", value: "/admin/transfer-transactions", icon: <SwapHorizIcon /> },
       { label: "Withdrawals", value: "/admin/withdrawals", icon: <WithdrawIcon /> },
       { label: "W2W", value: "/admin/wallet-to-wallet", icon: <WalletTransferIcon /> },
@@ -59,11 +63,21 @@ const AppBottomNav = ({ open, onToggleSidebar }) => {
     ];
   }
 
-  
-  const handleNavigate = (value) => {
-    if (value) {
+  const handleNavigate = (value, isMenu) => {
+    if (!value) return;
+    
+    if (isMenu && value === "merchants-menu") {
+      // Open the merchants submenu - find the button element
+      const merchantsButton = document.querySelector('[data-merchants-menu]');
+      setMerchantMenuAnchor(merchantsButton);
+    } else {
       navigate(value);
     }
+  };
+
+  const handleMerchantMenuItemClick = (path) => {
+    navigate(path);
+    setMerchantMenuAnchor(null);
   };
 
   return (
@@ -88,8 +102,15 @@ const AppBottomNav = ({ open, onToggleSidebar }) => {
       >
         <BottomNavigation
           showLabels
-          value={location.pathname}
-          onChange={(_, value) => handleNavigate(value)}
+          value={
+            // For merchants menu, use the current pathname if it's one of the merchant paths
+            merchantMenuAnchor && location.pathname.includes("merchant")
+              ? location.pathname
+              : merchantMenuAnchor && location.pathname.includes("categories")
+              ? location.pathname
+              : location.pathname
+          }
+          onChange={(_, value) => handleNavigate(value, navItems.find((item) => item.value === value)?.isMenu)}
           sx={{
             height: "100%",
             backgroundColor: "transparent",
@@ -118,10 +139,69 @@ const AppBottomNav = ({ open, onToggleSidebar }) => {
               label={item.label}
               value={item.value}
               icon={item.icon}
+              data-merchants-menu={item.isMenu ? "true" : undefined}
             />
           ))}
         </BottomNavigation>
       </Paper>
+
+      {/* Merchants Submenu */}
+      <Menu
+        anchorEl={merchantMenuAnchor}
+        open={Boolean(merchantMenuAnchor)}
+        onClose={() => setMerchantMenuAnchor(null)}
+        anchorOrigin={{
+          vertical: "top",
+          horizontal: "center",
+        }}
+        transformOrigin={{
+          vertical: "bottom",
+          horizontal: "center",
+        }}
+        PaperProps={{
+          sx: {
+            background: "rgba(255, 255, 255, 0.95)",
+            backdropFilter: "blur(20px)",
+            borderRadius: 2,
+            border: "1px solid rgba(255, 255, 255, 0.2)",
+            boxShadow: "0 8px 32px rgba(31, 38, 135, 0.25)",
+            mt: 1,
+          },
+        }}
+      >
+        <MenuItem
+          onClick={() => handleMerchantMenuItemClick("/admin/merchant-management")}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            py: 1.5,
+            px: 2,
+            "&:hover": {
+              backgroundColor: "rgba(25, 118, 210, 0.1)",
+            },
+          }}
+        >
+          <MerchantIcon fontSize="small" sx={{ color: "#1976d2" }} />
+          <span>Merchant Management</span>
+        </MenuItem>
+        <MenuItem
+          onClick={() => handleMerchantMenuItemClick("/admin/categories")}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            py: 1.5,
+            px: 2,
+            "&:hover": {
+              backgroundColor: "rgba(25, 118, 210, 0.1)",
+            },
+          }}
+        >
+          <CategoryIcon fontSize="small" sx={{ color: "#1976d2" }} />
+          <span>Categories</span>
+        </MenuItem>
+      </Menu>
     </>
   );
 };

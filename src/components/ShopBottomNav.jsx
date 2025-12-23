@@ -7,9 +7,9 @@ import {
 } from "@mui/material";
 import {
   AccountCircle,
-  LocalGroceryStore,
+  ShoppingBasket,
   RestaurantMenu,
-  ShoppingCart,
+  LocalMall,
   Weekend,
 } from "@mui/icons-material";
 
@@ -53,7 +53,7 @@ const ShopBottomNav = ({ value, onChange, cartCount = 0 }) => (
       <BottomNavigationAction
         label="Grocery"
         value="grocery"
-        icon={<LocalGroceryStore />}
+        icon={<ShoppingBasket />}
       />
 
       <BottomNavigationAction
@@ -63,11 +63,11 @@ const ShopBottomNav = ({ value, onChange, cartCount = 0 }) => (
       />
 
       <BottomNavigationAction
-        label="Carts"
+        label="Market"
         value="cart"
         icon={
           <Badge color="error" badgeContent={cartCount} max={99}>
-            <ShoppingCart />
+            <LocalMall />
           </Badge>
         }
       />

@@ -7,10 +7,6 @@ import {
   CardMedia,
   Stack,
   Typography,
-  Select,
-  MenuItem,
-  InputLabel,
-  FormControl,
   Button,
   Chip,
   Dialog,
@@ -93,6 +89,7 @@ export default function ShopPage() {
       return null;
     }
   });
+  const [shopCategories, setShopCategories] = useState([]);
   const fetchedMerchants = useRef(new Set());
   const lastScrollY = useRef(0);
   const [pullDistance, setPullDistance] = useState(0);
@@ -112,6 +109,24 @@ export default function ShopPage() {
     grocery: "Grocery",
     leisure: "Leisure",
   };
+
+  // Load shop categories
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      query(collection(db, "shopCategories"), where("displayInShop", "==", true)),
+      (snap) => {
+        const cats = snap.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setShopCategories(cats);
+      },
+      (err) => {
+        console.error("Error loading shop categories:", err);
+      }
+    );
+    return unsubscribe;
+  }, []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     setLoading(true);
@@ -261,12 +276,14 @@ export default function ShopPage() {
     setNavValue(categoryToNav(category));
   }, [category]);
 
-  // Derived: categories
+  // Derived: categories (use only admin-configured shopCategories)
   const categories = useMemo(() => {
-    const set = new Set();
-    products.forEach((p) => p.category && set.add(p.category));
-    return ["all", ...Array.from(set)];
-  }, [products]);
+    if (shopCategories.length > 0) {
+      return shopCategories.map((c) => c.name);
+    }
+    // If no configured categories, show none to avoid default labels
+    return [];
+  }, [shopCategories]);
 
   // Filter/search
   const filtered = useMemo(() => {
@@ -400,6 +417,8 @@ export default function ShopPage() {
         onLocationClick={() => setLocationDialogOpen(true)}
         onBackClick={() => navigate("/member/dashboard")}
         onVoiceError={(msg) => setSnack({ open: true, severity: "error", message: msg })}
+        cartCount={cart.length}
+        onCartClick={() => setCartDialogOpen(true)}
       />
 
       {/* Pull-to-Refresh Indicator */}
@@ -432,6 +451,102 @@ export default function ShopPage() {
       </Box>
 
       <Container maxWidth="sm" sx={{ pt: 2 }}>
+        {/* Category List - Scrollable Horizontal with Images */}
+        {!loading && categories.length > 0 && (
+          <Stack spacing={1.5} sx={{ mb: 2 }}>
+            <Typography 
+              variant="subtitle1" 
+              fontWeight={600} 
+              sx={{ px: 2, color: "#333" }}
+            >
+             What’s your mood for food?
+            </Typography>
+            <Box
+              sx={{
+                display: "flex",
+                gap: 1.5,
+                overflowX: "auto",
+                pb: 1,
+                px: 2,
+                scrollBehavior: "smooth",
+              "&::-webkit-scrollbar": {
+                height: "4px",
+              },
+              "&::-webkit-scrollbar-track": {
+                bgcolor: "#f5f5f5",
+              },
+              "&::-webkit-scrollbar-thumb": {
+                bgcolor: "#ccc",
+                borderRadius: "2px",
+              },
+            }}
+          >
+            {categories.map((cat) => {
+              const categoryData = shopCategories.find((c) => c.name === cat);
+              const isSelected = category === cat;
+
+              return (
+                <Stack key={cat} alignItems="center" spacing={0.75}>
+                  <Button
+                    onClick={() => setCategory(cat)}
+                    sx={{
+                      minWidth: 72,
+                      width: 72,
+                      height: 72,
+                      p: 0,
+                      borderRadius: 2,
+                      overflow: "hidden",
+                      transition: "all 200ms ease",
+                      border: isSelected ? "2px solid #1976d2" : "1px solid #e0e0e0",
+                      bgcolor: "#fff",
+                      "&:hover": {
+                        borderColor: "#1976d2",
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                      },
+                    }}
+                  >
+                    {categoryData?.imageUrl ? (
+                      <Box
+                        component="img"
+                        src={categoryData.imageUrl}
+                        alt={cat}
+                        sx={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                          display: "block",
+                        }}
+                      />
+                    ) : (
+                      <Box
+                        sx={{
+                          width: "100%",
+                          height: "100%",
+                          bgcolor: "#eee",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Typography variant="caption" sx={{ fontSize: "1.4rem" }}>
+                          📁
+                        </Typography>
+                      </Box>
+                    )}
+                  </Button>
+                  <Typography
+                    variant="caption"
+                    sx={{ fontSize: "0.75rem", fontWeight: 600, color: isSelected ? "#1976d2" : "#333" }}
+                  >
+                    {cat}
+                  </Typography>
+                </Stack>
+              );
+            })}
+          </Box>
+        </Stack>
+        )}
+
         {/* Store Header - Show first merchant's store info */}
         {!loading && products.length > 0 && merchants[products[0]?.merchantId] && (
           <Card sx={{ mb: 3, boxShadow: "0 2px 8px rgba(0,0,0,0.08)", overflow: "hidden", borderRadius: 1 }}>
@@ -476,20 +591,6 @@ export default function ShopPage() {
             </CardContent>
           </Card>
         )}
-
-        {/* Search & Filter */}
-        <Card sx={{ mb: 2, boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}>
-          <CardContent>
-            <FormControl fullWidth>
-              <InputLabel>Category</InputLabel>
-              <Select label="Category" value={category} onChange={(e) => setCategory(e.target.value)}>
-                {categories.map((c) => (
-                  <MenuItem key={c} value={c}>{c === "all" ? "All Categories" : c}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </CardContent>
-        </Card>
 
         {/* Products Grid */}
         {loading && (

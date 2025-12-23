@@ -8,6 +8,7 @@ import {
   IconButton,
   InputAdornment,
   Tooltip,
+  Badge,
 } from "@mui/material";
 import {
   Search as SearchIcon,
@@ -15,6 +16,7 @@ import {
   Notifications,
   ArrowBack,
   KeyboardVoice as VoiceIcon,
+  ShoppingCart,
 } from "@mui/icons-material";
 import AdvertisementBanner from "./AdvertisementBanner";
 
@@ -30,6 +32,8 @@ export default function ShopTopNav({
   onLocationClick,
   onBackClick,
   onVoiceError,
+  cartCount = 0,
+  onCartClick,
 }) {
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef(null);
@@ -184,6 +188,16 @@ export default function ShopTopNav({
             </Box>
 
             <Box sx={{ flex: 1 }} />
+            <IconButton
+              size="small"
+              sx={{ color: "white" }}
+              aria-label="cart"
+              onClick={onCartClick}
+            >
+              <Badge color="error" badgeContent={cartCount} max={99}>
+                <ShoppingCart />
+              </Badge>
+            </IconButton>
             <IconButton size="small" sx={{ color: "white" }} aria-label="notifications">
               <Notifications />
             </IconButton>

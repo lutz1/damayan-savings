@@ -24,11 +24,15 @@ const secondaryConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const storage = getStorage(app);
-const db = initializeFirestore(app, { ignoreUndefinedProperties: true });
+const db = initializeFirestore(app, { 
+  ignoreUndefinedProperties: true,
+  experimentalForceLongPolling: true, // Avoid WebSocket issues
+});
 
-clearIndexedDbPersistence(db).catch(() =>
-  console.warn("⚠️ Firestore persistence already active, skip clearing.")
-);
+// Disable persistence to avoid state conflicts
+clearIndexedDbPersistence(db).catch((err) => {
+  console.warn("Firestore persistence notice:", err?.code);
+});
 
 // Secondary app init (isolated session)
 const secondaryApp =
