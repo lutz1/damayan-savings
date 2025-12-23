@@ -65,10 +65,12 @@ export default function StoreProfilePage() {
   });
 
   const [storeName, setStoreName] = useState("");
-  const [storeDesc, setStoreDesc] = useState("");
   const [hours, setHours] = useState("");
   const [location, setLocation] = useState("");
   const [coverImage, setCoverImage] = useState("");
+  const [deliveryTime, setDeliveryTime] = useState("");
+  const [deliveryRadiusKm, setDeliveryRadiusKm] = useState("");
+  const [deliveryRatePerKm, setDeliveryRatePerKm] = useState("");
 
   const [snack, setSnack] = useState({ open: false, severity: "success", message: "" });
 
@@ -94,10 +96,20 @@ export default function StoreProfilePage() {
         if (snap.exists()) {
           const data = snap.data();
           setStoreName(data.storeName || "");
-          setStoreDesc(data.storeDesc || "");
           setHours(data.hours || "");
           setLocation(data.location || "");
           setCoverImage(data.coverImage || "");
+          setDeliveryTime(data.deliveryTime || "");
+          setDeliveryRadiusKm(
+            data.deliveryRadiusKm !== undefined && data.deliveryRadiusKm !== null
+              ? String(data.deliveryRadiusKm)
+              : ""
+          );
+          setDeliveryRatePerKm(
+            data.deliveryRatePerKm !== undefined && data.deliveryRatePerKm !== null
+              ? String(data.deliveryRatePerKm)
+              : ""
+          );
         }
       } catch (err) {
         console.error(err);
@@ -208,10 +220,12 @@ export default function StoreProfilePage() {
       await setDoc(doc(db, "merchants", uid), {
         uid,
         storeName: storeName.trim(),
-        storeDesc: storeDesc.trim(),
         hours,
         location,
         coverImage,
+        deliveryTime: deliveryTime.trim(),
+        deliveryRadiusKm: deliveryRadiusKm ? Number(deliveryRadiusKm) : null,
+        deliveryRatePerKm: deliveryRatePerKm ? Number(deliveryRatePerKm) : null,
         updatedAt: serverTimestamp(),
       }, { merge: true });
 
@@ -344,17 +358,6 @@ export default function StoreProfilePage() {
                   />
 
                   <TextField
-                    label="Description"
-                    multiline
-                    rows={3}
-                    value={storeDesc}
-                    onChange={(e) => setStoreDesc(e.target.value)}
-                    fullWidth
-                    placeholder="Tell customers about your store..."
-                    disabled={loading}
-                  />
-
-                  <TextField
                     label="Operating Hours"
                     value={hours}
                     onChange={(e) => setHours(e.target.value)}
@@ -369,6 +372,51 @@ export default function StoreProfilePage() {
                     }}
                     disabled={loading}
                   />
+
+                  <TextField
+                    label="Delivery Time"
+                    value={deliveryTime}
+                    onChange={(e) => setDeliveryTime(e.target.value)}
+                    fullWidth
+                    placeholder="e.g., 30-45 mins"
+                    disabled={loading}
+                  />
+
+                  <Stack direction="row" spacing={1}>
+                    <TextField
+                      label="Delivery Radius (km)"
+                      type="number"
+                      value={deliveryRadiusKm}
+                      onChange={(e) => setDeliveryRadiusKm(e.target.value)}
+                      fullWidth
+                      placeholder="e.g., 5"
+                      disabled={loading}
+                      inputProps={{ min: 0, step: 0.5 }}
+                    />
+                    <TextField
+                      label="Rate per km (₱)"
+                      type="number"
+                      value={deliveryRatePerKm}
+                      onChange={(e) => setDeliveryRatePerKm(e.target.value)}
+                      fullWidth
+                      placeholder="e.g., 10"
+                      disabled={loading}
+                      inputProps={{ min: 0, step: 1 }}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            ₱
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </Stack>
+
+                  {deliveryRadiusKm && deliveryRatePerKm && (
+                    <Typography variant="caption" color="#546e7a">
+                      Estimated delivery rate: ₱{(Number(deliveryRadiusKm) * Number(deliveryRatePerKm)).toFixed(2)} for {deliveryRadiusKm} km radius
+                    </Typography>
+                  )}
 
                   <Box
                     sx={{

@@ -19,14 +19,17 @@ import {
   Skeleton,
   Snackbar,
   Alert,
-  Avatar,
   CircularProgress,
 } from "@mui/material";
 import {
   Add as AddIcon,
   Remove as RemoveIcon,
-  Store as StoreIcon,
   ShoppingCart as CartIcon,
+  FavoriteBorder as FavoriteBorderIcon,
+  AccessTime as AccessTimeIcon,
+  Timer as TimerIcon,
+  LocalShipping as LocalShippingIcon,
+  LocationOn as LocationOnIcon,
 } from "@mui/icons-material";
 import { collection, query, where, onSnapshot, doc, getDoc, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
@@ -301,6 +304,14 @@ export default function ShopPage() {
     return list;
   }, [products, search, category]);
 
+  // Derived: ordered merchant list for store headers
+  const merchantList = useMemo(() => {
+    const ids = [...new Set(products.map((p) => p.merchantId).filter(Boolean))];
+    return ids
+      .map((id) => ({ id, ...(merchants[id] || {}) }))
+      .filter((m) => Object.keys(m).length > 1);
+  }, [products, merchants]);
+
   const cartTotal = useMemo(
     () => cart.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0),
     [cart]
@@ -453,13 +464,13 @@ export default function ShopPage() {
       <Container maxWidth="sm" sx={{ pt: 2 }}>
         {/* Category List - Scrollable Horizontal with Images */}
         {!loading && categories.length > 0 && (
-          <Stack spacing={1.5} sx={{ mb: 2 }}>
+          <Stack spacing={1.5} sx={{ mb: 3 }}>
             <Typography 
               variant="subtitle1" 
               fontWeight={600} 
               sx={{ px: 2, color: "#333" }}
             >
-             What’s your mood for food?
+              What’s your mood for food?
             </Typography>
             <Box
               sx={{
@@ -469,127 +480,170 @@ export default function ShopPage() {
                 pb: 1,
                 px: 2,
                 scrollBehavior: "smooth",
-              "&::-webkit-scrollbar": {
-                height: "4px",
-              },
-              "&::-webkit-scrollbar-track": {
-                bgcolor: "#f5f5f5",
-              },
-              "&::-webkit-scrollbar-thumb": {
-                bgcolor: "#ccc",
-                borderRadius: "2px",
-              },
-            }}
-          >
-            {categories.map((cat) => {
-              const categoryData = shopCategories.find((c) => c.name === cat);
-              const isSelected = category === cat;
+                "&::-webkit-scrollbar": {
+                  height: "4px",
+                },
+                "&::-webkit-scrollbar-track": {
+                  bgcolor: "#f5f5f5",
+                },
+                "&::-webkit-scrollbar-thumb": {
+                  bgcolor: "#ccc",
+                  borderRadius: "2px",
+                },
+              }}
+            >
+              {categories.map((cat) => {
+                const categoryData = shopCategories.find((c) => c.name === cat);
+                const isSelected = category === cat;
 
-              return (
-                <Stack key={cat} alignItems="center" spacing={0.75}>
-                  <Button
-                    onClick={() => setCategory(cat)}
-                    sx={{
-                      minWidth: 72,
-                      width: 72,
-                      height: 72,
-                      p: 0,
-                      borderRadius: 2,
-                      overflow: "hidden",
-                      transition: "all 200ms ease",
-                      border: isSelected ? "2px solid #1976d2" : "1px solid #e0e0e0",
-                      bgcolor: "#fff",
-                      "&:hover": {
-                        borderColor: "#1976d2",
-                        boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                      },
-                    }}
-                  >
-                    {categoryData?.imageUrl ? (
-                      <Box
-                        component="img"
-                        src={categoryData.imageUrl}
-                        alt={cat}
-                        sx={{
-                          width: "100%",
-                          height: "100%",
-                          objectFit: "cover",
-                          display: "block",
-                        }}
-                      />
-                    ) : (
-                      <Box
-                        sx={{
-                          width: "100%",
-                          height: "100%",
-                          bgcolor: "#eee",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <Typography variant="caption" sx={{ fontSize: "1.4rem" }}>
-                          📁
-                        </Typography>
-                      </Box>
-                    )}
-                  </Button>
-                  <Typography
-                    variant="caption"
-                    sx={{ fontSize: "0.75rem", fontWeight: 600, color: isSelected ? "#1976d2" : "#333" }}
-                  >
-                    {cat}
-                  </Typography>
-                </Stack>
-              );
-            })}
-          </Box>
-        </Stack>
+                return (
+                  <Stack key={cat} alignItems="center" spacing={0.75}>
+                    <Button
+                      onClick={() => setCategory(cat)}
+                      sx={{
+                        minWidth: 72,
+                        width: 72,
+                        height: 72,
+                        p: 0,
+                        borderRadius: 2,
+                        overflow: "hidden",
+                        transition: "all 200ms ease",
+                        border: isSelected ? "2px solid #1976d2" : "1px solid #e0e0e0",
+                        bgcolor: "#fff",
+                        "&:hover": {
+                          borderColor: "#1976d2",
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                        },
+                      }}
+                    >
+                      {categoryData?.imageUrl ? (
+                        <Box
+                          component="img"
+                          src={categoryData.imageUrl}
+                          alt={cat}
+                          sx={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                            display: "block",
+                          }}
+                        />
+                      ) : (
+                        <Box
+                          sx={{
+                            width: "100%",
+                            height: "100%",
+                            bgcolor: "#eee",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <Typography variant="caption" sx={{ fontSize: "1.4rem" }}>
+                            📁
+                          </Typography>
+                        </Box>
+                      )}
+                    </Button>
+                    <Typography
+                      variant="caption"
+                      sx={{ fontSize: "0.75rem", fontWeight: 600, color: isSelected ? "#1976d2" : "#333" }}
+                    >
+                      {cat}
+                    </Typography>
+                  </Stack>
+                );
+              })}
+            </Box>
+            <Typography
+              variant="subtitle2"
+              sx={{ px: 2, color: "#555", fontWeight: 600, mt: 0.5 }}
+            >
+              Hungry? Order now
+            </Typography>
+          </Stack>
         )}
 
-        {/* Store Header - Show first merchant's store info */}
-        {!loading && products.length > 0 && merchants[products[0]?.merchantId] && (
-          <Card sx={{ mb: 3, boxShadow: "0 2px 8px rgba(0,0,0,0.08)", overflow: "hidden", borderRadius: 1 }}>
-            {merchants[products[0].merchantId]?.coverImage && (
-              <CardMedia
-                component="img"
-                image={merchants[products[0].merchantId].coverImage}
-                alt="Store cover"
-                sx={{ height: 120, objectFit: "cover" }}
-              />
-            )}
-            <CardContent>
-              <Stack spacing={1.5}>
-                <Stack direction="row" spacing={1.5} alignItems="flex-start">
-                  <Avatar
-                    sx={{
-                      width: 56,
-                      height: 56,
-                      bgcolor: "#1976d2",
-                      mt: merchants[products[0].merchantId]?.coverImage ? -4 : 0,
-                    }}
-                  >
-                    <StoreIcon />
-                  </Avatar>
-                  <Stack flex={1} spacing={0.5}>
-                    <Typography variant="h6" fontWeight="bold">
-                      {merchants[products[0].merchantId]?.storeName || "Shop"}
+        {/* Store Headers - Horizontal scroll for multiple stores */}
+        {!loading && merchantList.length > 0 && (
+          <Stack spacing={1} sx={{ mb: 3 }}>
+            <Typography variant="subtitle1" fontWeight={600} sx={{ px: 1, color: "#333" }}>
+              Stores
+            </Typography>
+            <Box
+              sx={{
+                display: "flex",
+                gap: 1.5,
+                overflowX: "auto",
+                pb: 1,
+                px: 1,
+                scrollBehavior: "smooth",
+                "&::-webkit-scrollbar": { height: "4px" },
+                "&::-webkit-scrollbar-track": { bgcolor: "#f5f5f5" },
+                "&::-webkit-scrollbar-thumb": { bgcolor: "#ccc", borderRadius: "2px" },
+              }}
+            >
+              {merchantList.map((merchant) => (
+                <Stack key={merchant.id} spacing={0.75} sx={{ minWidth: 240, maxWidth: 260 }}>
+                  <Card sx={{ boxShadow: "0 2px 8px rgba(0,0,0,0.08)", overflow: "hidden", borderRadius: 1 }}>
+                    <Box sx={{ position: "relative", height: 160, bgcolor: "#eee" }}>
+                      <CardMedia
+                        component="img"
+                        image={merchant.coverImage || "/icons/icon-192x192.png"}
+                        alt="Store cover"
+                        sx={{ height: "100%", width: "100%", objectFit: "cover" }}
+                      />
+                      <IconButton
+                        size="small"
+                        sx={{ position: "absolute", top: 8, right: 8, bgcolor: "rgba(255,255,255,0.9)" }}
+                        aria-label="favorite"
+                      >
+                        <FavoriteBorderIcon sx={{ color: "#d32f2f" }} />
+                      </IconButton>
+                    </Box>
+                  </Card>
+                  <Stack spacing={0.5} sx={{ px: 0.5 }}>
+                    <Typography variant="subtitle1" fontWeight="bold" noWrap>
+                      {merchant.storeName || "Shop"}
                     </Typography>
-                    {merchants[products[0].merchantId]?.storeDesc && (
-                      <Typography variant="body2" color="#607d8b">
-                        {merchants[products[0].merchantId].storeDesc}
-                      </Typography>
+                    {merchant.hours && (
+                      <Stack direction="row" spacing={0.75} alignItems="center">
+                        <AccessTimeIcon sx={{ fontSize: 16, color: "#90a4ae" }} />
+                        <Typography variant="caption" color="#90a4ae">
+                          Hours: {merchant.hours}
+                        </Typography>
+                      </Stack>
                     )}
-                    {merchants[products[0].merchantId]?.hours && (
-                      <Typography variant="caption" color="#90a4ae">
-                        Hours: {merchants[products[0].merchantId].hours}
-                      </Typography>
+                    {merchant.deliveryTime && (
+                      <Stack direction="row" spacing={0.75} alignItems="center">
+                        <TimerIcon sx={{ fontSize: 16, color: "#90a4ae" }} />
+                        <Typography variant="caption" color="#90a4ae">
+                          Delivery time: {merchant.deliveryTime}
+                        </Typography>
+                      </Stack>
+                    )}
+                    {(merchant.deliveryRadiusKm || merchant.deliveryRatePerKm) && (
+                      <Stack direction="row" spacing={0.75} alignItems="center">
+                        <LocalShippingIcon sx={{ fontSize: 16, color: "#90a4ae" }} />
+                        <Typography variant="caption" color="#90a4ae">
+                          Delivery fee: {merchant.deliveryRatePerKm ? `₱${merchant.deliveryRatePerKm}/km` : "-"}
+                          {merchant.deliveryRadiusKm ? ` within ${merchant.deliveryRadiusKm} km` : ""}
+                        </Typography>
+                      </Stack>
+                    )}
+                    {merchant.location && (
+                      <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 0 }}>
+                        <LocationOnIcon sx={{ fontSize: 16, color: "#90a4ae" }} />
+                        <Typography variant="caption" color="#90a4ae" noWrap>
+                          {merchant.location}
+                        </Typography>
+                      </Stack>
                     )}
                   </Stack>
                 </Stack>
-              </Stack>
-            </CardContent>
-          </Card>
+              ))}
+            </Box>
+          </Stack>
         )}
 
         {/* Products Grid */}
