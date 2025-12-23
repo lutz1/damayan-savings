@@ -15,7 +15,10 @@ import {
   SwapHoriz as SwapHorizIcon,
   LocalMall as LocalMallIcon,
   Coffee as CoffeeIcon,
-  Store as StoreIcon
+  Store as StoreIcon,
+  FileDownload as WithdrawIcon,
+  CompareArrows as WalletTransferIcon,
+  Business as MerchantIcon,
 } from "@mui/icons-material";
 
 const AppBottomNav = ({ open, onToggleSidebar }) => {
@@ -33,7 +36,10 @@ const AppBottomNav = ({ open, onToggleSidebar }) => {
       { label: "Dashboard", value: "/admin/dashboard", icon: <DashboardIcon /> },
       { label: "Codes", value: "/admin/generate-codes", icon: <MonetizationOnIcon /> },
       { label: "Users", value: "/admin/user-management", icon: <PieChartIcon /> },
+      { label: "Merchants", value: "/admin/merchant-management", icon: <MerchantIcon /> },
       { label: "Transfers", value: "/admin/transfer-transactions", icon: <SwapHorizIcon /> },
+      { label: "Withdrawals", value: "/admin/withdrawals", icon: <WithdrawIcon /> },
+      { label: "W2W", value: "/admin/wallet-to-wallet", icon: <WalletTransferIcon /> },
       { label: "Account", value: "/admin/profile", icon: <AccountCircleIcon /> },
     ];
   } else if (upperRole === "MERCHANT") {

@@ -24,6 +24,7 @@ import {
   Snackbar,
   Alert,
   Avatar,
+  CircularProgress,
 } from "@mui/material";
 import {
   Add as AddIcon,
@@ -31,7 +32,7 @@ import {
   Store as StoreIcon,
   ShoppingCart as CartIcon,
 } from "@mui/icons-material";
-import { collection, query, where, onSnapshot, doc, getDoc } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, getDoc, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import ShopTopNav from "../components/ShopTopNav";
 import ShopBottomNav from "../components/ShopBottomNav";
@@ -94,6 +95,9 @@ export default function ShopPage() {
   });
   const fetchedMerchants = useRef(new Set());
   const lastScrollY = useRef(0);
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const touchStartY = useRef(0);
   const categoryToNav = (cat) => {
     if (!cat) return "none";
     const lookup = {
@@ -182,6 +186,76 @@ export default function ShopPage() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  // Pull-to-refresh gesture detection
+  useEffect(() => {
+    const handleTouchStart = (e) => {
+      if (window.scrollY === 0) {
+        touchStartY.current = e.touches[0].clientY;
+      } else {
+        touchStartY.current = null;
+      }
+    };
+
+    const handleTouchMove = (e) => {
+      if (touchStartY.current === null || isRefreshing) return;
+      
+      const currentY = e.touches[0].clientY;
+      const distance = currentY - touchStartY.current;
+      
+      // Only track pull down with max 100px
+      if (distance > 0) {
+        setPullDistance(Math.min(distance, 100));
+      }
+    };
+
+    const handleTouchEnd = async () => {
+      if (pullDistance > 60 && !isRefreshing) {
+        // Trigger refresh
+        setIsRefreshing(true);
+        setPullDistance(0);
+        
+        try {
+          // Reload products from Firebase
+          const q = query(collection(db, "products"), where("status", "==", "active"));
+          const snap = await getDocs(q);
+          const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          setProducts(list);
+          
+          // Load merchant info for new merchants
+          const merchantIds = [...new Set(list.map((p) => p.merchantId))];
+          merchantIds.forEach((mid) => {
+            if (mid && !fetchedMerchants.current.has(mid)) {
+              fetchedMerchants.current.add(mid);
+              getDoc(doc(db, "merchants", mid)).then((snap) => {
+                if (snap.exists()) {
+                  setMerchants((prev) => ({ ...prev, [mid]: snap.data() }));
+                }
+              });
+            }
+          });
+        } catch (err) {
+          console.error("Refresh failed:", err);
+        } finally {
+          setIsRefreshing(false);
+        }
+      } else {
+        // Reset pull distance if not enough to trigger refresh
+        setPullDistance(0);
+      }
+      touchStartY.current = null;
+    };
+
+    window.addEventListener("touchstart", handleTouchStart, { passive: true });
+    window.addEventListener("touchmove", handleTouchMove, { passive: true });
+    window.addEventListener("touchend", handleTouchEnd);
+
+    return () => {
+      window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [pullDistance, isRefreshing]);
 
   useEffect(() => {
     setNavValue(categoryToNav(category));
@@ -308,7 +382,14 @@ export default function ShopPage() {
   const locationSubtext = currentLocationCityProvince || currentLocation || "Set delivery location";
 
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "#f5f5f5", pb: 12 }}>
+    <Box sx={{
+      minHeight: "100vh",
+      bgcolor: "#f5f5f5",
+      pb: 12,
+      pt: 30, // reserve space for fixed ShopTopNav (~208px)
+      overscrollBehaviorY: "contain",
+      overflowX: "hidden",
+    }}>
       <ShopTopNav
         search={search}
         onSearchChange={(e) => setSearch(e.target.value)}
@@ -318,7 +399,37 @@ export default function ShopPage() {
         adHidden={adHidden}
         onLocationClick={() => setLocationDialogOpen(true)}
         onBackClick={() => navigate("/member/dashboard")}
+        onVoiceError={(msg) => setSnack({ open: true, severity: "error", message: msg })}
       />
+
+      {/* Pull-to-Refresh Indicator */}
+      <Box
+        sx={{
+          position: "fixed",
+          top: 200,
+          left: 0,
+          right: 0,
+          display: "flex",
+          justifyContent: "center",
+          zIndex: 100,
+          opacity: pullDistance > 0 ? 1 : 0,
+          transform: `translateY(${Math.min(pullDistance, 60)}px)`,
+          transition: isRefreshing ? "none" : "opacity 200ms ease, transform 200ms ease",
+          pointerEvents: "none",
+        }}
+      >
+        <CircularProgress
+          size={40}
+          sx={{
+            color: "#1976d2",
+            animation: isRefreshing ? "spin 1s linear infinite" : "none",
+            "@keyframes spin": {
+              "0%": { transform: "rotate(0deg)" },
+              "100%": { transform: "rotate(360deg)" },
+            },
+          }}
+        />
+      </Box>
 
       <Container maxWidth="sm" sx={{ pt: 2 }}>
         {/* Store Header - Show first merchant's store info */}
