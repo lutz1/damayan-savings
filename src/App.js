@@ -45,7 +45,10 @@ import LocationAccess from "./pages/LocationAccess";
    CUSTOMER SHOP
 ====================== */
 import ShopPage from "./pages/shop";
+import StoreDetailsPage from "./pages/storeDetails";
+import AllStoresPage from "./pages/allStores";
 import AddAddress from "./pages/addAddress";
+import CartPage from "./pages/cart";
 
 /* ======================
    MEMBER
@@ -299,7 +302,10 @@ function App() {
                 CUSTOMER SHOP
             ====================== */}
             <Route path="/shop" element={<ShopPage />} />
+            <Route path="/store/:id" element={<StoreDetailsPage />} />
+            <Route path="/all-stores" element={<AllStoresPage />} />
             <Route path="/shop/add-address" element={<AddAddress />} />
+            <Route path="/cart" element={<CartPage />} />
 
             {/* ======================
                 MEMBER

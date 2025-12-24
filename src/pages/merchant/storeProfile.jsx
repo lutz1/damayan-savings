@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import { useJsApiLoader } from "@react-google-maps/api";
+import { useJsApiLoader, GoogleMap, Marker } from "@react-google-maps/api";
 import {
   Box,
   Card,
@@ -22,13 +22,13 @@ import {
   Close,
   Store as StoreIcon,
   AccessTime,
-  LocationOn,
+  MyLocation,
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
 import MobileAppShell from "../../components/MobileAppShell";
 import { auth, db, storage } from "../../firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, GeoPoint } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 
 // Keep libraries array stable
@@ -56,8 +56,11 @@ export default function StoreProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
-  const autocompleteContainerRef = useRef(null);
-  const placeAutocompleteElRef = useRef(null);
+  const [locating, setLocating] = useState(false);
+  const mapRef = useRef(null);
+  const searchInputElRef = useRef(null);
+  const searchBoxRef = useRef(null);
+  const searchContainerRef = useRef(null);
 
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY || "YOUR_API_KEY_HERE",
@@ -68,9 +71,11 @@ export default function StoreProfilePage() {
   const [hours, setHours] = useState("");
   const [location, setLocation] = useState("");
   const [coverImage, setCoverImage] = useState("");
+  const [logoImage, setLogoImage] = useState("");
   const [deliveryTime, setDeliveryTime] = useState("");
   const [deliveryRadiusKm, setDeliveryRadiusKm] = useState("");
   const [deliveryRatePerKm, setDeliveryRatePerKm] = useState("");
+  const [coords, setCoords] = useState(null); // { lat, lng }
 
   const [snack, setSnack] = useState({ open: false, severity: "success", message: "" });
 
@@ -99,6 +104,7 @@ export default function StoreProfilePage() {
           setHours(data.hours || "");
           setLocation(data.location || "");
           setCoverImage(data.coverImage || "");
+          setLogoImage(data.logoImage || data.logo || data.storeLogo || "");
           setDeliveryTime(data.deliveryTime || "");
           setDeliveryRadiusKm(
             data.deliveryRadiusKm !== undefined && data.deliveryRadiusKm !== null
@@ -110,6 +116,17 @@ export default function StoreProfilePage() {
               ? String(data.deliveryRatePerKm)
               : ""
           );
+          const lat =
+            typeof data.locationLat === "number"
+              ? data.locationLat
+              : data.locationGeo?.latitude;
+          const lng =
+            typeof data.locationLng === "number"
+              ? data.locationLng
+              : data.locationGeo?.longitude;
+          if (typeof lat === "number" && typeof lng === "number") {
+            setCoords({ lat, lng });
+          }
         }
       } catch (err) {
         console.error(err);
@@ -121,44 +138,7 @@ export default function StoreProfilePage() {
     loadStore();
   }, [uid]);
 
-  // Google Places Autocomplete for location field
-  useEffect(() => {
-    if (!isLoaded || !autocompleteContainerRef.current) return;
-    const placesApi = window.google?.maps?.places;
-    const ElementCtor = placesApi?.PlaceAutocompleteElement;
-    if (!ElementCtor) return;
-
-    const pac = new ElementCtor();
-    pac.placeholder = "Search for your shop location";
-    pac.style.width = "100%";
-    pac.style.boxSizing = "border-box";
-    pac.style.borderRadius = "4px";
-
-    const onSelect = async (e) => {
-      const place = e.detail?.place;
-      if (!place || !place.fetchFields) return;
-      try {
-        await place.fetchFields({ fields: ["displayName", "formattedAddress", "location"] });
-        const addr = place.formattedAddress || place.displayName || "";
-        setLocation(addr);
-      } catch (_) {
-        // ignore errors
-      }
-    };
-
-    pac.addEventListener("gmp-placeselect", onSelect);
-    autocompleteContainerRef.current.innerHTML = "";
-    autocompleteContainerRef.current.appendChild(pac);
-    placeAutocompleteElRef.current = pac;
-
-    return () => {
-      pac.removeEventListener("gmp-placeselect", onSelect);
-      if (placeAutocompleteElRef.current && placeAutocompleteElRef.current.parentNode) {
-        placeAutocompleteElRef.current.parentNode.removeChild(placeAutocompleteElRef.current);
-      }
-      placeAutocompleteElRef.current = null;
-    };
-  }, [isLoaded]);
+  // Remove external autocomplete; we'll use in-map SearchBox instead
 
   const handleImageSelect = async (e) => {
     const file = e.target.files?.[0];
@@ -209,6 +189,53 @@ export default function StoreProfilePage() {
     }
   };
 
+  const handleLogoSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setSnack({ open: true, severity: "warning", message: "Please select an image file" });
+      return;
+    }
+
+    setImageUploading(true);
+
+    try {
+      const storageRef = ref(storage, `merchants/${uid}/logo_${Date.now()}_${file.name}`);
+      const task = uploadBytesResumable(storageRef, file);
+
+      task.on(
+        "state_changed",
+        () => {},
+        (err) => {
+          console.error(err);
+          setSnack({ open: true, severity: "error", message: "Logo upload failed" });
+          setImageUploading(false);
+        },
+        async () => {
+          const url = await getDownloadURL(task.snapshot.ref);
+          // delete previous logo if exists
+          if (logoImage) {
+            try {
+              const path = getStoragePathFromUrl(logoImage);
+              if (path) {
+                await deleteObject(ref(storage, path));
+              }
+            } catch (err) {
+              console.log('Could not delete old logo:', err.code);
+            }
+          }
+          setLogoImage(url);
+          setSnack({ open: true, severity: "success", message: "Logo uploaded" });
+          setImageUploading(false);
+        }
+      );
+    } catch (err) {
+      console.error(err);
+      setSnack({ open: true, severity: "error", message: "Upload error" });
+      setImageUploading(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!uid || !storeName.trim()) {
       setSnack({ open: true, severity: "warning", message: "Store name is required" });
@@ -217,17 +244,26 @@ export default function StoreProfilePage() {
 
     setSaving(true);
     try {
-      await setDoc(doc(db, "merchants", uid), {
-        uid,
-        storeName: storeName.trim(),
-        hours,
-        location,
-        coverImage,
-        deliveryTime: deliveryTime.trim(),
-        deliveryRadiusKm: deliveryRadiusKm ? Number(deliveryRadiusKm) : null,
-        deliveryRatePerKm: deliveryRatePerKm ? Number(deliveryRatePerKm) : null,
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
+      await setDoc(
+        doc(db, "merchants", uid),
+        {
+          uid,
+          storeName: storeName.trim(),
+          hours,
+          location,
+          coverImage,
+          logoImage,
+          storeLogo: logoImage,
+          deliveryTime: deliveryTime.trim(),
+          deliveryRadiusKm: deliveryRadiusKm ? Number(deliveryRadiusKm) : null,
+          deliveryRatePerKm: deliveryRatePerKm ? Number(deliveryRatePerKm) : null,
+          locationLat: coords ? coords.lat : null,
+          locationLng: coords ? coords.lng : null,
+          locationGeo: coords ? new GeoPoint(coords.lat, coords.lng) : null,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
 
       setSnack({ open: true, severity: "success", message: "Store profile saved" });
     } catch (err) {
@@ -236,6 +272,50 @@ export default function StoreProfilePage() {
     }
     setSaving(false);
   };
+
+  const handleUseMyLocation = () => {
+    if (!navigator.geolocation) {
+      setSnack({ open: true, severity: "warning", message: "Geolocation not supported" });
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setCoords({ lat: latitude, lng: longitude });
+        setLocating(false);
+      },
+      () => {
+        setSnack({ open: true, severity: "error", message: "Unable to get current location" });
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
+  // Keep map view synced with coords
+  useEffect(() => {
+    if (mapRef.current && coords) {
+      try {
+        mapRef.current.panTo(coords);
+        mapRef.current.setZoom(15);
+      } catch (_) {
+        // ignore
+      }
+    }
+  }, [coords]);
+
+  // Reverse geocode to keep the displayed address in sync with the pin
+  useEffect(() => {
+    if (!coords || !window.google?.maps?.Geocoder) return;
+    const geocoder = new window.google.maps.Geocoder();
+    geocoder.geocode({ location: coords }, (results, status) => {
+      if (status === "OK" && results?.[0]) {
+        const addr = results[0].formatted_address || results[0].name;
+        if (addr) setLocation(addr);
+      }
+    });
+  }, [coords]);
 
   return (
     <MobileAppShell title="Store Profile">
@@ -338,6 +418,72 @@ export default function StoreProfilePage() {
             </Card>
           </motion.div>
 
+          {/* Store Logo */}
+          <motion.div {...motionCard} transition={{ delay: 0.05 }}>
+            <Card sx={{ mb: 2, boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}>
+              <CardContent>
+                <Stack spacing={1.5} alignItems="center">
+                  <Typography variant="subtitle1" fontWeight={600} color="#263238" sx={{ alignSelf: "flex-start" }}>
+                    🏷️ Store Logo
+                  </Typography>
+                  {logoImage ? (
+                    <Box sx={{ position: "relative" }}>
+                      <Avatar
+                        src={logoImage}
+                        alt="Store logo"
+                        sx={{ width: 96, height: 96, border: "3px solid #fff", boxShadow: "0 6px 16px rgba(0,0,0,0.15)" }}
+                      />
+                      <IconButton
+                        sx={{
+                          position: "absolute",
+                          top: -6,
+                          right: -6,
+                          bgcolor: "#d32f2f",
+                          color: "white",
+                          "&:hover": { bgcolor: "#c62828" },
+                        }}
+                        onClick={async () => {
+                          try {
+                            const path = getStoragePathFromUrl(logoImage);
+                            if (path) {
+                              await deleteObject(ref(storage, path));
+                            }
+                            setLogoImage("");
+                            setSnack({ open: true, severity: "success", message: "Logo removed" });
+                          } catch (e) {
+                            console.log('Delete error:', e.code);
+                            setLogoImage("");
+                            setSnack({ open: true, severity: "warning", message: "Logo reference cleared" });
+                          }
+                        }}
+                      >
+                        <Close />
+                      </IconButton>
+                    </Box>
+                  ) : (
+                    <Button
+                      component="label"
+                      variant="outlined"
+                      startIcon={<PhotoCamera />}
+                      sx={{
+                        borderStyle: "dashed",
+                        borderWidth: 2,
+                        borderColor: "#90caf9",
+                        color: "#1976d2",
+                        bgcolor: "#e3f2fd",
+                        "&:hover": { borderColor: "#1976d2", bgcolor: "#bbdefb" },
+                      }}
+                      disabled={imageUploading}
+                    >
+                      {imageUploading ? "Uploading..." : "Upload Store Logo"}
+                      <input hidden type="file" accept="image/*" onChange={handleLogoSelect} />
+                    </Button>
+                  )}
+                </Stack>
+              </CardContent>
+            </Card>
+          </motion.div>
+
           {/* Store Details */}
           <motion.div {...motionCard} transition={{ delay: 0.1 }}>
             <Card sx={{ mb: 2, boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}>
@@ -418,31 +564,154 @@ export default function StoreProfilePage() {
                     </Typography>
                   )}
 
-                  <Box
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1,
-                      p: 1,
-                      bgcolor: "#f5f5f5",
-                      borderRadius: 1,
-                      border: "1px solid #ddd",
-                    }}
-                  >
-                    <LocationOn sx={{ color: "#666" }} />
-                    <Box
-                      ref={autocompleteContainerRef}
-                      sx={{
-                        flex: 1,
-                        "& gmp-place-autocomplete": {
-                          width: "100%",
-                        },
-                      }}
-                    />
-                  </Box>
+                  {/* Search is now inside the map as a SearchBox control */}
                   {location && (
                     <Typography variant="caption" sx={{ color: "#666", mt: 1 }}>
                       ✓ Selected: {location}
+                    </Typography>
+                  )}
+
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<MyLocation />}
+                    onClick={handleUseMyLocation}
+                    disabled={locating || loading}
+                    sx={{ alignSelf: "flex-start" }}
+                  >
+                    {locating ? "Locating..." : "Use my current location"}
+                  </Button>
+
+                  {/* Map with draggable marker */}
+                  {isLoaded && (
+                    <Box sx={{ height: 260, mt: 1, borderRadius: 1, overflow: "hidden", border: "1px solid #ddd" }}>
+                      <GoogleMap
+                        mapContainerStyle={{ width: "100%", height: "100%" }}
+                        zoom={coords ? 15 : 12}
+                        center={coords || { lat: 14.5995, lng: 120.9842 }}
+                        onLoad={(map) => {
+                          mapRef.current = map;
+                          try {
+                            // Inject styles once for iOS-like search box
+                            if (!document.getElementById("ios-searchbox-style")) {
+                              const style = document.createElement("style");
+                              style.id = "ios-searchbox-style";
+                              style.innerHTML = `
+                                .ios-searchbox{display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(255,255,255,0.85);backdrop-filter:saturate(180%) blur(12px);border-radius:9999px;border:1px solid rgba(0,0,0,0.1);box-shadow:0 2px 8px rgba(0,0,0,0.15)}
+                                .ios-searchbox:focus-within{box-shadow:0 0 0 2px #1976d2 inset,0 6px 16px rgba(0,0,0,0.2)}
+                                .ios-searchbox .icon{width:16px;height:16px;opacity:.6;margin-left:4px;display:flex;align-items:center;justify-content:center}
+                                .ios-searchbox input{border:none;outline:none;background:transparent;width:240px;font-size:14px;padding:6px 6px}
+                                .ios-searchbox input::placeholder{color:#999}
+                                .ios-searchbox .clear{width:18px;height:18px;border-radius:50%;background:#e5e7eb;color:#374151;display:flex;align-items:center;justify-content:center;cursor:pointer;margin-right:4px;font-size:12px;line-height:18px}
+                                .ios-searchbox .clear:hover{background:#d1d5db}
+                              `;
+                              document.head.appendChild(style);
+                            }
+                            // Create search input element
+                            const container = document.createElement("div");
+                            container.className = "ios-searchbox";
+                            container.style.margin = "10px";
+                            const icon = document.createElement("span");
+                            icon.className = "icon";
+                            icon.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>';
+                            const input = document.createElement("input");
+                            input.type = "text";
+                            input.placeholder = "Search";
+                            input.setAttribute("aria-label", "Search location");
+                            const clearBtn = document.createElement("span");
+                            clearBtn.className = "clear";
+                            clearBtn.textContent = "×";
+                            clearBtn.title = "Clear";
+                            clearBtn.addEventListener("click", () => {
+                              input.value = "";
+                              input.focus();
+                            });
+                            container.appendChild(icon);
+                            container.appendChild(input);
+                            container.appendChild(clearBtn);
+                            searchContainerRef.current = container;
+                            searchInputElRef.current = input;
+
+                            // Add input to map controls
+                            const ctrls = map.controls[window.google.maps.ControlPosition.TOP_LEFT];
+                            ctrls.push(container);
+
+                            // Wire Places SearchBox
+                            const sb = new window.google.maps.places.SearchBox(input);
+                            searchBoxRef.current = sb;
+
+                            // Bias results to current viewport
+                            map.addListener("bounds_changed", () => {
+                              sb.setBounds(map.getBounds());
+                            });
+
+                            sb.addListener("places_changed", () => {
+                              const places = sb.getPlaces();
+                              if (!places || !places.length) return;
+                              const p = places.find(pl => pl.geometry && (pl.geometry.location || pl.geometry.viewport)) || places[0];
+                              const g = p.geometry;
+                              if (g?.location) {
+                                const lat = typeof g.location.lat === "function" ? g.location.lat() : g.location.lat;
+                                const lng = typeof g.location.lng === "function" ? g.location.lng() : g.location.lng;
+                                if (typeof lat === "number" && typeof lng === "number") {
+                                  setCoords({ lat, lng });
+                                }
+                              } else if (g?.viewport && g.viewport.getCenter) {
+                                const center = g.viewport.getCenter();
+                                const lat = center.lat();
+                                const lng = center.lng();
+                                setCoords({ lat, lng });
+                              }
+                            });
+                          } catch (_) {
+                            // ignore
+                          }
+                        }}
+                        onUnmount={() => {
+                          try {
+                            if (searchContainerRef.current && searchContainerRef.current.parentNode) {
+                              searchContainerRef.current.parentNode.removeChild(searchContainerRef.current);
+                            }
+                          } catch (_) {}
+                          searchBoxRef.current = null;
+                          searchInputElRef.current = null;
+                          searchContainerRef.current = null;
+                          mapRef.current = null;
+                        }}
+                        onClick={(e) => {
+                          const lat = e?.latLng?.lat?.();
+                          const lng = e?.latLng?.lng?.();
+                          if (typeof lat === "number" && typeof lng === "number") {
+                            setCoords({ lat, lng });
+                          }
+                        }}
+                        options={{ streetViewControl: false, mapTypeControl: false, fullscreenControl: false }}
+                      >
+                        {coords && (
+                          <Marker
+                            position={coords}
+                            draggable
+                            onDragEnd={(e) => {
+                              const lat = e?.latLng?.lat?.();
+                              const lng = e?.latLng?.lng?.();
+                              if (typeof lat === "number" && typeof lng === "number") {
+                                setCoords({ lat, lng });
+                              }
+                            }}
+                          />
+                        )}
+                      </GoogleMap>
+                    </Box>
+                  )}
+
+                  {/* Helper hint for in-map search */}
+                  <Typography variant="caption" sx={{ color: "#666" }}>
+                    Tip: Use the search bar on the map (top-left) to find your shop.
+                  </Typography>
+
+                  {coords && (
+                    <Typography variant="caption" sx={{ color: "#666" }}>
+                      Pin: {coords.lat.toFixed(6)}, {coords.lng.toFixed(6)} (drag to adjust)
                     </Typography>
                   )}
 

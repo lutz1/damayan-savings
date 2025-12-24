@@ -16,19 +16,12 @@ import {
   Chip,
   Divider,
   Avatar,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   LinearProgress,
   Container,
 } from "@mui/material";
 import {
   PhotoCamera,
-  Delete,
   Save,
-  Category as CategoryIcon,
-  Add,
   Close,
   CheckCircle,
   Inventory,
@@ -37,7 +30,7 @@ import {
 } from "@mui/icons-material";
 import { motion, AnimatePresence } from "framer-motion";
 import MobileAppShell from "../../components/MobileAppShell";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 import { db, storage, auth } from "../../firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -55,10 +48,8 @@ export default function AddProductPage() {
   );
 
   const [name, setName] = useState("");
-  const [category, setCategory] = useState("");
+  const [selectedCategories, setSelectedCategories] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
-  const [newCategory, setNewCategory] = useState("");
   const [price, setPrice] = useState("");
   const [description, setDescription] = useState("");
   const [stock, setStock] = useState("");
@@ -91,15 +82,30 @@ export default function AddProductPage() {
   }, [merchantId]);
 
   useEffect(() => {
-    const stored = JSON.parse(localStorage.getItem("categories") || "[]");
-    setCategories(stored);
+    // Load categories from Firestore managed by Admin
+    const q = collection(db, "shopCategories");
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const list = snap.docs
+          .map((d) => d.data())
+          .filter((c) => c.displayInShop !== false)
+          .map((c) => c.name)
+          .filter(Boolean);
+        setCategories(list);
+      },
+      (err) => {
+        console.error("Failed to load categories:", err);
+      }
+    );
+    return unsub;
   }, []);
 
   const validateForm = () => {
     const errors = {};
     
     if (!name.trim()) errors.name = "Product name is required";
-    if (!category) errors.category = "Category is required";
+    if (!selectedCategories || selectedCategories.length === 0) errors.category = "At least one category is required";
     if (!price || Number(price) <= 0) errors.price = "Valid price is required";
     if (stock && Number(stock) < 0) errors.stock = "Stock cannot be negative";
     
@@ -109,39 +115,7 @@ export default function AddProductPage() {
 
   const normalizePriceInput = (val) => val.replace(/[^0-9.]/g, "");
 
-  const handleAddCategory = () => {
-    const trimmed = newCategory.trim();
-    if (!trimmed) return;
-
-    if (categories.includes(trimmed)) {
-      setSnack({
-        open: true,
-        severity: "warning",
-        message: "Category already exists",
-      });
-      return;
-    }
-
-    const updated = [...categories, trimmed];
-    setCategories(updated);
-    localStorage.setItem("categories", JSON.stringify(updated));
-    setCategory(trimmed);
-    setNewCategory("");
-    setCategoryDialogOpen(false);
-    
-    setSnack({
-      open: true,
-      severity: "success",
-      message: "Category added successfully",
-    });
-  };
-
-  const handleDeleteCategory = (cat) => {
-    const updated = categories.filter((c) => c !== cat);
-    setCategories(updated);
-    localStorage.setItem("categories", JSON.stringify(updated));
-    if (category === cat) setCategory("");
-  };
+  // Merchant cannot create or delete categories; Admin manages them
 
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
@@ -155,8 +129,7 @@ export default function AddProductPage() {
 
   const handleReset = () => {
     setName("");
-    setCategory("");
-    setNewCategory("");
+    setSelectedCategories([]);
     setPrice("");
     setDescription("");
     setStock("");
@@ -206,7 +179,8 @@ export default function AddProductPage() {
       await addDoc(collection(db, "products"), {
         merchantId,
         name: name.trim(),
-        category,
+        category: selectedCategories[0] || "",
+        categories: selectedCategories,
         description: description.trim(),
         price: Number(price),
         stock: stock ? Number(stock) : 0,
@@ -392,53 +366,31 @@ export default function AddProductPage() {
                 <Box>
                   <TextField
                     select
-                    label="Category"
+                    label="Categories"
                     fullWidth
-                    value={category}
+                    value={selectedCategories}
                     onChange={(e) => {
-                      setCategory(e.target.value);
+                      const value = e.target.value;
+                      setSelectedCategories(typeof value === "string" ? value.split(",") : value);
                       if (formErrors.category) setFormErrors({ ...formErrors, category: null });
                     }}
                     required
                     error={!!formErrors.category}
-                    helperText={formErrors.category || "Select or create a category"}
+                    helperText={formErrors.category || "Select one or more categories"}
+                    SelectProps={{
+                      multiple: true,
+                      renderValue: (selected) => (selected || []).join(", "),
+                    }}
                   >
                     {categories.length === 0 && (
-                      <MenuItem disabled>No categories yet</MenuItem>
+                      <MenuItem disabled>No categories available. Please contact admin.</MenuItem>
                     )}
                     {categories.map((cat) => (
                       <MenuItem key={cat} value={cat}>
-                        <Stack
-                          direction="row"
-                          justifyContent="space-between"
-                          alignItems="center"
-                          width="100%"
-                        >
-                          <span>{cat}</span>
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteCategory(cat);
-                            }}
-                          >
-                            <Delete fontSize="small" />
-                          </IconButton>
-                        </Stack>
+                        {cat}
                       </MenuItem>
                     ))}
                   </TextField>
-
-                  <Button
-                    fullWidth
-                    variant="text"
-                    startIcon={<Add />}
-                    onClick={() => setCategoryDialogOpen(true)}
-                    sx={{ mt: 1 }}
-                  >
-                    Add New Category
-                  </Button>
                 </Box>
 
                 <TextField
@@ -580,9 +532,9 @@ export default function AddProductPage() {
                     <Typography variant="h6" fontWeight="bold">
                       {name || "Your Product Name"}
                     </Typography>
-                    {category && (
+                    {selectedCategories && selectedCategories.length > 0 && (
                       <Chip
-                        label={category}
+                        label={selectedCategories.join(" • ")}
                         size="small"
                         sx={{ width: "fit-content", bgcolor: "rgba(255,255,255,0.2)" }}
                       />
@@ -604,44 +556,7 @@ export default function AddProductPage() {
         </Container>
       </Box>
 
-      {/* Category Dialog */}
-      <Dialog
-        open={categoryDialogOpen}
-        onClose={() => setCategoryDialogOpen(false)}
-        fullWidth
-        maxWidth="xs"
-      >
-        <DialogTitle>
-          <Stack direction="row" alignItems="center" spacing={1}>
-            <CategoryIcon />
-            <span>Add New Category</span>
-          </Stack>
-        </DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Category Name"
-            fullWidth
-            value={newCategory}
-            onChange={(e) => setNewCategory(e.target.value)}
-            onKeyPress={(e) => {
-              if (e.key === "Enter") handleAddCategory();
-            }}
-            placeholder="e.g., Beverages, Snacks"
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCategoryDialogOpen(false)}>Cancel</Button>
-          <Button
-            onClick={handleAddCategory}
-            variant="contained"
-            disabled={!newCategory.trim()}
-          >
-            Add Category
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* Category Dialog removed: Admin manages categories in Firestore */}
 
       {/* Snackbar */}
       <Snackbar

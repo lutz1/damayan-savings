@@ -1,14 +1,12 @@
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
   Card,
-  CardContent,
   CardMedia,
   Stack,
   Typography,
   Button,
-  Chip,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -16,7 +14,6 @@ import {
   TextField as MuiTextField,
   Container,
   IconButton,
-  Skeleton,
   Snackbar,
   Alert,
   CircularProgress,
@@ -24,14 +21,14 @@ import {
 import {
   Add as AddIcon,
   Remove as RemoveIcon,
-  ShoppingCart as CartIcon,
   FavoriteBorder as FavoriteBorderIcon,
   AccessTime as AccessTimeIcon,
   Timer as TimerIcon,
   LocalShipping as LocalShippingIcon,
   LocationOn as LocationOnIcon,
+  ChevronRight as ChevronRightIcon,
 } from "@mui/icons-material";
-import { collection, query, where, onSnapshot, doc, getDoc, getDocs } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, getDoc} from "firebase/firestore";
 import { db } from "../firebase";
 import ShopTopNav from "../components/ShopTopNav";
 import ShopBottomNav from "../components/ShopBottomNav";
@@ -41,13 +38,6 @@ const currency = (n) =>
   typeof n === "number"
     ? `₱${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     : "₱0.00";
-
-const stockBadge = (stock) => {
-  const s = Number(stock || 0);
-  if (s <= 0) return { label: "Out of stock", color: "#d32f2f" };
-  if (s <= 5) return { label: "Low stock", color: "#ef6c00" };
-  return { label: "In stock", color: "#2e7d32" };
-};
 
 export default function ShopPage() {
   const navigate = useNavigate();
@@ -97,7 +87,6 @@ export default function ShopPage() {
   const lastScrollY = useRef(0);
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const touchStartY = useRef(0);
   const categoryToNav = (cat) => {
     if (!cat) return "none";
     const lookup = {
@@ -106,11 +95,6 @@ export default function ShopPage() {
       Leisure: "leisure",
     };
     return lookup[cat] || "none";
-  };
-  const navToCategory = {
-    food: "Food",
-    grocery: "Grocery",
-    leisure: "Leisure",
   };
 
   // Load shop categories
@@ -206,74 +190,53 @@ export default function ShopPage() {
   }, []);
 
   // Pull-to-refresh gesture detection
+  const handleRefresh = useCallback(() => {
+    if (isRefreshing) return;
+    
+    setIsRefreshing(true);
+    
+    // Show loading indicator for a moment, then reload
+    setTimeout(() => {
+      window.location.href = "/shop";
+    }, 500);
+  }, [isRefreshing]);
+
   useEffect(() => {
+    let startY = 0;
+
     const handleTouchStart = (e) => {
-      if (window.scrollY === 0) {
-        touchStartY.current = e.touches[0].clientY;
-      } else {
-        touchStartY.current = null;
-      }
+      startY = e.touches[0].clientY;
     };
 
     const handleTouchMove = (e) => {
-      if (touchStartY.current === null || isRefreshing) return;
-      
       const currentY = e.touches[0].clientY;
-      const distance = currentY - touchStartY.current;
+      const distance = currentY - startY;
       
-      // Only track pull down with max 100px
-      if (distance > 0) {
+      // Only show pull indicator when at top and pulling down
+      if (window.scrollY === 0 && distance > 0) {
         setPullDistance(Math.min(distance, 100));
+      } else {
+        setPullDistance(0);
       }
     };
 
     const handleTouchEnd = async () => {
-      if (pullDistance > 60 && !isRefreshing) {
-        // Trigger refresh
-        setIsRefreshing(true);
-        setPullDistance(0);
-        
-        try {
-          // Reload products from Firebase
-          const q = query(collection(db, "products"), where("status", "==", "active"));
-          const snap = await getDocs(q);
-          const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-          setProducts(list);
-          
-          // Load merchant info for new merchants
-          const merchantIds = [...new Set(list.map((p) => p.merchantId))];
-          merchantIds.forEach((mid) => {
-            if (mid && !fetchedMerchants.current.has(mid)) {
-              fetchedMerchants.current.add(mid);
-              getDoc(doc(db, "merchants", mid)).then((snap) => {
-                if (snap.exists()) {
-                  setMerchants((prev) => ({ ...prev, [mid]: snap.data() }));
-                }
-              });
-            }
-          });
-        } catch (err) {
-          console.error("Refresh failed:", err);
-        } finally {
-          setIsRefreshing(false);
-        }
-      } else {
-        // Reset pull distance if not enough to trigger refresh
-        setPullDistance(0);
+      if (pullDistance > 60) {
+        await handleRefresh();
       }
-      touchStartY.current = null;
+      setPullDistance(0);
     };
 
-    window.addEventListener("touchstart", handleTouchStart, { passive: true });
-    window.addEventListener("touchmove", handleTouchMove, { passive: true });
-    window.addEventListener("touchend", handleTouchEnd);
+    document.addEventListener("touchstart", handleTouchStart, { passive: true });
+    document.addEventListener("touchmove", handleTouchMove, { passive: true });
+    document.addEventListener("touchend", handleTouchEnd);
 
     return () => {
-      window.removeEventListener("touchstart", handleTouchStart);
-      window.removeEventListener("touchmove", handleTouchMove);
-      window.removeEventListener("touchend", handleTouchEnd);
+      document.removeEventListener("touchstart", handleTouchStart);
+      document.removeEventListener("touchmove", handleTouchMove);
+      document.removeEventListener("touchend", handleTouchEnd);
     };
-  }, [pullDistance, isRefreshing]);
+  }, [pullDistance, handleRefresh]);
 
   useEffect(() => {
     setNavValue(categoryToNav(category));
@@ -287,22 +250,6 @@ export default function ShopPage() {
     // If no configured categories, show none to avoid default labels
     return [];
   }, [shopCategories]);
-
-  // Filter/search
-  const filtered = useMemo(() => {
-    let list = [...products];
-
-    if (search.trim()) {
-      const s = search.trim().toLowerCase();
-      list = list.filter((p) => (p.name || "").toLowerCase().includes(s));
-    }
-
-    if (category !== "all") {
-      list = list.filter((p) => p.category === category);
-    }
-
-    return list;
-  }, [products, search, category]);
 
   // Derived: ordered merchant list for store headers
   const merchantList = useMemo(() => {
@@ -319,13 +266,19 @@ export default function ShopPage() {
 
   const handleBottomNavChange = (value) => {
     if (!value) return;
-    setNavValue(value);
 
-    if (navToCategory[value]) {
-      setCategory(navToCategory[value]);
+    // Navigate to shop.jsx for all bottom nav items and reset state
+    if (value === "food" || value === "grocery" || value === "leisure") {
+      // Reset category and search to default
+      setCategory("all");
+      setSearch("");
+      setNavValue(value);
+      navigate("/shop");
+      // Scroll to top
       window.scrollTo({ top: 0, behavior: "smooth" });
     } else if (value === "cart") {
-      setCartDialogOpen(true);
+      setSnack({ open: true, severity: "info", message: "Coming soon! Stay tuned." });
+      setNavValue("none");
     } else if (value === "account") {
       navigate("/login");
     }
@@ -475,23 +428,54 @@ export default function ShopPage() {
             <Box
               sx={{
                 display: "flex",
-                gap: 1.5,
+                gap: 5,
                 overflowX: "auto",
                 pb: 1,
                 px: 2,
                 scrollBehavior: "smooth",
                 "&::-webkit-scrollbar": {
-                  height: "4px",
+                  display: "none",
                 },
-                "&::-webkit-scrollbar-track": {
-                  bgcolor: "#f5f5f5",
-                },
-                "&::-webkit-scrollbar-thumb": {
-                  bgcolor: "#ccc",
-                  borderRadius: "2px",
-                },
+                msOverflowStyle: "none",
+                scrollbarWidth: "none",
               }}
             >
+              {/* "All" category option */}
+              <Stack alignItems="center" spacing={0.75}>
+                <Button
+                  onClick={() => {
+                    setCategory("all");
+                    setNavValue("none");
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  sx={{
+                    minWidth: 72,
+                    width: 72,
+                    height: 72,
+                    p: 0,
+                    borderRadius: 4,
+                    overflow: "hidden",
+                    transition: "all 200ms ease",
+                    border: category === "all" ? "2px solid #1976d2" : "1px solid #e0e0e0",
+                    bgcolor: "#fff",
+                    "&:hover": {
+                      borderColor: "#1976d2",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                    },
+                  }}
+                >
+                  <Typography variant="h5" sx={{ fontSize: "1.5rem" }}>
+                    🛍️
+                  </Typography>
+                </Button>
+                <Typography
+                  variant="caption"
+                  sx={{ fontSize: "0.75rem", fontWeight: 600, color: category === "all" ? "#1976d2" : "#333" }}
+                >
+                  All
+                </Typography>
+              </Stack>
+
               {categories.map((cat) => {
                 const categoryData = shopCategories.find((c) => c.name === cat);
                 const isSelected = category === cat;
@@ -505,7 +489,7 @@ export default function ShopPage() {
                         width: 72,
                         height: 72,
                         p: 0,
-                        borderRadius: 2,
+                        borderRadius: 4,
                         overflow: "hidden",
                         transition: "all 200ms ease",
                         border: isSelected ? "2px solid #1976d2" : "1px solid #e0e0e0",
@@ -555,12 +539,21 @@ export default function ShopPage() {
                 );
               })}
             </Box>
-            <Typography
-              variant="subtitle2"
-              sx={{ px: 2, color: "#555", fontWeight: 600, mt: 0.5 }}
-            >
-              Hungry? Order now
-            </Typography>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ px: 2, mt: 0.5 }}>
+              <Typography
+                variant="subtitle2"
+                sx={{ color: "#555", fontWeight: 600 }}
+              >
+                Hungry? Order now
+              </Typography>
+              <IconButton
+                size="small"
+                onClick={() => navigate("/all-stores")}
+                sx={{ color: "#555" }}
+              >
+                <ChevronRightIcon fontSize="small" />
+              </IconButton>
+            </Stack>
           </Stack>
         )}
 
@@ -578,14 +571,17 @@ export default function ShopPage() {
                 pb: 1,
                 px: 1,
                 scrollBehavior: "smooth",
-                "&::-webkit-scrollbar": { height: "4px" },
-                "&::-webkit-scrollbar-track": { bgcolor: "#f5f5f5" },
-                "&::-webkit-scrollbar-thumb": { bgcolor: "#ccc", borderRadius: "2px" },
+                "&::-webkit-scrollbar": { display: "none" },
+                msOverflowStyle: "none",
+                scrollbarWidth: "none",
               }}
             >
               {merchantList.map((merchant) => (
                 <Stack key={merchant.id} spacing={0.75} sx={{ minWidth: 240, maxWidth: 260 }}>
-                  <Card sx={{ boxShadow: "0 2px 8px rgba(0,0,0,0.08)", overflow: "hidden", borderRadius: 1 }}>
+                  <Card
+                    sx={{ boxShadow: "0 2px 8px rgba(0,0,0,0.08)", overflow: "hidden", borderRadius: 1, cursor: "pointer" }}
+                    onClick={() => navigate(`/store/${merchant.id}`)}
+                  >
                     <Box sx={{ position: "relative", height: 160, bgcolor: "#eee" }}>
                       <CardMedia
                         component="img"
@@ -646,106 +642,6 @@ export default function ShopPage() {
           </Stack>
         )}
 
-        {/* Products Grid */}
-        {loading && (
-          <>
-            {[...Array(6)].map((_, i) => (
-              <Card key={i} sx={{ mb: 1.5 }}>
-                <CardContent>
-                  <Stack direction="row" spacing={2}>
-                    <Skeleton variant="rectangular" width={100} height={100} sx={{ borderRadius: 1 }} />
-                    <Stack spacing={1} flex={1}>
-                      <Skeleton variant="text" width="80%" />
-                      <Skeleton variant="text" width="50%" />
-                      <Skeleton variant="text" width="60%" />
-                    </Stack>
-                  </Stack>
-                </CardContent>
-              </Card>
-            ))}
-          </>
-        )}
-
-        {!loading && filtered.length === 0 && (
-          <Card>
-            <CardContent>
-              <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-                No products found
-              </Typography>
-              <Typography variant="body2" color="#607d8b">
-                Try adjusting your search or filter.
-              </Typography>
-            </CardContent>
-          </Card>
-        )}
-
-        {!loading && filtered.map((p) => {
-          const badge = stockBadge(p.stock);
-          const inCart = cart.find((item) => item.id === p.id);
-          return (
-            <Card key={p.id} sx={{ mb: 1.5, boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}>
-              <CardContent>
-                <Stack direction="row" spacing={2}>
-                  <CardMedia
-                    component="img"
-                    image={p.image || "/icons/icon-192x192.png"}
-                    alt={p.name}
-                    sx={{ width: 100, height: 100, borderRadius: 1.5, objectFit: "cover", bgcolor: "#eee" }}
-                  />
-                  <Stack spacing={1} flex={1} minWidth={0}>
-                    <Typography variant="subtitle1" fontWeight={700} noWrap>{p.name}</Typography>
-                    <Typography variant="caption" color="#607d8b">{p.category || "Uncategorized"}</Typography>
-                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                      <Chip size="small" label={currency(Number(p.price || 0))} sx={{ bgcolor: "#e3f2fd" }} />
-                      <Chip size="small" label={badge.label} sx={{ bgcolor: badge.color, color: "#fff" }} />
-                    </Stack>
-                    {inCart ? (
-                      <Stack direction="row" spacing={0.5} alignItems="center">
-                        <IconButton
-                          size="small"
-                          onClick={() => updateQty(p.id, inCart.qty - 1)}
-                          sx={{ color: "#d32f2f" }}
-                        >
-                          <RemoveIcon fontSize="small" />
-                        </IconButton>
-                        <Typography variant="body2" sx={{ minWidth: 30, textAlign: "center" }}>
-                          {inCart.qty}
-                        </Typography>
-                        <IconButton
-                          size="small"
-                          onClick={() => updateQty(p.id, inCart.qty + 1)}
-                          sx={{ color: "#2e7d32" }}
-                          disabled={Number(p.stock || 0) <= inCart.qty}
-                        >
-                          <AddIcon fontSize="small" />
-                        </IconButton>
-                        <Button
-                          size="small"
-                          color="error"
-                          variant="text"
-                          onClick={() => removeFromCart(p.id)}
-                        >
-                          Remove
-                        </Button>
-                      </Stack>
-                    ) : (
-                      <Button
-                        size="small"
-                        variant="contained"
-                        startIcon={<CartIcon />}
-                        onClick={() => setSelectedProduct(p)}
-                        disabled={Number(p.stock || 0) <= 0}
-                        sx={{ alignSelf: "flex-start" }}
-                      >
-                        Add to Cart
-                      </Button>
-                    )}
-                  </Stack>
-                </Stack>
-              </CardContent>
-            </Card>
-          );
-        })}
       </Container>
 
       {/* Product Detail Dialog */}
