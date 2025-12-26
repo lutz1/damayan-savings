@@ -10,6 +10,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Lightweight request logger for Render logs
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  next();
+});
+
 app.post("/api/chat", async (req, res) => {
   const { messages } = req.body;
 
@@ -139,6 +145,10 @@ app.post("/api/transfer-funds", async (req, res) => {
           transferId: transferRef.id,
         };
       });
+
+      console.info(
+        `[transfer] sender=${senderId} recipient=${recipientUsername} amount=${numAmount.toFixed(2)} net=${(numAmount - numAmount * 0.02).toFixed(2)} id=${result.transferId}`
+      );
 
       res.json(result);
     } catch (transactionError) {
