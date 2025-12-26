@@ -415,14 +415,18 @@ const Topbar = ({ open, onToggleSidebar }) => {
     { icon: <PurchaseIcon sx={{ color: "#4FC3F7" }} />, label: "Purchase Codes", dialog: "purchase" },
     { icon: <WithdrawIcon sx={{ color: "#FF7043" }} />, label: "Withdrawal", dialog: "withdraw" },
     { icon: <DepositIcon sx={{ color: "#81C784" }} />, label: "Deposit", dialog: "deposit" },
-    { icon: <TransferIcon sx={{ color: "#BA68C8" }} />, label: "Send Money", dialog: "transfer", disabled: true },
+                     { icon: <TransferIcon sx={{ color: "#BA68C8" }} />, label: "Send Money", dialog: "transfer" },
     { icon: <InviteIcon sx={{ color: "#FFB300" }} />, label: "Invite & Earn", dialog: "invite" },
     { icon: <LogoutIcon sx={{ color: "#FF5252" }} />, label: "Logout", action: handleOpenLogoutDialog },
   ].map((item, i) => {
-    // disable specific actions for restricted emails or per-item flags
-    const isRestrictedUser = restrictedEmails.includes((userData.email || "").toLowerCase());
+    const emailLower = (userData.email || "").toLowerCase();
+    const isRestrictedUser = restrictedEmails.includes(emailLower);
     const disabledForRestricted = ["Purchase Codes", "Withdrawal", "Send Money", "Invite & Earn"];
-    const isDisabled = (isRestrictedUser && disabledForRestricted.includes(item.label)) || item.disabled === true;
+    const sendMoneyAllowed = item.label === "Send Money" ? emailLower === "sample@gmail.com" : true;
+    const isDisabled =
+      (isRestrictedUser && disabledForRestricted.includes(item.label)) ||
+      item.disabled === true ||
+      !sendMoneyAllowed;
 
     return (
       <ListItem disablePadding key={i}>

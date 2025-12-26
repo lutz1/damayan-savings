@@ -29,10 +29,8 @@ import {
   onSnapshot,
   query,
   orderBy,
-  doc,
   getDocs,
   where,
-  runTransaction,
 } from "firebase/firestore";
 import { db } from "../../firebase";
 import Topbar from "../../components/Topbar";
@@ -134,7 +132,6 @@ const AdminWalletToWallet = () => {
           if (!t.senderName) {
             t.senderName = await fetchSenderName(t.senderEmail || t.userId);
           }
-          await autoApproveTransfer(t); // ✅ Auto approve pending transfers
           return t;
         })
       );
@@ -153,53 +150,6 @@ const AdminWalletToWallet = () => {
     return () => unsubscribe();
   }, []);
 
-  const autoApproveTransfer = async (transfer) => {
-    try {
-      if (transfer.status !== "Pending") return;
-
-      const transferRef = doc(db, "transferFunds", transfer.id);
-
-      // Find sender and recipient documents first
-      const senderQuery = query(collection(db, "users"), where("email", "==", transfer.senderEmail));
-      const senderSnapshot = await getDocs(senderQuery);
-      if (senderSnapshot.empty) throw new Error("Sender not found.");
-      const senderDoc = senderSnapshot.docs[0];
-      const senderRef = doc(db, "users", senderDoc.id);
-
-      const recipientQuery = query(collection(db, "users"), where("username", "==", transfer.recipientUsername));
-      const recipientSnapshot = await getDocs(recipientQuery);
-      if (recipientSnapshot.empty) throw new Error("Recipient not found.");
-      const recipientDoc = recipientSnapshot.docs[0];
-      const recipientRef = doc(db, "users", recipientDoc.id);
-
-      // Use a transaction so approval (status update) and balance updates are atomic
-      await runTransaction(db, async (tx) => {
-        const transferSnap = await tx.get(transferRef);
-        if (!transferSnap.exists()) throw new Error("Transfer not found.");
-
-        const currentStatus = transferSnap.data().status;
-        if (currentStatus !== "Pending") return; // already processed by another worker
-
-        const senderSnap = await tx.get(senderRef);
-        if (!senderSnap.exists()) throw new Error("Sender not found (during transaction).");
-        const senderData = senderSnap.data();
-
-        if (senderData.eWallet < transfer.amount) throw new Error("Sender has insufficient balance.");
-
-        const recipientSnap = await tx.get(recipientRef);
-        if (!recipientSnap.exists()) throw new Error("Recipient not found (during transaction).");
-        const recipientData = recipientSnap.data();
-
-        // Apply updates
-        tx.update(senderRef, { eWallet: senderData.eWallet - transfer.amount });
-        tx.update(recipientRef, { eWallet: (recipientData.eWallet || 0) + transfer.netAmount });
-        tx.update(transferRef, { status: "Approved" });
-      });
-    } catch (err) {
-      console.error("Error auto-approving transfer:", err);
-      setSnackbar({ open: true, message: err.message, severity: "error" });
-    }
-  };
 
   const chartData = [
     { name: "Pending", value: summary.totalPending },
@@ -414,7 +364,6 @@ const AdminWalletToWallet = () => {
                             "Net Amount",
                             "Status",
                             "Date",
-                            "Actions",
                           ].map((head) => (
                             <TableCell
                               key={head}
@@ -446,7 +395,43 @@ const AdminWalletToWallet = () => {
                               <TableCell sx={{ color: "white" }}>
                                 ₱{t.netAmount?.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                               </TableCell>
-                              
+                              <TableCell>
+                                <Box
+                                  sx={{
+                                    display: "inline-block",
+                                    px: 2,
+                                    py: 0.5,
+                                    borderRadius: "12px",
+                                    backgroundColor:
+                                      t.status === "Approved"
+                                        ? "rgba(129, 199, 132, 0.2)"
+                                        : t.status === "Rejected"
+                                        ? "rgba(229, 115, 115, 0.2)"
+                                        : "rgba(255, 183, 77, 0.2)",
+                                    color:
+                                      t.status === "Approved"
+                                        ? "#81C784"
+                                        : t.status === "Rejected"
+                                        ? "#E57373"
+                                        : "#FFB74D",
+                                    fontWeight: 600,
+                                    fontSize: "0.85rem",
+                                  }}
+                                >
+                                  {t.status}
+                                </Box>
+                              </TableCell>
+                              <TableCell sx={{ color: "white" }}>
+                                {t.createdAt?.toDate
+                                  ? new Date(t.createdAt.toDate()).toLocaleString("en-PH", {
+                                      month: "short",
+                                      day: "numeric",
+                                      year: "numeric",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })
+                                  : "N/A"}
+                              </TableCell>
                             </motion.tr>
                           ))}
                       </TableBody>

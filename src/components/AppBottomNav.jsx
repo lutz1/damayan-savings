@@ -1,5 +1,5 @@
 // src/components/AppBottomNav.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   BottomNavigation,
   BottomNavigationAction,
@@ -31,6 +31,14 @@ const AppBottomNav = ({ open, onToggleSidebar }) => {
   const location = useLocation();
   const [merchantMenuAnchor, setMerchantMenuAnchor] = useState(null);
   const [transactionMenuAnchor, setTransactionMenuAnchor] = useState(null);
+  const [isNavigating, setIsNavigating] = useState(false);
+
+  // Close menus when location changes
+  useEffect(() => {
+    setMerchantMenuAnchor(null);
+    setTransactionMenuAnchor(null);
+    setIsNavigating(false);
+  }, [location.pathname]);
 
   const role = localStorage.getItem("userRole");
   const upperRole = role?.toUpperCase();
@@ -65,7 +73,7 @@ const AppBottomNav = ({ open, onToggleSidebar }) => {
   }
 
   const handleNavigate = (value, isMenu) => {
-    if (!value) return;
+    if (!value || isNavigating) return;
     
     if (isMenu && value === "merchants-menu") {
       // Open the merchants submenu - find the button element
@@ -76,18 +84,28 @@ const AppBottomNav = ({ open, onToggleSidebar }) => {
       const transactionsButton = document.querySelector('[data-transactions-menu]');
       setTransactionMenuAnchor(transactionsButton);
     } else {
-      navigate(value);
+      // For direct nav items, use a longer delay
+      setIsNavigating(true);
+      setTimeout(() => {
+        navigate(value);
+      }, 200);
     }
   };
 
   const handleMerchantMenuItemClick = (path) => {
-    navigate(path);
     setMerchantMenuAnchor(null);
+    // Delay navigation to allow Firestore to properly cleanup previous listeners
+    setTimeout(() => {
+      navigate(path);
+    }, 300);
   };
 
   const handleTransactionMenuItemClick = (path) => {
-    navigate(path);
     setTransactionMenuAnchor(null);
+    // Delay navigation to allow Firestore to properly cleanup previous listeners
+    setTimeout(() => {
+      navigate(path);
+    }, 300);
   };
 
   return (
@@ -161,6 +179,7 @@ const AppBottomNav = ({ open, onToggleSidebar }) => {
         anchorEl={merchantMenuAnchor}
         open={Boolean(merchantMenuAnchor)}
         onClose={() => setMerchantMenuAnchor(null)}
+        disableScrollLock={true}
         anchorOrigin={{
           vertical: "top",
           horizontal: "center",
@@ -219,6 +238,7 @@ const AppBottomNav = ({ open, onToggleSidebar }) => {
         anchorEl={transactionMenuAnchor}
         open={Boolean(transactionMenuAnchor)}
         onClose={() => setTransactionMenuAnchor(null)}
+        disableScrollLock={true}
         anchorOrigin={{
           vertical: "top",
           horizontal: "center",
