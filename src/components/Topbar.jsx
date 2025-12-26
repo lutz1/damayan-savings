@@ -79,6 +79,8 @@ const Topbar = ({ open, onToggleSidebar }) => {
   const restrictedEmails = [
     "dionesiovelasquez@gmail.com",
     "ericalvarez@gmail.com",
+    "melchor@gmail.com",
+    "vanessa.ilagan@gmail.com"
   ];
   /*
   const restrictedForAdmin = ["Purchase Codes", "Withdrawal", "Deposit", "Transfer Funds", "Invite & Earn"];

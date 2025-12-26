@@ -39,11 +39,17 @@ import bgImage from "../../assets/bg.jpg";
 import { useTheme } from "@mui/material/styles";
 import {
   ResponsiveContainer,
-  PieChart,
-  Pie,
   Cell,
   Legend,
   Tooltip as RechartsTooltip,
+  RadialBarChart,
+  RadialBar,
+  BarChart,
+  Bar,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  LabelList,
 } from "recharts";
 
 const COLORS = ["#4FC3F7", "#81C784", "#FFB74D", "#E57373"];
@@ -157,6 +163,19 @@ const AdminWalletToWallet = () => {
     { name: "Rejected", value: summary.totalRejected },
   ];
 
+  const statusTotal = Math.max(
+    chartData.reduce((sum, item) => sum + item.value, 0),
+    1
+  );
+
+  const financialData = [
+    { name: "Gross Transfers", value: summary.totalAmount },
+    { name: "Platform Revenue", value: summary.totalRevenue },
+  ];
+
+  const formatCurrency = (val) =>
+    `₱${(val || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
+
   const handleChangePage = (event, newPage) => setPage(newPage);
   const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
@@ -256,37 +275,90 @@ const AdminWalletToWallet = () => {
             <Typography variant="h6" sx={{ fontWeight: 600 , color: "white",}}>
               📊 Transfer Summary
             </Typography>
-            <Typography sx={{ mt: 1, color: "white",}}>
-              Total Amount Transferred:{" "}
-              <b>
-                ₱{summary.totalAmount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
-              </b>
-            </Typography>
-            <Typography sx={{ mt: 0.5, color: "white",}}>
-              Revenue (2% Charge):{" "}
-              <b>₱{summary.totalRevenue.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</b>
-            </Typography>
 
-            <Box sx={{ width: "100%", height: 250, mt: 2 }}>
-              <ResponsiveContainer>
-                <PieChart>
-                  <Pie
-                    data={chartData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    label={(entry) => `${entry.name}: ${entry.value}`}
-                  >
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Legend />
-                  <RechartsTooltip />
-                </PieChart>
-              </ResponsiveContainer>
+            <Box sx={{ width: "100%", mt: 2 }}>
+              <Stack direction={isMobile ? "column" : "row"} spacing={2}>
+                <Box sx={{ flex: 1, height: 260 }}>
+                  <ResponsiveContainer>
+                    <RadialBarChart
+                      innerRadius="35%"
+                      outerRadius="95%"
+                      data={chartData.map((item, idx) => ({
+                        ...item,
+                        fill: COLORS[idx % COLORS.length],
+                        percent: Math.round((item.value / statusTotal) * 100),
+                      }))}
+                    >
+                      <RadialBar
+                        dataKey="value"
+                        cornerRadius={12}
+                        background
+                        clockWise
+                        minAngle={10}
+                      />
+                      <Legend
+                        iconSize={12}
+                        layout="vertical"
+                        verticalAlign="middle"
+                        align="right"
+                        formatter={(value, entry) => `${value} — ${entry.payload.percent || 0}%`}
+                      />
+                      <RechartsTooltip
+                        formatter={(value, name) => [value, `${name} requests`]}
+                        contentStyle={{
+                          background: "rgba(0,0,0,0.75)",
+                          border: "1px solid rgba(255,255,255,0.15)",
+                          borderRadius: 10,
+                          color: "white",
+                        }}
+                      />
+                    </RadialBarChart>
+                  </ResponsiveContainer>
+                </Box>
+
+                <Box sx={{ flex: 1, height: 260 }}>
+                  <ResponsiveContainer>
+                    <BarChart data={financialData} barSize={28}>
+                      <defs>
+                        <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#4FC3F7" stopOpacity={0.95} />
+                          <stop offset="100%" stopColor="#81C784" stopOpacity={0.85} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                      <XAxis dataKey="name" tick={{ fill: "white" }} axisLine={false} tickLine={false} />
+                      <YAxis
+                        tick={{ fill: "white" }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(v) => `₱${(v / 1000).toFixed(0)}k`}
+                      />
+                      <RechartsTooltip
+                        formatter={(value, name) => [formatCurrency(value), name]}
+                        cursor={{ fill: "rgba(255,255,255,0.05)" }}
+                        contentStyle={{
+                          background: "rgba(0,0,0,0.75)",
+                          border: "1px solid rgba(255,255,255,0.15)",
+                          borderRadius: 10,
+                          color: "white",
+                        }}
+                      />
+                      <Legend wrapperStyle={{ color: "white" }} />
+                      <Bar dataKey="value" name="Amount" fill="url(#barGradient)" radius={[10, 10, 0, 0]}>
+                        <LabelList
+                          dataKey="value"
+                          position="top"
+                          formatter={(v) => formatCurrency(v)}
+                          style={{ fill: "white", fontWeight: 600 }}
+                        />
+                        {financialData.map((entry, index) => (
+                          <Cell key={entry.name} fill={index === 1 ? "#FFB74D" : "url(#barGradient)"} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Box>
+              </Stack>
             </Box>
           </CardContent>
         </Card>
