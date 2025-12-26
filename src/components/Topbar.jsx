@@ -421,8 +421,8 @@ const Topbar = ({ open, onToggleSidebar }) => {
   ].map((item, i) => {
     const emailLower = (userData.email || "").toLowerCase();
     const isRestrictedUser = restrictedEmails.includes(emailLower);
-    const disabledForRestricted = ["Purchase Codes", "Withdrawal", "Send Money", "Invite & Earn"];
-    const sendMoneyAllowed = item.label === "Send Money" ? emailLower === "sample@gmail.com" : true;
+    const disabledForRestricted = ["Purchase Codes", "Withdrawal", "Invite & Earn"];
+    const sendMoneyAllowed = item.label === "Send Money" ? !isRestrictedUser : true;
     const isDisabled =
       (isRestrictedUser && disabledForRestricted.includes(item.label)) ||
       item.disabled === true ||
