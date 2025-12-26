@@ -96,6 +96,7 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
   const [showReceiptForm, setShowReceiptForm] = useState(false);
   const [depositLogs, setDepositLogs] = useState([]);
   const [confirmOpen, setConfirmOpen] = useState(false); // 🟢 Confirmation dialog state
+  const [qrDownloaded, setQrDownloaded] = useState(false); // Track if QR is downloaded
 
   const chargeRate = 0.02;
   const chargeAmount = amount ? parseFloat(amount) * chargeRate : 0;
@@ -192,6 +193,96 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
     }
   };
 
+  const handleOpenGCash = () => {
+    // GCash app deep link (opens app if installed, otherwise opens web)
+    const isMobile = /iPhone|iPad|iPod|Android/.test(navigator.userAgent);
+    if (!isMobile) {
+      window.open("https://m.gcash.com", "_blank");
+      return;
+    }
+
+    // iOS deep link
+    if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+      window.location.href = "gcash://";
+    }
+    // Android intent
+    else if (/Android/.test(navigator.userAgent)) {
+      window.location.href = "intent://com.globe.gcash.android#Intent;scheme=gcash;action=android.intent.action.VIEW;end";
+    }
+  };
+
+  const handleOpenPaymentApp = (appType) => {
+    const isMobile = /iPhone|iPad|iPod|Android/.test(navigator.userAgent);
+    
+    const appLinks = {
+      gcash: {
+        ios: "gcash://",
+        android: "intent://com.globe.gcash.android#Intent;scheme=gcash;action=android.intent.action.VIEW;end",
+        web: "https://m.gcash.com"
+      },
+      bdo: {
+        ios: "bdo://",
+        android: "intent://com.bdo.mobile://Intent;scheme=bdo;action=android.intent.action.VIEW;end",
+        web: "https://www.bdo.com.ph/personal"
+      },
+      bpi: {
+        ios: "bpi://",
+        android: "intent://com.bpi.bpimobile://Intent;scheme=bpi;action=android.intent.action.VIEW;end",
+        web: "https://www.bpi.com.ph/personal"
+      },
+      maya: {
+        ios: "maya://",
+        android: "intent://com.maya.app://Intent;scheme=maya;action=android.intent.action.VIEW;end",
+        web: "https://www.mayaapp.com"
+      }
+    };
+
+    const links = appLinks[appType];
+    if (!links) return;
+
+    if (!isMobile) {
+      window.open(links.web, "_blank");
+      return;
+    }
+
+    if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+      window.location.href = links.ios;
+    } else if (/Android/.test(navigator.userAgent)) {
+      window.location.href = links.android;
+    }
+  };
+
+  const handleDownloadQR = () => {
+    const canvas = document.querySelector("canvas[data-qr-canvas]");
+    if (!canvas) {
+      // If canvas not found, try to download from the img element
+      const qrImg = document.querySelector("img[alt='GCash QR']");
+      if (qrImg) {
+        const link = document.createElement("a");
+        link.href = qrImg.src;
+        link.download = `GCash_QR_${Date.now()}.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setQrDownloaded(true);
+      }
+      return;
+    }
+
+    // Download canvas as image
+    canvas.toBlob((blob) => {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `GCash_QR_${Date.now()}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setQrDownloaded(true);
+    });
+  };
+
   return (
     <>
       <Dialog
@@ -268,18 +359,95 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
               )}
 
               {!showQR && (
-                <Button
-                  variant="contained"
-                  fullWidth
-                  sx={{
-                    mb: 2,
-                    bgcolor: "#81C784",
-                    "&:hover": { bgcolor: "#66BB6A" },
-                  }}
-                  onClick={() => setShowQR(true)}
-                >
-                  Scan QR to Deposit
-                </Button>
+                <>
+                  <Button
+                    variant="contained"
+                    fullWidth
+                    sx={{
+                      mb: 2,
+                      bgcolor: "#81C784",
+                      "&:hover": { bgcolor: "#66BB6A" },
+                    }}
+                    onClick={() => setShowQR(true)}
+                  >
+                    Download QR Code
+                  </Button>
+                  <Divider sx={{ my: 2, borderColor: "rgba(255,255,255,0.2)" }} />
+                  <Typography variant="body2" sx={{ mb: 1, color: "rgba(255,255,255,0.7)", fontWeight: 500 }}>
+                    Or open payment app:
+                  </Typography>
+                  <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, mb: 2 }}>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      disabled={!qrDownloaded}
+                      sx={{
+                        bgcolor: "#0066CC",
+                        color: "#fff",
+                        fontWeight: 600,
+                        fontSize: "0.85rem",
+                        "&:hover": { bgcolor: "#0052A3" },
+                        "&:disabled": { bgcolor: "rgba(0,102,204,0.5)", color: "rgba(255,255,255,0.5)" },
+                      }}
+                      onClick={() => handleOpenPaymentApp("gcash")}
+                    >
+                      {qrDownloaded ? "GCash" : "GCash"}
+                    </Button>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      disabled={!qrDownloaded}
+                      sx={{
+                        bgcolor: "#003DA5",
+                        color: "#fff",
+                        fontWeight: 600,
+                        fontSize: "0.85rem",
+                        "&:hover": { bgcolor: "#002D7F" },
+                        "&:disabled": { bgcolor: "rgba(0,61,165,0.5)", color: "rgba(255,255,255,0.5)" },
+                      }}
+                      onClick={() => handleOpenPaymentApp("bdo")}
+                    >
+                      BDO
+                    </Button>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      disabled={!qrDownloaded}
+                      sx={{
+                        bgcolor: "#E60000",
+                        color: "#fff",
+                        fontWeight: 600,
+                        fontSize: "0.85rem",
+                        "&:hover": { bgcolor: "#CC0000" },
+                        "&:disabled": { bgcolor: "rgba(230,0,0,0.5)", color: "rgba(255,255,255,0.5)" },
+                      }}
+                      onClick={() => handleOpenPaymentApp("bpi")}
+                    >
+                      BPI
+                    </Button>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      disabled={!qrDownloaded}
+                      sx={{
+                        bgcolor: "#8B3DFF",
+                        color: "#fff",
+                        fontWeight: 600,
+                        fontSize: "0.85rem",
+                        "&:hover": { bgcolor: "#6B2FCC" },
+                        "&:disabled": { bgcolor: "rgba(139,61,255,0.5)", color: "rgba(255,255,255,0.5)" },
+                      }}
+                      onClick={() => handleOpenPaymentApp("maya")}
+                    >
+                      Maya
+                    </Button>
+                  </Box>
+                  {!qrDownloaded && (
+                    <Alert severity="info" sx={{ background: "rgba(25,118,210,0.15)", color: "#64B5F6", mt: 1 }}>
+                      📝 Download QR Code first before opening payment apps
+                    </Alert>
+                  )}
+                </>
               )}
 
               {showQR && !showReceiptForm && (
@@ -287,20 +455,33 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
                   <img
                     src={gcashImage}
                     alt="GCash QR"
+                    data-qr-canvas
                     style={{ width: "100%", borderRadius: 12 }}
                   />
-                  <Button
-                    variant="outlined"
-                    fullWidth
-                    sx={{
-                      mt: 2,
-                      borderColor: "#fff",
-                      color: "#fff",
-                    }}
-                    onClick={() => setShowReceiptForm(true)}
-                  >
-                    Proceed to Upload Receipt
-                  </Button>
+                  <Box sx={{ display: "flex", gap: 1, mt: 2 }}>
+                    <Button
+                      variant="contained"
+                      fullWidth
+                      sx={{
+                        bgcolor: "#81C784",
+                        "&:hover": { bgcolor: "#66BB6A" },
+                      }}
+                      onClick={handleDownloadQR}
+                    >
+                      Download QR
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      fullWidth
+                      sx={{
+                        borderColor: "#fff",
+                        color: "#fff",
+                      }}
+                      onClick={() => setShowReceiptForm(true)}
+                    >
+                      Proceed to Upload Receipt
+                    </Button>
+                  </Box>
                 </Box>
               )}
 
