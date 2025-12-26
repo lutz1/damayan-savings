@@ -203,28 +203,44 @@ export default function ShopPage() {
 
   useEffect(() => {
     let startY = 0;
+    let startX = 0;
+    let isVerticalGesture = false;
 
     const handleTouchStart = (e) => {
       startY = e.touches[0].clientY;
+      startX = e.touches[0].clientX;
+      isVerticalGesture = false;
     };
 
     const handleTouchMove = (e) => {
       const currentY = e.touches[0].clientY;
-      const distance = currentY - startY;
+      const currentX = e.touches[0].clientX;
+      const distanceY = currentY - startY;
+      const distanceX = Math.abs(currentX - startX);
       
-      // Only show pull indicator when at top and pulling down
-      if (window.scrollY === 0 && distance > 0) {
-        setPullDistance(Math.min(distance, 100));
+      // Determine if this is primarily a vertical gesture
+      // Only set this once per gesture to avoid switching mid-swipe
+      if (!isVerticalGesture && (Math.abs(distanceY) > 10 || distanceX > 10)) {
+        isVerticalGesture = Math.abs(distanceY) > distanceX;
+      }
+      
+      // Only show pull indicator when:
+      // 1. At top of page
+      // 2. Pulling down
+      // 3. Gesture is primarily vertical (not horizontal scroll)
+      if (window.scrollY === 0 && distanceY > 0 && isVerticalGesture) {
+        setPullDistance(Math.min(distanceY, 100));
       } else {
         setPullDistance(0);
       }
     };
 
     const handleTouchEnd = async () => {
-      if (pullDistance > 60) {
+      if (pullDistance > 60 && isVerticalGesture) {
         await handleRefresh();
       }
       setPullDistance(0);
+      isVerticalGesture = false;
     };
 
     document.addEventListener("touchstart", handleTouchStart, { passive: true });
@@ -389,29 +405,37 @@ export default function ShopPage() {
       <Box
         sx={{
           position: "fixed",
-          top: 200,
+          top: headerHidden ? 60 : 200,
           left: 0,
           right: 0,
           display: "flex",
           justifyContent: "center",
           zIndex: 100,
-          opacity: pullDistance > 0 ? 1 : 0,
-          transform: `translateY(${Math.min(pullDistance, 60)}px)`,
-          transition: isRefreshing ? "none" : "opacity 200ms ease, transform 200ms ease",
+          opacity: pullDistance > 20 ? Math.min(pullDistance / 60, 1) : 0,
+          transform: `translateY(${Math.min(pullDistance * 0.5, 40)}px)`,
+          transition: isRefreshing ? "none" : "opacity 150ms ease, transform 150ms ease",
           pointerEvents: "none",
         }}
       >
-        <CircularProgress
-          size={40}
+        <Box
           sx={{
-            color: "#1976d2",
-            animation: isRefreshing ? "spin 1s linear infinite" : "none",
-            "@keyframes spin": {
-              "0%": { transform: "rotate(0deg)" },
-              "100%": { transform: "rotate(360deg)" },
-            },
+            bgcolor: "rgba(255, 255, 255, 0.95)",
+            borderRadius: "50%",
+            p: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
           }}
-        />
+        >
+          <CircularProgress
+            size={32}
+            thickness={4}
+            sx={{
+              color: "#1976d2",
+            }}
+          />
+        </Box>
       </Box>
 
       <Container maxWidth="sm" sx={{ pt: 2 }}>

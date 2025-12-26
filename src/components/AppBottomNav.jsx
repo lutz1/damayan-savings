@@ -22,12 +22,15 @@ import {
   CompareArrows as WalletTransferIcon,
   Business as MerchantIcon,
   Category as CategoryIcon,
+  Receipt as TransactionIcon,
+  AccountBalance as DepositsIcon,
 } from "@mui/icons-material";
 
 const AppBottomNav = ({ open, onToggleSidebar }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [merchantMenuAnchor, setMerchantMenuAnchor] = useState(null);
+  const [transactionMenuAnchor, setTransactionMenuAnchor] = useState(null);
 
   const role = localStorage.getItem("userRole");
   const upperRole = role?.toUpperCase();
@@ -41,9 +44,7 @@ const AppBottomNav = ({ open, onToggleSidebar }) => {
       { label: "Codes", value: "/admin/generate-codes", icon: <MonetizationOnIcon /> },
       { label: "Users", value: "/admin/user-management", icon: <PieChartIcon /> },
       { label: "Merchants", value: "merchants-menu", icon: <MerchantIcon />, isMenu: true },
-      { label: "Transfers", value: "/admin/transfer-transactions", icon: <SwapHorizIcon /> },
-      { label: "Withdrawals", value: "/admin/withdrawals", icon: <WithdrawIcon /> },
-      { label: "W2W", value: "/admin/wallet-to-wallet", icon: <WalletTransferIcon /> },
+      { label: "Transactions", value: "transactions-menu", icon: <TransactionIcon />, isMenu: true },
       { label: "Account", value: "/admin/profile", icon: <AccountCircleIcon /> },
     ];
   } else if (upperRole === "MERCHANT") {
@@ -70,6 +71,10 @@ const AppBottomNav = ({ open, onToggleSidebar }) => {
       // Open the merchants submenu - find the button element
       const merchantsButton = document.querySelector('[data-merchants-menu]');
       setMerchantMenuAnchor(merchantsButton);
+    } else if (isMenu && value === "transactions-menu") {
+      // Open the transactions submenu - find the button element
+      const transactionsButton = document.querySelector('[data-transactions-menu]');
+      setTransactionMenuAnchor(transactionsButton);
     } else {
       navigate(value);
     }
@@ -78,6 +83,11 @@ const AppBottomNav = ({ open, onToggleSidebar }) => {
   const handleMerchantMenuItemClick = (path) => {
     navigate(path);
     setMerchantMenuAnchor(null);
+  };
+
+  const handleTransactionMenuItemClick = (path) => {
+    navigate(path);
+    setTransactionMenuAnchor(null);
   };
 
   return (
@@ -139,7 +149,8 @@ const AppBottomNav = ({ open, onToggleSidebar }) => {
               label={item.label}
               value={item.value}
               icon={item.icon}
-              data-merchants-menu={item.isMenu ? "true" : undefined}
+              data-merchants-menu={item.isMenu && item.value === "merchants-menu" ? "true" : undefined}
+              data-transactions-menu={item.isMenu && item.value === "transactions-menu" ? "true" : undefined}
             />
           ))}
         </BottomNavigation>
@@ -200,6 +211,96 @@ const AppBottomNav = ({ open, onToggleSidebar }) => {
         >
           <CategoryIcon fontSize="small" sx={{ color: "#1976d2" }} />
           <span>Categories</span>
+        </MenuItem>
+      </Menu>
+
+      {/* Transactions Submenu */}
+      <Menu
+        anchorEl={transactionMenuAnchor}
+        open={Boolean(transactionMenuAnchor)}
+        onClose={() => setTransactionMenuAnchor(null)}
+        anchorOrigin={{
+          vertical: "top",
+          horizontal: "center",
+        }}
+        transformOrigin={{
+          vertical: "bottom",
+          horizontal: "center",
+        }}
+        PaperProps={{
+          sx: {
+            background: "rgba(255, 255, 255, 0.95)",
+            backdropFilter: "blur(20px)",
+            borderRadius: 2,
+            border: "1px solid rgba(255, 255, 255, 0.2)",
+            boxShadow: "0 8px 32px rgba(31, 38, 135, 0.25)",
+            mt: 1,
+          },
+        }}
+      >
+        <MenuItem
+          onClick={() => handleTransactionMenuItemClick("/admin/deposits")}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            py: 1.5,
+            px: 2,
+            "&:hover": {
+              backgroundColor: "rgba(25, 118, 210, 0.1)",
+            },
+          }}
+        >
+          <DepositsIcon fontSize="small" sx={{ color: "#1976d2" }} />
+          <span>Deposits</span>
+        </MenuItem>
+        <MenuItem
+          onClick={() => handleTransactionMenuItemClick("/admin/transfer-transactions")}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            py: 1.5,
+            px: 2,
+            "&:hover": {
+              backgroundColor: "rgba(25, 118, 210, 0.1)",
+            },
+          }}
+        >
+          <SwapHorizIcon fontSize="small" sx={{ color: "#1976d2" }} />
+          <span>Transfers</span>
+        </MenuItem>
+        <MenuItem
+          onClick={() => handleTransactionMenuItemClick("/admin/withdrawals")}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            py: 1.5,
+            px: 2,
+            "&:hover": {
+              backgroundColor: "rgba(25, 118, 210, 0.1)",
+            },
+          }}
+        >
+          <WithdrawIcon fontSize="small" sx={{ color: "#1976d2" }} />
+          <span>Withdrawals</span>
+        </MenuItem>
+        <MenuItem
+          onClick={() => handleTransactionMenuItemClick("/admin/wallet-to-wallet")}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            py: 1.5,
+            px: 2,
+            "&:hover": {
+              backgroundColor: "rgba(25, 118, 210, 0.1)",
+            },
+          }}
+        >
+          <WalletTransferIcon fontSize="small" sx={{ color: "#1976d2" }} />
+          <span>Wallet to Wallet</span>
         </MenuItem>
       </Menu>
     </>
