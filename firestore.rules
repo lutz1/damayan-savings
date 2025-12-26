@@ -1,0 +1,328 @@
+rules_version = '2'; 
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==========================================
+    // 🔹 Helper: Get current user's role
+    function userRole() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role.lower()
+        : "";
+    }
+
+    // ==========================================
+    // 👤 USERS
+    match /users/{userId} {
+
+      // Allow reading user profiles (safe fields only)
+      allow read: if request.auth != null;
+
+      // Username search
+      allow list: if request.auth != null &&
+        request.query.limit <= 10 &&
+        request.query.where("username", ">=") &&
+        request.query.where("username", "<=");
+
+      // CREATE
+      allow create: if request.auth != null && userRole() in ["admin", "ceo"];
+
+      // UPDATE - Allow admin SDK (no auth context) OR user updating their own OR admin/ceo
+      allow update: if (
+        // Admin SDK (server-side)
+        request.auth == null ||
+        // User updating their own profile
+        (
+          request.auth.uid == userId &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "eWallet",
+            "eWalletBalance",
+            "capitalShareActive",
+            "capitalActivatedAt",
+            "capitalProfitBalance",
+            "lastActive",
+            "notificationsSeen",
+            "profilePicture",
+            "onlineStatus",
+            "name",
+            "contactNumber",
+            "address",
+            "username",
+            "updatedAt"
+          ])
+        ) ||
+        // Admin/CEO
+        userRole() in ["admin", "ceo"]
+      );
+    }
+
+    // ==========================================
+    // 📩 PENDING INVITES
+    match /pendingInvites/{inviteId} {
+      allow read: if request.auth != null &&
+        (userRole() in ["admin", "ceo"] || resource.data.inviterId == request.auth.uid);
+
+      allow create: if request.auth != null &&
+        (userRole() in ["admin", "ceo"] || request.resource.data.inviterId == request.auth.uid);
+
+      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
+    }
+
+    // ==========================================
+    // 💸 REFERRAL REWARDS
+    match /referralReward/{rewardId} {
+      allow read: if request.auth != null &&
+        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo"]);
+
+      allow create: if request.auth != null &&
+        request.resource.data.keys().hasAll([
+          "userId", "username", "role", "amount",
+          "source", "type", "approved",
+          "payoutReleased", "createdAt"
+        ]);
+
+      allow update: if request.auth != null && (
+        userRole() in ["admin", "ceo"] ||
+        (
+          resource.data.userId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "approved",
+            "payoutReleased",
+            "updatedAt",
+            "transferredAmount",  
+            "dateTransferred"    
+          ])
+        )
+      );
+
+      allow delete: if request.auth != null && userRole() in ["admin", "ceo"];
+    }
+
+    // ==========================================
+    // 💸 PAYBACK ENTRIES
+    match /paybackEntries/{docId} {
+      allow read: if request.auth != null && (
+        resource.data.userId == request.auth.uid ||
+        (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          resource.data.uplineUsername ==
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.username
+        ) ||
+        userRole() in ["admin", "ceo"]
+      );
+
+      allow list: if request.auth != null && (
+        userRole() in ["admin", "ceo"] ||
+        request.query.where("userId", "==", request.auth.uid)
+      );
+
+      allow create: if request.auth != null &&
+        (request.resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo"]);
+
+      allow update: if request.auth != null && (
+        resource.data.userId == request.auth.uid ||
+        (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          resource.data.uplineUsername ==
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.username
+        ) ||
+        userRole() in ["admin", "ceo"]
+      );
+
+      allow delete: if request.auth != null && userRole() in ["admin", "ceo"];
+    }
+
+    // ==========================================
+    // 💰 CAPITAL SHARE ENTRIES
+    match /capitalShareEntries/{docId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null &&
+        request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null &&
+        request.resource.data.userId == request.auth.uid;
+    }
+
+    // ==========================================
+    // 💹 CAPITAL SHARE PROFITS
+    match /capitalShareProfits/{docId} {
+      allow read, create, update: if request.auth != null &&
+        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo"]);
+    }
+
+    // ==========================================
+    // 🧾 PURCHASE CODES
+    match /purchaseCodes/{docId} {
+      allow read: if request.auth != null &&
+        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo"]);
+
+      allow list: if request.auth != null && (
+        userRole() in ["admin", "ceo"] ||
+        request.query.where("userId", "==", request.auth.uid)
+      );
+
+      allow create: if request.auth != null &&
+        (request.resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo"]);
+
+      allow update: if request.auth != null &&
+        (
+          userRole() in ["admin", "ceo"] ||
+          (
+            resource.data.userId == request.auth.uid &&
+            resource.data.used == false &&
+            request.resource.data.used == true
+          )
+        );
+
+      allow delete: if request.auth != null && userRole() in ["admin", "ceo"];
+    }
+
+    // ==========================================
+    // 📥 REQUESTS
+    match /requests/{docId} {
+      allow read, write: if request.auth != null && userRole() in ["admin", "ceo"];
+    }
+
+    // ==========================================
+    // 📊 PAYBACK PROFIT HISTORY
+    match /paybackProfitHistory/{docId} {
+      allow read, create: if request.auth != null && userRole() in ["admin", "ceo"];
+    }
+
+    // ==========================================
+    // 🔄 PASSIVE TRANSFERS
+    match /passiveTransfers/{docId} {
+      allow read, create: if request.auth != null &&
+        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo"]);
+    }
+
+    // ==========================================
+    // 💼 OVERRIDE (upline rewards)
+    match /override/{docId} {
+      allow read, list: if request.auth != null && (
+        resource.data.fromUserId == request.auth.uid ||
+        resource.data.uplineId == request.auth.uid ||
+        userRole() in ["admin", "ceo"]
+      );
+
+      allow create: if request.auth != null &&
+        (request.resource.data.fromUserId == request.auth.uid || userRole() in ["admin", "ceo"]);
+
+      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
+    }
+
+    // ==========================================
+    // 💼 TRANSFER TRANSACTIONS
+    match /transferTransactions/{docId} {
+      allow read, write: if request.auth != null && userRole() in ["admin", "ceo"];
+    }
+
+    // ==========================================
+    // 💳 WALLETS
+    match /wallets/{walletId} {
+      allow read: if request.auth != null &&
+        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo"]);
+
+      allow create: if request.auth != null &&
+        request.resource.data.userId == request.auth.uid;
+
+      allow update: if request.auth != null &&
+        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo"]);
+
+      allow delete: if request.auth != null && userRole() in ["admin", "ceo"];
+    }
+
+    // ==========================================
+    // 💵 DEPOSITS
+    match /deposits/{docId} {
+      allow read: if request.auth != null &&
+        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo"]);
+
+      allow create: if request.auth != null &&
+        request.resource.data.userId == request.auth.uid;
+
+      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
+    }
+
+    // ==========================================
+    // 💵 WITHDRAWALS
+    match /withdrawals/{docId} {
+      allow read: if request.auth != null &&
+        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo"]);
+
+      allow create: if request.auth != null &&
+        request.resource.data.userId == request.auth.uid;
+
+      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
+    }
+
+    // ==========================================
+    // 💸 WALLET-TO-WALLET TRANSFERS
+    match /transferFunds/{docId} {
+      allow read: if request.auth != null && (
+        resource.data.senderId == request.auth.uid ||
+        (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          resource.data.recipientUsername ==
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.username
+        ) ||
+        userRole() in ["admin", "ceo"]
+      );
+
+      allow list: if request.auth != null &&
+        request.query.where("senderId", "==", request.auth.uid);
+
+      // Allow server-side (Admin SDK with no auth) to create approved transfers
+      allow create: if request.auth == null || 
+        (
+          request.auth != null &&
+          request.resource.data.senderId == request.auth.uid &&
+          request.resource.data.amount is number &&
+          request.resource.data.charge is number &&
+          request.resource.data.netAmount is number &&
+          request.resource.data.status == "Pending"
+        );
+
+      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
+    }
+
+    // 🛍️ PRODUCTS
+    match /products/{productId} {
+      allow create: if request.auth != null &&
+        request.resource.data.merchantId == request.auth.uid;
+
+      allow read: if resource.data.status == "active" ||
+        (request.auth != null && (resource.data.merchantId == request.auth.uid || userRole() in ["admin", "ceo"]));
+
+      allow update, delete: if request.auth != null &&
+        (
+          (resource.data.merchantId == request.auth.uid &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              "name", "category", "description", "price", "stock", "image", "status", "updatedAt"
+            ])
+          ) ||
+          userRole() in ["admin", "ceo"]
+        );
+    }
+
+    // 🏪 MERCHANTS (store profiles)
+    match /merchants/{merchantId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null &&
+        (request.auth.uid == merchantId || userRole() in ["admin", "ceo"]);
+      allow delete: if request.auth != null && userRole() in ["admin", "ceo"];
+    }
+    
+    // ==========================================
+    // 🛒 SHOP CATEGORIES
+    match /shopCategories/{categoryId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
+    }
+
+    // ==========================================
+    // 🚫 DENY EVERYTHING ELSE
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
