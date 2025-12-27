@@ -481,9 +481,7 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
                     }}
                   />
 
-                  {amount && parseFloat(amount) > 0 && (
-                    {/* Charges removed */}
-                  )}
+                  {/* Charges removed */}
 
                   <TextField
                     fullWidth
