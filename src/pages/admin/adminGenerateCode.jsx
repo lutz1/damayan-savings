@@ -20,34 +20,46 @@ import {
 import SearchIcon from "@mui/icons-material/Search";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
-import { collection, onSnapshot, doc, getDoc, getDocs, query, where,
+import { collection, onSnapshot, doc, getDoc,
 } from "firebase/firestore";
 import { db } from "../../firebase";
 import AppBottomNav from "../../components/AppBottomNav";
 import Topbar from "../../components/Topbar";
 import bgImage from "../../assets/bg.jpg";
-import { LineChart } from "@mui/x-charts";
+import {
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  BarChart,
+  Bar,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  LabelList,
+} from "recharts";
 import { motion } from "framer-motion";
 import { useTheme } from "@mui/material/styles";
 
 const AdminGenerateCode = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loading, setLoading] = useState(true);
-  const [codes, setCodes] = useState([]);
-  const [totalSales, setTotalSales] = useState(0);
+  const [capitalShareCodes, setCapitalShareCodes] = useState([]);
+  const [downlineCodes, setDownlineCodes] = useState([]);
+  const [totalCapitalSales, setTotalCapitalSales] = useState(0);
+  const [totalDownlineSales, setTotalDownlineSales] = useState(0);
 
-  const [page, setPage] = useState(0);
+  const [capitalPage, setCapitalPage] = useState(0);
+  const [downlinePage, setDownlinePage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [searchQuery, setSearchQuery] = useState("");
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
 
-  // Memoized filtered codes
-const filteredCodes = useMemo(() => {
-  if (!searchQuery) return codes;
+    // Memoized filtered codes
+const filteredCapitalCodes = useMemo(() => {
+  if (!searchQuery) return capitalShareCodes;
   const lowerQuery = searchQuery.toLowerCase();
-  return codes.filter((code) =>
+  return capitalShareCodes.filter((code) =>
     [
       code.code,
       code.amount?.toString(),
@@ -60,50 +72,71 @@ const filteredCodes = useMemo(() => {
       .toLowerCase()
       .includes(lowerQuery)
   );
-}, [codes, searchQuery]);
+}, [capitalShareCodes, searchQuery]);
 
-  const handleExportCapitalShareUsers = async () => {
-  try {
-    // Fetch users with capitalShareActive: true
-    const usersSnapshot = await getDocs(
-      query(collection(db, "users"), where("capitalShareActive", "==", true))
-    );
+const filteredDownlineCodes = useMemo(() => {
+  if (!searchQuery) return downlineCodes;
+  const lowerQuery = searchQuery.toLowerCase();
+  return downlineCodes.filter((code) =>
+    [
+      code.code,
+      code.amount?.toString(),
+      code.userDisplay,
+      code.createdAt?.seconds
+        ? new Date(code.createdAt.seconds * 1000).toLocaleString()
+        : "",
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(lowerQuery)
+  );
+}, [downlineCodes, searchQuery]);
 
-    if (usersSnapshot.empty) {
-      alert("No users with active capital share found.");
-      return;
+  const handleExportCodes = async () => {
+    try {
+      const workbook = XLSX.utils.book_new();
+
+      // Capital Share Codes
+      if (capitalShareCodes.length > 0) {
+        const capitalData = capitalShareCodes.map((code) => ({
+          Code: code.code || "",
+          Amount: code.amount || 0,
+          "User ID": code.userId || "",
+          "Purchased By": code.userDisplay || "",
+          Status: code.status || "",
+          "Created At": code.createdAt?.seconds
+            ? new Date(code.createdAt.seconds * 1000).toLocaleString()
+            : "--",
+        }));
+        const capitalSheet = XLSX.utils.json_to_sheet(capitalData);
+        XLSX.utils.book_append_sheet(workbook, capitalSheet, "Capital Share Codes");
+      }
+
+      // Downline Codes
+      if (downlineCodes.length > 0) {
+        const downlineData = downlineCodes.map((code) => ({
+          Code: code.code || "",
+          Amount: code.amount || 0,
+          "User ID": code.userId || "",
+          "Purchased By": code.userDisplay || "",
+          Status: code.status || "",
+          "Created At": code.createdAt?.seconds
+            ? new Date(code.createdAt.seconds * 1000).toLocaleString()
+            : "--",
+        }));
+        const downlineSheet = XLSX.utils.json_to_sheet(downlineData);
+        XLSX.utils.book_append_sheet(workbook, downlineSheet, "Downline Codes");
+      }
+
+      // Write and download
+      const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+      const data = new Blob([excelBuffer], { type: "application/octet-stream" });
+      saveAs(data, "PurchaseCodes.xlsx");
+    } catch (error) {
+      console.error("Error exporting codes:", error);
+      alert("Failed to export codes: " + error.message);
     }
-
-    const exportData = usersSnapshot.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        Username: data.username || "",
-        Name: data.name || data.fullName || "",
-        Email: data.email || "",
-        Role: data.role || "",
-        "Capital Share Active": data.capitalShareActive ? "Yes" : "No",
-        "Created At": data.createdAt?.toDate
-          ? data.createdAt.toDate().toLocaleString()
-          : "--",
-      };
-    });
-
-    // Create worksheet
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-
-    // Create workbook and append worksheet
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "CapitalShareUsers");
-
-    // Write workbook and download
-    const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
-    const data = new Blob([excelBuffer], { type: "application/octet-stream" });
-    saveAs(data, "CapitalShareUsers.xlsx");
-  } catch (error) {
-    console.error("Error exporting users:", error);
-    alert("Failed to export users: " + error.message);
-  }
-};
+  };
 
   // 🔥 Real-time Firestore fetch with user lookup
   useEffect(() => {
@@ -142,13 +175,31 @@ const filteredCodes = useMemo(() => {
         })
       );
 
-      const total = codesWithUserInfo.reduce(
+      // Separate codes by type - using exact field names from Firestore
+      const capitalShare = codesWithUserInfo.filter(
+        (c) => c.type === "Activate Capital Share"
+      );
+      const downline = codesWithUserInfo.filter(
+        (c) => c.type === "Downline Code"
+      );
+      
+      // Debug: log the data structure
+      console.log("Purchase Codes Sample:", codesWithUserInfo.slice(0, 2));
+      console.log("Capital Share Count:", capitalShare.length, "Downline Count:", downline.length);
+
+      const totalCapital = capitalShare.reduce(
+        (acc, curr) => acc + (Number(curr.amount) || 0),
+        0
+      );
+      const totalDownline = downline.reduce(
         (acc, curr) => acc + (Number(curr.amount) || 0),
         0
       );
 
-      setCodes(codesWithUserInfo);
-      setTotalSales(total);
+      setCapitalShareCodes(capitalShare);
+      setDownlineCodes(downline);
+      setTotalCapitalSales(totalCapital);
+      setTotalDownlineSales(totalDownline);
       setLoading(false);
     });
 
@@ -156,8 +207,8 @@ const filteredCodes = useMemo(() => {
   }, []);
 
   // 🧠 Memoized chart data
-  const lineChartData = useMemo(() => {
-    const salesByDate = codes.reduce((acc, curr) => {
+  const capitalChartData = useMemo(() => {
+    const salesByDate = capitalShareCodes.reduce((acc, curr) => {
       if (!curr.createdAt?.seconds) return acc;
       const date = new Date(curr.createdAt.seconds * 1000).toLocaleDateString();
       acc[date] = (acc[date] || 0) + (Number(curr.amount) || 0);
@@ -167,17 +218,30 @@ const filteredCodes = useMemo(() => {
     return Object.entries(salesByDate)
       .sort((a, b) => new Date(a[0]) - new Date(b[0]))
       .map(([date, total]) => ({ date, total }));
-  }, [codes]);
+  }, [capitalShareCodes]);
+
+  const downlineChartData = useMemo(() => {
+    const salesByDate = downlineCodes.reduce((acc, curr) => {
+      if (!curr.createdAt?.seconds) return acc;
+      const date = new Date(curr.createdAt.seconds * 1000).toLocaleDateString();
+      acc[date] = (acc[date] || 0) + (Number(curr.amount) || 0);
+      return acc;
+    }, {});
+
+    return Object.entries(salesByDate)
+      .sort((a, b) => new Date(a[0]) - new Date(b[0]))
+      .map(([date, total]) => ({ date, total }));
+  }, [downlineCodes]);
 
   const fadeIn = {
     hidden: { opacity: 0, y: 40 },
     show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } },
   };
 
-  const handleChangePage = (_, newPage) => setPage(newPage);
   const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
+    setCapitalPage(0);
+    setDownlinePage(0);
   };
 
   return (
@@ -227,23 +291,23 @@ const filteredCodes = useMemo(() => {
               }}
             >
         <Toolbar />
-               <Box
+        <Box
           sx={{
             display: "flex",
             justifyContent: "flex-end",
-            mb: 2, // margin-bottom
+            mb: 2,
             gap: 2,
           }}
         >
           <Button
             variant="contained"
-            onClick={handleExportCapitalShareUsers}
+            onClick={handleExportCodes}
             sx={{
               backgroundColor: "#2e7d32",
               "&:hover": { backgroundColor: "#27632a" },
             }}
           >
-            📄 Export Capital Share Users
+            📄 Export All Codes (Excel)
           </Button>
         </Box>
         <motion.div
@@ -264,189 +328,131 @@ const filteredCodes = useMemo(() => {
           </Typography>
           
           <Typography variant="subtitle1" sx={{ mb: 3, opacity: 0.9 }}>
-            Real-time sales overview of all purchased codes.
+            Real-time sales overview of Capital Share and Downline codes.
           </Typography>
 
           {loading ? (
             <CircularProgress color="inherit" />
           ) : (
             <>
-              {/* Sales Summary */}
-              <motion.div variants={fadeIn} transition={{ delay: 0.2 }}>
+              {/* CAPITAL SHARE SECTION */}
+              <Box sx={{ mb: 6 }}>
+                <Typography variant="h5" sx={{ fontWeight: 700, mb: 3, color: "#81C784" }}>
+                  📊 Capital Share Activation Codes
+                </Typography>
+
+                {/* Capital Share Summary */}
                 <Box
                   sx={{
                     display: "flex",
                     flexDirection: { xs: "column", md: "row" },
                     justifyContent: "space-between",
                     alignItems: { xs: "flex-start", md: "center" },
-                    mb: 4,
+                    mb: 3,
                     gap: 2,
+                    p: 2,
+                    background: "rgba(129, 199, 132, 0.15)",
+                    borderRadius: "12px",
                   }}
                 >
-                  <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                    💰 Total Sales: ₱{totalSales.toLocaleString()}
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: "#81C784" }}>
+                    💰 Total Sales: ₱{totalCapitalSales.toLocaleString()}
                   </Typography>
                   <Typography variant="body1" sx={{ opacity: 0.8 }}>
-                    {codes.length} Purchases Recorded
+                    {capitalShareCodes.length} Codes Purchased
                   </Typography>
                 </Box>
-              </motion.div>
 
-              {/* Line Chart */}
-              <motion.div variants={fadeIn} transition={{ delay: 0.3 }}>
+                {/* Capital Share Chart */}
                 <Paper
                   sx={{
                     p: 3,
-                    height: 420,
-                    mb: 4,
+                    height: 380,
+                    mb: 3,
                     background:
-                      "linear-gradient(145deg, rgba(255,255,255,0.12), rgba(255,255,255,0.05))",
-                    borderRadius: "20px",
+                      "linear-gradient(145deg, rgba(129,199,132,0.15), rgba(129,199,132,0.05))",
+                    borderRadius: "16px",
                     backdropFilter: "blur(12px)",
                     overflow: "hidden",
+                    border: "1px solid rgba(129,199,132,0.2)",
                   }}
                 >
                   <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                    📈 Sales Summary (Dynamic Line Chart)
+                    📈 Capital Share Sales Trend
                   </Typography>
 
-                  <LineChart
-                    dataset={lineChartData}
-                    xAxis={[
-                      {
-                        dataKey: "date",
-                        label: "Date",
-                        scaleType: "band",
-                        tickLabelStyle: { fill: "#fff" },
-                      },
-                    ]}
-                    yAxis={[
-                      {
-                        label: "₱ Sales",
-                        tickLabelStyle: { fill: "#fff" },
-                        gridLineStyle: { stroke: "rgba(255,255,255,0.15)" },
-                      },
-                    ]}
-                    series={[
-                      {
-                        dataKey: "total",
-                        label: "Daily Sales",
-                        color: theme.palette.success.main,
-                        curve: "monotone",
-                        area: true,
-                        showMark: true,
-                        fill: "url(#salesGradient)",
-                        highlightScope: { highlighted: "series" },
-                        valueFormatter: (value) =>
-                          `₱${value.toLocaleString()}`,
-                      },
-                    ]}
-                    height={340}
-                    margin={{ left: 0, right: 0, top: 10, bottom: 10 }}
-                    sx={{
-                      "& .MuiChartsAxis-line": {
-                        stroke: "rgba(255,255,255,0.3)",
-                      },
-                      "& .MuiChartsAxis-tickLabel": { fill: "#fff" },
-                      "& .MuiLineElement-root": {
-                        strokeWidth: 3,
-                        filter:
-                          "drop-shadow(0px 0px 6px rgba(0,255,128,0.7))",
-                      },
-                      "& .MuiMarkElement-root": {
-                        "&:hover": {
-                          r: 6,
-                          fill: theme.palette.success.light,
-                        },
-                      },
-                    }}
-                  >
-                    <defs>
-                      <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop
-                          offset="0%"
-                          stopColor={theme.palette.success.main}
-                          stopOpacity="0.6"
-                        />
-                        <stop
-                          offset="100%"
-                          stopColor={theme.palette.success.main}
-                          stopOpacity="0"
-                        />
-                      </linearGradient>
-                    </defs>
-                  </LineChart>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={capitalChartData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
+                      <defs>
+                        <linearGradient id="capitalGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#81C784" stopOpacity={0.95} />
+                          <stop offset="100%" stopColor="#66BB6A" stopOpacity={0.85} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                      <XAxis dataKey="date" tick={{ fill: "white" }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: "white" }} axisLine={false} tickLine={false} tickFormatter={(v) => `₱${(v / 1000).toFixed(0)}k`} />
+                      <RechartsTooltip
+                        formatter={(value) => `₱${value.toLocaleString()}`}
+                        cursor={{ fill: "rgba(255,255,255,0.05)" }}
+                        contentStyle={{
+                          background: "rgba(0,0,0,0.75)",
+                          border: "1px solid rgba(255,255,255,0.15)",
+                          borderRadius: 10,
+                          color: "white",
+                        }}
+                      />
+                      <Bar dataKey="total" fill="url(#capitalGradient)" radius={[10, 10, 0, 0]}>
+                        <LabelList dataKey="total" position="top" formatter={(v) => `₱${(v / 1000).toFixed(0)}k`} style={{ fill: "white", fontWeight: 600 }} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
                 </Paper>
-              </motion.div>
 
-              {/* Responsive Purchase Details Table */}
-              <motion.div variants={fadeIn} transition={{ delay: 0.5 }}>
-                <Box sx={{ mt: 2 }}>
-                  <Typography
-                    variant="h6"
-                    sx={{
-                      mb: 2,
-                      fontWeight: 600,
-                      textAlign: { xs: "center", sm: "left" },
-                    }}
-                  >
-                    Purchase Details
+                {/* Capital Share Table */}
+                <Box sx={{ mt: 3 }}>
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                    Capital Share Code Details
                   </Typography>
-                    {/* Search Box */}
-               <Box sx={{ mb: 2, width: "100%" }}>
-                <TextField
-                  fullWidth
-                  placeholder="Search all columns..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  variant="filled"
-                  size="small"
-                  sx={{
-                    backgroundColor: "rgba(255,255,255,0.1)",
-                    borderRadius: 2,
-                    "& .MuiInputBase-input": { color: "#fff" },
-                    "& .MuiInputLabel-root": { color: "#fff" },
-                    "& .MuiFilledInput-root": {
-                      backgroundColor: "rgba(255,255,255,0.1)",
-                    },
-                  }}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon sx={{ color: "white" }} />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Box>
+                  <Box sx={{ mb: 2, width: "100%" }}>
+                    <TextField
+                      fullWidth
+                      placeholder="Search capital share codes..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      variant="filled"
+                      size="small"
+                      sx={{
+                        backgroundColor: "rgba(255,255,255,0.1)",
+                        borderRadius: 2,
+                        "& .MuiInputBase-input": { color: "#fff" },
+                        "& .MuiInputLabel-root": { color: "#fff" },
+                        "& .MuiFilledInput-root": {
+                          backgroundColor: "rgba(255,255,255,0.1)",
+                        },
+                      }}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <SearchIcon sx={{ color: "white" }} />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </Box>
                   <Paper
                     sx={{
                       p: { xs: 1.5, sm: 2 },
-                      background: "rgba(255, 255, 255, 0.15)",
-                      borderRadius: "16px",
+                      background: "rgba(255, 255, 255, 0.12)",
+                      borderRadius: "12px",
                       backdropFilter: "blur(8px)",
                     }}
                   >
-                    <Box
-                      sx={{
-                        width: "100%",
-                        overflowX: "auto",
-                        WebkitOverflowScrolling: "touch",
-                        scrollbarWidth: "thin",
-                        "&::-webkit-scrollbar": { height: "6px" },
-                        "&::-webkit-scrollbar-thumb": {
-                          backgroundColor: "rgba(255,255,255,0.3)",
-                          borderRadius: "10px",
-                        },
-                      }}
-                    >
+                    <Box sx={{ width: "100%", overflowX: "auto" }}>
                       <TableContainer>
-                        <Table
-                          size={isMobile ? "small" : "medium"}
-                          sx={{ minWidth: 600 }}
-                        >
+                        <Table size={isMobile ? "small" : "medium"} sx={{ minWidth: 600 }}>
                           <TableHead>
-                            <TableRow sx={{ background: "rgba(255,255,255,0.1)" }}>
+                            <TableRow sx={{ background: "rgba(129,199,132,0.15)" }}>
                               <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
                                 Code
                               </TableCell>
@@ -462,41 +468,27 @@ const filteredCodes = useMemo(() => {
                             </TableRow>
                           </TableHead>
                           <TableBody>
-                            {filteredCodes
-                              .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                            {filteredCapitalCodes
+                              .slice(capitalPage * rowsPerPage, capitalPage * rowsPerPage + rowsPerPage)
                               .map((code) => (
                                 <TableRow
                                   key={code.id}
                                   sx={{
                                     "&:hover": {
-                                      backgroundColor: "rgba(255,255,255,0.05)",
+                                      backgroundColor: "rgba(129,199,132,0.1)",
                                     },
                                   }}
                                 >
-                                  <TableCell
-                                    sx={{
-                                      color: "#fff",
-                                      wordBreak: "break-word",
-                                      maxWidth: { xs: 100, sm: "auto" },
-                                    }}
-                                  >
+                                  <TableCell sx={{ color: "#fff" }}>
                                     {code.code}
                                   </TableCell>
-                                  <TableCell sx={{ color: "#fff", whiteSpace: "nowrap" }}>
+                                  <TableCell sx={{ color: "#fff" }}>
                                     ₱{Number(code.amount || 0).toLocaleString()}
                                   </TableCell>
-                                  <TableCell
-                                    sx={{
-                                      color: "#fff",
-                                      maxWidth: { xs: 120, sm: "auto" },
-                                      overflow: "hidden",
-                                      textOverflow: "ellipsis",
-                                      whiteSpace: "nowrap",
-                                    }}
-                                  >
+                                  <TableCell sx={{ color: "#fff" }}>
                                     {code.userDisplay}
                                   </TableCell>
-                                  <TableCell sx={{ color: "#fff", whiteSpace: "nowrap" }}>
+                                  <TableCell sx={{ color: "#fff" }}>
                                     {code.createdAt?.seconds
                                       ? new Date(
                                           code.createdAt.seconds * 1000
@@ -512,23 +504,204 @@ const filteredCodes = useMemo(() => {
 
                     <TablePagination
                       component="div"
-                      count={codes.length}
-                      page={page}
-                      onPageChange={handleChangePage}
+                      count={filteredCapitalCodes.length}
+                      page={capitalPage}
+                      onPageChange={(_, p) => setCapitalPage(p)}
                       rowsPerPage={rowsPerPage}
                       onRowsPerPageChange={handleChangeRowsPerPage}
                       rowsPerPageOptions={[5, 10, 25, 50]}
                       sx={{
                         color: "#fff",
                         "& .MuiSelect-icon": { color: "#fff" },
-                        "& .MuiTablePagination-toolbar": {
-                          flexWrap: { xs: "wrap", sm: "nowrap" },
-                        },
                       }}
                     />
                   </Paper>
                 </Box>
-              </motion.div>
+              </Box>
+
+              {/* DOWNLINE CODE SECTION */}
+              <Box sx={{ mt: 6 }}>
+                <Typography variant="h5" sx={{ fontWeight: 700, mb: 3, color: "#4FC3F7" }}>
+                  📊 Downline Codes
+                </Typography>
+
+                {/* Downline Summary */}
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: { xs: "column", md: "row" },
+                    justifyContent: "space-between",
+                    alignItems: { xs: "flex-start", md: "center" },
+                    mb: 3,
+                    gap: 2,
+                    p: 2,
+                    background: "rgba(79, 195, 247, 0.15)",
+                    borderRadius: "12px",
+                  }}
+                >
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: "#4FC3F7" }}>
+                    💰 Total Sales: ₱{totalDownlineSales.toLocaleString()}
+                  </Typography>
+                  <Typography variant="body1" sx={{ opacity: 0.8 }}>
+                    {downlineCodes.length} Codes Purchased
+                  </Typography>
+                </Box>
+
+                {/* Downline Chart */}
+                <Paper
+                  sx={{
+                    p: 3,
+                    height: 380,
+                    mb: 3,
+                    background:
+                      "linear-gradient(145deg, rgba(79,195,247,0.15), rgba(79,195,247,0.05))",
+                    borderRadius: "16px",
+                    backdropFilter: "blur(12px)",
+                    overflow: "hidden",
+                    border: "1px solid rgba(79,195,247,0.2)",
+                  }}
+                >
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                    📈 Downline Sales Trend
+                  </Typography>
+
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={downlineChartData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
+                      <defs>
+                        <linearGradient id="downlineGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#4FC3F7" stopOpacity={0.95} />
+                          <stop offset="100%" stopColor="#29B6F6" stopOpacity={0.85} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                      <XAxis dataKey="date" tick={{ fill: "white" }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: "white" }} axisLine={false} tickLine={false} tickFormatter={(v) => `₱${(v / 1000).toFixed(0)}k`} />
+                      <RechartsTooltip
+                        formatter={(value) => `₱${value.toLocaleString()}`}
+                        cursor={{ fill: "rgba(255,255,255,0.05)" }}
+                        contentStyle={{
+                          background: "rgba(0,0,0,0.75)",
+                          border: "1px solid rgba(255,255,255,0.15)",
+                          borderRadius: 10,
+                          color: "white",
+                        }}
+                      />
+                      <Bar dataKey="total" fill="url(#downlineGradient)" radius={[10, 10, 0, 0]}>
+                        <LabelList dataKey="total" position="top" formatter={(v) => `₱${(v / 1000).toFixed(0)}k`} style={{ fill: "white", fontWeight: 600 }} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Paper>
+
+                {/* Downline Table */}
+                <Box sx={{ mt: 3 }}>
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                    Downline Code Details
+                  </Typography>
+                  <Box sx={{ mb: 2, width: "100%" }}>
+                    <TextField
+                      fullWidth
+                      placeholder="Search downline codes..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      variant="filled"
+                      size="small"
+                      sx={{
+                        backgroundColor: "rgba(255,255,255,0.1)",
+                        borderRadius: 2,
+                        "& .MuiInputBase-input": { color: "#fff" },
+                        "& .MuiInputLabel-root": { color: "#fff" },
+                        "& .MuiFilledInput-root": {
+                          backgroundColor: "rgba(255,255,255,0.1)",
+                        },
+                      }}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <SearchIcon sx={{ color: "white" }} />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </Box>
+                  <Paper
+                    sx={{
+                      p: { xs: 1.5, sm: 2 },
+                      background: "rgba(255, 255, 255, 0.12)",
+                      borderRadius: "12px",
+                      backdropFilter: "blur(8px)",
+                    }}
+                  >
+                    <Box sx={{ width: "100%", overflowX: "auto" }}>
+                      <TableContainer>
+                        <Table size={isMobile ? "small" : "medium"} sx={{ minWidth: 600 }}>
+                          <TableHead>
+                            <TableRow sx={{ background: "rgba(79,195,247,0.15)" }}>
+                              <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
+                                Code
+                              </TableCell>
+                              <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
+                                Amount (₱)
+                              </TableCell>
+                              <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
+                                Purchased By
+                              </TableCell>
+                              <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
+                                Date
+                              </TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {filteredDownlineCodes
+                              .slice(downlinePage * rowsPerPage, downlinePage * rowsPerPage + rowsPerPage)
+                              .map((code) => (
+                                <TableRow
+                                  key={code.id}
+                                  sx={{
+                                    "&:hover": {
+                                      backgroundColor: "rgba(79,195,247,0.1)",
+                                    },
+                                  }}
+                                >
+                                  <TableCell sx={{ color: "#fff" }}>
+                                    {code.code}
+                                  </TableCell>
+                                  <TableCell sx={{ color: "#fff" }}>
+                                    ₱{Number(code.amount || 0).toLocaleString()}
+                                  </TableCell>
+                                  <TableCell sx={{ color: "#fff" }}>
+                                    {code.userDisplay}
+                                  </TableCell>
+                                  <TableCell sx={{ color: "#fff" }}>
+                                    {code.createdAt?.seconds
+                                      ? new Date(
+                                          code.createdAt.seconds * 1000
+                                        ).toLocaleString()
+                                      : "--"}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </Box>
+
+                    <TablePagination
+                      component="div"
+                      count={filteredDownlineCodes.length}
+                      page={downlinePage}
+                      onPageChange={(_, p) => setDownlinePage(p)}
+                      rowsPerPage={rowsPerPage}
+                      onRowsPerPageChange={handleChangeRowsPerPage}
+                      rowsPerPageOptions={[5, 10, 25, 50]}
+                      sx={{
+                        color: "#fff",
+                        "& .MuiSelect-icon": { color: "#fff" },
+                      }}
+                    />
+                  </Paper>
+                </Box>
+              </Box>
             </>
           )}
         </motion.div>

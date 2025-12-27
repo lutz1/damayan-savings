@@ -51,8 +51,7 @@ const ConfirmDepositDialog = ({ open, onConfirm, onCancel, amount, netAmount }) 
         Are you sure you want to submit this deposit?
       </Typography>
       <Typography variant="body2" sx={{ color: "#FFB74D" }}>
-        Amount: ₱{parseFloat(amount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}<br />
-        Net After 2% Charge: ₱{parseFloat(netAmount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+        Amount: ₱{parseFloat(amount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
       </Typography>
     </DialogContent>
     <DialogActions sx={{ justifyContent: "center", pb: 2 }}>
@@ -98,9 +97,7 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
   const [confirmOpen, setConfirmOpen] = useState(false); // 🟢 Confirmation dialog state
   const [qrDownloaded, setQrDownloaded] = useState(false); // Track if QR is downloaded
 
-  const chargeRate = 0.02;
-  const chargeAmount = amount ? parseFloat(amount) * chargeRate : 0;
-  const calculatedNet = amount ? parseFloat(amount) - chargeAmount : 0;
+  // Charges removed
 
   const auth = getAuth();
   const currentUser = auth.currentUser;
@@ -149,8 +146,6 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
         userId: currentUser.uid,
         name: userData?.name || "",
         amount: parseFloat(amount),
-        charge: parseFloat(chargeAmount.toFixed(2)),
-        netAmount: parseFloat(calculatedNet.toFixed(2)),
         reference: reference || "",
         receiptUrl,
         status: "Pending",
@@ -193,23 +188,7 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
     }
   };
 
-  const handleOpenGCash = () => {
-    // GCash app deep link (opens app if installed, otherwise opens web)
-    const isMobile = /iPhone|iPad|iPod|Android/.test(navigator.userAgent);
-    if (!isMobile) {
-      window.open("https://m.gcash.com", "_blank");
-      return;
-    }
-
-    // iOS deep link
-    if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
-      window.location.href = "gcash://";
-    }
-    // Android intent
-    else if (/Android/.test(navigator.userAgent)) {
-      window.location.href = "intent://com.globe.gcash.android#Intent;scheme=gcash;action=android.intent.action.VIEW;end";
-    }
-  };
+  // Removed unused handleOpenGCash
 
   const handleOpenPaymentApp = (appType) => {
     const isMobile = /iPhone|iPad|iPod|Android/.test(navigator.userAgent);
@@ -503,13 +482,7 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
                   />
 
                   {amount && parseFloat(amount) > 0 && (
-                    <Typography
-                      variant="body2"
-                      sx={{ mb: 2, color: "#FFB74D" }}
-                    >
-                      Charge (2%): ₱{chargeAmount.toFixed(2)} • Net Deposit: ₱
-                      {calculatedNet.toFixed(2)}
-                    </Typography>
+                    {/* Charges removed */}
                   )}
 
                   <TextField
@@ -685,7 +658,6 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
         onConfirm={handleConfirmDeposit}
         onCancel={() => setConfirmOpen(false)}
         amount={amount}
-        netAmount={calculatedNet}
       />
     </>
   );
