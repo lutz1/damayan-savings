@@ -29,12 +29,11 @@ import bgImage from "../../assets/bg.jpg";
 import {
   ResponsiveContainer,
   Tooltip as RechartsTooltip,
-  BarChart,
-  Bar,
+  AreaChart,
+  Area,
   CartesianGrid,
   XAxis,
   YAxis,
-  LabelList,
 } from "recharts";
 import { motion } from "framer-motion";
 import { useTheme } from "@mui/material/styles";
@@ -382,11 +381,11 @@ const filteredDownlineCodes = useMemo(() => {
                   </Typography>
 
                   <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={capitalChartData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
+                    <AreaChart data={capitalChartData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
                       <defs>
                         <linearGradient id="capitalGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#81C784" stopOpacity={0.95} />
-                          <stop offset="100%" stopColor="#66BB6A" stopOpacity={0.85} />
+                          <stop offset="0%" stopColor="#81C784" stopOpacity={0.6} />
+                          <stop offset="100%" stopColor="#66BB6A" stopOpacity={0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
@@ -402,10 +401,8 @@ const filteredDownlineCodes = useMemo(() => {
                           color: "white",
                         }}
                       />
-                      <Bar dataKey="total" fill="url(#capitalGradient)" radius={[10, 10, 0, 0]}>
-                        <LabelList dataKey="total" position="top" formatter={(v) => `₱${(v / 1000).toFixed(0)}k`} style={{ fill: "white", fontWeight: 600 }} />
-                      </Bar>
-                    </BarChart>
+                      <Area type="monotone" dataKey="total" stroke="#81C784" strokeWidth={3} fill="url(#capitalGradient)" dot={{ r: 3, stroke: '#fff', strokeWidth: 2 }} />
+                    </AreaChart>
                   </ResponsiveContainer>
                 </Paper>
 
@@ -566,11 +563,11 @@ const filteredDownlineCodes = useMemo(() => {
                   </Typography>
 
                   <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={downlineChartData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
+                    <AreaChart data={downlineChartData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
                       <defs>
                         <linearGradient id="downlineGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#4FC3F7" stopOpacity={0.95} />
-                          <stop offset="100%" stopColor="#29B6F6" stopOpacity={0.85} />
+                          <stop offset="0%" stopColor="#4FC3F7" stopOpacity={0.6} />
+                          <stop offset="100%" stopColor="#29B6F6" stopOpacity={0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
@@ -586,10 +583,8 @@ const filteredDownlineCodes = useMemo(() => {
                           color: "white",
                         }}
                       />
-                      <Bar dataKey="total" fill="url(#downlineGradient)" radius={[10, 10, 0, 0]}>
-                        <LabelList dataKey="total" position="top" formatter={(v) => `₱${(v / 1000).toFixed(0)}k`} style={{ fill: "white", fontWeight: 600 }} />
-                      </Bar>
-                    </BarChart>
+                      <Area type="monotone" dataKey="total" stroke="#4FC3F7" strokeWidth={3} fill="url(#downlineGradient)" dot={{ r: 3, stroke: '#fff', strokeWidth: 2 }} />
+                    </AreaChart>
                   </ResponsiveContainer>
                 </Paper>
 

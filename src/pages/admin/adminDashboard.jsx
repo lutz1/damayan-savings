@@ -42,6 +42,7 @@ const AdminDashboard = () => {
   const [topUsers, setTopUsers] = useState([]);
   const [userMap, setUserMap] = useState({});
   const [roleDistribution, setRoleDistribution] = useState([]);
+    const [recentActivities, setRecentActivities] = useState([]);
   // const [monthlyData, setMonthlyData] = useState([]);
   const [previousRevenue, setPreviousRevenue] = useState(0);
 
@@ -54,6 +55,28 @@ const AdminDashboard = () => {
   // Firestore listeners
   useEffect(() => {
     const unsubscribers = [];
+    // Fetch recent deposits and withdrawals for Recent Activity
+    const depositsQ = query(collection(db, "deposits"), orderBy("createdAt", "desc"));
+    const withdrawalsQ = query(collection(db, "withdrawals"), orderBy("createdAt", "desc"));
+    let recentDeposit = [];
+    let recentWithdrawal = [];
+    const unsubDeposits = onSnapshot(depositsQ, snapshot => {
+      recentDeposit = snapshot.docs.map(d => ({ ...d.data(), id: d.id, type: "Deposit" }));
+      updateRecentActivity();
+    });
+    const unsubWithdrawals = onSnapshot(withdrawalsQ, snapshot => {
+      recentWithdrawal = snapshot.docs.map(d => ({ ...d.data(), id: d.id, type: "Withdrawal" }));
+      updateRecentActivity();
+    });
+    function updateRecentActivity() {
+      // Merge and sort by createdAt
+      const merged = [...recentDeposit, ...recentWithdrawal]
+        .sort((a, b) => (b.createdAt?.toDate?.() || new Date()) - (a.createdAt?.toDate?.() || new Date()))
+        .slice(0, 5);
+      setRecentActivities(merged);
+    }
+    unsubscribers.push(unsubDeposits);
+    unsubscribers.push(unsubWithdrawals);
         
 
     const roles = ["MD", "MS", "MI", "Agent"];
@@ -447,7 +470,7 @@ const AdminDashboard = () => {
 
             {/* Recent Activity & Top Users */}
 <Grid container spacing={3}>
-  <Grid item xs={12} md={6}>
+  <Grid item xs={12} md={4} width={'47%'}>
     <Card sx={{
       background: "linear-gradient(135deg, rgba(129,199,132,0.15), rgba(79,195,247,0.15))",
       backdropFilter: "blur(12px)",
@@ -469,11 +492,10 @@ const AdminDashboard = () => {
                 background: "rgba(255,255,255,0.05)",
                 border: "1px solid rgba(255,255,255,0.1)",
                 display: "flex",
-                justifyContent: "space-between",
                 alignItems: "center",
                 "&:hover": { background: "rgba(255,255,255,0.08)", borderColor: "rgba(255,255,255,0.2)" }
               }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
                   {/* Profile Avatar */}
                   {tx.profileUrl ? (
                     <Box component="img" src={tx.profileUrl} alt="profile" sx={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', mr: 1, border: '2px solid #4FC3F7' }} />
@@ -491,14 +513,14 @@ const AdminDashboard = () => {
                     </Typography>
                   </Box>
                 </Box>
-                <Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', minWidth: 90, ml: 'auto' }}>
                   <Box sx={{ display: "flex", gap: 1, alignItems: "center", mb: 0.5 }}>
                     <Box sx={{ fontSize: "1rem" }}>💳</Box>
                     <Typography variant="body2" sx={{ color: "white", fontWeight: 700 }}>
                       ₱{(tx.amount || 0).toLocaleString()}
                     </Typography>
                   </Box>
-                  <Typography variant="caption" sx={{ color: "#fff", fontSize: "0.7rem", textShadow: '1px 1px 4px #000' }}>
+                  <Typography variant="caption" sx={{ color: "#fff", fontSize: "0.7rem", textShadow: '1px 1px 4px #000', textAlign: 'right' }}>
                     {tx.createdAt?.toDate?.().toLocaleDateString() || "N/A"}
                   </Typography>
                 </Box>
@@ -513,7 +535,95 @@ const AdminDashboard = () => {
     </Card>
   </Grid>
 
-  <Grid item xs={12} md={6}>
+  <Grid item xs={12} md={4}>
+    <Card sx={{
+      background: "linear-gradient(135deg, rgba(255,183,77,0.15), rgba(129,199,132,0.15))",
+      backdropFilter: "blur(12px)",
+      borderRadius: "16px",
+      border: "1px solid rgba(255,255,255,0.1)",
+      p: 3,
+    }}>
+      <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, color: "#fff", display: "flex", alignItems: "center", gap: 1, textShadow: '1px 1px 4px #000' }}>
+        📝 Recent Activity
+      </Typography>
+      <Box sx={{ maxHeight: 340, overflowY: "auto", "&::-webkit-scrollbar": { width: "6px" }, "&::-webkit-scrollbar-track": { background: "rgba(255,255,255,0.05)" }, "&::-webkit-scrollbar-thumb": { background: "rgba(255,255,255,0.2)", borderRadius: "3px" } }}>
+        {recentActivities.length > 0 ? (
+          recentActivities.map((act, idx) => {
+            // Try to get user info from userMap using userId, senderId, username, or email
+            let userInfo = null;
+            let displayName = "Unknown User";
+            let profileUrl = null;
+            // If name is empty and userId exists, map userId to users collection
+            if ((!act.name || act.name.trim() === "") && act.userId && userMap[act.userId]) {
+              userInfo = userMap[act.userId];
+              displayName = userInfo.name || userInfo.username || userInfo.email || "Unknown User";
+              profileUrl = userInfo.profileUrl || userInfo.photoURL || null;
+            } else {
+              // Try userId, senderId, username, email
+              const possibleKeys = [act.userId, act.senderId, act.userName, act.username, act.email];
+              for (const key of possibleKeys) {
+                if (key && userMap[key]) {
+                  userInfo = userMap[key];
+                  break;
+                }
+              }
+              displayName = userInfo?.name || userInfo?.username || act.name || act.userName || act.username || act.email || "Unknown User";
+              profileUrl = userInfo?.profileUrl || userInfo?.photoURL || null;
+            }
+            return (
+              <motion.div key={act.id || idx} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.08 }}>
+                <Box sx={{
+                  p: 2,
+                  mb: 1.5,
+                  borderRadius: "10px",
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  display: "flex",
+                  alignItems: "center",
+                  "&:hover": { background: "rgba(255,255,255,0.08)", borderColor: "rgba(255,255,255,0.2)" }
+                }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
+                    {/* Profile Avatar */}
+                    {profileUrl ? (
+                      <Box component="img" src={profileUrl} alt="profile" sx={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', mr: 1, border: act.type === 'Deposit' ? '2px solid #FFB74D' : '2px solid #E57373' }} />
+                    ) : (
+                      <Box sx={{ width: 36, height: 36, borderRadius: '50%', background: act.type === 'Deposit' ? '#FFB74D' : '#E57373', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18, mr: 1 }}>
+                        {displayName ? displayName[0] : 'U'}
+                      </Box>
+                    )}
+                    <Box>
+                      <Typography variant="body2" sx={{ color: act.type === 'Deposit' ? '#FFB74D' : '#E57373', fontWeight: 700, fontSize: 15 }}>
+                        {act.type}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: "#fff", fontSize: 12, textShadow: '1px 1px 4px #000' }}>
+                        {displayName}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', minWidth: 90, ml: 'auto' }}>
+                    <Box sx={{ display: "flex", gap: 1, alignItems: "center", mb: 0.5 }}>
+                      <Box sx={{ fontSize: "1rem" }}>{act.type === 'Deposit' ? '📥' : '📤'}</Box>
+                      <Typography variant="body2" sx={{ color: "white", fontWeight: 700 }}>
+                        ₱{(act.amount || 0).toLocaleString()}
+                      </Typography>
+                    </Box>
+                    <Typography variant="caption" sx={{ color: "#fff", fontSize: "0.7rem", textShadow: '1px 1px 4px #000', textAlign: 'right' }}>
+                      {act.createdAt?.toDate?.().toLocaleDateString() || "N/A"}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ fontSize: "1.2rem", color: act.type === 'Deposit' ? '#FFB74D' : '#E57373' }}>✓</Box>
+                </Box>
+              </motion.div>
+            );
+          })
+        ) : (
+          <Typography variant="caption" sx={{ opacity: 0.5 }}>No activity</Typography>
+        )}
+      </Box>
+    </Card>
+  </Grid>
+
+  <Grid item xs={12} md={4}>
     <Card sx={{
       background: "linear-gradient(135deg, rgba(255,183,77,0.15), rgba(229,115,115,0.15))",
       backdropFilter: "blur(12px)",

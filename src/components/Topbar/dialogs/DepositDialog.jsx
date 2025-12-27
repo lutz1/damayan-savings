@@ -142,9 +142,11 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
       await uploadBytes(storageRef, receipt);
       const receiptUrl = await getDownloadURL(storageRef);
 
+      // Ensure name is always saved, fallback to currentUser.displayName, currentUser.email, or 'Unknown User'
+      const depositName = userData?.name && userData?.name.trim() ? userData.name : (currentUser.displayName || currentUser.email || "Unknown User");
       await addDoc(collection(db, "deposits"), {
         userId: currentUser.uid,
-        name: userData?.name || "",
+        name: depositName,
         amount: parseFloat(amount),
         reference: reference || "",
         receiptUrl,
