@@ -1,5 +1,5 @@
 // src/pages/MemberCapitalShare.jsx
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   Box,
   Card,
@@ -32,9 +32,6 @@ import {
   orderBy,
 } from "firebase/firestore";
 // 🔹 CHANGE: react-big-calendar imports
-import { Calendar as BigCalendar, dateFnsLocalizer } from "react-big-calendar";
-import { format, parse, startOfWeek, getDay } from "date-fns";
-import "react-big-calendar/lib/css/react-big-calendar.css";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
 import bgImage from "../../assets/bg.jpg";
@@ -46,16 +43,6 @@ const LOCK_IN = 5000;
 const MONTHLY_RATE = 0.05;
 const TRANSFER_CHARGE = 0.01;
 
-const locales = {
-  "en-US": require("date-fns/locale/en-US"),
-};
-const localizer = dateFnsLocalizer({
-  format,
-  parse,
-  startOfWeek,
-  getDay,
-  locales,
-});
 
 const MemberCapitalShare = () => {
   const theme = useTheme();
@@ -77,7 +64,6 @@ const MemberCapitalShare = () => {
   const [transactionHistory, setTransactionHistory] = useState([]);
   const [capitalAmount, setCapitalAmount] = useState(0);
   const [monthlyProfit, setMonthlyProfit] = useState(0);
-  const [calendarEntries, setCalendarEntries] = useState([]);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [profitHistoryOpen, setProfitHistoryOpen] = useState(false);
   const [profitConfirmOpen, setProfitConfirmOpen] = useState(false);
@@ -86,16 +72,6 @@ const MemberCapitalShare = () => {
   const [entryDetailsOpen, setEntryDetailsOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState(null);
 
-  // 🔹 CHANGE: map calendarEntries to events for react-big-calendar
-  const events = useMemo(() => {
-    return calendarEntries.map((entry) => ({
-      title: entry.profitReady ? "Profit Ready" : "Active",
-      start: entry.date,
-      end: entry.date,
-      allDay: true,
-      entry,
-    }));
-  }, [calendarEntries]);
 
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
 
@@ -230,7 +206,7 @@ const MemberCapitalShare = () => {
     setTransactionHistory(history);
     setCapitalAmount(totalCapital);
     setMonthlyProfit(totalProfit);
-    setCalendarEntries(calendarData);
+    // setCalendarEntries(calendarData); // Calendar removed
   } catch (err) { 
     console.error("Error fetching capital share data:", err);
   }
@@ -432,27 +408,9 @@ const MemberCapitalShare = () => {
       </Backdrop>
     );
 
-  const handleSelectEvent = (event) => {
-    // Find the full entry from transactionHistory
-    const entry = transactionHistory.find(t => {
-      const entryDate = t.date instanceof Date ? t.date : t.date?.toDate?.();
-      return entryDate?.toDateString() === event.start.toDateString();
-    });
-    if (entry) {
-      setSelectedEntry(entry);
-      setEntryDetailsOpen(true);
-    }
-  };
+  // Removed: handleSelectEvent (no longer used)
 
-  const eventStyleGetter = (event) => { // 🔹 CHANGE
-    const style = {
-      backgroundColor: event.entry.profitReady ? "rgba(255, 193, 7, 0.5)" : "rgba(76, 175, 80, 0.3)",
-      borderRadius: "50%",
-      color: "black",
-      border: "none",
-    };
-    return { style };
-  };
+  // Removed: eventStyleGetter (no longer used)
 
   return (
     <Box
@@ -639,16 +597,7 @@ const MemberCapitalShare = () => {
             📅 Capital Share Calendar
           </Typography>
 
-          {/* 🔹 CHANGE: React Big Calendar */}
-          <BigCalendar
-            localizer={localizer}
-            events={events}
-            startAccessor="start"
-            endAccessor="end"
-            style={{ height: 500 }}
-            onSelectEvent={handleSelectEvent}
-            eventPropGetter={eventStyleGetter}
-          />
+          {/* Calendar removed */}
         </Card>
 
 
@@ -660,7 +609,7 @@ const MemberCapitalShare = () => {
               label="Selected Date"
               type="date"
               fullWidth
-              value={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : ''}
+              value={selectedDate ? selectedDate.toISOString().slice(0, 10) : ''}
               onChange={(e) => setSelectedDate(new Date(e.target.value))}
               sx={{ mb: 2, mt: 1 }}
               InputLabelProps={{ shrink: true }}

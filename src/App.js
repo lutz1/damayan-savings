@@ -58,7 +58,6 @@ import MemberPayback from "./pages/member/memberPayback";
 import MemberCapitalShare from "./pages/member/memberCapitalShare";
 import MemberProfile from "./pages/member/memberProfile";
 
-import "leaflet/dist/leaflet.css";
 
 function App() {
   const [initialized, setInitialized] = useState(false);

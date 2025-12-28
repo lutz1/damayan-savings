@@ -244,23 +244,29 @@ const filteredDownlineCodes = useMemo(() => {
   };
 
   return (
-    
     <Box
       sx={{
-        display: "flex",
-        minHeight: "100vh",
-        backgroundImage: `url(${bgImage})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        position: "relative",
-        "&::before": {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        minHeight: '100vh',
+        minWidth: '100vw',
+        overflow: 'hidden',
+        display: 'flex',
+        backgroundImage: `linear-gradient(120deg, rgba(30, 41, 59, 0.92) 60%, rgba(33, 150, 243, 0.25)), url(${bgImage})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        zIndex: 0,
+        '&::before': {
           content: '""',
-          position: "absolute",
+          position: 'absolute',
           top: 0,
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: "rgba(0, 0, 0, 0.25)",
+          background: 'linear-gradient(120deg, rgba(30, 41, 59, 0.92) 60%, rgba(33, 150, 243, 0.25))',
           zIndex: 0,
         },
       }}
@@ -277,18 +283,24 @@ const filteredDownlineCodes = useMemo(() => {
 
       {/* Main Content */}
       <Box
-              component="main"
-              sx={{
-                flexGrow: 1,
-                p: isMobile ? 1 : 3,
-                mt: 0,
-                pb: { xs: 12, sm: 12, md: 12 },
-                color: "white",
-                zIndex: 1,
-                width: "100%",
-                overflowX: "hidden",
-              }}
-            >
+        component="main"
+        sx={{
+          flexGrow: 1,
+          p: isMobile ? 1 : 4,
+          mt: 0,
+          pb: { xs: 12, sm: 12, md: 12 },
+          color: "#f5f7fa",
+          zIndex: 1,
+          width: "100%",
+          height: '100vh',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+        }}
+      >
         <Toolbar />
         <Box
           sx={{
@@ -314,29 +326,35 @@ const filteredDownlineCodes = useMemo(() => {
           initial="hidden"
           animate="show"
           style={{
-            backdropFilter: "blur(14px)",
-            background: "rgba(255, 255, 255, 0.1)",
-            borderRadius: "16px",
-            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
-            padding: "24px",
+            maxWidth: 1200,
+            width: '100%',
+            margin: '0 auto',
+            background: 'rgba(34, 40, 49, 0.92)',
+            borderRadius: '20px',
+            boxShadow: '0 8px 32px 0 rgba(16, 30, 54, 0.25)',
+            padding: isMobile ? '16px' : '40px',
+            border: '1.5px solid rgba(255,255,255,0.08)',
+            backdropFilter: 'blur(18px)',
+            marginBottom: 32,
           }}
         >
               
-          <Typography variant="h4" gutterBottom fontWeight={700}>
+          <Typography variant="h3" gutterBottom fontWeight={800} sx={{ letterSpacing: 1, color: '#fff', textShadow: '0 2px 8px #0008' }}>
             Purchase Codes Analytics
           </Typography>
-          
-          <Typography variant="subtitle1" sx={{ mb: 3, opacity: 0.9 }}>
-            Real-time sales overview of Capital Share and Downline codes.
+          <Typography variant="subtitle1" sx={{ mb: 4, opacity: 0.92, color: '#b0bec5', fontWeight: 500, fontSize: isMobile ? 15 : 18 }}>
+            Real-time sales overview of <b>Capital Share</b> and <b>Downline</b> codes. Export, search, and analyze with ease.
           </Typography>
 
           {loading ? (
-            <CircularProgress color="inherit" />
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 200 }}>
+              <CircularProgress color="inherit" size={48} thickness={4.5} />
+            </Box>
           ) : (
             <>
               {/* CAPITAL SHARE SECTION */}
               <Box sx={{ mb: 6 }}>
-                <Typography variant="h5" sx={{ fontWeight: 700, mb: 3, color: "#81C784" }}>
+                <Typography variant="h4" sx={{ fontWeight: 800, mb: 3, color: "#81C784", letterSpacing: 0.5, textShadow: '0 2px 8px #0006' }}>
                   📊 Capital Share Activation Codes
                 </Typography>
 
@@ -349,15 +367,16 @@ const filteredDownlineCodes = useMemo(() => {
                     alignItems: { xs: "flex-start", md: "center" },
                     mb: 3,
                     gap: 2,
-                    p: 2,
-                    background: "rgba(129, 199, 132, 0.15)",
-                    borderRadius: "12px",
+                    p: 2.5,
+                    background: "linear-gradient(90deg, rgba(129,199,132,0.18), rgba(255,255,255,0.04))",
+                    borderRadius: "14px",
+                    boxShadow: '0 2px 12px 0 rgba(129,199,132,0.08)',
                   }}
                 >
-                  <Typography variant="h6" sx={{ fontWeight: 600, color: "#81C784" }}>
+                  <Typography variant="h5" sx={{ fontWeight: 700, color: "#81C784" }}>
                     💰 Total Sales: ₱{totalCapitalSales.toLocaleString()}
                   </Typography>
-                  <Typography variant="body1" sx={{ opacity: 0.8 }}>
+                  <Typography variant="body1" sx={{ opacity: 0.85, color: '#fff' }}>
                     {capitalShareCodes.length} Codes Purchased
                   </Typography>
                 </Box>
@@ -369,14 +388,15 @@ const filteredDownlineCodes = useMemo(() => {
                     height: 380,
                     mb: 3,
                     background:
-                      "linear-gradient(145deg, rgba(129,199,132,0.15), rgba(129,199,132,0.05))",
-                    borderRadius: "16px",
-                    backdropFilter: "blur(12px)",
+                      "linear-gradient(120deg, rgba(129,199,132,0.18), rgba(255,255,255,0.04))",
+                    borderRadius: "18px",
+                    boxShadow: '0 4px 24px 0 rgba(129,199,132,0.10)',
+                    backdropFilter: "blur(14px)",
                     overflow: "hidden",
-                    border: "1px solid rgba(129,199,132,0.2)",
+                    border: "1.5px solid rgba(129,199,132,0.18)",
                   }}
                 >
-                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 700, color: '#fff' }}>
                     📈 Capital Share Sales Trend
                   </Typography>
 
@@ -408,7 +428,7 @@ const filteredDownlineCodes = useMemo(() => {
 
                 {/* Capital Share Table */}
                 <Box sx={{ mt: 3 }}>
-                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 700, color: '#fff' }}>
                     Capital Share Code Details
                   </Typography>
                   <Box sx={{ mb: 2, width: "100%" }}>
@@ -439,15 +459,17 @@ const filteredDownlineCodes = useMemo(() => {
                   </Box>
                   <Paper
                     sx={{
-                      p: { xs: 1.5, sm: 2 },
-                      background: "rgba(255, 255, 255, 0.12)",
-                      borderRadius: "12px",
+                      p: { xs: 1.5, sm: 2.5 },
+                      background: "rgba(34, 40, 49, 0.92)",
+                      borderRadius: "14px",
+                      boxShadow: '0 2px 12px 0 rgba(129,199,132,0.08)',
                       backdropFilter: "blur(8px)",
+                      border: '1.5px solid rgba(129,199,132,0.10)',
                     }}
                   >
                     <Box sx={{ width: "100%", overflowX: "auto" }}>
                       <TableContainer>
-                        <Table size={isMobile ? "small" : "medium"} sx={{ minWidth: 600 }}>
+                        <Table size={isMobile ? "small" : "medium"} sx={{ minWidth: 600, background: 'transparent' }}>
                           <TableHead>
                             <TableRow sx={{ background: "rgba(129,199,132,0.15)" }}>
                               <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
@@ -518,7 +540,7 @@ const filteredDownlineCodes = useMemo(() => {
 
               {/* DOWNLINE CODE SECTION */}
               <Box sx={{ mt: 6 }}>
-                <Typography variant="h5" sx={{ fontWeight: 700, mb: 3, color: "#4FC3F7" }}>
+                <Typography variant="h4" sx={{ fontWeight: 800, mb: 3, color: "#4FC3F7", letterSpacing: 0.5, textShadow: '0 2px 8px #0006' }}>
                   📊 Downline Codes
                 </Typography>
 
@@ -531,15 +553,16 @@ const filteredDownlineCodes = useMemo(() => {
                     alignItems: { xs: "flex-start", md: "center" },
                     mb: 3,
                     gap: 2,
-                    p: 2,
-                    background: "rgba(79, 195, 247, 0.15)",
-                    borderRadius: "12px",
+                    p: 2.5,
+                    background: "linear-gradient(90deg, rgba(79,195,247,0.18), rgba(255,255,255,0.04))",
+                    borderRadius: "14px",
+                    boxShadow: '0 2px 12px 0 rgba(79,195,247,0.08)',
                   }}
                 >
-                  <Typography variant="h6" sx={{ fontWeight: 600, color: "#4FC3F7" }}>
+                  <Typography variant="h5" sx={{ fontWeight: 700, color: "#4FC3F7" }}>
                     💰 Total Sales: ₱{totalDownlineSales.toLocaleString()}
                   </Typography>
-                  <Typography variant="body1" sx={{ opacity: 0.8 }}>
+                  <Typography variant="body1" sx={{ opacity: 0.85, color: '#fff' }}>
                     {downlineCodes.length} Codes Purchased
                   </Typography>
                 </Box>
@@ -551,14 +574,15 @@ const filteredDownlineCodes = useMemo(() => {
                     height: 380,
                     mb: 3,
                     background:
-                      "linear-gradient(145deg, rgba(79,195,247,0.15), rgba(79,195,247,0.05))",
-                    borderRadius: "16px",
-                    backdropFilter: "blur(12px)",
+                      "linear-gradient(120deg, rgba(79,195,247,0.18), rgba(255,255,255,0.04))",
+                    borderRadius: "18px",
+                    boxShadow: '0 4px 24px 0 rgba(79,195,247,0.10)',
+                    backdropFilter: "blur(14px)",
                     overflow: "hidden",
-                    border: "1px solid rgba(79,195,247,0.2)",
+                    border: "1.5px solid rgba(79,195,247,0.18)",
                   }}
                 >
-                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 700, color: '#fff' }}>
                     📈 Downline Sales Trend
                   </Typography>
 
@@ -590,7 +614,7 @@ const filteredDownlineCodes = useMemo(() => {
 
                 {/* Downline Table */}
                 <Box sx={{ mt: 3 }}>
-                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 700, color: '#fff' }}>
                     Downline Code Details
                   </Typography>
                   <Box sx={{ mb: 2, width: "100%" }}>
@@ -621,15 +645,17 @@ const filteredDownlineCodes = useMemo(() => {
                   </Box>
                   <Paper
                     sx={{
-                      p: { xs: 1.5, sm: 2 },
-                      background: "rgba(255, 255, 255, 0.12)",
-                      borderRadius: "12px",
+                      p: { xs: 1.5, sm: 2.5 },
+                      background: "rgba(34, 40, 49, 0.92)",
+                      borderRadius: "14px",
+                      boxShadow: '0 2px 12px 0 rgba(79,195,247,0.08)',
                       backdropFilter: "blur(8px)",
+                      border: '1.5px solid rgba(79,195,247,0.10)',
                     }}
                   >
                     <Box sx={{ width: "100%", overflowX: "auto" }}>
                       <TableContainer>
-                        <Table size={isMobile ? "small" : "medium"} sx={{ minWidth: 600 }}>
+                        <Table size={isMobile ? "small" : "medium"} sx={{ minWidth: 600, background: 'transparent' }}>
                           <TableHead>
                             <TableRow sx={{ background: "rgba(79,195,247,0.15)" }}>
                               <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>

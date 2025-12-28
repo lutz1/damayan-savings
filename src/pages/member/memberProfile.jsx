@@ -25,8 +25,6 @@ import { auth, db, storage } from "../../firebase";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
 import bgImage from "../../assets/bg.jpg";
-import { toast, ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
 
 // Icons
 import PersonIcon from "@mui/icons-material/Person";
@@ -110,10 +108,10 @@ const MemberProfile = () => {
 
       setUserData({ ...userData, profilePicture: photoURL });
       setEditMode(false);
-      toast.success("Profile updated successfully!");
+      // Profile updated successfully (notification removed)
     } catch (err) {
       console.error("Error updating profile:", err);
-      toast.error("Failed to update profile.");
+      // Failed to update profile (notification removed)
     }
     setSaving(false);
   };
@@ -142,14 +140,14 @@ const MemberProfile = () => {
       await updatePassword(auth.currentUser, newPassword);
       setNewPassword("");
       setConfirmPassword("");
-      toast.success("Password updated successfully!");
+      // Password updated successfully (notification removed)
     } catch (err) {
       console.error(err);
-      if (err.code === "auth/requires-recent-login")
-        toast.error(
-          "Please log out and log in again before changing password."
-        );
-      else toast.error("Failed to update password.");
+      if (err.code === "auth/requires-recent-login") {
+        // Error updating password (notification removed)
+        // Please log out and log in again before changing password.
+      }
+      // else: Failed to update password (notification removed)
     }
     setSaving(false);
   };
@@ -560,7 +558,7 @@ const MemberProfile = () => {
         </Fade>
       </Box>
 
-      <ToastContainer position="top-right" autoClose={3000} theme="colored" />
+      {/* ToastContainer removed */}
     </Box>
   );
 };

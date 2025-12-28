@@ -1,36 +1,27 @@
 import React, { useEffect, useState } from "react";
-import {
-  Box,
-  Toolbar,
-  Typography,
-  Grid,
-  Card,
-  LinearProgress,
-} from "@mui/material";
+import { Box, Toolbar, Typography, Grid, Card, LinearProgress } from "@mui/material";
+// import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+// import 'leaflet/dist/leaflet.css';
+import { GoogleMap, Marker, InfoWindow, useJsApiLoader } from '@react-google-maps/api';
 import { db } from "../../firebase";
 import { collection, query, onSnapshot, orderBy } from "firebase/firestore";
 import { motion } from "framer-motion";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
 import bgImage from "../../assets/bg.jpg";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-} from "recharts";
+import { PieChart, Pie, Cell, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts";
 
 const AdminDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [userCounts, setUserCounts] = useState({ MD: 0, MS: 0, MI: 0, Agent: 0 });
+  const [userLocations, setUserLocations] = useState([]); // [{lat, lng, name, address, profileUrl}]
+  const [selectedMarker, setSelectedMarker] = useState(null);
+    // Google Maps API loader
+    const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY || "YOUR_GOOGLE_MAPS_API_KEY_HERE";
+    const { isLoaded } = useJsApiLoader({
+      googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+    });
   const [totalRevenue, setTotalRevenue] = useState(0);
   // const [totalTransactions, setTotalTransactions] = useState(0);
   const [chartData, setChartData] = useState([]);
@@ -84,7 +75,7 @@ const AdminDashboard = () => {
       // Users
       const usersQ = query(collection(db, "users"), orderBy("createdAt", "desc"));
       unsubscribers.push(
-        onSnapshot(usersQ, snapshot => {
+        onSnapshot(usersQ, async snapshot => {
           const data = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
           const counts = {};
           roles.forEach(r => (counts[r] = data.filter(u => u.role === r).length));
@@ -105,6 +96,43 @@ const AdminDashboard = () => {
             if (u.email) userMapObj[u.email] = u;
           });
           setUserMap(userMapObj);
+
+          // Geocode addresses to coordinates using Google Maps Geocoding API
+          const geocodeAddress = async (address) => {
+            if (!address) return null;
+            // Use localStorage to cache geocoding results
+            const cacheKey = `geocode_${address}`;
+            const cached = localStorage.getItem(cacheKey);
+            if (cached) {
+              try {
+                return JSON.parse(cached);
+              } catch {}
+            }
+            try {
+              const response = await fetch(
+                `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${GOOGLE_MAPS_API_KEY}`
+              );
+              const result = await response.json();
+              if (result.status === "OK" && result.results && result.results.length > 0) {
+                const { lat, lng } = result.results[0].geometry.location;
+                const coords = { lat, lng };
+                localStorage.setItem(cacheKey, JSON.stringify(coords));
+                return coords;
+              }
+            } catch (e) {
+              // ignore
+            }
+            return null;
+          };
+          const locs = await Promise.all(
+            data.map(async u => {
+              if (!u.address) return null;
+              const coords = await geocodeAddress(u.address);
+              if (!coords) return null;
+              return { ...coords, name: u.name || u.username || u.email, address: u.address, profileUrl: u.profileUrl || u.photoURL || null };
+            })
+          );
+          setUserLocations(locs.filter(Boolean));
         })
       );
 
@@ -257,33 +285,70 @@ const AdminDashboard = () => {
         }
       });
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh", backgroundImage: `url(${bgImage})`, backgroundSize: "cover", backgroundPosition: "center", backgroundAttachment: "fixed", position: "relative", "&::before": { content: '""', position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.15)", zIndex: 0 } }}>
+    <Box
+      sx={{
+        display: "flex",
+        minHeight: "100vh",
+        backgroundImage: `linear-gradient(120deg, rgba(30, 41, 59, 0.92) 60%, rgba(33, 150, 243, 0.25)), url(${bgImage})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundAttachment: "fixed",
+        position: "relative",
+        '&::before': {
+          content: '""',
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'linear-gradient(120deg, rgba(30, 41, 59, 0.92) 60%, rgba(33, 150, 243, 0.25))',
+          zIndex: 0,
+        },
+      }}
+    >
       <Box sx={{ position: "fixed", width: "100%", zIndex: 10 }}><Topbar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} /></Box>
       <Box sx={{ zIndex: 5 }}><AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} /></Box>
 
-      <Box component="main" sx={{ flexGrow: 1, p: 4, mt: 0, pb: { xs: 12, sm: 12, md: 12 }, color: "white", zIndex: 1, width: "100%", transition: "all 0.3s ease", position: "relative" }}>
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          p: { xs: 2, sm: 4 },
+          mt: 0,
+          pb: { xs: 12, sm: 12, md: 12 },
+          color: "#f5f7fa",
+          zIndex: 1,
+          width: "100%",
+          transition: "all 0.3s ease",
+          position: "relative",
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+        }}
+      >
         <Toolbar />
         {/* Header Section */}
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h3" sx={{ fontWeight: 800, letterSpacing: 1, mb: 1, textShadow: "2px 2px 8px #000, 0 1px 0 #fff" , color: '#fff' }}>
-            Welcome to Damayan Admin
+        <Box sx={{ mb: 4, width: '100%', maxWidth: 1200 }}>
+          <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: 1, mb: 1, color: '#fff', textShadow: '0 2px 12px #000a' }}>
+            Welcome to <span style={{ color: '#4FC3F7' }}>Damayan Admin</span>
           </Typography>
-          <Typography variant="body1" sx={{ color: "#fff", display: "flex", gap: 2, flexWrap: "wrap", textShadow: "1px 1px 4px #000" }}>
-            <Box component="span" sx={{ color: '#fff', textShadow: '1px 1px 4px #000' }}>⏰ Real-time Analytics</Box>
-            <Box component="span" sx={{ color: '#fff', textShadow: '1px 1px 4px #000' }}>•</Box>
-            <Box component="span" sx={{ color: '#fff', textShadow: '1px 1px 4px #000' }}>📊 Performance Metrics</Box>
-            <Box component="span" sx={{ color: '#fff', textShadow: '1px 1px 4px #000' }}>•</Box>
-            <Box component="span" sx={{ color: '#fff', textShadow: '1px 1px 4px #000' }}>🔍 System Health</Box>
+          <Typography variant="h6" sx={{ color: '#b0bec5', fontWeight: 500, mb: 1.5, textShadow: '0 1px 8px #0006' }}>
+            <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>⏰ Real-time Analytics</Box>
+            <Box component="span" sx={{ mx: 1, color: '#4FC3F7' }}>•</Box>
+            <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>📊 Performance Metrics</Box>
+            <Box component="span" sx={{ mx: 1, color: '#4FC3F7' }}>•</Box>
+            <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>🔍 System Health</Box>
           </Typography>
         </Box>
 
 
 
         {/* KPI Cards */}
-        <Grid container spacing={2.5} sx={{ mb: 4, width: '100%', maxWidth: '100%', flexWrap: 'nowrap' }}>
+        <Grid container spacing={2.5} sx={{ mb: 4, width: '100%', maxWidth: 1200, flexWrap: 'nowrap' }}>
           {[
             { label: "Total Users", value: Object.values(userCounts).reduce((a, b) => a + b, 0), icon: "👥", color: "#4FC3F7", bg: "rgba(79,195,247,0.15)", growth: "+12.5%", trend: "up" },
             { label: "Total Revenue", value: `₱${totalRevenue.toLocaleString()}` , icon: "💰", color: "#81C784", bg: "rgba(129,199,132,0.15)", growth: `${revenueGrowth}%`, trend: revenueGrowth > 0 ? "up" : "down" },
@@ -299,19 +364,20 @@ const AdminDashboard = () => {
               >
                 <Card
                   sx={{
-                    background: item.bg,
-                    backdropFilter: "blur(12px)",
+                    background: `linear-gradient(120deg, ${item.bg} 80%, rgba(255,255,255,0.04))`,
+                    backdropFilter: "blur(14px)",
                     border: `2px solid ${item.color}33`,
-                    borderRadius: "16px",
+                    borderRadius: "18px",
                     p: 3,
                     height: "100%",
                     width: "100%",
                     minWidth: 0,
+                    boxShadow: `0 4px 24px 0 ${item.color}22`,
                     transition: "transform 0.3s, box-shadow 0.3s",
                     cursor: "pointer",
                     position: "relative",
                     overflow: "hidden",
-                    "&::before": {
+                    '&::before': {
                       content: '""',
                       position: "absolute",
                       top: 0,
@@ -321,10 +387,10 @@ const AdminDashboard = () => {
                       background: `radial-gradient(circle, ${item.color}20, transparent)`,
                       borderRadius: "50%",
                     },
-                    "&:hover": {
-                      transform: "translateY(-10px)",
-                      boxShadow: `0 20px 50px ${item.color}50`,
-                      border: `2px solid ${item.color}66`,
+                    '&:hover': {
+                      transform: "translateY(-10px) scale(1.03)",
+                      boxShadow: `0 20px 50px ${item.color}55`,
+                      border: `2.5px solid ${item.color}66`,
                     },
                   }}
                 >
@@ -373,19 +439,20 @@ const AdminDashboard = () => {
 
 
         {/* 7-Day Trends and User Distribution Side by Side */}
-        <Grid container spacing={3} sx={{ mb: 4, width: '100%', flexWrap: 'nowrap'}}>
+        <Grid container spacing={3} sx={{ mb: 4, width: '100%', maxWidth: 1200, flexWrap: 'nowrap'}}>
           <Grid item xs={6} md={6} sx={{ display: 'flex', width: '78%' }}>
             <Card sx={{
-              background: "linear-gradient(135deg, rgba(79,195,247,0.15), rgba(129,199,132,0.15))",
-              backdropFilter: "blur(12px)",
-              borderRadius: "16px",
-              border: "1px solid rgba(255,255,255,0.1)",
+              background: "linear-gradient(120deg, rgba(79,195,247,0.18), rgba(129,199,132,0.10))",
+              backdropFilter: "blur(14px)",
+              borderRadius: "18px",
+              border: "1.5px solid rgba(79,195,247,0.13)",
               p: 3,
               width: '100%',
               boxSizing: 'border-box',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'stretch',
+              boxShadow: '0 4px 24px 0 rgba(79,195,247,0.10)',
             }}>
               <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
                 <Box>
@@ -417,16 +484,17 @@ const AdminDashboard = () => {
           </Grid>
           <Grid item xs={6} md={6} sx={{ display: 'flex', width: '25%' }}>
             <Card sx={{
-              background: "linear-gradient(135deg, rgba(255,183,77,0.15), rgba(229,115,115,0.15))",
-              backdropFilter: "blur(12px)",
-              borderRadius: "16px",
-              border: "1px solid rgba(255,255,255,0.1)",
+              background: "linear-gradient(120deg, rgba(255,183,77,0.18), rgba(229,115,115,0.10))",
+              backdropFilter: "blur(14px)",
+              borderRadius: "18px",
+              border: "1.5px solid rgba(255,183,77,0.13)",
               p: 3,
               width: '100%',
               boxSizing: 'border-box',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'stretch',
+              boxShadow: '0 4px 24px 0 rgba(255,183,77,0.10)',
             }}>
               <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
                 <Box>
@@ -468,15 +536,71 @@ const AdminDashboard = () => {
         </Grid>
 
 
-            {/* Recent Activity & Top Users */}
-<Grid container spacing={3}>
-  <Grid item xs={12} md={4} width={'47%'}>
+            {/* User Map */}
+            <Box sx={{ width: '100%', maxWidth: 1200, mb: 4 }}>
+              <Card sx={{ p: 2, borderRadius: '18px', boxShadow: '0 4px 24px 0 rgba(33,150,243,0.10)', mb: 2, background: 'linear-gradient(120deg, rgba(33,150,243,0.10), rgba(255,255,255,0.04))', border: '1.5px solid rgba(33,150,243,0.13)' }}>
+                <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, color: '#2196f3', display: 'flex', alignItems: 'center', gap: 1 }}>
+                  🗺️ User Address Map
+                </Typography>
+                <Box sx={{ width: '100%', height: 340, borderRadius: '14px', overflow: 'hidden', position: 'relative', zIndex: 1 }}>
+                  {isLoaded && (
+                    <GoogleMap
+                      mapContainerStyle={{ width: '100%', height: '100%' }}
+                      center={{ lat: 14.5995, lng: 120.9842 }}
+                      zoom={6}
+                      options={{
+                        streetViewControl: false,
+                        mapTypeControl: false,
+                        fullscreenControl: false,
+                      }}
+                    >
+                      {userLocations.map((loc, idx) => (
+                        <Marker
+                          key={idx}
+                          position={{ lat: loc.lat, lng: loc.lng }}
+                          onClick={e => {
+                            // Prevent empty popup: only set if loc has name/address
+                            if (loc && (loc.name || loc.address)) setSelectedMarker(idx);
+                          }}
+                        />
+                      ))}
+                      {selectedMarker !== null && userLocations[selectedMarker] && (userLocations[selectedMarker].name || userLocations[selectedMarker].address) && (
+                        <InfoWindow
+                          position={{ lat: userLocations[selectedMarker].lat, lng: userLocations[selectedMarker].lng }}
+                          onCloseClick={() => {
+                            setSelectedMarker(null);
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 180 }}>
+                            {userLocations[selectedMarker].profileUrl ? (
+                              <img src={userLocations[selectedMarker].profileUrl} alt="profile" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', border: '2px solid #4FC3F7', marginRight: 10 }} />
+                            ) : (
+                              <span style={{ width: 40, height: 40, borderRadius: '50%', background: '#222', color: '#4FC3F7', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 22, marginRight: 10 }}>{userLocations[selectedMarker].name ? userLocations[selectedMarker].name[0] : 'U'}</span>
+                            )}
+                            <Box>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#222', mb: 0.5 }}>{userLocations[selectedMarker].name}</Typography>
+                              <Typography variant="body2" sx={{ color: '#555', wordBreak: 'break-word', fontSize: 13 }}>{userLocations[selectedMarker].address}</Typography>
+                            </Box>
+                          </Box>
+                        </InfoWindow>
+                      )}
+                    </GoogleMap>
+                  )}
+                </Box>
+              </Card>
+            </Box>
+            {/* Recent Activity & Top Users - Responsive */}
+<Grid container spacing={2.5} sx={{ mb: 4, width: '100%', maxWidth: 1200, flexWrap: 'nowrap' }}>
+  <Grid item xs={12} md={4} sx={{ display: 'flex', width: '100%', flexBasis: 0, flexGrow: 1, flexShrink: 0 }}>
     <Card sx={{
-      background: "linear-gradient(135deg, rgba(129,199,132,0.15), rgba(79,195,247,0.15))",
-      backdropFilter: "blur(12px)",
-      borderRadius: "16px",
-      border: "1px solid rgba(255,255,255,0.1)",
+      background: "linear-gradient(120deg, rgba(129,199,132,0.18), rgba(79,195,247,0.10))",
+      backdropFilter: "blur(14px)",
+      borderRadius: "18px",
+      border: "1.5px solid rgba(129,199,132,0.13)",
       p: 3,
+      width: '100%',
+      mb: { xs: 3, md: 0 },
+      boxShadow: '0 4px 24px 0 rgba(129,199,132,0.10)',
     }}>
       <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, color: "#fff", display: "flex", alignItems: "center", gap: 1, textShadow: '1px 1px 4px #000' }}>
         🔄 Recent Transfers
@@ -493,38 +617,42 @@ const AdminDashboard = () => {
                 border: "1px solid rgba(255,255,255,0.1)",
                 display: "flex",
                 alignItems: "center",
+                flexDirection: { xs: 'column', sm: 'row' },
+                flexWrap: 'wrap',
+                minWidth: 0,
+                overflowX: 'auto',
                 "&:hover": { background: "rgba(255,255,255,0.08)", borderColor: "rgba(255,255,255,0.2)" }
               }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1, minWidth: 0, flexWrap: 'wrap' }}>
                   {/* Profile Avatar */}
                   {tx.profileUrl ? (
-                    <Box component="img" src={tx.profileUrl} alt="profile" sx={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', mr: 1, border: '2px solid #4FC3F7' }} />
+                    <Box component="img" src={tx.profileUrl} alt="profile" sx={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', mr: 1, border: '2px solid #4FC3F7', flexShrink: 0 }} />
                   ) : (
-                    <Box sx={{ width: 36, height: 36, borderRadius: '50%', background: '#222', color: '#4FC3F7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18, mr: 1 }}>
+                    <Box sx={{ width: 36, height: 36, borderRadius: '50%', background: '#222', color: '#4FC3F7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18, mr: 1, flexShrink: 0 }}>
                       {tx.name ? tx.name[0] : 'U'}
                     </Box>
                   )}
-                  <Box>
-                    <Typography variant="body2" sx={{ color: "#4FC3F7", fontWeight: 700, fontSize: 15 }}>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="body2" sx={{ color: "#4FC3F7", fontWeight: 700, fontSize: 15, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: { xs: 120, sm: 160, md: 200 } }}>
                       {tx.name || 'Unknown User'}
                     </Typography>
-                    <Typography variant="caption" sx={{ color: "#fff", fontSize: 12, textShadow: '1px 1px 4px #000' }}>
+                    <Typography variant="caption" sx={{ color: "#fff", fontSize: 12, textShadow: '1px 1px 4px #000', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: { xs: 120, sm: 160, md: 200 } }}>
                       {tx.email || 'No email'}
                     </Typography>
                   </Box>
                 </Box>
-                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', minWidth: 90, ml: 'auto' }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: { xs: 'flex-start', sm: 'flex-end' }, minWidth: 90, ml: { xs: 0, sm: 'auto' }, mt: { xs: 1, sm: 0 }, flexShrink: 0 }}>
                   <Box sx={{ display: "flex", gap: 1, alignItems: "center", mb: 0.5 }}>
                     <Box sx={{ fontSize: "1rem" }}>💳</Box>
-                    <Typography variant="body2" sx={{ color: "white", fontWeight: 700 }}>
+                    <Typography variant="body2" sx={{ color: "white", fontWeight: 700, whiteSpace: 'nowrap' }}>
                       ₱{(tx.amount || 0).toLocaleString()}
                     </Typography>
                   </Box>
-                  <Typography variant="caption" sx={{ color: "#fff", fontSize: "0.7rem", textShadow: '1px 1px 4px #000', textAlign: 'right' }}>
+                  <Typography variant="caption" sx={{ color: "#fff", fontSize: "0.7rem", textShadow: '1px 1px 4px #000', textAlign: { xs: 'left', sm: 'right' }, whiteSpace: 'nowrap' }}>
                     {tx.createdAt?.toDate?.().toLocaleDateString() || "N/A"}
                   </Typography>
                 </Box>
-                <Box sx={{ fontSize: "1.2rem", color: "#81C784" }}>✓</Box>
+                <Box sx={{ fontSize: "1.2rem", color: "#81C784", ml: { xs: 0, sm: 2 }, mt: { xs: 1, sm: 0 }, flexShrink: 0 }}>✓</Box>
               </Box>
             </motion.div>
           ))
@@ -535,13 +663,16 @@ const AdminDashboard = () => {
     </Card>
   </Grid>
 
-  <Grid item xs={12} md={4}>
+  <Grid item xs={12} md={4} sx={{ display: 'flex', width: '100%', flexBasis: 0, flexGrow: 1, flexShrink: 0 }}>
     <Card sx={{
-      background: "linear-gradient(135deg, rgba(255,183,77,0.15), rgba(129,199,132,0.15))",
-      backdropFilter: "blur(12px)",
-      borderRadius: "16px",
-      border: "1px solid rgba(255,255,255,0.1)",
+      background: "linear-gradient(120deg, rgba(255,183,77,0.18), rgba(129,199,132,0.10))",
+      backdropFilter: "blur(14px)",
+      borderRadius: "18px",
+      border: "1.5px solid rgba(255,183,77,0.13)",
       p: 3,
+      width: '100%',
+      mb: { xs: 3, md: 0 },
+      boxShadow: '0 4px 24px 0 rgba(255,183,77,0.10)',
     }}>
       <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, color: "#fff", display: "flex", alignItems: "center", gap: 1, textShadow: '1px 1px 4px #000' }}>
         📝 Recent Activity
@@ -580,6 +711,7 @@ const AdminDashboard = () => {
                   border: "1px solid rgba(255,255,255,0.1)",
                   display: "flex",
                   alignItems: "center",
+                  flexDirection: { xs: 'column', sm: 'row' },
                   "&:hover": { background: "rgba(255,255,255,0.08)", borderColor: "rgba(255,255,255,0.2)" }
                 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
@@ -600,18 +732,18 @@ const AdminDashboard = () => {
                       </Typography>
                     </Box>
                   </Box>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', minWidth: 90, ml: 'auto' }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: { xs: 'flex-start', sm: 'flex-end' }, minWidth: 90, ml: { xs: 0, sm: 'auto' }, mt: { xs: 1, sm: 0 } }}>
                     <Box sx={{ display: "flex", gap: 1, alignItems: "center", mb: 0.5 }}>
                       <Box sx={{ fontSize: "1rem" }}>{act.type === 'Deposit' ? '📥' : '📤'}</Box>
                       <Typography variant="body2" sx={{ color: "white", fontWeight: 700 }}>
                         ₱{(act.amount || 0).toLocaleString()}
                       </Typography>
                     </Box>
-                    <Typography variant="caption" sx={{ color: "#fff", fontSize: "0.7rem", textShadow: '1px 1px 4px #000', textAlign: 'right' }}>
+                    <Typography variant="caption" sx={{ color: "#fff", fontSize: "0.7rem", textShadow: '1px 1px 4px #000', textAlign: { xs: 'left', sm: 'right' } }}>
                       {act.createdAt?.toDate?.().toLocaleDateString() || "N/A"}
                     </Typography>
                   </Box>
-                  <Box sx={{ fontSize: "1.2rem", color: act.type === 'Deposit' ? '#FFB74D' : '#E57373' }}>✓</Box>
+                  <Box sx={{ fontSize: "1.2rem", color: act.type === 'Deposit' ? '#FFB74D' : '#E57373', ml: { xs: 0, sm: 2 }, mt: { xs: 1, sm: 0 } }}>✓</Box>
                 </Box>
               </motion.div>
             );
@@ -623,13 +755,15 @@ const AdminDashboard = () => {
     </Card>
   </Grid>
 
-  <Grid item xs={12} md={4}>
+  <Grid item xs={12} md={4} sx={{ display: 'flex', width: '100%', flexBasis: 0, flexGrow: 1, flexShrink: 0 }}>
     <Card sx={{
-      background: "linear-gradient(135deg, rgba(255,183,77,0.15), rgba(229,115,115,0.15))",
-      backdropFilter: "blur(12px)",
-      borderRadius: "16px",
-      border: "1px solid rgba(255,255,255,0.1)",
+      background: "linear-gradient(120deg, rgba(255,183,77,0.18), rgba(229,115,115,0.10))",
+      backdropFilter: "blur(14px)",
+      borderRadius: "18px",
+      border: "1.5px solid rgba(255,183,77,0.13)",
       p: 3,
+      width: '100%',
+      boxShadow: '0 4px 24px 0 rgba(255,183,77,0.10)',
     }}>
       <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, color: "#fff", display: "flex", alignItems: "center", gap: 1, textShadow: '1px 1px 4px #000' }}>
         ⭐ Top Earners
@@ -651,9 +785,10 @@ const AdminDashboard = () => {
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
+                  flexDirection: { xs: 'column', sm: 'row' },
                   "&:hover": { background: "rgba(255,255,255,0.08)", borderColor: "rgba(255,255,255,0.2)" }
                 }}>
-                  <Box sx={{ flex: 1 }}>
+                  <Box sx={{ flex: 1, mb: { xs: 1, sm: 0 } }}>
                     <Box sx={{ display: "flex", gap: 1, alignItems: "center", mb: 0.5 }}>
                       <Box sx={{ fontSize: "1rem" }}>👤</Box>
                       <Typography variant="body2" sx={{ color: "white", fontWeight: 700 }}>
@@ -677,11 +812,7 @@ const AdminDashboard = () => {
       </Box>
     </Card>
   </Grid>
-
-
-
-
-      </Grid>
+</Grid>
 
       </Box>
     </Box>

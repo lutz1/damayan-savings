@@ -463,20 +463,27 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
   return (
     <Box
       sx={{
-        display: "flex",
-        minHeight: "100vh",
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        minHeight: '100vh',
+        minWidth: '100vw',
+        overflow: 'hidden',
+        display: 'flex',
         backgroundImage: `url(${bgImage})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        position: "relative",
-        "&::before": {
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        zIndex: 0,
+        '&::before': {
           content: '""',
-          position: "absolute",
+          position: 'absolute',
           top: 0,
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: "rgba(0,0,0,0.15)",
+          backgroundColor: 'rgba(0,0,0,0.15)',
           zIndex: 0,
         },
       }}
@@ -501,6 +508,9 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
           color: "white",
           zIndex: 1,
           width: "100%",
+          height: '100vh',
+          overflowY: 'auto',
+          overflowX: 'hidden',
           transition: "all 0.3s ease",
           position: "relative",
         }}
