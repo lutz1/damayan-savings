@@ -161,6 +161,112 @@ app.post("/api/transfer-funds", async (req, res) => {
   }
 });
 
+
+// 💸 Passive Income Transfer Endpoint
+app.post("/api/transfer-passive-income", async (req, res) => {
+  try {
+    const { idToken, paybackEntryId, amount } = req.body;
+    if (!idToken || !paybackEntryId || !amount) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+    const numAmount = parseFloat(amount);
+    if (numAmount <= 0) {
+      return res.status(400).json({ error: "Amount must be greater than zero" });
+    }
+
+    // Verify user authentication
+    let decodedToken;
+    try {
+      decodedToken = await auth.verifyIdToken(idToken);
+    } catch (error) {
+      console.error("Token verification failed:", error);
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const userId = decodedToken.uid;
+
+    // Run transaction
+    try {
+      const result = await db.runTransaction(async (transaction) => {
+        // Get payback entry
+        const paybackRef = db.collection("paybackEntries").doc(paybackEntryId);
+        const paybackDoc = await transaction.get(paybackRef);
+        if (!paybackDoc.exists) {
+          throw new Error("Payback entry not found");
+        }
+        const paybackData = paybackDoc.data();
+        if (paybackData.userId !== userId) {
+          throw new Error("Unauthorized: Not your payback entry");
+        }
+        if (paybackData.transferred) {
+          throw new Error("This profit has already been transferred");
+        }
+        // Check if matured
+        const expirationDate = new Date(paybackData.expirationDate);
+        if (expirationDate > new Date()) {
+          throw new Error("Profit not yet matured");
+        }
+        // Check amount matches 2% profit
+        const expectedProfit = (paybackData.amount || 0) * 0.02;
+        if (Math.abs(expectedProfit - numAmount) > 0.01) {
+          throw new Error("Invalid profit amount");
+        }
+
+        // Get user
+        const userRef = db.collection("users").doc(userId);
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists) {
+          throw new Error("User not found");
+        }
+        const userData = userDoc.data();
+
+        // Calculate fee and net
+        const fee = numAmount * 0.01;
+        const net = numAmount - fee;
+
+        // Update user eWallet
+        transaction.update(userRef, {
+          eWallet: (userData.eWallet || 0) + net,
+        });
+
+        // Mark payback entry as transferred
+        transaction.update(paybackRef, {
+          transferred: true,
+          transferredAt: new Date(),
+        });
+
+        // Log transfer
+        const transferRef = db.collection("passiveTransfers").doc();
+        transaction.set(transferRef, {
+          userId,
+          paybackEntryId,
+          amount: numAmount,
+          fee,
+          netAmount: net,
+          status: "Approved",
+          createdAt: new Date(),
+        });
+
+        return {
+          success: true,
+          newBalance: (userData.eWallet || 0) + net,
+          transferId: transferRef.id,
+        };
+      });
+
+      console.info(
+        `[passive-transfer] user=${userId} paybackEntry=${paybackEntryId} amount=${amount} net=${(numAmount - numAmount * 0.01).toFixed(2)} id=${result.transferId}`
+      );
+      res.json(result);
+    } catch (transactionError) {
+      console.error("Passive transfer transaction failed:", transactionError);
+      res.status(400).json({ error: transactionError.message });
+    }
+  } catch (error) {
+    console.error("Passive income transfer error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // Simple health check for deployment platforms
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });

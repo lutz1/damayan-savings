@@ -12,7 +12,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
   CircularProgress,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
@@ -30,6 +29,7 @@ import {
   where,
   runTransaction,
 } from "firebase/firestore";
+import AddPaybackEntryDialog from "../../components/dialogs/AddPaybackEntryDialog";
 import { db, auth } from "../../firebase";
 
 
@@ -57,7 +57,10 @@ const MemberPayback = () => {
   const [uplineUsername, setUplineUsername] = useState("");
   const [amount, setAmount] = useState("");
   const [adding, setAdding] = useState(false);
-  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  // Removed: confirmDialogOpen (unused)
+  const [addReceiptDialog, setAddReceiptDialog] = useState(false);
+  const [lastAddReceipt, setLastAddReceipt] = useState(null);
+  // Removed: receiptImageUrl (unused)
 
   // View Entry Dialog
   // const [viewDialogOpen, setViewDialogOpen] = useState(false); // Removed: no longer used
@@ -203,94 +206,124 @@ const fetchPaybackData = useCallback(async (userId) => {
     setAmount("");
     setSelectedDate(null);
   };
-const handleOpenConfirmDialog = () => {
-  if (!uplineUsername || !amount) return alert("Please confirm upline and amount.");
-  setConfirmDialogOpen(true);
-};
+// Removed: handleOpenConfirmDialog (unused)
   // ===================== Add Payback Entry (continued) =====================
   const handleAddPayback = async () => {
-  
-  try {
-    const user = auth.currentUser;
-    if (!user) return;
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
 
-    const userRef = doc(db, "users", user.uid);
-    const userSnap = await getDoc(userRef);
-    if (!userSnap.exists()) {
-      setAdding(false);
-      return alert("User not found.");
-    }
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
+      if (!userSnap.exists()) {
+        setAdding(false);
+        return alert("User not found.");
+      }
 
-    const walletBalance = userSnap.data().eWallet || 0;
-    const amountNum = parseFloat(amount);
-    if (amountNum > walletBalance) {
-      setAdding(false);
-      return alert("Insufficient wallet balance.");
-    }
+      const walletBalance = userSnap.data().eWallet || 0;
+      const amountNum = parseFloat(amount);
+      if (amountNum > walletBalance) {
+        setAdding(false);
+        return alert("Insufficient wallet balance.");
+      }
 
-    console.log("💰 Wallet balance before deduction:", walletBalance);
+      // Get upline user doc
+      const q = query(collection(db, "users"), where("username", "==", uplineUsername));
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        setAdding(false);
+        return alert("Upline not found.");
+      }
 
-    // Get upline user doc
-    const q = query(collection(db, "users"), where("username", "==", uplineUsername));
-    const snap = await getDocs(q);
-    if (snap.empty) {
-      setAdding(false);
-      return alert("Upline not found.");
-    }
+      const uplineDoc = snap.docs[0].data();
 
-    const uplineDoc = snap.docs[0].data();
-    console.log("👥 Upline data:", uplineDoc);
+      // Deduct wallet using transaction to avoid race conditions
+      await runTransaction(db, async (tx) => {
+        const uSnap = await tx.get(userRef);
+        if (!uSnap.exists()) throw new Error("User not found during transaction.");
+        const current = uSnap.data().eWallet || 0;
+        if (current < amountNum) throw new Error("Insufficient wallet balance.");
+        tx.update(userRef, { eWallet: current - amountNum });
+      });
 
-    // Deduct wallet using transaction to avoid race conditions
-    await runTransaction(db, async (tx) => {
-      const uSnap = await tx.get(userRef);
-      if (!uSnap.exists()) throw new Error("User not found during transaction.");
-      const current = uSnap.data().eWallet || 0;
-      if (current < amountNum) throw new Error("Insufficient wallet balance.");
-      tx.update(userRef, { eWallet: current - amountNum });
-    });
-    console.log(`✅ Deducted ₱${amountNum} from user eWallet (transaction)`);
+      // Prepare payback entry
+      const entryDate = new Date(selectedDate || new Date()).toISOString();
+      const expirationDate = new Date(new Date(entryDate).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-    // Prepare payback entry
-    // TODO: Replace moment with native Date if needed
-    const entryDate = new Date(selectedDate || new Date()).toISOString();
-    // TODO: Replace moment with native Date if needed
-    const expirationDate = new Date(new Date(entryDate).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      // Add payback entry
+      const docRef = await addDoc(collection(db, "paybackEntries"), {
+        userId: user.uid,
+        uplineUsername,
+        amount: amountNum,
+        role: uplineDoc.role,
+        date: entryDate,
+        expirationDate,
+        rewardGiven: false,
+        createdAt: new Date().toISOString(),
+      });
 
-    console.log("📝 Adding payback entry with:");
-    console.log("User ID:", user.uid);
-    console.log("Upline Username:", uplineUsername);
-    console.log("Amount:", amountNum);
-    console.log("Upline Role:", uplineDoc.role);
-    console.log("Entry Date:", entryDate);
-    console.log("Expiration Date:", expirationDate);
-    console.log("RewardGiven: false (Upline ₱65 pending after expiration)");
-
-    // Add payback entry
-    await addDoc(collection(db, "paybackEntries"), {
-      userId: user.uid,
-      uplineUsername,
+      // Prepare receipt data for dialog
+      setLastAddReceipt({
+      reference: docRef.id,
       amount: amountNum,
-      role: uplineDoc.role,
-      date: entryDate,
-      expirationDate,
-      rewardGiven: false,
-      createdAt: new Date().toISOString(),
+      date: new Date(entryDate).toLocaleString(),
+      uplineUsername: uplineUsername,
+      createdAt: new Date().toLocaleString(),
     });
+      setAddReceiptDialog(true);
 
-    console.log("✅ Payback entry successfully added");
-
-    await fetchPaybackData(user.uid);
-    resetAddFields();
-    setOpenAddDialog(false);
-    alert(`Payback entry added! ₱${amountNum.toFixed(2)} deducted.`);
-  } catch (err) {
-    console.error("❌ Error adding payback entry:", err);
-    alert("Failed to add entry.");
-  } finally {
-    setAdding(false);
-  }
-};
+      await fetchPaybackData(user.uid);
+      resetAddFields();
+      setOpenAddDialog(false);
+    } catch (err) {
+      console.error("❌ Error adding payback entry:", err);
+      alert("Failed to add entry.");
+    } finally {
+      setAdding(false);
+    }
+  };
+    // Download receipt as image (PNG)
+    const handleDownloadAddReceiptImage = () => {
+      if (!lastAddReceipt) return;
+      // Create a canvas and draw the receipt
+      const canvas = document.createElement('canvas');
+      canvas.width = 400;
+      canvas.height = 260;
+      const ctx = canvas.getContext('2d');
+      // Background
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Header
+      ctx.fillStyle = '#388e3c';
+      ctx.fillRect(0, 0, canvas.width, 50);
+      ctx.font = 'bold 22px Arial';
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.fillText('Payback Entry Receipt', canvas.width / 2, 35);
+      // Details
+      ctx.font = '16px Arial';
+      ctx.fillStyle = '#333';
+      ctx.textAlign = 'left';
+      ctx.fillText(`Reference No: ${lastAddReceipt.ref}`, 30, 80);
+      ctx.fillText(`Amount: ₱${Number(lastAddReceipt.amount).toFixed(2)}`, 30, 110);
+      ctx.fillText(`Date: ${new Date(lastAddReceipt.date).toLocaleString()}`, 30, 140);
+      ctx.fillText(`Upline: ${lastAddReceipt.upline}`, 30, 170);
+      // Footer
+      ctx.font = 'italic 13px Arial';
+      ctx.fillStyle = '#888';
+      ctx.fillText('Thank you for your contribution!', 30, 210);
+      // Download
+      const url = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `payback-receipt-${lastAddReceipt.ref}.png`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+      }, 100);
+    };
+       
   // ===================== Transfer Logic =====================
   // Only allow transfer of the 2% profit (not the principal amount)
   const handleTransfer = async () => {
@@ -347,6 +380,9 @@ const handleOpenConfirmDialog = () => {
         date: new Date().toLocaleString(),
       });
       setTransferSuccessDialog(true);
+
+      // Re-fetch payback data to update status and history
+      await fetchPaybackData(user.uid);
     } catch (err) {
       console.error("Transfer failed:", err);
       alert(err.message || "Transfer failed.");
@@ -554,9 +590,9 @@ const handleOpenConfirmDialog = () => {
               {paybackEntries.map((e, idx) => {
                 const now = new Date();
                 const expirationDate = e.expirationDate instanceof Date ? e.expirationDate : new Date(e.expirationDate);
-                const profitStatus = expirationDate > now ? "Pending" : "Profit Earn";
+                const isMatured = expirationDate <= now;
+                const profitStatus = isMatured ? "Profit Earn" : "Pending";
                 const profitIcon = profitStatus === "Pending" ? "⏳" : "✅";
-                // const canTransfer = profitStatus === "Profit Earn" && !e.transferred; // unused
                 const borderColor = profitStatus === "Profit Earn" ? '#4caf50' : '#1976d2';
                 const iconBg = profitStatus === "Profit Earn" ? '#e8f5e9' : '#e3f2fd';
                 const iconColor = profitStatus === "Profit Earn" ? '#388e3c' : '#1976d2';
@@ -566,7 +602,7 @@ const handleOpenConfirmDialog = () => {
                     sx={{
                       p: 0,
                       borderRadius: 1.5,
-                      bgcolor: 'rgba(30,41,59,0.92)', // dark blue-gray, matches app background but more opaque
+                      bgcolor: 'rgba(30,41,59,0.92)',
                       color: '#fff',
                       boxShadow: '0px 2px 12px rgba(33,150,243,0.10)',
                       borderLeft: `4px solid ${borderColor}`,
@@ -608,13 +644,13 @@ const handleOpenConfirmDialog = () => {
                             px: 0.7,
                             py: 0.1,
                             borderRadius: 1,
-                            bgcolor: e.status === "Approved" ? "#1976d2" : "#c62828",
+                            bgcolor: isMatured ? "#1976d2" : "#c62828",
                             color: '#fff',
                             fontWeight: 600,
                             fontSize: 9.5,
                           }}
                         >
-                          Status: {e.status || "Pending"}
+                          Status: {isMatured ? "Valid" : (e.status || "Pending")}
                         </Typography>
                         <Typography
                           sx={{
@@ -631,7 +667,7 @@ const handleOpenConfirmDialog = () => {
                         </Typography>
                       </Box>
                       <Typography variant="body2" sx={{ color: '#e0e0e0', mb: 0.1, fontSize: 10 }}>
-                        Next Profit Date: {expirationDate ? expirationDate.toDateString() : "-"}
+                        {isMatured ? "Expired" : `Next Profit Date: ${expirationDate ? expirationDate.toDateString() : "-"}`}
                       </Typography>
                       <Typography variant="body2" sx={{ color: '#e0e0e0', fontSize: 10 }}>
                         Upline: <b style={{color:'#fff'}}>{e.uplineUsername}</b> | 2% Profit: <b style={{color:'#fff'}}>₱{(e.amount * 0.02).toFixed(2)}</b>
@@ -653,106 +689,21 @@ const handleOpenConfirmDialog = () => {
       </Box>
 
       {/* Add Payback Entry */}
-      <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)} fullWidth maxWidth="xs" PaperProps={{ sx: { borderRadius: 4, boxShadow: 12 } }}>
-        <DialogTitle sx={{ bgcolor: '#1976d2', color: '#fff', fontWeight: 700, textAlign: 'center', pb: 2, borderTopLeftRadius: 4, borderTopRightRadius: 4, boxShadow: 2 }}>
-          <Box display="flex" flexDirection="column" alignItems="center" gap={1}>
-            <Box sx={{ fontSize: 38, mb: 0.5 }}>📝</Box>
-            Add Payback Entry
-          </Box>
-        </DialogTitle>
-        <DialogContent dividers sx={{ bgcolor: '#f8fafc', px: 4, py: 3, borderBottom: '1px solid #e3e8ee' }}>
-          <Box display="flex" flexDirection="column" gap={3}>
-            <Box display="flex" alignItems="center" gap={2}>
-              <Box sx={{ width: 28, height: 28, bgcolor: '#1976d2', color: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16 }}>1</Box>
-              <TextField
-                label="Date"
-                type="date"
-                fullWidth
-                value={selectedDate ? new Date(selectedDate).toISOString().slice(0,10) : ''}
-                onChange={e => setSelectedDate(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                sx={{ bgcolor: '#fff', borderRadius: 2 }}
-                error={!selectedDate}
-                helperText={!selectedDate ? 'Please select a date.' : ''}
-              />
-            </Box>
-            <Box display="flex" alignItems="center" gap={2}>
-              <Box sx={{ width: 28, height: 28, bgcolor: '#1976d2', color: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16 }}>2</Box>
-              <TextField
-                label="Upline Username"
-                fullWidth
-                value={uplineUsername}
-                disabled
-                sx={{ bgcolor: '#fff', borderRadius: 2 }}
-              />
-            </Box>
-            <Box display="flex" alignItems="center" gap={2}>
-              <Box sx={{ width: 28, height: 28, bgcolor: '#1976d2', color: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16 }}>3</Box>
-              <TextField
-                label="Amount (₱)"
-                type="number"
-                fullWidth
-                value={amount}
-                onChange={e => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
-                inputProps={{ min: 1, step: '0.01' }}
-                sx={{ bgcolor: '#fff', borderRadius: 2 }}
-                error={!amount || Number(amount) <= 0}
-                helperText={!amount || Number(amount) <= 0 ? 'Enter a valid amount.' : 'Minimum ₱1'}
-              />
-            </Box>
-          </Box>
-        </DialogContent>
-        <DialogActions sx={{ px: 4, pb: 2, bgcolor: '#f8fafc', borderBottomLeftRadius: 4, borderBottomRightRadius: 4, boxShadow: 1 }}>
-          <Button onClick={() => setOpenAddDialog(false)} color="error" variant="outlined" sx={{ borderRadius: 2, minWidth: 100, fontWeight: 600 }}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleOpenConfirmDialog}
-            color="primary"
-            variant="contained"
-            disabled={adding || !selectedDate || !amount || Number(amount) <= 0}
-            sx={{ borderRadius: 2, minWidth: 100, fontWeight: 600, boxShadow: 2 }}
-          >
-            {adding ? <CircularProgress size={18} color="inherit" /> : "Submit"}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* View Entry */}
-
-      <Dialog
-  open={confirmDialogOpen}
-  onClose={() => setConfirmDialogOpen(false)}
-  fullWidth
-  maxWidth="xs"
->
-  <DialogTitle>Confirm Payback Entry</DialogTitle>
-  <DialogContent dividers>
-    <Typography>
-      Are you sure you want to submit this payback entry of ₱{amount}?
-    </Typography>
-  </DialogContent>
-  <DialogActions>
-    <Button onClick={() => setConfirmDialogOpen(false)} color="error">
-      Cancel
-    </Button>
-    <Button
-      onClick={async () => {
-        setConfirmDialogOpen(false);
-        await handleAddPayback(); // Proceed with adding
-      }}
-      color="primary"
-      variant="contained"
-      disabled={adding}
-    >
-      {adding ? <CircularProgress size={18} color="inherit" /> : "Confirm"}
-    </Button>
-  </DialogActions>
-</Dialog>
-
-      {/* Removed: Payback Entry Details Dialog (viewDialogOpen, selectedEntry) */}
-
-      {/* Removed: Expired Entries Dialog */}
+     <AddPaybackEntryDialog
+  open={openAddDialog}
+  onClose={() => setOpenAddDialog(false)}
+  onSubmit={handleAddPayback}
+  selectedDate={selectedDate}
+  setSelectedDate={setSelectedDate}
+  uplineUsername={uplineUsername}
+  amount={amount}
+  setAmount={setAmount}
+  adding={adding}
+  receiptData={lastAddReceipt}
+  onDownloadReceipt={handleDownloadAddReceiptImage}
+  showReceipt={addReceiptDialog}
+  setShowReceipt={setAddReceiptDialog}
+/>
 
       {/* Passive Income Earn Dialog (was Payback Transaction History) */}
       <Dialog open={historyDialogOpen} onClose={() => setHistoryDialogOpen(false)} fullWidth maxWidth="sm" PaperProps={{ sx: { borderRadius: 4, boxShadow: 12, overflow: 'hidden', background: 'none', maxWidth: { xs: '100%', sm: 500, md: 500 } } }}>
@@ -822,9 +773,23 @@ const handleOpenConfirmDialog = () => {
               {paybackEntries.map((e, idx) => {
                 const now = new Date();
                 const expirationDate = e.expirationDate instanceof Date ? e.expirationDate : new Date(e.expirationDate);
-                const profitStatus = expirationDate > now ? "Pending" : "Profit Earn";
-                const profitIcon = profitStatus === "Pending" ? "⏳" : "✅";
-                // Only allow transfer if profit is earned and not transferred
+                let profitStatus, profitIcon, profitColor, profitBg;
+                if (expirationDate > now) {
+                  profitStatus = "Pending";
+                  profitIcon = "⏳";
+                  profitColor = '#ef6c00';
+                  profitBg = '#ef6c00';
+                } else if (e.transferred) {
+                  profitStatus = "Transferred";
+                  profitIcon = "💸";
+                  profitColor = '#0288d1';
+                  profitBg = '#0288d1';
+                } else {
+                  profitStatus = "Profit Earn";
+                  profitIcon = "✅";
+                  profitColor = '#388e3c';
+                  profitBg = '#388e3c';
+                }
                 const canTransfer = profitStatus === "Profit Earn" && !e.transferred;
                 const profit = (e.amount * 0.02);
                 return (
@@ -836,7 +801,7 @@ const handleOpenConfirmDialog = () => {
                         bgcolor: 'rgba(30,41,59,0.92)',
                         color: '#fff',
                         boxShadow: '0px 2px 12px rgba(33,150,243,0.10)',
-                        borderLeft: `4px solid ${profitStatus === "Profit Earn" ? '#4caf50' : '#1976d2'}`,
+                        borderLeft: `4px solid ${profitStatus === "Profit Earn" ? '#4caf50' : profitStatus === "Transferred" ? '#0288d1' : '#1976d2'}`,
                         display: 'flex',
                         flexDirection: 'column',
                         minWidth: { xs: 0, sm: 0, md: 0 },
@@ -847,17 +812,17 @@ const handleOpenConfirmDialog = () => {
                         transition: 'box-shadow 0.2s',
                         alignItems: 'center',
                         '&:hover': {
-                          boxShadow: `0 4px 16px 0 ${profitStatus === "Profit Earn" ? '#4caf50' : '#1976d2'}33`,
+                          boxShadow: `0 4px 16px 0 ${profitStatus === "Profit Earn" ? '#4caf50' : profitStatus === "Transferred" ? '#0288d1' : '#1976d2'}33`,
                         },
                       }}
                     >
                       <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                        <Box sx={{ fontSize: 22, color: profitStatus === "Profit Earn" ? '#4caf50' : '#1976d2', mr: 1 }}>{profitIcon}</Box>
+                        <Box sx={{ fontSize: 22, color: profitColor, mr: 1 }}>{profitIcon}</Box>
                         <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: 13, letterSpacing: 0.1, color: '#fff' }}>
                           2% Profit
                         </Typography>
                       </Box>
-                      <Typography variant="h6" sx={{ fontWeight: 800, color: profitStatus === "Profit Earn" ? '#4caf50' : '#1976d2', mb: 0.5, fontSize: 18, letterSpacing: 0.1 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 800, color: profitStatus === "Profit Earn" ? '#4caf50' : profitStatus === "Transferred" ? '#0288d1' : '#1976d2', mb: 0.5, fontSize: 18, letterSpacing: 0.1 }}>
                         ₱{profit.toFixed(2)}
                       </Typography>
                       <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 0.5 }}>
@@ -866,20 +831,19 @@ const handleOpenConfirmDialog = () => {
                             px: 1.2,
                             py: 0.3,
                             borderRadius: 1,
-                            bgcolor: e.status === "Approved" ? "#1976d2" : "#c62828",
                             color: '#fff',
                             fontWeight: 600,
                             fontSize: 11,
                           }}
                         >
-                          Status: {e.status || "Pending"}
+                         
                         </Typography>
                         <Typography
                           sx={{
                             px: 1.2,
                             py: 0.3,
                             borderRadius: 1,
-                            bgcolor: profitStatus === "Profit Earn" ? "#388e3c" : "#ef6c00",
+                            bgcolor: profitBg,
                             color: '#fff',
                             fontWeight: 600,
                             fontSize: 11,

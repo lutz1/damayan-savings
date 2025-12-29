@@ -111,6 +111,7 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
         })
       );
 
+
       // Payback Entries
       setupListener(
         query(collection(db, "paybackEntries"), where("userId", "==", uid)),
@@ -120,6 +121,18 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
           source: "payback",
           displayType: `Payback Entry (${d.role || "N/A"})`,
           isCredit: false,
+        })
+      );
+
+      // Passive Income Earn (passiveTransfers)
+      setupListener(
+        query(collection(db, "passiveTransfers"), where("userId", "==", uid)),
+        "passive",
+        (d) => ({
+          ...d,
+          source: "passive",
+          displayType: "Passive Income Earn",
+          isCredit: true,
         })
       );
 
