@@ -3,7 +3,6 @@ import React, { useEffect, useState, useCallback } from "react";
 import {
   Box,
   Card,
-  CardContent,
   Typography,
   Button,
   Dialog,
@@ -60,7 +59,7 @@ const MemberCapitalShare = () => {
   const [openAddDialog, setOpenAddDialog] = useState(false);
   const [amount, setAmount] = useState("");
 
-  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  // Removed unused historyDialogOpen state
   const [transactionHistory, setTransactionHistory] = useState([]);
   const [capitalAmount, setCapitalAmount] = useState(0);
   const [monthlyProfit, setMonthlyProfit] = useState(0);
@@ -416,13 +415,22 @@ const MemberCapitalShare = () => {
     <Box
       sx={{
         display: "flex",
-        height: "100vh",
-        backgroundImage: `url(${bgImage})`,
+        minHeight: "100vh",
+        backgroundImage: `linear-gradient(120deg, rgba(30, 41, 59, 0.92) 60%, rgba(33, 150, 243, 0.25)), url(${bgImage})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundAttachment: "fixed",
         position: "relative",
-        overflow: "hidden",
+        '&::before': {
+          content: '""',
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'linear-gradient(120deg, rgba(30, 41, 59, 0.92) 60%, rgba(33, 150, 243, 0.25))',
+          zIndex: 0,
+        },
       }}
     >
       <Box sx={{ position: "fixed", width: "100%", zIndex: 10 }}>
@@ -449,133 +457,177 @@ const MemberCapitalShare = () => {
         }}
       >
         <Toolbar />
-        <Typography variant={isMobile ? "h5" : "h4"} fontWeight={700} gutterBottom>
-          Member Capital Share
-        </Typography>
+        {/* Header Section */}
+        <Box sx={{ mb: 4, width: '100%', maxWidth: 900 }}>
+          <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 900, letterSpacing: 1, mb: 1, color: '#fff', textShadow: '0 2px 12px #000a' }}>
+            Member <span style={{ color: '#4FC3F7' }}>Capital Share</span> Dashboard
+          </Typography>
+          <Typography variant="h6" sx={{ color: '#b0bec5', fontWeight: 500, mb: 1.5, textShadow: '0 1px 8px #0006' }}>
+            <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>💰 Grow Capital</Box>
+            <Box component="span" sx={{ mx: 1, color: '#4FC3F7' }}>•</Box>
+            <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>📈 Earn Monthly Profit</Box>
+            <Box component="span" sx={{ mx: 1, color: '#4FC3F7' }}>•</Box>
+            <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>📝 Manage Shares</Box>
+          </Typography>
+        </Box>
 
-        <Grid container spacing={3} sx={{ mb: 3 }}>
-        {/* 🔹 Capital Share Card */}
-        <Grid item xs={12} md={4}>
-          <Card
-            sx={{
-              backgroundColor: "rgba(231, 237, 241, 0.53)",
-              borderRadius: 3,
-              width: "100%",
-            }}
-          >
-            <CardContent>
-              <Typography variant="h6" fontWeight={600}>
-                Capital Share
-              </Typography>
 
-              {/* Total */}
-              <Typography variant="h4" sx={{ mt: 0.5 }}>
-                ₱{Number(capitalAmount).toLocaleString()}
-              </Typography>
 
-              {/* Breakdown */}
-              {capitalAmount > 0 && (
-                <Box sx={{ mt: 1.5 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    🔒 Lock-in: ₱{Math.min(capitalAmount, LOCK_IN).toLocaleString()}
-                  </Typography>
-                  {capitalAmount > LOCK_IN && (
-                    <Typography variant="body2" color="text.secondary">
-                      💼 Transferable: ₱
-                      {(capitalAmount - LOCK_IN).toLocaleString()}
-                    </Typography>
-                  )}
+        <Grid container spacing={2.5} sx={{ mb: 4, width: '100%', maxWidth: 900, flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
+          {/* Capital Share Card - full width on mobile */}
+          <Grid item xs={12} md={12} sx={{ mb: { xs: 2, md: 0 }, display: 'flex', width: '100%' }}>
+            <Card
+              sx={{
+                background: `linear-gradient(120deg, rgba(79,195,247,0.15) 80%, rgba(255,255,255,0.04))`,
+                backdropFilter: "blur(14px)",
+                border: `2px solid #4FC3F733`,
+                borderRadius: "18px",
+                p: 3,
+                width: '100%',
+                minWidth: 0,
+                boxShadow: `0 4px 24px 0 #4FC3F722`,
+                transition: "transform 0.3s, box-shadow 0.3s",
+                position: "relative",
+                overflow: "hidden",
+                '&::before': {
+                  content: '""',
+                  position: "absolute",
+                  top: 0,
+                  right: 0,
+                  width: "100px",
+                  height: "100px",
+                  background: `radial-gradient(circle, #4FC3F720, transparent)`,
+                  borderRadius: "50%",
+                },
+                '&:hover': {
+                  transform: "translateY(-10px) scale(1.03)",
+                  boxShadow: `0 20px 50px #4FC3F755`,
+                  border: `2.5px solid #4FC3F766`,
+                },
+              }}
+            >
+              <Box sx={{ position: "relative", zIndex: 1 }}>
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 2 }}>
+                  <Box sx={{ fontSize: "2.5rem" }}>💰</Box>
                 </Box>
-              )}
-
-              {/* Transfer Button */}
-              {capitalAmount >= LOCK_IN && (
+                <Typography variant="body2" sx={{ opacity: 1, mb: 1, color: "#fff", fontSize: "0.85rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, textShadow: '1px 1px 4px #000' }}>
+                  Capital Share
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: 800, color: "#4FC3F7", mb: 1, lineHeight: 1, textShadow: '1px 1px 4px #000' }}>
+                  ₱{Number(capitalAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </Typography>
+                {capitalAmount > 0 && (
+                  <Box sx={{ mt: 1.5 }}>
+                    <Typography variant="body2" sx={{ color: '#b0bec5', fontWeight: 600, fontSize: 13 }}>
+                      🔒 Lock-in: ₱{Math.min(capitalAmount, LOCK_IN).toLocaleString()}
+                    </Typography>
+                    {capitalAmount > LOCK_IN && (
+                      <Typography variant="body2" sx={{ color: '#b0bec5', fontWeight: 600, fontSize: 13 }}>
+                        💼 Transferable: ₱{(capitalAmount - LOCK_IN).toLocaleString()}
+                      </Typography>
+                    )}
+                  </Box>
+                )}
+                {capitalAmount >= LOCK_IN && (
+                  <Button
+                    variant="contained"
+                    sx={{ mt: 2, fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 2.5, py: 1, fontSize: 15 }}
+                    onClick={() => handleTransferCapitalShare(transactionHistory[0])}
+                  >
+                    Transfer Capital to Wallet
+                  </Button>
+                )}
+              </Box>
+            </Card>
+          </Grid>
+          {/* Monthly Profit Card - responsive */}
+          <Grid item xs={12} md={6} sx={{ display: 'flex', width: '100%' }}>
+            <Card
+              sx={{
+                background: `linear-gradient(120deg, rgba(129,199,132,0.15) 80%, rgba(255,255,255,0.04))`,
+                backdropFilter: "blur(14px)",
+                border: `2px solid #81C78433`,
+                borderRadius: "18px",
+                p: 3,
+                width: '100%',
+                minWidth: 0,
+                boxShadow: `0 4px 24px 0 #81C78422`,
+                transition: "transform 0.3s, box-shadow 0.3s",
+                position: "relative",
+                overflow: "hidden",
+                '&::before': {
+                  content: '""',
+                  position: "absolute",
+                  top: 0,
+                  right: 0,
+                  width: "100px",
+                  height: "100px",
+                  background: `radial-gradient(circle, #81C78420, transparent)`,
+                  borderRadius: "50%",
+                },
+                '&:hover': {
+                  transform: "translateY(-10px) scale(1.03)",
+                  boxShadow: `0 20px 50px #81C78455`,
+                  border: `2.5px solid #81C78466` ,
+                },
+              }}
+            >
+              <Box sx={{ position: "relative", zIndex: 1 }}>
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 2 }}>
+                  <Box sx={{ fontSize: "2.5rem" }}>📈</Box>
+                </Box>
+                <Typography variant="body2" sx={{ opacity: 1, mb: 1, color: "#fff", fontSize: "0.85rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, textShadow: '1px 1px 4px #000' }}>
+                  Monthly Profit (5%)
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: 800, color: "#81C784", mb: 1, lineHeight: 1, textShadow: '1px 1px 4px #000' }}>
+                  ₱{Number(monthlyProfit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </Typography>
                 <Button
                   variant="contained"
-                  sx={{ mt: 2 }}
-                  onClick={() =>
-                    handleTransferCapitalShare(transactionHistory[0])
-                  }
+                  sx={{ mt: 2, width: "100%", fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 2.5, py: 1, fontSize: 15 }}
+                  onClick={() => setProfitHistoryOpen(true)}
                 >
-                  Transfer Capital to Wallet
+                  View Monthly Profit History
                 </Button>
-              )}
-
-              <Button
-                variant="contained"
-                sx={{ mt: 2, mr: 1, mb: 1 }}
-                onClick={() => setHistoryDialogOpen(true)}
-              >
-                View Capital Share Transaction History
-              </Button>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* 🔹 Monthly Profit Card */}
-        <Grid item xs={12} md={4}>
-          <Card
-            sx={{
-              backgroundColor: "rgba(231, 237, 241, 0.53)",
-              borderRadius: 3,
-              width: "100%",
-              maxWidth: "100%",
-            }}
-          >
-            <CardContent>
-              <Typography variant="h6" fontWeight={600}>
-                Monthly Profit (5%)
-              </Typography>
-
-              <Typography variant="h4" sx={{ mt: 0.5 }}>
-                ₱{Number(monthlyProfit).toLocaleString()}
-              </Typography>
-
-              <Button
-                variant="contained"
-                sx={{ mt: 2, width: "100%" }}
-                onClick={() => setProfitHistoryOpen(true)}
-              >
-                View Monthly Profit History
-              </Button>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* 🔹 Add Capital Share Button */}
-        <Grid item xs={12} md={4}>
-          <Card
-            sx={{
-              backgroundColor: "rgba(231, 237, 241, 0.53)",
-              borderRadius: 3,
-              width: "100%",
-              maxWidth: "100%",
-            }}
-          >
-            <CardContent>
-              <Typography variant="h6" fontWeight={600}>
+              </Box>
+            </Card>
+          </Grid>
+          {/* Add Capital Share Button */}
+          <Grid item xs={12} md={6} sx={{ display: 'flex', width: '100%' }}>
+            <Card
+              sx={{
+                background: `linear-gradient(120deg, rgba(231,237,241,0.27), rgba(33,150,243,0.08))`,
+                borderRadius: 3,
+                p: 3,
+                minHeight: 220,
+                width: '100%',
+                maxWidth: 900,
+                boxShadow: '0 4px 24px 0 rgba(33,150,243,0.10)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+              }}
+            >
+              <Typography variant="body2" sx={{ opacity: 1, mb: 1, color: "#1976d2", fontSize: "0.85rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, textShadow: '1px 1px 4px #0001' }}>
                 Instruction
               </Typography>
-
-              <Typography variant="body2" sx={{ mt: 1, mb: 2, color: "text.secondary" }}>
+              <Typography variant="body2" sx={{ mt: 1, mb: 2, color: "#607d8b", fontWeight: 600, fontSize: 13 }}>
                 📝 To add a capital share entry:
               </Typography>
-              
-              <Typography variant="body2" sx={{ mb: 1, color: "text.secondary" }}>
+              <Typography variant="body2" sx={{ mb: 1, color: "#607d8b", fontWeight: 600, fontSize: 13 }}>
                 1. Click "Add Capital Share" button below
               </Typography>
-              <Typography variant="body2" sx={{ mb: 1, color: "text.secondary" }}>
+              <Typography variant="body2" sx={{ mb: 1, color: "#607d8b", fontWeight: 600, fontSize: 13 }}>
                 2. Select the date and enter amount (min ₱1,000)
               </Typography>
-              <Typography variant="body2" sx={{ mb: 2, color: "text.secondary" }}>
+              <Typography variant="body2" sx={{ mb: 2, color: "#607d8b", fontWeight: 600, fontSize: 13 }}>
                 3. Confirm to deduct from your E-Wallet
               </Typography>
-
               <Button
                 variant="contained"
                 color="primary"
                 fullWidth
-                sx={{ mt: 1 }}
+                sx={{ mt: 1, fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 2.5, py: 1, fontSize: 15 }}
                 onClick={() => {
                   if (!userData?.capitalShareActive) {
                     alert("Activate Capital Share first.");
@@ -587,18 +639,12 @@ const MemberCapitalShare = () => {
               >
                 Add Capital Share
               </Button>
-            </CardContent>
-          </Card>
+              {/* Moved Transaction History Button Below */}
+              </Card>
+          </Grid>
         </Grid>
-      </Grid>
 
-        <Card sx={{ mt: 4, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 3, p: 3 }}>
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            📅 Capital Share Calendar
-          </Typography>
 
-          {/* Calendar removed */}
-        </Card>
 
 
         {/* Add Entry Dialog */}
@@ -741,89 +787,82 @@ const MemberCapitalShare = () => {
         </Dialog>
 
         {/* History Dialog */}
-
-        {/* History Dialog */}
-{/* History Dialog */}
-<Dialog open={historyDialogOpen} onClose={() => setHistoryDialogOpen(false)} fullWidth maxWidth="sm">
-  <DialogTitle sx={{ bgcolor: "#1976d2", color: "#fff" }}>Transaction History</DialogTitle>
-  <DialogContent dividers sx={{ bgcolor: "#f5f5f5" }}>
-    {transactionHistory.length > 0 ? (
-      transactionHistory.map((t, idx) => {
-        const now = new Date();
-        const nextProfitDate = t.nextProfitDate instanceof Date 
-          ? t.nextProfitDate 
-          : t.nextProfitDate?.toDate?.();
-
-        const profitStatus = nextProfitDate
-          ? nextProfitDate > now
-            ? "Pending"
-            : "Profit Earn"
-          : "-";
-
-        const profitIcon = profitStatus === "Pending" ? "⏳" : profitStatus === "Profit Earn" ? "✅" : "";
-
-        return (
-          <Box
-            key={idx}
-            sx={{
-              mb: 2,
-              p: 2,
-              borderRadius: 2,
-              bgcolor: "#fff",
-              boxShadow: "0px 2px 6px rgba(0,0,0,0.15)",
-            }}
-          >
-            <Typography variant="subtitle2" color="text.secondary">Amount</Typography>
-            <Typography variant="h6" sx={{ fontWeight: 700, color: "#4caf50" }}>
-              ₱{t.amount.toLocaleString()}
-            </Typography>
-
-            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 1 }}>
-              <Typography
-                sx={{
-                  px: 1.5,
-                  py: 0.5,
-                  borderRadius: 1,
-                  bgcolor: t.status === "Approved" ? "#e0f7fa" : "#ffe0e0",
-                  color: t.status === "Approved" ? "#006064" : "#c62828",
-                  fontWeight: 600,
-                  fontSize: 12,
-                }}
-              >
-                Status: {t.status}
-              </Typography>
-
-              <Typography
-                sx={{
-                  px: 1.5,
-                  py: 0.5,
-                  borderRadius: 1,
-                  bgcolor: profitStatus === "Profit Earn" ? "#e8f5e9" : "#fff3e0",
-                  color: profitStatus === "Profit Earn" ? "#2e7d32" : "#ef6c00",
-                  fontWeight: 600,
-                  fontSize: 12,
-                }}
-              >
-                Profit: {profitIcon} {profitStatus}
+        {/* Capital Share Transactions Section - always visible below Add Capital Share */}
+        {/* Capital Share Transactions Section - styled like Payback Transactions */}
+        <Card sx={{ background: "linear-gradient(120deg, rgba(231,237,241,0.27), rgba(33,150,243,0.08))", borderRadius: 3, p: 3, minHeight: 320, width: '100%', maxWidth: 900, boxShadow: '0 4px 24px 0 rgba(33,150,243,0.10)', mb: 4, height: { xs: '60vh', sm: '65vh', md: '70vh', lg: '75vh' }, display: 'flex', flexDirection: 'column', mx: 'auto' }}>
+          <Typography variant="h6" sx={{ fontWeight: 700, color: '#1976d2', mb: 2, letterSpacing: 0.5 }}>
+            Capital Share Transactions
+          </Typography>
+          {transactionHistory.length > 0 ? (
+            <Box sx={{ width: '100%', flex: 1, overflowY: 'auto', height: '100%' }}>
+              {transactionHistory.map((t, idx) => {
+                const now = new Date();
+                const nextProfitDate = t.nextProfitDate instanceof Date
+                  ? t.nextProfitDate
+                  : t.nextProfitDate?.toDate?.();
+                const profitStatus = nextProfitDate
+                  ? nextProfitDate > now
+                    ? "Pending"
+                    : "Profit Earn"
+                  : "-";
+                const profitIcon = profitStatus === "Pending" ? "⏳" : profitStatus === "Profit Earn" ? "✅" : "";
+                const borderColor = profitStatus === "Profit Earn" ? '#4caf50' : '#1976d2';
+                const iconBg = profitStatus === "Profit Earn" ? '#e8f5e9' : '#e3f2fd';
+                const iconColor = profitStatus === "Profit Earn" ? '#388e3c' : '#1976d2';
+                return (
+                  <Card key={idx} sx={{
+                    mb: 2,
+                    p: 2.5,
+                    borderRadius: 3,
+                    boxShadow: '0 2px 12px 0 #1976d222',
+                    bgcolor: '#fff',
+                    border: `2px solid ${borderColor}`,
+                    display: 'flex',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 2,
+                  }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', mr: 2 }}>
+                      <Box sx={{ fontSize: 32, bgcolor: iconBg, color: iconColor, borderRadius: '50%', width: 54, height: 54, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px #0002', mb: 1 }}>
+                        💰
+                      </Box>
+                      <Typography variant="body2" sx={{ fontWeight: 700, color: iconColor, textAlign: 'center' }}>
+                        {profitIcon} {profitStatus}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 800, color: '#1976d2', mb: 0.5 }}>
+                        ₱{t.amount.toLocaleString()}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: '#607d8b', fontWeight: 600, mb: 0.5 }}>
+                        Status: {t.status}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: '#607d8b', fontWeight: 600, mb: 0.5 }}>
+                        Next Profit Date: {nextProfitDate ? nextProfitDate.toDateString() : "-"}
+                      </Typography>
+                      <Button
+                        variant="outlined"
+                        sx={{ mt: 1, fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 2, py: 1, fontSize: 15 }}
+                        onClick={() => {
+                          setEntryDetailsOpen(true);
+                          setSelectedEntry(t);
+                        }}
+                      >
+                        View Details
+                      </Button>
+                    </Box>
+                  </Card>
+                );
+              })}
+            </Box>
+          ) : (
+            <Box display="flex" alignItems="center" justifyContent="center" height="80px">
+              <Typography variant="h6" color="text.secondary" sx={{ fontSize: 16 }}>
+                No capital share transactions found.
               </Typography>
             </Box>
-
-            <Typography variant="body2" sx={{ mt: 1 }}>
-              Next Profit Date: {nextProfitDate ? nextProfitDate.toDateString() : "-"}
-            </Typography>
-          </Box>
-        );
-      })
-    ) : (
-      <Typography sx={{ textAlign: "center", py: 3 }}>No transaction history.</Typography>
-    )}
-  </DialogContent>
-  <DialogActions>
-    <Button onClick={() => setHistoryDialogOpen(false)} variant="contained">
-      Close
-    </Button>
-  </DialogActions>
-</Dialog>
+          )}
+        </Card>
 
         {/* Monthly Profit History Dialog */}
         <Dialog open={profitHistoryOpen} onClose={() => setProfitHistoryOpen(false)} fullWidth maxWidth="sm">

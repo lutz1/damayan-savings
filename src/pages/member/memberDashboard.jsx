@@ -39,9 +39,87 @@ import { motion } from "framer-motion";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
 import bgImage from "../../assets/bg.jpg";
-import GroupSalesDialog from "../../components/GroupSalesDialog";
+import NetworkGroupSales from "./components/dialogs/networkGroupsales";
 
 const MemberDashboard = () => {
+    // Animated count-up states for card values
+    const [displayContribution, setDisplayContribution] = useState(0);
+    const [displayCapitalShare, setDisplayCapitalShare] = useState(0);
+    const [displayEarnings, setDisplayEarnings] = useState(0);
+    const [displayOverride, setDisplayOverride] = useState(0);
+    const [totalContribution, setTotalContribution] = useState(0);
+    const [totalCapitalShare, setTotalCapitalShare] = useState(0);
+    const [totalEarnings, setTotalEarnings] = useState(0);
+    const [overrideEarnings, setOverrideEarnings] = useState(0);
+
+    // Animate count-up for each card value
+    useEffect(() => {
+      let frame;
+      let start = 100;
+      let end = totalContribution;
+      let duration = 800;
+      let startTime;
+      function animate(ts) {
+        if (!startTime) startTime = ts;
+        const progress = Math.min((ts - startTime) / duration, 1);
+        const value = start + (end - start) * progress;
+        setDisplayContribution(progress === 1 ? Math.round(end) : value);
+        if (progress < 1) frame = requestAnimationFrame(animate);
+      }
+      if (start !== end) frame = requestAnimationFrame(animate);
+      return () => frame && cancelAnimationFrame(frame);
+    }, [totalContribution]);
+
+    useEffect(() => {
+      let frame;
+      let start = 100;
+      let end = totalCapitalShare;
+      let duration = 800;
+      let startTime;
+      function animate(ts) {
+        if (!startTime) startTime = ts;
+        const progress = Math.min((ts - startTime) / duration, 1);
+        const value = start + (end - start) * progress;
+        setDisplayCapitalShare(progress === 1 ? Math.round(end) : value);
+        if (progress < 1) frame = requestAnimationFrame(animate);
+      }
+      if (start !== end) frame = requestAnimationFrame(animate);
+      return () => frame && cancelAnimationFrame(frame);
+    }, [totalCapitalShare]);
+
+    useEffect(() => {
+      let frame;
+      let start = 100;
+      let end = totalEarnings;
+      let duration = 800;
+      let startTime;
+      function animate(ts) {
+        if (!startTime) startTime = ts;
+        const progress = Math.min((ts - startTime) / duration, 1);
+        const value = start + (end - start) * progress;
+        setDisplayEarnings(progress === 1 ? Math.round(end) : value);
+        if (progress < 1) frame = requestAnimationFrame(animate);
+      }
+      if (start !== end) frame = requestAnimationFrame(animate);
+      return () => frame && cancelAnimationFrame(frame);
+    }, [totalEarnings]);
+
+    useEffect(() => {
+      let frame;
+      let start = 100;
+      let end = overrideEarnings;
+      let duration = 800;
+      let startTime;
+      function animate(ts) {
+        if (!startTime) startTime = ts;
+        const progress = Math.min((ts - startTime) / duration, 1);
+        const value = start + (end - start) * progress;
+        setDisplayOverride(progress === 1 ? Math.round(end) : value);
+        if (progress < 1) frame = requestAnimationFrame(animate);
+      }
+      if (start !== end) frame = requestAnimationFrame(animate);
+      return () => frame && cancelAnimationFrame(frame);
+    }, [overrideEarnings]);
   const [sidebarOpen, setSidebarOpen] = useState(() => {
   // Optional: detect mobile width
   return window.innerWidth >= 960 ? true : false; // desktop open, mobile closed
@@ -72,16 +150,11 @@ useEffect(() => {
   const [sortField, setSortField] = useState("name");
   const [sortOrder, setSortOrder] = useState("asc");
 
-  const [totalContribution, setTotalContribution] = useState(0);
-  const [totalCapitalShare, setTotalCapitalShare] = useState(0);
-
   // 💸 Referral Rewards
-const [totalEarnings, setTotalEarnings] = useState(0);
 const [rewardHistory, setRewardHistory] = useState([]);
 const [rewardDialogOpen, setRewardDialogOpen] = useState(false);
 
 // 💰 Override Earnings
-const [overrideEarnings, setOverrideEarnings] = useState(0);
 const [overrideList, setOverrideList] = useState([]);
 const [overrideDialogOpen, setOverrideDialogOpen] = useState(false);
 
@@ -383,21 +456,22 @@ const fetchPaybackAndCapital = async (uid) => {
     <Box
       sx={{
         display: "flex",
-        height: "100vh",
-        backgroundImage: `url(${bgImage})`,
+        minHeight: "100vh",
+        backgroundImage:
+          `linear-gradient(120deg, rgba(30, 41, 59, 0.92) 60%, rgba(33, 150, 243, 0.25)), url(${bgImage})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundAttachment: "fixed",
         position: "relative",
         overflow: "hidden",
-        "&::before": {
+        '&::before': {
           content: '""',
           position: "absolute",
           top: 0,
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: "rgba(0, 0, 0, 0.2)",
+          background: 'linear-gradient(120deg, rgba(30, 41, 59, 0.92) 60%, rgba(33, 150, 243, 0.25))',
           zIndex: 0,
         },
       }}
@@ -450,134 +524,76 @@ const fetchPaybackAndCapital = async (uid) => {
 
           {/* 💰 Payback and Capital Cards */}
           <Grid container spacing={3} sx={{ mb: 3 }}>
-            <Grid item xs={12} sm={6} md={4}>
-              <Card
-                sx={{
-                  background: "rgba(255,255,255,0.1)",
-                  backdropFilter: "blur(10px)",
-                  width: "340px",
-                  color: "#fff",
-                  borderRadius: 3,
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
-                }}
-              >
-                <CardContent>
-                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                    Payback Total Contribution
-                  </Typography>
-                  <Typography
-                    variant="h4"
-                    sx={{ fontWeight: "bold", color: "#81C784", mt: 1 }}
+            {/* Unified Card Style for All Four Cards - Vertical Alignment */}
+            <Grid container direction="column" spacing={3} sx={{ mb: 3, alignItems: 'center' }}>
+              {[{
+                label: "Payback Total Contribution",
+                value: `₱${Number(displayContribution).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                color: "#81C784",
+                icon: null,
+              }, {
+                label: "Total Capital Share",
+                value: `₱${Number(displayCapitalShare).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                color: "#FFD54F",
+                icon: null,
+              }, {
+                label: "Referral Earnings",
+                value: `₱${Number(displayEarnings).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                color: "#81C784",
+                icon: (
+                  <IconButton onClick={() => setRewardDialogOpen(true)} color="inherit" size="small">
+                    <VisibilityIcon sx={{ color: "#81C784" }} />
+                  </IconButton>
+                ),
+                subtitle: "Total earned from your referrals"
+              }, {
+                label: "Override Earnings",
+                value: `₱${Number(displayOverride).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                color: "#64B5F6",
+                icon: (
+                  <IconButton onClick={() => setOverrideDialogOpen(true)} color="inherit" size="small">
+                    <VisibilityIcon sx={{ color: "#64B5F6" }} />
+                  </IconButton>
+                ),
+                subtitle: "Credited rewards (after expiration date)"
+              }].map((card, idx) => (
+                <Grid item key={card.label} sx={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+                  <Card
+                    sx={{
+                      background: "rgba(255,255,255,0.1)",
+                      backdropFilter: "blur(10px)",
+                      width: 340,
+                      maxWidth: '90vw',
+                      color: "#fff",
+                      borderRadius: 3,
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+                      position: "relative",
+                      m: 1,
+                    }}
                   >
-                    ₱{totalContribution.toLocaleString()}
-                  </Typography>
-                </CardContent>
-              </Card>
+                    <CardContent>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                          {card.label}
+                        </Typography>
+                        {card.icon}
+                      </Box>
+                      <Typography
+                        variant="h4"
+                        sx={{ fontWeight: "bold", color: card.color, mt: 1, wordBreak: 'break-word' }}
+                      >
+                        {card.value}
+                      </Typography>
+                      {card.subtitle && (
+                        <Typography variant="body2" sx={{ mt: 1, opacity: 0.8 }}>
+                          {card.subtitle}
+                        </Typography>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
             </Grid>
-
-            <Grid item xs={12} sm={6} md={4}>
-              <Card
-                sx={{
-                  background: "rgba(255,255,255,0.1)",
-                  backdropFilter: "blur(10px)",
-                  width: "340px",
-                  color: "#fff",
-                  borderRadius: 3,
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
-                }}
-              >
-                <CardContent>
-                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                    Total Capital Share
-                  </Typography>
-                  <Typography
-                    variant="h4"
-                    sx={{ fontWeight: "bold", color: "#FFD54F", mt: 1 }}
-                  >
-                    ₱{totalCapitalShare.toLocaleString()}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-
-{/* 💸 Earnings Card */}
-<Grid item xs={12} sm={6} md={4}>
-  <Card
-    sx={{
-      background: "rgba(255,255,255,0.1)",
-      backdropFilter: "blur(10px)",
-      width: "340px",
-      color: "#fff",
-      borderRadius: 3,
-      boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
-      position: "relative",
-    }}
-  >
-    <CardContent>
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-          Referral Earnings
-        </Typography>
-        <IconButton
-          onClick={() => setRewardDialogOpen(true)}
-          color="inherit"
-          size="small"
-        >
-          <VisibilityIcon sx={{ color: "#81C784" }} />
-        </IconButton>
-      </Box>
-      <Typography
-        variant="h4"
-        sx={{ fontWeight: "bold", color: "#81C784", mt: 1 }}
-      >
-        ₱{totalEarnings.toLocaleString()}
-      </Typography>
-      <Typography variant="body2" sx={{ mt: 1, opacity: 0.8 }}>
-        Total earned from your referrals
-      </Typography>
-
-    </CardContent>
-  </Card>
-</Grid>
-
-{/* 💼 Override Earnings Card */}
-<Grid item xs={12} sm={6} md={4}>
-  <Card
-    sx={{
-      background: "rgba(255,255,255,0.1)",
-      backdropFilter: "blur(10px)",
-      width: "340px",
-      color: "#fff",
-      borderRadius: 3,
-      boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
-      position: "relative",
-    }}
-  >
-    <CardContent>
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-          Override Earnings
-        </Typography>
-        <IconButton onClick={() => setOverrideDialogOpen(true)} color="inherit" size="small">
-          <VisibilityIcon sx={{ color: "#64B5F6" }} />
-        </IconButton>
-      </Box>
-      <Typography variant="h4" sx={{ fontWeight: "bold", color: "#64B5F6", mt: 1 }}>
-        ₱{overrideEarnings.toLocaleString()}
-      </Typography>
-      <Typography variant="body2" sx={{ mt: 1, opacity: 0.8 }}>
-        Credited rewards (after expiration date)
-      </Typography>
-
-    </CardContent>
-  </Card>
-</Grid>
 
           </Grid>
 
@@ -616,18 +632,20 @@ const fetchPaybackAndCapital = async (uid) => {
               📊 Network Group Sales
             </Button>
 
-              <Grid container spacing={3}>
+              <Grid container direction="column" spacing={3} sx={{ mb: 3, alignItems: 'center', width: '100%' }}>
                 {["MD", "MS", "MI", "Agent"].map((role) => (
-                  <Grid item xs={12} sm={6} md={3} key={role}>
+                  <Grid item key={role} sx={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
                     <Card
                       sx={{
-                        width: "340px",
                         background: "rgba(255,255,255,0.1)",
                         backdropFilter: "blur(10px)",
+                        width: 340,
+                        maxWidth: '90vw',
                         color: "#fff",
                         borderRadius: 3,
                         boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
                         position: "relative",
+                        m: 1,
                       }}
                     >
                       <CardContent>
@@ -649,7 +667,6 @@ const fetchPaybackAndCapital = async (uid) => {
                             <VisibilityIcon sx={{ color: "#FFD54F" }} />
                           </IconButton>
                         </Box>
-
                         <Typography
                           variant="h4"
                           sx={{ mt: 1, fontWeight: "bold", color: "#FFD54F" }}
@@ -900,7 +917,7 @@ const fetchPaybackAndCapital = async (uid) => {
   </DialogActions>
 </Dialog>
 
-<GroupSalesDialog
+<NetworkGroupSales
   open={groupSalesOpen}
   onClose={() => setGroupSalesOpen(false)}
   username={userData?.username}

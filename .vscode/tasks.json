@@ -1,0 +1,13 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build React app for production",
+			"type": "shell",
+			"command": "npm run build",
+			"args": [],
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}
