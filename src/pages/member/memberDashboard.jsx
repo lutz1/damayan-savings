@@ -501,6 +501,12 @@ const fetchPaybackAndCapital = async (uid) => {
           width: "100%",
           transition: "all 0.3s ease",
           position: "relative",
+          // Hide scrollbar while keeping scroll functionality
+          scrollbarWidth: 'none', // Firefox
+          '-ms-overflow-style': 'none', // IE and Edge
+          '&::-webkit-scrollbar': {
+            display: 'none', // Chrome, Safari, Opera
+          },
         }}
       >
         <Toolbar />

@@ -49,6 +49,7 @@ const AppBottomNav = ({ open, onToggleSidebar }) => {
   if (["ADMIN", "CEO"].includes(upperRole)) {
     navItems = [
       { label: "Dashboard", value: "/admin/dashboard", icon: <DashboardIcon /> },
+      { label: "Paybacks", value: "/admin/payback-entries", icon: <SavingsIcon /> },
       { label: "Codes", value: "/admin/generate-codes", icon: <MonetizationOnIcon /> },
       { label: "Users", value: "/admin/user-management", icon: <PieChartIcon /> },
       { label: "Merchants", value: "merchants-menu", icon: <MerchantIcon />, isMenu: true },

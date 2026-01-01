@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import {
   BrowserRouter as Router,
@@ -10,52 +11,47 @@ import { ParallaxProvider } from "react-scroll-parallax";
 import { LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterMoment } from "@mui/x-date-pickers/AdapterMoment";
 import Splashscreen from "./components/splashscreen";
-
-/* ======================
-   PUBLIC
-====================== */
-// Landing page removed — redirect root to login
 import Login from "./pages/login";
-
-/* ======================
-   ADMIN
-====================== */
 import AdminDashboard from "./pages/admin/adminDashboard";
 import AdminGenerateCode from "./pages/admin/adminGenerateCode";
-import AdminProfile from "./pages/admin/adminProfile";
 import AdminUserManagement from "./pages/admin/adminUserManagement";
+import AdminMerchantManagement from "./pages/admin/adminMerchantManagement";
+
+import AdminProfile from "./pages/admin/adminProfile";
 import AdminTransferTransaction from "./pages/admin/adminTransferTransaction";
 import AdminWalletToWallet from "./pages/admin/adminWallettoWallet";
 import AdminWithdrawals from "./pages/admin/adminWithdrawals";
 import AdminDeposits from "./pages/admin/adminDeposits";
-import AdminMerchantManagement from "./pages/admin/adminMerchantManagement";
+
 import AdminCategoryManagement from "./pages/admin/adminCategoryManagement";
 
-/* ======================
-   MERCHANT (PWA)
-====================== */
+import AdminPaybackEntries from "./pages/admin/adminPaybackEntries";
+
 import MerchantDashboard from "./pages/merchant/merchantDashboard";
+
 import AddProductPage from "./pages/merchant/addProduct";
+
 import ManageProductPage from "./pages/merchant/manageProduct";
+
 import StoreProfilePage from "./pages/merchant/storeProfile";
+
 import MerchantProfile from "./pages/merchant/merchantProfile";
+
 import LocationAccess from "./pages/LocationAccess";
 
-/* ======================
-   CUSTOMER SHOP
-====================== */
 import ShopPage from "./pages/shop";
-import StoreDetailsPage from "./pages/storeDetails";
-import AllStoresPage from "./pages/allStores";
-import AddAddress from "./pages/addAddress";
-import CartPage from "./pages/cart";
 
-/* ======================
-   MEMBER
-====================== */
+import StoreDetailsPage from "./pages/storeDetails";
+
+import AllStoresPage from "./pages/allStores";
+
+import AddAddress from "./pages/addAddress";
+
+import CartPage from "./pages/cart";
 import MemberDashboard from "./pages/member/memberDashboard";
 import MemberPayback from "./pages/member/memberPayback";
 import MemberCapitalShare from "./pages/member/memberCapitalShare";
+
 import MemberProfile from "./pages/member/memberProfile";
 
 
@@ -241,6 +237,14 @@ function App() {
               element={
                 <AdminRoute>
                   <AdminMerchantManagement />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/payback-entries"
+              element={
+                <AdminRoute>
+                  <AdminPaybackEntries />
                 </AdminRoute>
               }
             />

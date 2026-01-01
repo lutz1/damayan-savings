@@ -1,3 +1,57 @@
+// --- Email utility for admin-triggered notifications ---
+import nodemailer from "nodemailer";
+
+const EMAIL_HOST = process.env.EMAIL_HOST;
+const EMAIL_PORT = process.env.EMAIL_PORT;
+const EMAIL_USER = process.env.EMAIL_USER;
+const EMAIL_PASS = process.env.EMAIL_PASS;
+const EMAIL_FROM = process.env.EMAIL_FROM || EMAIL_USER;
+
+const transporter = nodemailer.createTransport({
+  host: EMAIL_HOST,
+  port: EMAIL_PORT,
+  secure: EMAIL_PORT == 465, // true for 465, false for other ports
+  auth: {
+    user: EMAIL_USER,
+    pass: EMAIL_PASS,
+  },
+});
+
+async function sendEmail(to, subject, text) {
+  if (!EMAIL_HOST || !EMAIL_USER || !EMAIL_PASS) throw new Error("Email not configured");
+  return transporter.sendMail({
+    from: EMAIL_FROM,
+    to,
+    subject,
+    text,
+  });
+}
+
+// Admin-triggered: Send custom email to user for a payback entry
+app.post("/api/send-payback-email", async (req, res) => {
+  try {
+    const { userId, paybackEntryId, subject, message } = req.body;
+    if (!userId || !paybackEntryId || !subject || !message) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+    // Get user email
+    const userRef = db.collection("users").doc(userId);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) return res.status(404).json({ error: "User not found" });
+    const user = userSnap.data();
+    if (!user.email) return res.status(400).json({ error: "User has no email" });
+    // Optionally: check paybackEntry exists
+    const entryRef = db.collection("paybackEntries").doc(paybackEntryId);
+    const entrySnap = await entryRef.get();
+    if (!entrySnap.exists) return res.status(404).json({ error: "Payback entry not found" });
+    // Send email
+    await sendEmail(user.email, subject, message);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Admin email send error:", err);
+    res.status(500).json({ error: err.message || "Failed to send email" });
+  }
+});
 // server.js
 import express from "express";
 import axios from "axios";
