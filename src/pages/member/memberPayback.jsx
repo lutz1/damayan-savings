@@ -1,35 +1,14 @@
 // src/pages/member/MemberPayback.jsx
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  Box,
-  Toolbar,
-  Typography,
-  useMediaQuery,
-  Grid,
-  Card,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-} from "@mui/material";
+import { Box, Toolbar, Typography, useMediaQuery, Grid, Card, Button, Dialog, DialogTitle, DialogContent, DialogActions } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
 import bgImage from "../../assets/bg.jpg";
-import {
-  collection,
-  getDocs,
-  addDoc,
-  doc,
-  getDoc,
-  updateDoc,
-  query,
-  where,
-  runTransaction,
-} from "firebase/firestore";
+import { collection, getDocs, addDoc, doc, getDoc, updateDoc, query, where, runTransaction } from "firebase/firestore";
 import PaybackTransactions from "./components/paybackTransactions";
-import AddPaybackEntryDialog from "../../components/dialogs/AddPaybackEntryDialog";
+import AddPaybackEntryDialog from "./components/dialogs/AddPaybackEntryDialog";
+import PassiveIncomeEarn from "./components/dialogs/passiveIncomeEarn";
 import { db, auth } from "../../firebase";
 
 
@@ -484,6 +463,11 @@ const fetchPaybackData = useCallback(async (userId) => {
           alignItems: 'center',
           overflowY: 'auto',
           maxHeight: '100vh',
+          scrollbarWidth: 'none', // Firefox
+          '-ms-overflow-style': 'none', // IE and Edge
+          '&::-webkit-scrollbar': {
+            display: 'none', // Chrome, Safari, Opera
+          },
         }}
       >
         <Toolbar />
@@ -604,185 +588,13 @@ const fetchPaybackData = useCallback(async (userId) => {
   setShowReceipt={setAddReceiptDialog}
 />
 
-      {/* Passive Income Earn Dialog (was Payback Transaction History) */}
-      <Dialog open={historyDialogOpen} onClose={() => setHistoryDialogOpen(false)} fullWidth maxWidth="sm" PaperProps={{ sx: { borderRadius: 4, boxShadow: 12, overflow: 'hidden', background: 'none', maxWidth: { xs: '100%', sm: 500, md: 500 } } }}>
-        {/* Reduced header with X button */}
-        <Box sx={{
-          bgcolor: '#1976d2',
-          color: '#fff',
-          px: { xs: 2, sm: 4 },
-          py: 2,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          borderTopLeftRadius: 4,
-          borderTopRightRadius: 4,
-          boxShadow: 2,
-          position: 'relative',
-          zIndex: 1,
-        }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Box sx={{ fontSize: 28, mb: 0.5 }}>📈</Box>
-            <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: 0.5, color: '#fff', textShadow: '0 2px 12px #000a' }}>
-              Passive Income Earn
-            </Typography>
-          </Box>
-          <Button
-            onClick={() => setHistoryDialogOpen(false)}
-            sx={{ minWidth: 0, p: 0.5, color: '#fff', bgcolor: 'transparent', '&:hover': { bgcolor: '#1565c0' } }}
-            aria-label="Close"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </Button>
-        </Box>
-        {/* Professional style background for content, cards centered */}
-        <DialogContent
-          dividers
-          sx={{
-            px: { xs: 2, sm: 4 },
-            py: 3,
-            background: `linear-gradient(120deg, rgba(30,41,59,0.92) 60%, rgba(33,150,243,0.18)), url(${bgImage})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            position: 'relative',
-            minHeight: 220,
-            borderBottomLeftRadius: 4,
-            borderBottomRightRadius: 4,
-            zIndex: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            overflowX: 'hidden', // Disable horizontal swipe/scroll
-            '&::before': {
-              content: '""',
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: 'linear-gradient(120deg, rgba(30,41,59,0.92) 60%, rgba(33,150,243,0.18))',
-              zIndex: -1,
-              borderBottomLeftRadius: 4,
-              borderBottomRightRadius: 4,
-            },
-          }}
-        >
-          {paybackEntries.length > 0 ? (
-            <Grid container spacing={2.5} direction="column" alignItems="center">
-              {paybackEntries.map((e, idx) => {
-                const now = new Date();
-                const expirationDate = e.expirationDate instanceof Date ? e.expirationDate : new Date(e.expirationDate);
-                let profitStatus, profitIcon, profitColor, profitBg;
-                if (expirationDate > now) {
-                  profitStatus = "Pending";
-                  profitIcon = "⏳";
-                  profitColor = '#ef6c00';
-                  profitBg = '#ef6c00';
-                } else if (e.transferred) {
-                  profitStatus = "Transferred";
-                  profitIcon = "💸";
-                  profitColor = '#0288d1';
-                  profitBg = '#0288d1';
-                } else {
-                  profitStatus = "Profit Earn";
-                  profitIcon = "✅";
-                  profitColor = '#388e3c';
-                  profitBg = '#388e3c';
-                }
-                const canTransfer = profitStatus === "Profit Earn" && !e.transferred;
-                const profit = (e.amount * 0.02);
-                return (
-                  <Grid item xs={12} key={e.id} sx={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
-                    <Card
-                      sx={{
-                        p: 2.5,
-                        borderRadius: 3,
-                        bgcolor: 'rgba(30,41,59,0.92)',
-                        color: '#fff',
-                        boxShadow: '0px 2px 12px rgba(33,150,243,0.10)',
-                        borderLeft: `4px solid ${profitStatus === "Profit Earn" ? '#4caf50' : profitStatus === "Transferred" ? '#0288d1' : '#1976d2'}`,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        minWidth: { xs: 0, sm: 0, md: 0 },
-                        maxWidth: { xs: 400, sm: 500, md: '100%' },
-                        width: { xs: '100%', md: '100%' },
-                        minHeight: 90,
-                        mb: 1.2,
-                        transition: 'box-shadow 0.2s',
-                        alignItems: 'center',
-                        '&:hover': {
-                          boxShadow: `0 4px 16px 0 ${profitStatus === "Profit Earn" ? '#4caf50' : profitStatus === "Transferred" ? '#0288d1' : '#1976d2'}33`,
-                        },
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                        <Box sx={{ fontSize: 22, color: profitColor, mr: 1 }}>{profitIcon}</Box>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: 13, letterSpacing: 0.1, color: '#fff' }}>
-                          2% Profit
-                        </Typography>
-                      </Box>
-                      <Typography variant="h6" sx={{ fontWeight: 800, color: profitStatus === "Profit Earn" ? '#4caf50' : profitStatus === "Transferred" ? '#0288d1' : '#1976d2', mb: 0.5, fontSize: 18, letterSpacing: 0.1 }}>
-                        ₱{profit.toFixed(2)}
-                      </Typography>
-                      <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 0.5 }}>
-                        <Typography
-                          sx={{
-                            px: 1.2,
-                            py: 0.3,
-                            borderRadius: 1,
-                            color: '#fff',
-                            fontWeight: 600,
-                            fontSize: 11,
-                          }}
-                        >
-                         
-                        </Typography>
-                        <Typography
-                          sx={{
-                            px: 1.2,
-                            py: 0.3,
-                            borderRadius: 1,
-                            bgcolor: profitBg,
-                            color: '#fff',
-                            fontWeight: 600,
-                            fontSize: 11,
-                          }}
-                        >
-                          Profit: {profitIcon} {profitStatus}
-                        </Typography>
-                      </Box>
-                      <Typography variant="body2" sx={{ color: '#e0e0e0', mb: 0.2, fontSize: 11 }}>
-                        Next Profit Date: {expirationDate ? expirationDate.toDateString() : "-"}
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: '#e0e0e0', fontSize: 11 }}>
-                        Upline: <b style={{color:'#fff'}}>{e.uplineUsername}</b> | 2% Profit: <b style={{color:'#fff'}}>₱{(e.amount * 0.02).toFixed(2)}</b>
-                      </Typography>
-                      {canTransfer && (
-                        <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center', mt: 2 }}>
-                          <Button
-                            variant="contained"
-                            color="success"
-                            sx={{ fontWeight: 700, borderRadius: 2, boxShadow: 2, textTransform: 'none', px: 2.5, py: 1, fontSize: 15 }}
-                            onClick={() => {
-                              setTransferAmount((e.amount * 0.02).toFixed(2));
-                              setTransferDialogOpen(true);
-                            }}
-                          >
-                            Transfer to E-Wallet
-                          </Button>
-                        </Box>
-                      )}
-                    </Card>
-                  </Grid>
-                );
-              })}
-            </Grid>
-          ) : (
-            <Typography sx={{ textAlign: "center", py: 3, color: '#1976d2', fontWeight: 700, fontSize: 18 }}>No passive income earned yet.</Typography>
-          )}
-        </DialogContent>
-        {/* Removed: Close button at the bottom, replaced by X icon at top right */}
-      </Dialog>
+      <PassiveIncomeEarn
+        open={historyDialogOpen}
+        onClose={() => setHistoryDialogOpen(false)}
+        paybackEntries={paybackEntries}
+        setTransferAmount={setTransferAmount}
+        setTransferDialogOpen={setTransferDialogOpen}
+      />
 
       {/* Transfer Dialog */}
       <Dialog open={transferDialogOpen} onClose={() => setTransferDialogOpen(false)} fullWidth maxWidth="xs" PaperProps={{ sx: { borderRadius: 4, boxShadow: 12, overflow: 'hidden', background: 'none' } }}>

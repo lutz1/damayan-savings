@@ -1,5 +1,5 @@
 import React from "react";
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box } from "@mui/material";
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, IconButton, Tooltip } from "@mui/material";
 
 const PaybackReceiptDialog = ({ open, onClose, receiptData, onDownload }) => {
   if (!receiptData) return null;
@@ -175,23 +175,43 @@ const PaybackReceiptDialog = ({ open, onClose, receiptData, onDownload }) => {
               <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.6)" }}>
                 Reference Number
               </Typography>
-              <Typography
-                variant="h6"
-                sx={{
-                  fontFamily: "monospace",
-                  color: "#4FC3F7",
-                  fontWeight: 700,
-                  letterSpacing: 1,
-                }}
-              >
-                {reference}
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mt: 0.5 }}>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontFamily: "monospace",
+                    color: "#4FC3F7",
+                    fontWeight: 700,
+                    letterSpacing: 1,
+                    maxWidth: 260,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    mx: 0,
+                    display: 'block',
+                  }}
+                  title={reference}
+                >
+                  {reference}
+                </Typography>
+                <Tooltip title="Copy Reference" arrow>
+                  <IconButton
+                    size="small"
+                    sx={{ color: '#4FC3F7', ml: 0.5, p: 0.5 }}
+                    onClick={() => {
+                      navigator.clipboard.writeText(reference);
+                    }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                  </IconButton>
+                </Tooltip>
+              </Box>
             </Box>
           )}
           <Box sx={{ mb: 2 }}>
-            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+            <Box sx={{ display: "flex", mb: 1 }}>
               <Typography sx={{ color: "rgba(255,255,255,0.7)" }}>Date & Time:</Typography>
-              <Typography sx={{ fontWeight: 600 }}>{date}</Typography>
+              <Typography sx={{ fontWeight: 600, flex: 1, textAlign: 'right' }}>{date}</Typography>
             </Box>
           </Box>
           <Box sx={{ mb: 2 }}>
@@ -202,9 +222,9 @@ const PaybackReceiptDialog = ({ open, onClose, receiptData, onDownload }) => {
               </Typography>
             </Box>
             {createdAt && (
-              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+              <Box sx={{ display: "flex", mb: 1 }}>
                 <Typography sx={{ color: "rgba(255,255,255,0.7)" }}>Created At:</Typography>
-                <Typography sx={{ fontWeight: 600 }}>{createdAt}</Typography>
+                <Typography sx={{ fontWeight: 600, flex: 1, textAlign: 'right' }}>{createdAt}</Typography>
               </Box>
             )}
           </Box>
