@@ -157,7 +157,7 @@ const AdminDeposits = () => {
   // ✅ Approve or Reject deposit
   const handleAction = async (status) => {
     if (!selectedDeposit) return;
-    const { id, userId, netAmount } = selectedDeposit;
+    const { id, userId, netAmount, amount } = selectedDeposit;
 
     try {
       const depositRef = doc(db, "deposits", id);
@@ -172,18 +172,34 @@ const AdminDeposits = () => {
         const userSnap = await getDoc(userRef);
         if (userSnap.exists()) {
           const currentBalance = Number(userSnap.data().eWallet);
-          const depositAmount = Number(netAmount);
+          // Use netAmount if present and > 0, otherwise fallback to amount
+          let depositAmount = Number(netAmount);
+          if (!depositAmount || depositAmount <= 0) {
+            depositAmount = Number(amount);
+          }
           const safeBalance = isNaN(currentBalance) ? 0 : currentBalance;
           const safeDeposit = isNaN(depositAmount) ? 0 : depositAmount;
           await updateDoc(userRef, {
             eWallet: safeBalance + safeDeposit,
             lastUpdated: new Date(),
           });
+          console.log("[ADMIN] Updated user eWallet:", {
+            userId,
+            before: currentBalance,
+            deposit: safeDeposit,
+            after: safeBalance + safeDeposit,
+          });
         }
       }
 
       setSelectedDeposit(null);
       setRemarks("");
+      // Show a success notification
+      window.alert(
+        status.toLowerCase() === "approved"
+          ? "Deposit approved and eWallet updated!"
+          : "Deposit status updated."
+      );
     } catch (err) {
       console.error("Error updating deposit:", err);
     }
