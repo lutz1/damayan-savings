@@ -1,3 +1,5 @@
+import OverrideUplineRewardsDialog from "./components/dialogs/OverrideUplineRewardsDialog";
+import RewardHistoryDialog from "./components/dialogs/RewardHistoryDialog";
 /* eslint-disable no-unused-vars */
 import React, { useState, useEffect, useCallback } from "react";
 import {
@@ -253,10 +255,17 @@ const handleTransferToWallet = async ({ amount, type, rewardId = null }) => {
   }
 };
 
+
+
+// Listen for override earnings where user is the upline and type is 'Upline Capital Share Bonus'
 useEffect(() => {
   if (!user) return;
 
-  const q = query(collection(db, "override"), where("userId", "==", user.uid));
+  const q = query(
+    collection(db, "override"),
+    where("uplineId", "==", user.uid),
+    where("type", "==", "Upline Capital Share Bonus")
+  );
 
   const unsubscribe = onSnapshot(q, (snapshot) => {
     const overrides = snapshot.docs.map((doc) => ({
@@ -265,28 +274,30 @@ useEffect(() => {
     }));
 
     setOverrideList(overrides);
-
-    const now = new Date();
-
-    // ✅ Only include credited OR expired pending rewards
-    const total = overrides.reduce((sum, o) => {
-      const expDate = o.expirationDate
-        ? new Date(o.expirationDate)
-        : null;
-      const isExpired = expDate && expDate < now;
-      const isCredited = o.status === "Credited";
-
-      if (isCredited || isExpired) {
-        return sum + (Number(o.amount) || 0);
-      }
-      return sum;
-    }, 0);
-
-    setOverrideEarnings(total);
   });
 
   return () => unsubscribe();
 }, [user]);
+
+// Calculate override earnings from overrideList
+useEffect(() => {
+  // Only include credited OR matured (releaseDate in the past) rewards
+  const now = new Date();
+  const total = overrideList.reduce((sum, o) => {
+    const releaseDate = o.releaseDate
+      ? (typeof o.releaseDate === "object" && o.releaseDate.seconds
+          ? new Date(o.releaseDate.seconds * 1000)
+          : new Date(o.releaseDate))
+      : null;
+    const isMatured = releaseDate && releaseDate <= now;
+    const isCredited = o.status === "Credited";
+    if (isCredited || isMatured) {
+      return sum + (Number(o.amount) || 0);
+    }
+    return sum;
+  }, 0);
+  setOverrideEarnings(total);
+}, [overrideList]);
 
 useEffect(() => {
   if (!user) return;
@@ -750,178 +761,25 @@ const fetchPaybackAndCapital = async (uid) => {
         </DialogActions>
       </Dialog>
     {/* 🧾 Reward History Dialog */}
-<Dialog
-  open={rewardDialogOpen}
-  onClose={() => setRewardDialogOpen(false)}
-  fullWidth
-  maxWidth="sm"
->
-  <DialogTitle>Reward History</DialogTitle>
-  <DialogContent dividers>
-    {rewardHistory.length === 0 ? (
-      <Typography variant="body2">No approved rewards yet.</Typography>
-    ) : (
-      <List>
-        {rewardHistory
-          .sort((a, b) => (b.releasedAt?.seconds || 0) - (a.releasedAt?.seconds || 0))
-          .map((reward) => {
-            const transferred = reward.transferredAmount && reward.dateTransferred;
-            const transferredText = transferred
-              ? ` | Transferred: ₱${(reward.transferredAmount || 0).toLocaleString()} on ${new Date(
-                  reward.dateTransferred
-                ).toLocaleString()}`
-              : " | Not yet transferred";
+    <RewardHistoryDialog
+      open={rewardDialogOpen}
+      onClose={() => setRewardDialogOpen(false)}
+      rewardHistory={rewardHistory}
+      user={user}
+      loadingTransfer={loadingTransfer}
+      setLoadingTransfer={setLoadingTransfer}
+    />
 
-            const handleSingleTransfer = async () => {
-              if (!user) return;
-              if (transferred) return alert("Reward already transferred.");
 
-              // ✅ Ask user for confirmation
-              const confirmed = window.confirm(
-                `Are you sure you want to transfer ₱${reward.amount.toLocaleString()} to your eWallet?`
-              );
-              if (!confirmed) return;
-
-              try {
-                setLoadingTransfer((prev) => ({ ...prev, [reward.id]: true }));
-
-                const userRef = doc(db, "users", user.uid);
-                const userSnap = await getDoc(userRef);
-                if (!userSnap.exists()) return alert("User not found.");
-
-                const currentBalance = userSnap.data().eWallet || 0;
-                await updateDoc(userRef, {
-                  eWallet: currentBalance + reward.amount,
-                  updatedAt: Date.now(),
-                });
-
-                // Mark this reward as transferred
-                await updateDoc(doc(db, "referralReward", reward.id), {
-                  transferredAmount: reward.amount,
-                  dateTransferred: Date.now(),
-                });
-
-                alert(`₱${reward.amount.toLocaleString()} transferred to eWallet!`);
-              } catch (err) {
-                console.error("Error transferring reward:", err);
-                alert("Failed to transfer reward.");
-              } finally {
-                setLoadingTransfer((prev) => ({ ...prev, [reward.id]: false }));
-              }
-            };
-
-            return (
-              <ListItem key={reward.id} divider>
-                <ListItemText
-                  primary={`₱${reward.amount.toLocaleString()} earned`}
-                  secondary={`From: ${reward.source}${transferredText}`}
-                />
-                {!transferred && (
-                  <Button
-                    variant="contained"
-                    size="small"
-                    color="success"
-                    onClick={handleSingleTransfer}
-                    disabled={loadingTransfer?.[reward.id]}
-                  >
-                    {loadingTransfer?.[reward.id] ? "Processing..." : "Transfer to eWallet"}
-                  </Button>
-                )}
-              </ListItem>
-            );
-          })}
-      </List>
-    )}
-  </DialogContent>
-  <DialogActions>
-    <Button onClick={() => setRewardDialogOpen(false)}>Close</Button>
-  </DialogActions>
-</Dialog>
-
-{/* 🧾 Override History Dialog */}
-<Dialog
-  open={overrideDialogOpen}
-  onClose={() => setOverrideDialogOpen(false)}
-  fullWidth
-  maxWidth="sm"
->
-  <DialogTitle>Override Upline Rewards</DialogTitle>
-  <DialogContent dividers>
-    {overrideList.length === 0 ? (
-      <Typography variant="body2">No override rewards found.</Typography>
-    ) : (
-      <List>
-  {overrideList
-    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
-    .map((o) => {
-      const isExpired = o.expirationDate && new Date(o.expirationDate) < new Date();
-      const credited = o.status === "Credited" || isExpired;
-
-      const handleSingleOverrideTransfer = async () => {
-        if (!user) return;
-        if (credited) return alert("Already credited.");
-
-        const confirmed = window.confirm(
-          `Are you sure you want to transfer ₱${o.amount.toLocaleString()} to your eWallet?`
-        );
-        if (!confirmed) return;
-
-        try {
-          setLoadingTransfer((prev) => ({ ...prev, [o.id]: true }));
-
-          const userRef = doc(db, "users", user.uid);
-          const overrideRef = doc(db, "override", o.id);
-
-          await runTransaction(db, async (transaction) => {
-            const userSnap = await transaction.get(userRef);
-            const overrideSnap = await transaction.get(overrideRef);
-
-            if (!userSnap.exists()) throw new Error("User not found.");
-            if (!overrideSnap.exists()) throw new Error("Reward not found.");
-
-            const newBalance = (userSnap.data().eWallet || 0) + overrideSnap.data().amount;
-            transaction.update(userRef, { eWallet: newBalance, updatedAt: Date.now() });
-            transaction.update(overrideRef, { status: "Credited" });
-          });
-
-          alert(`₱${o.amount.toLocaleString()} successfully transferred to eWallet!`);
-        } catch (err) {
-          console.error(err);
-          alert(err.message || "Transfer failed.");
-        } finally {
-          setLoadingTransfer((prev) => ({ ...prev, [o.id]: false }));
-        }
-      };
-
-      return (
-        <ListItem key={o.id} divider>
-          <ListItemText
-            primary={`₱${o.amount.toLocaleString()} — ${credited ? "Credited" : "Pending"}`}
-            secondary={`From: ${o.source || "N/A"} | Expiration: ${
-              o.expirationDate ? new Date(o.expirationDate).toLocaleDateString() : "N/A"
-            }`}
-          />
-          {!credited && (
-            <Button
-              variant="contained"
-              size="small"
-              color="primary"
-              onClick={handleSingleOverrideTransfer}
-              disabled={loadingTransfer?.[o.id]}
-            >
-              {loadingTransfer?.[o.id] ? "Processing..." : "Transfer to eWallet"}
-            </Button>
-          )}
-        </ListItem>
-      );
-    })}
-</List>
-    )}
-  </DialogContent>
-  <DialogActions>
-    <Button onClick={() => setOverrideDialogOpen(false)}>Close</Button>
-  </DialogActions>
-</Dialog>
+    {/* 🧾 Override Upline Rewards Dialog */}
+    <OverrideUplineRewardsDialog
+      open={overrideDialogOpen}
+      onClose={() => setOverrideDialogOpen(false)}
+      overrideList={overrideList}
+      user={user}
+      loadingTransfer={loadingTransfer}
+      setLoadingTransfer={setLoadingTransfer}
+    />
 
 <NetworkGroupSales
   open={groupSalesOpen}

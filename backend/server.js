@@ -1,3 +1,75 @@
+// 💼 Transfer Override Reward Endpoint
+app.post("/api/transfer-override-reward", async (req, res) => {
+  try {
+    const { idToken, overrideId, amount } = req.body;
+    if (!idToken || !overrideId || !amount) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+    const numAmount = parseFloat(amount);
+    if (numAmount <= 0) {
+      return res.status(400).json({ error: "Amount must be greater than zero" });
+    }
+
+    // Verify user authentication
+    let decodedToken;
+    try {
+      decodedToken = await auth.verifyIdToken(idToken);
+    } catch (error) {
+      console.error("Token verification failed:", error);
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const userId = decodedToken.uid;
+
+    // Run transaction
+    try {
+      const result = await db.runTransaction(async (transaction) => {
+        // Get override reward
+        const overrideRef = db.collection("override").doc(overrideId);
+        const overrideDoc = await transaction.get(overrideRef);
+        if (!overrideDoc.exists) {
+          throw new Error("Override reward not found");
+        }
+        const overrideData = overrideDoc.data();
+        if (overrideData.uplineId !== userId) {
+          throw new Error("Unauthorized: Not your override reward");
+        }
+        if (overrideData.status === "Credited") {
+          throw new Error("Already credited");
+        }
+
+        // Update user eWallet
+        const userRef = db.collection("users").doc(userId);
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists) {
+          throw new Error("User not found");
+        }
+        const userData = userDoc.data();
+        const newBalance = (userData.eWallet || 0) + numAmount;
+        transaction.update(userRef, { eWallet: newBalance, updatedAt: new Date() });
+
+        // Mark override as credited
+        transaction.update(overrideRef, { status: "Credited" });
+
+        return {
+          success: true,
+          newBalance,
+          overrideId,
+        };
+      });
+
+      console.info(
+        `[override-transfer] user=${userId} overrideId=${overrideId} amount=${amount}`
+      );
+      res.json(result);
+    } catch (transactionError) {
+      console.error("Override transfer transaction failed:", transactionError);
+      res.status(400).json({ error: transactionError.message });
+    }
+  } catch (error) {
+    console.error("Override transfer error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 // --- Email utility for admin-triggered notifications ---
 // Use require for nodemailer and all modules (CommonJS style)
