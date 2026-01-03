@@ -1,3 +1,23 @@
+
+// --- Email utility for admin-triggered notifications ---
+// Use require for nodemailer and all modules (CommonJS style)
+const express = require("express");
+const axios = require("axios");
+const cors = require("cors");
+const dotenv = require("dotenv");
+const { db, auth } = require("./firebaseAdmin.js");
+
+dotenv.config();
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// Lightweight request logger for Render logs
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  next();
+});
+
 // 💰 Secure Deposit Funds Endpoint
 app.post("/api/deposit-funds", async (req, res) => {
   try {
@@ -38,26 +58,6 @@ app.post("/api/deposit-funds", async (req, res) => {
     console.error("Deposit funds error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
-});
-
-// --- Email utility for admin-triggered notifications ---
-// Use require for nodemailer and all modules (CommonJS style)
-const express = require("express");
-const axios = require("axios");
-const cors = require("cors");
-const dotenv = require("dotenv");
-const { db, auth } = require("./firebaseAdmin.js");
-
-dotenv.config();
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-
-// Lightweight request logger for Render logs
-app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
-  next();
 });
 
 app.post("/api/chat", async (req, res) => {
@@ -206,7 +206,6 @@ app.post("/api/transfer-funds", async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
-
 
 // 💸 Passive Income Transfer Endpoint
 app.post("/api/transfer-passive-income", async (req, res) => {
