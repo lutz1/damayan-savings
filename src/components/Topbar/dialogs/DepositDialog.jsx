@@ -95,7 +95,7 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
   const [showReceiptForm, setShowReceiptForm] = useState(false);
   const [depositLogs, setDepositLogs] = useState([]);
   const [confirmOpen, setConfirmOpen] = useState(false); // 🟢 Confirmation dialog state
-  const [qrDownloaded, setQrDownloaded] = useState(false); // Track if QR is downloaded
+  const [qrDownloaded, setQrDownloaded] = useState(false); // Track if QR was downloaded
 
   // Charges removed
 
@@ -233,36 +233,7 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
     }
   };
 
-  const handleDownloadQR = () => {
-    const canvas = document.querySelector("canvas[data-qr-canvas]");
-    if (!canvas) {
-      // If canvas not found, try to download from the img element
-      const qrImg = document.querySelector("img[alt='GCash QR']");
-      if (qrImg) {
-        const link = document.createElement("a");
-        link.href = qrImg.src;
-        link.download = `GCash_QR_${Date.now()}.jpg`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setQrDownloaded(true);
-      }
-      return;
-    }
-
-    // Download canvas as image
-    canvas.toBlob((blob) => {
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `GCash_QR_${Date.now()}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      setQrDownloaded(true);
-    });
-  };
+  // handleDownloadQR removed (no longer used)
 
   return (
     <>
@@ -349,9 +320,37 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
                       bgcolor: "#81C784",
                       "&:hover": { bgcolor: "#66BB6A" },
                     }}
-                    onClick={() => setShowQR(true)}
+                    onClick={() => {
+                      // Download the QR image directly
+                      const link = document.createElement("a");
+                      link.href = gcashImage;
+                      link.download = `GCash_QR_${Date.now()}.jpg`;
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      setQrDownloaded(true);
+                    }}
                   >
                     Download QR Code
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    fullWidth
+                    disabled={!qrDownloaded}
+                    sx={{
+                      borderColor: "#fff",
+                      color: "#fff",
+                      mb: 2,
+                      opacity: 1,
+                      "&.Mui-disabled": {
+                        borderColor: "#fff",
+                        color: "#fff",
+                        opacity: 1
+                      }
+                    }}
+                    onClick={() => setShowReceiptForm(true)}
+                  >
+                    Proceed to Upload Receipt
                   </Button>
                   <Divider sx={{ my: 2, borderColor: "rgba(255,255,255,0.2)" }} />
                   <Typography variant="body2" sx={{ mb: 1, color: "rgba(255,255,255,0.7)", fontWeight: 500 }}>
@@ -367,12 +366,17 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
                         color: "#fff",
                         fontWeight: 600,
                         fontSize: "0.85rem",
-                        "&:hover": { bgcolor: "#0052A3" },
-                        "&:disabled": { bgcolor: "rgba(0,102,204,0.5)", color: "rgba(255,255,255,0.5)" },
+                        opacity: 1,
+                        "&.Mui-disabled": {
+                          bgcolor: "#0066CC",
+                          color: "#fff",
+                          opacity: 1
+                        },
+                        "&:hover": { bgcolor: "#0052A3" }
                       }}
                       onClick={() => handleOpenPaymentApp("gcash")}
                     >
-                      {qrDownloaded ? "GCash" : "GCash"}
+                      GCash
                     </Button>
                     <Button
                       variant="contained"
@@ -383,8 +387,13 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
                         color: "#fff",
                         fontWeight: 600,
                         fontSize: "0.85rem",
-                        "&:hover": { bgcolor: "#002D7F" },
-                        "&:disabled": { bgcolor: "rgba(0,61,165,0.5)", color: "rgba(255,255,255,0.5)" },
+                        opacity: 1,
+                        "&.Mui-disabled": {
+                          bgcolor: "#003DA5",
+                          color: "#fff",
+                          opacity: 1
+                        },
+                        "&:hover": { bgcolor: "#002D7F" }
                       }}
                       onClick={() => handleOpenPaymentApp("bdo")}
                     >
@@ -399,8 +408,13 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
                         color: "#fff",
                         fontWeight: 600,
                         fontSize: "0.85rem",
-                        "&:hover": { bgcolor: "#CC0000" },
-                        "&:disabled": { bgcolor: "rgba(230,0,0,0.5)", color: "rgba(255,255,255,0.5)" },
+                        opacity: 1,
+                        "&.Mui-disabled": {
+                          bgcolor: "#E60000",
+                          color: "#fff",
+                          opacity: 1
+                        },
+                        "&:hover": { bgcolor: "#CC0000" }
                       }}
                       onClick={() => handleOpenPaymentApp("bpi")}
                     >
@@ -415,54 +429,48 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
                         color: "#fff",
                         fontWeight: 600,
                         fontSize: "0.85rem",
-                        "&:hover": { bgcolor: "#6B2FCC" },
-                        "&:disabled": { bgcolor: "rgba(139,61,255,0.5)", color: "rgba(255,255,255,0.5)" },
+                        opacity: 1,
+                        "&.Mui-disabled": {
+                          bgcolor: "#8B3DFF",
+                          color: "#fff",
+                          opacity: 1
+                        },
+                        "&:hover": { bgcolor: "#6B2FCC" }
                       }}
                       onClick={() => handleOpenPaymentApp("maya")}
                     >
                       Maya
                     </Button>
                   </Box>
-                  {!qrDownloaded && (
-                    <Alert severity="info" sx={{ background: "rgba(25,118,210,0.15)", color: "#64B5F6", mt: 1 }}>
-                      📝 Download QR Code first before opening payment apps
-                    </Alert>
-                  )}
+                  {/* QR download alert removed */}
                 </>
               )}
 
               {showQR && !showReceiptForm && (
                 <Box sx={{ textAlign: "center", mb: 2 }}>
-                  <img
-                    src={gcashImage}
-                    alt="GCash QR"
-                    data-qr-canvas
-                    style={{ width: "100%", borderRadius: 12 }}
-                  />
-                  <Box sx={{ display: "flex", gap: 1, mt: 2 }}>
-                    <Button
-                      variant="contained"
-                      fullWidth
-                      sx={{
-                        bgcolor: "#81C784",
-                        "&:hover": { bgcolor: "#66BB6A" },
-                      }}
-                      onClick={handleDownloadQR}
-                    >
-                      Download QR
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      fullWidth
-                      sx={{
-                        borderColor: "#fff",
-                        color: "#fff",
-                      }}
-                      onClick={() => setShowReceiptForm(true)}
-                    >
-                      Proceed to Upload Receipt
-                    </Button>
-                  </Box>
+                  <Button
+                    variant="contained"
+                    fullWidth
+                    sx={{
+                      bgcolor: "#81C784",
+                      "&:hover": { bgcolor: "#66BB6A" },
+                    }}
+                    onClick={() => setShowQR(false)}
+                  >
+                    Download QR Code
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    fullWidth
+                    sx={{
+                      borderColor: "#fff",
+                      color: "#fff",
+                      mt: 2
+                    }}
+                    onClick={() => setShowReceiptForm(true)}
+                  >
+                    Proceed to Upload Receipt
+                  </Button>
                 </Box>
               )}
 

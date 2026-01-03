@@ -102,7 +102,7 @@ const Topbar = ({ open, onToggleSidebar }) => {
           setUserData({
             username: data.username || "UnknownUser",
             email: data.email || currentUser.email || "No email",
-            eWallet: Number(data.eWallet) || 0,
+            eWallet: isNaN(Number(data.eWallet)) ? 0 : Number(data.eWallet),
             role: data.role || "member",
             profilePicture: data.profilePicture || "", // ✅ added
           });
@@ -365,9 +365,11 @@ const Topbar = ({ open, onToggleSidebar }) => {
                       sx={{ color: "#4CAF50", fontWeight: 700 }}
                     >
                       ₱
-                      {userData.eWallet.toLocaleString("en-PH", {
-                        minimumFractionDigits: 2,
-                      })}
+                      {isNaN(userData.eWallet)
+                        ? "0.00"
+                        : userData.eWallet.toLocaleString("en-PH", {
+                            minimumFractionDigits: 2,
+                          })}
                     </Typography>
                   </Box>
                 )}

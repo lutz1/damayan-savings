@@ -91,7 +91,8 @@ app.post("/api/transfer-funds", async (req, res) => {
         }
 
         const senderData = senderDoc.data();
-        const currentBalance = senderData.eWallet || 0;
+        const currentBalance = Number(senderData.eWallet);
+        if (isNaN(currentBalance)) throw new Error("Sender wallet balance is invalid");
 
         // Check balance
         if (currentBalance < numAmount) {
@@ -120,11 +121,12 @@ app.post("/api/transfer-funds", async (req, res) => {
 
         // Update balances
         transaction.update(senderRef, {
-          eWallet: currentBalance - numAmount,
+          eWallet: Number(currentBalance - numAmount),
         });
 
+        const recipientBalance = Number(recipientData.eWallet);
         transaction.update(recipientRef, {
-          eWallet: (recipientData.eWallet || 0) + netTransfer,
+          eWallet: isNaN(recipientBalance) ? netTransfer : Number(recipientBalance + netTransfer),
         });
 
         // Create transfer log
@@ -227,8 +229,9 @@ app.post("/api/transfer-passive-income", async (req, res) => {
         const net = numAmount - fee;
 
         // Update user eWallet
+        const userBalance = Number(userData.eWallet);
         transaction.update(userRef, {
-          eWallet: (userData.eWallet || 0) + net,
+          eWallet: isNaN(userBalance) ? net : Number(userBalance + net),
         });
 
         // Mark payback entry as transferred
