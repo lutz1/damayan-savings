@@ -171,9 +171,12 @@ const AdminDeposits = () => {
         const userRef = doc(db, "users", userId);
         const userSnap = await getDoc(userRef);
         if (userSnap.exists()) {
-          const currentBalance = Number(userSnap.data().eWallet || 0);
+          const currentBalance = Number(userSnap.data().eWallet);
+          const depositAmount = Number(netAmount);
+          const safeBalance = isNaN(currentBalance) ? 0 : currentBalance;
+          const safeDeposit = isNaN(depositAmount) ? 0 : depositAmount;
           await updateDoc(userRef, {
-            eWallet: currentBalance + Number(netAmount),
+            eWallet: safeBalance + safeDeposit,
             lastUpdated: new Date(),
           });
         }

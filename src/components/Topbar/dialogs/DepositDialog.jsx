@@ -19,7 +19,7 @@ import {
 } from "@mui/material";
 import { Savings, CheckCircle, CloudUpload, HelpOutline } from "@mui/icons-material";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { collection, addDoc, serverTimestamp, query, where, onSnapshot } from "firebase/firestore";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import gcashImage from "../../../assets/bpii.jpg";
 import { app } from "../../../firebase";
@@ -136,23 +136,30 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
   const handleConfirmDeposit = async () => {
     setConfirmOpen(false);
     setLoading(true);
-
     try {
+      // 1. Upload receipt to Firebase Storage
       const storageRef = ref(storage, `receipts/${currentUser.uid}_${Date.now()}`);
       await uploadBytes(storageRef, receipt);
       const receiptUrl = await getDownloadURL(storageRef);
 
-      // Ensure name is always saved, fallback to currentUser.displayName, currentUser.email, or 'Unknown User'
+      // 2. Get ID token for secure backend call
+      const idToken = await auth.currentUser.getIdToken();
+      const API_BASE = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
+      // 3. Call backend API to create deposit
       const depositName = userData?.name && userData?.name.trim() ? userData.name : (currentUser.displayName || currentUser.email || "Unknown User");
-      await addDoc(collection(db, "deposits"), {
-        userId: currentUser.uid,
-        name: depositName,
-        amount: parseFloat(amount),
-        reference: reference || "",
-        receiptUrl,
-        status: "Pending",
-        createdAt: serverTimestamp(),
+      const response = await fetch(`${API_BASE}/api/deposit-funds`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idToken,
+          amount: parseFloat(amount),
+          reference: reference || "",
+          receiptUrl,
+          name: depositName
+        })
       });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Deposit submission failed");
 
       setSuccess(true);
       setAmount("");

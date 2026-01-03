@@ -1,3 +1,44 @@
+// 💰 Secure Deposit Funds Endpoint
+app.post("/api/deposit-funds", async (req, res) => {
+  try {
+    const { idToken, amount, reference, receiptUrl, name } = req.body;
+    // Validate input
+    if (!idToken || !amount || !receiptUrl || !name) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      return res.status(400).json({ error: "Amount must be greater than zero" });
+    }
+
+    // Verify user authentication
+    let decodedToken;
+    try {
+      decodedToken = await auth.verifyIdToken(idToken);
+    } catch (error) {
+      console.error("Token verification failed:", error);
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const userId = decodedToken.uid;
+
+    // Create deposit document (status: Pending)
+    const depositRef = db.collection("deposits").doc();
+    await depositRef.set({
+      userId,
+      name,
+      amount: numAmount,
+      reference: reference || "",
+      receiptUrl,
+      status: "Pending",
+      createdAt: new Date(),
+    });
+
+    res.json({ success: true, depositId: depositRef.id });
+  } catch (error) {
+    console.error("Deposit funds error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 // --- Email utility for admin-triggered notifications ---
 // Use require for nodemailer and all modules (CommonJS style)
