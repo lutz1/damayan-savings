@@ -1,3 +1,18 @@
+
+
+// --- Email utility for admin-triggered notifications ---
+// Use require for nodemailer and all modules (CommonJS style)
+const express = require("express");
+const axios = require("axios");
+const cors = require("cors");
+const dotenv = require("dotenv");
+const { db, auth } = require("./firebaseAdmin.js");
+
+dotenv.config();
+const app = express();
+app.use(cors());
+app.use(express.json());
+
 // 💼 Transfer Override Reward Endpoint
 app.post("/api/transfer-override-reward", async (req, res) => {
   try {
@@ -71,18 +86,7 @@ app.post("/api/transfer-override-reward", async (req, res) => {
   }
 });
 
-// --- Email utility for admin-triggered notifications ---
-// Use require for nodemailer and all modules (CommonJS style)
-const express = require("express");
-const axios = require("axios");
-const cors = require("cors");
-const dotenv = require("dotenv");
-const { db, auth } = require("./firebaseAdmin.js");
 
-dotenv.config();
-const app = express();
-app.use(cors());
-app.use(express.json());
 
 // Lightweight request logger for Render logs
 app.use((req, res, next) => {
