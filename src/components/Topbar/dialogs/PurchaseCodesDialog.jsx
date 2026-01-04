@@ -27,7 +27,10 @@ import {
   where,
   onSnapshot,
 } from "firebase/firestore";
+
+
 import DepositDialog from "./DepositDialog";
+import { sendPurchaseNotification, cleanupOldNotifications } from "../../../utils/notifications";
 
 const PurchaseCodesDialog = ({
   open,
@@ -38,6 +41,11 @@ const PurchaseCodesDialog = ({
   onBalanceUpdate,
 }) => {
   const [loading, setLoading] = useState(false);
+
+  // Clean up old notifications on mount
+  useEffect(() => {
+    if (userData?.uid) cleanupOldNotifications(userData.uid);
+  }, [userData?.uid]);
   const [codeType, setCodeType] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [purchaseLogs, setPurchaseLogs] = useState([]);
@@ -102,6 +110,11 @@ const PurchaseCodesDialog = ({
         status: "Success",
         createdAt: serverTimestamp(),
       });
+
+      // Send notification for capital share activation code
+      if (codeType === "capital") {
+        await sendPurchaseNotification({ userId: auth.currentUser.uid, codeType: "Capital Share Activation Code" });
+      }
 
       const userRef = doc(db, "users", auth.currentUser.uid);
       const newBalance = userData.eWallet - amount;

@@ -319,6 +319,17 @@ service cloud.firestore {
       allow create, update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
     }
 
+        // ==========================================
+    // 🔔 NOTIFICATIONS
+    match /notifications/{notifId} {
+      // Allow users to read their own notifications
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      // Allow users to create their own notifications
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      // Optionally, allow update/delete for marking as read or cleanup
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
     // ==========================================
     // 🚫 DENY EVERYTHING ELSE
     match /{document=**} {

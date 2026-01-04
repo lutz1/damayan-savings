@@ -1,7 +1,8 @@
 import OverrideUplineRewardsDialog from "./components/dialogs/OverrideUplineRewardsDialog";
 import RewardHistoryDialog from "./components/dialogs/RewardHistoryDialog";
 /* eslint-disable no-unused-vars */
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { sendReferralTransferAvailableNotification } from "../../utils/referralNotifications";
 import {
   Box,
   Toolbar,
@@ -21,6 +22,7 @@ import {
   ListItemText,
   TextField,
   MenuItem,
+  Badge,
 } from "@mui/material";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import SortIcon from "@mui/icons-material/Sort";
@@ -153,7 +155,8 @@ useEffect(() => {
   const [sortOrder, setSortOrder] = useState("asc");
 
   // 💸 Referral Rewards
-const [rewardHistory, setRewardHistory] = useState([]);
+  const [rewardHistory, setRewardHistory] = useState([]);
+  const notifiedRef = useRef(false);
 const [rewardDialogOpen, setRewardDialogOpen] = useState(false);
 
 // 💰 Override Earnings
@@ -299,31 +302,37 @@ useEffect(() => {
   setOverrideEarnings(total);
 }, [overrideList]);
 
-useEffect(() => {
-  if (!user) return;
+  useEffect(() => {
+    if (!user) return;
 
-  // ✅ Match your actual Firestore field
-  const q = query(
-    collection(db, "referralReward"),
-    where("userId", "==", user.uid),
-    where("payoutReleased", "==", true) // 🟢 FIXED
-  );
+    const q = query(
+      collection(db, "referralReward"),
+      where("userId", "==", user.uid),
+      where("payoutReleased", "==", true)
+    );
 
-  const unsubscribe = onSnapshot(q, (snapshot) => {
-    const rewards = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      const rewards = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setRewardHistory(rewards);
+      const total = rewards.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+      setTotalEarnings(total);
 
-    setRewardHistory(rewards);
+      // Notify if there are available rewards to transfer and not already notified in this session
+      const hasAvailable = rewards.some(r => r.payoutReleased && !r.transferredAmount);
+      if (hasAvailable && !notifiedRef.current) {
+        await sendReferralTransferAvailableNotification(user.uid);
+        notifiedRef.current = true;
+      }
+      if (!hasAvailable) {
+        notifiedRef.current = false;
+      }
+    });
 
-    // ✅ Compute total earnings from all payoutReleased = true
-    const total = rewards.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
-    setTotalEarnings(total);
-  });
-
-  return () => unsubscribe();
-}, [user]);
+    return () => unsubscribe();
+  }, [user]);
 
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
 
@@ -489,7 +498,9 @@ const fetchPaybackAndCapital = async (uid) => {
     >
       {/* 🔝 Topbar */}
       <Box sx={{ position: "fixed", width: "100%", zIndex: 10 }}>
-        <Topbar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+        <Topbar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} dialogProps={{
+          onReferralTransferClick: () => setRewardDialogOpen(true)
+        }} />
       </Box>
 
       {/* 🧭 Sidebar */}
@@ -559,7 +570,15 @@ const fetchPaybackAndCapital = async (uid) => {
                 color: "#81C784",
                 icon: (
                   <IconButton onClick={() => setRewardDialogOpen(true)} color="inherit" size="small">
-                    <VisibilityIcon sx={{ color: "#81C784" }} />
+                    <Badge
+                      color="warning"
+                      variant="dot"
+                      overlap="circular"
+                      invisible={!rewardHistory.some(r => r.payoutReleased && !r.transferredAmount)}
+                      anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+                    >
+                      <VisibilityIcon sx={{ color: "#81C784" }} />
+                    </Badge>
                   </IconButton>
                 ),
                 subtitle: "Total earned from your referrals"

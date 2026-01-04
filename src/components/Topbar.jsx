@@ -47,6 +47,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "@mui/material/styles";
 import tclcLogo from "../assets/tclc-logo1.png";
+import NotificationBell from "./Topbar/components/NotificationBell";
 
 // Dialog components
 import PurchaseCodesDialog from "./Topbar/dialogs/PurchaseCodesDialog";
@@ -57,7 +58,7 @@ import InviteEarnDialog from "./Topbar/dialogs/InviteEarnDialog";
 import EwalletHistoryDialog from "./Topbar/dialogs/EwalletHistoryDialog";
 import { History as HistoryIcon } from "@mui/icons-material";
 
-const Topbar = ({ open, onToggleSidebar }) => {
+const Topbar = ({ open, onToggleSidebar, dialogProps = {} }) => {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -197,19 +198,22 @@ const Topbar = ({ open, onToggleSidebar }) => {
           </Box>
 
           {/* Right */}
-          <IconButton color="inherit" onClick={openDrawer}>
-          <Avatar
-            alt={userData.username}
-            src={userData.profilePicture || "/images/avatar-placeholder.png"} // ✅ use profile picture if exists
-            sx={{
-              bgcolor: "secondary.main",
-              border: "2px solid rgba(255,255,255,0.3)",
-              boxShadow: "0 0 8px rgba(255,255,255,0.4)",
-              transition: "transform 0.2s ease",
-              "&:hover": { transform: "scale(1.08)" },
-            }}
-          />
-        </IconButton>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <NotificationBell onReferralTransferClick={dialogProps.onReferralTransferClick} />
+            <IconButton color="inherit" onClick={openDrawer}>
+              <Avatar
+                alt={userData.username}
+                src={userData.profilePicture || "/images/avatar-placeholder.png"}
+                sx={{
+                  bgcolor: "secondary.main",
+                  border: "2px solid rgba(255,255,255,0.3)",
+                  boxShadow: "0 0 8px rgba(255,255,255,0.4)",
+                  transition: "transform 0.2s ease",
+                  "&:hover": { transform: "scale(1.08)" },
+                }}
+              />
+            </IconButton>
+          </Box>
         </Toolbar>
       </AppBar>
 

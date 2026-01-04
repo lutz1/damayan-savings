@@ -47,12 +47,23 @@ const OverrideUplineRewardsDialog = ({
 
                     // Call backend API for override transfer
                     const idToken = await user.getIdToken();
-                    const response = await fetch("/api/transfer-override-reward", {
+                    // Use correct backend URL for local dev or production
+                    let apiUrl = "/api/transfer-override-reward";
+                    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+                      apiUrl = "http://localhost:5000/api/transfer-override-reward";
+                    }
+                    const response = await fetch(apiUrl, {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ idToken, overrideId: o.id, amount: o.amount })
                     });
-                    const result = await response.json();
+                    let result;
+                    try {
+                      result = await response.json();
+                    } catch (e) {
+                      // If not JSON, show generic error
+                      throw new Error("Server error: Invalid response");
+                    }
                     if (!response.ok) throw new Error(result.error || "Transfer failed");
 
                     alert(`₱${o.amount.toLocaleString()} successfully transferred to eWallet!`);
