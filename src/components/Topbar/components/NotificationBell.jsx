@@ -7,7 +7,7 @@ import NotificationsIcon from "@mui/icons-material/Notifications";
 import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { db, auth } from "../../../firebase";
 
-const NotificationBell = ({ onReferralTransferClick }) => {
+const NotificationBell = ({ onReferralTransferClick, onOverrideTransferClick }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -139,6 +139,9 @@ const NotificationBell = ({ onReferralTransferClick }) => {
                     }
                     if (notif.type === 'referral-transfer' && typeof onReferralTransferClick === 'function') {
                       onReferralTransferClick();
+                    }
+                    if (notif.type === 'override-transfer' && typeof onOverrideTransferClick === 'function') {
+                      onOverrideTransferClick();
                     }
                   }}
                 >

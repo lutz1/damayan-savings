@@ -199,7 +199,10 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {} }) => {
 
           {/* Right */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <NotificationBell onReferralTransferClick={dialogProps.onReferralTransferClick} />
+            <NotificationBell 
+              onReferralTransferClick={dialogProps.onReferralTransferClick}
+              onOverrideTransferClick={dialogProps.onOverrideTransferClick}
+            />
             <IconButton color="inherit" onClick={openDrawer}>
               <Avatar
                 alt={userData.username}

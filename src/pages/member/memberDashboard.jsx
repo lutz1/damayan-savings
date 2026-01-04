@@ -3,6 +3,7 @@ import RewardHistoryDialog from "./components/dialogs/RewardHistoryDialog";
 /* eslint-disable no-unused-vars */
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { sendReferralTransferAvailableNotification } from "../../utils/referralNotifications";
+import { sendOverrideTransferAvailableNotification } from "../../utils/overrideNotifications";
 import {
   Box,
   Toolbar,
@@ -282,7 +283,9 @@ useEffect(() => {
   return () => unsubscribe();
 }, [user]);
 
-// Calculate override earnings from overrideList
+
+// Calculate override earnings from overrideList and send notification if available
+const overrideNotifiedRef = useRef(false);
 useEffect(() => {
   // Only include credited OR matured (releaseDate in the past) rewards
   const now = new Date();
@@ -300,7 +303,20 @@ useEffect(() => {
     return sum;
   }, 0);
   setOverrideEarnings(total);
-}, [overrideList]);
+
+  // Notify if there are available override rewards to transfer and not already notified in this session
+  const hasAvailable = overrideList.some(o => {
+    const isExpired = o.expirationDate && new Date(o.expirationDate) < new Date();
+    return o.status !== "Credited" && !isExpired;
+  });
+  if (hasAvailable && !overrideNotifiedRef.current && user) {
+    sendOverrideTransferAvailableNotification(user.uid);
+    overrideNotifiedRef.current = true;
+  }
+  if (!hasAvailable) {
+    overrideNotifiedRef.current = false;
+  }
+}, [overrideList, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -498,9 +514,14 @@ const fetchPaybackAndCapital = async (uid) => {
     >
       {/* 🔝 Topbar */}
       <Box sx={{ position: "fixed", width: "100%", zIndex: 10 }}>
-        <Topbar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} dialogProps={{
-          onReferralTransferClick: () => setRewardDialogOpen(true)
-        }} />
+        <Topbar
+          open={sidebarOpen}
+          onToggleSidebar={handleToggleSidebar}
+          dialogProps={{
+            onReferralTransferClick: () => setRewardDialogOpen(true),
+            onOverrideTransferClick: () => setOverrideDialogOpen(true),
+          }}
+        />
       </Box>
 
       {/* 🧭 Sidebar */}
@@ -588,7 +609,18 @@ const fetchPaybackAndCapital = async (uid) => {
                 color: "#64B5F6",
                 icon: (
                   <IconButton onClick={() => setOverrideDialogOpen(true)} color="inherit" size="small">
-                    <VisibilityIcon sx={{ color: "#64B5F6" }} />
+                    <Badge
+                      color="warning"
+                      variant="dot"
+                      overlap="circular"
+                      invisible={!overrideList.some(o => {
+                        const isExpired = o.expirationDate && new Date(o.expirationDate) < new Date();
+                        return o.status !== "Credited" && !isExpired;
+                      })}
+                      anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+                    >
+                      <VisibilityIcon sx={{ color: "#64B5F6" }} />
+                    </Badge>
                   </IconButton>
                 ),
                 subtitle: "Credited rewards (after expiration date)"

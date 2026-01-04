@@ -6,9 +6,7 @@ import {
   DialogActions,
   Button,
   Typography,
-  List,
-  ListItem,
-  ListItemText,
+  Box,
 } from "@mui/material";
 
 const OverrideUplineRewardsDialog = ({
@@ -20,34 +18,91 @@ const OverrideUplineRewardsDialog = ({
   setLoadingTransfer = () => {},
 }) => {
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>Override Upline Rewards</DialogTitle>
-      <DialogContent dividers>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullWidth
+      maxWidth="lg"
+      PaperProps={{
+        sx: {
+          background: "rgba(30,41,59,0.92)",
+          borderRadius: 3,
+          boxShadow: "0 8px 32px 0 rgba(31,38,135,0.37)",
+          color: "#fff",
+          backdropFilter: "blur(10px)",
+        },
+      }}
+    >
+      <DialogTitle
+        sx={{
+          fontWeight: 700,
+          letterSpacing: 0.5,
+          color: "#FFD54F",
+          textShadow: "1px 1px 3px rgba(0,0,0,0.4)",
+          textAlign: "center",
+          background: "rgba(33,150,243,0.10)",
+          borderTopLeftRadius: 16,
+          borderTopRightRadius: 16,
+          mb: 1,
+        }}
+      >
+        Override Upline Rewards
+      </DialogTitle>
+      <DialogContent
+        dividers
+        sx={{
+          background: "rgba(255,255,255,0.03)",
+          borderRadius: 2,
+          p: 0,
+          maxHeight: { xs: 800, sm: 900, md: 1000, lg: 1200 },
+          minHeight: 480,
+          overflowY: "auto",
+          width: '100%',
+        }}
+      >
         {overrideList.length === 0 ? (
-          <Typography variant="body2">No override rewards found.</Typography>
+          <Box display="flex" alignItems="center" justifyContent="center" height="120px">
+            <Typography variant="body2" sx={{ color: "#FFD54F", textAlign: "center" }}>
+              No override rewards found.
+            </Typography>
+          </Box>
         ) : (
-          <List>
-            {overrideList
+          <Box
+            sx={{
+              width: "100%",
+              flex: 1,
+              overflowY: "auto",
+              maxHeight: { xs: 700, sm: 800, md: 900, lg: 1100 },
+              scrollbarWidth: "none",
+              "-ms-overflow-style": "none",
+              "&::-webkit-scrollbar": {
+                display: "none",
+              },
+              p: 0,
+              m: 0,
+            }}
+            component="ul"
+          >
+            {[...overrideList]
               .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
               .map((o) => {
                 const isExpired = o.expirationDate && new Date(o.expirationDate) < new Date();
                 const credited = o.status === "Credited" || isExpired;
-
+                const profitStatus = credited ? "Credited" : "Pending";
+                const profitIcon = credited ? "✅" : "⏳";
+                const borderColor = credited ? "#4caf50" : "#1976d2";
+                const iconBg = credited ? "rgba(76,175,80,0.12)" : "rgba(33,150,243,0.12)";
+                const iconColor = credited ? "#81C784" : "#64B5F6";
                 const handleSingleOverrideTransfer = async () => {
                   if (!user) return;
                   if (credited) return alert("Already credited.");
-
                   const confirmed = window.confirm(
                     `Are you sure you want to transfer ₱${o.amount.toLocaleString()} to your eWallet?`
                   );
                   if (!confirmed) return;
-
                   try {
                     setLoadingTransfer((prev) => ({ ...prev, [o.id]: true }));
-
-                    // Call backend API for override transfer
                     const idToken = await user.getIdToken();
-                    // Use correct backend URL for local dev or production
                     let apiUrl = "/api/transfer-override-reward";
                     if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
                       apiUrl = "http://localhost:5000/api/transfer-override-reward";
@@ -61,11 +116,9 @@ const OverrideUplineRewardsDialog = ({
                     try {
                       result = await response.json();
                     } catch (e) {
-                      // If not JSON, show generic error
                       throw new Error("Server error: Invalid response");
                     }
                     if (!response.ok) throw new Error(result.error || "Transfer failed");
-
                     alert(`₱${o.amount.toLocaleString()} successfully transferred to eWallet!`);
                   } catch (err) {
                     console.error(err);
@@ -74,8 +127,6 @@ const OverrideUplineRewardsDialog = ({
                     setLoadingTransfer((prev) => ({ ...prev, [o.id]: false }));
                   }
                 };
-
-                // Show 'Release Date' using releaseDate (preferred) or createdAt, formatted as 'Month Day, Year'
                 let releaseDate = "N/A";
                 const dateObj = o.releaseDate || o.createdAt;
                 if (dateObj) {
@@ -88,37 +139,130 @@ const OverrideUplineRewardsDialog = ({
                   if (d && !isNaN(d.getTime())) {
                     releaseDate = d.toLocaleDateString("en-US", {
                       year: "numeric",
-                      month: "long",
+                      month: "short",
                       day: "numeric"
                     });
                   }
                 }
                 const from = o.fromUsername || o.fromUser || o.source || "N/A";
                 return (
-                  <ListItem key={o.id} divider>
-                    <ListItemText
-                      primary={`₱${o.amount.toLocaleString()} — ${credited ? "Credited" : "Pending"}`}
-                      secondary={`From: ${from} | Release Date: ${releaseDate}`}
-                    />
+                  <Box
+                    key={o.id}
+                    component="li"
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "flex-start",
+                      borderBottom: "1px solid rgba(255,255,255,0.06)",
+                      py: 1,
+                      px: { xs: 0.5, sm: 1, md: 1.5 },
+                      width: '100%',
+                      m: 0,
+                      gap: 1.5,
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        minWidth: 32,
+                        minHeight: 32,
+                        bgcolor: iconBg,
+                        borderRadius: "50%",
+                        mr: 1.5,
+                        border: `1.5px solid ${borderColor}`,
+                      }}
+                    >
+                      <Typography sx={{ fontSize: 16, color: iconColor }}>{profitIcon}</Typography>
+                    </Box>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography
+                        variant="subtitle2"
+                        sx={{ fontWeight: 600, color: "#fff", fontSize: 13, lineHeight: 1.2 }}
+                      >
+                        ₱{o.amount.toLocaleString()} override
+                      </Typography>
+                      <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", mt: 0.2, mb: 0.2 }}>
+                        <Typography
+                          sx={{
+                            px: 0.7,
+                            py: 0.1,
+                            borderRadius: 1,
+                            bgcolor: credited ? "#1976d2" : "#c62828",
+                            color: "#fff",
+                            fontWeight: 500,
+                            fontSize: 10,
+                            letterSpacing: 0.2,
+                          }}
+                        >
+                          {credited ? "Valid" : "Pending"}
+                        </Typography>
+                        <Typography
+                          sx={{
+                            px: 0.7,
+                            py: 0.1,
+                            borderRadius: 1,
+                            bgcolor: profitStatus === "Credited" ? "#388e3c" : "#ef6c00",
+                            color: "#fff",
+                            fontWeight: 500,
+                            fontSize: 10,
+                            letterSpacing: 0.2,
+                          }}
+                        >
+                          {profitStatus}
+                        </Typography>
+                      </Box>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: "#B3E5FC",
+                          fontWeight: 400,
+                          display: "block",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          maxWidth: { xs: 100, sm: 140, md: 180 },
+                        }}
+                        title={from}
+                      >
+                        From: {from}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{ color: "#fff", opacity: 0.6, display: "block", mt: 0.2, fontSize: 10 }}
+                      >
+                        {releaseDate}
+                      </Typography>
+                    </Box>
                     {!credited && (
                       <Button
                         variant="contained"
                         size="small"
-                        color="primary"
+                        color="success"
                         onClick={handleSingleOverrideTransfer}
                         disabled={loadingTransfer?.[o.id]}
+                        sx={{ ml: 1, fontWeight: 500, minWidth: 60, px: 1.5, py: 0.5, height: 28, fontSize: 12, borderRadius: 2, boxShadow: 'none' }}
                       >
-                        {loadingTransfer?.[o.id] ? "Processing..." : "Transfer to eWallet"}
+                        {loadingTransfer?.[o.id] ? "..." : "Transfer"}
                       </Button>
                     )}
-                  </ListItem>
+                  </Box>
                 );
               })}
-          </List>
+          </Box>
         )}
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Close</Button>
+      <DialogActions
+        sx={{
+          background: "rgba(33,150,243,0.10)",
+          borderBottomRightRadius: 16,
+          borderBottomLeftRadius: 16,
+        }}
+      >
+        <Button onClick={onClose} sx={{ fontWeight: 600, color: "#1976d2" }}>
+          Close
+        </Button>
       </DialogActions>
     </Dialog>
   );
