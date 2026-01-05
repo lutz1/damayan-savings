@@ -167,6 +167,13 @@ app.post("/api/create-payment-link", async (req, res) => {
 
     // Create checkout session with PayMongo
     const paymongoUrl = "https://api.paymongo.com/v1/checkout_sessions";
+    
+    // Verify the secret key is properly formatted
+    if (!process.env.PAYMONGO_SECRET_KEY.startsWith('sk_live_') && !process.env.PAYMONGO_SECRET_KEY.startsWith('sk_test_')) {
+      console.error("Invalid PayMongo secret key format");
+      return res.status(500).json({ error: "Invalid PayMongo configuration" });
+    }
+    
     const paymongoAuth = Buffer.from(`${process.env.PAYMONGO_SECRET_KEY}:`).toString("base64");
 
     const checkoutData = {
@@ -195,13 +202,18 @@ app.post("/api/create-payment-link", async (req, res) => {
     };
 
     console.log("Creating PayMongo checkout for user:", userId, "amount:", numAmount);
+    console.log("PayMongo Secret Key loaded:", !!process.env.PAYMONGO_SECRET_KEY);
     
     const response = await axios.post(paymongoUrl, checkoutData, {
       headers: {
         Authorization: `Basic ${paymongoAuth}`,
         "Content-Type": "application/json",
       },
+      timeout: 10000,
     });
+
+    console.log("PayMongo response status:", response.status);
+    console.log("PayMongo response data:", response.data);
 
     const checkoutId = response.data.data.id;
     const checkoutUrl = response.data.data.attributes.checkout_url;
