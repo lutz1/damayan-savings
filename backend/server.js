@@ -268,31 +268,17 @@ app.post("/api/paymongo-webhook", async (req, res) => {
       const paymentData = paymentDoc.data();
       const { userId, amount } = paymentData;
 
-      // Create deposit record
+      // Create deposit record with Pending status (admin approval required)
       const depositRef = db.collection("deposits").doc();
       await db.runTransaction(async (transaction) => {
-        // Update user eWallet
-        const userRef = db.collection("users").doc(userId);
-        const userDoc = await transaction.get(userRef);
-
-        if (!userDoc.exists) {
-          throw new Error("User not found");
-        }
-
-        const currentBalance = Number(userDoc.data().eWallet) || 0;
-        transaction.update(userRef, {
-          eWallet: currentBalance + amount,
-          updatedAt: new Date(),
-        });
-
-        // Create deposit record
+        // Create deposit record with Pending status
         transaction.set(depositRef, {
           userId,
           name: paymentData.name,
           amount,
           reference: checkoutId,
           receiptUrl: "", // PayMongo handles receipt
-          status: "Approved",
+          status: "Pending",
           paymentMethod: "PayMongo",
           createdAt: new Date(),
         });
