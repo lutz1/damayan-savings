@@ -185,6 +185,7 @@ app.post("/api/create-payment-link", async (req, res) => {
           statement_descriptor: "Amayan Deposit",
           success_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/deposit-success?session_id={session_id}`,
           cancel_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/deposit-cancel`,
+          payment_method_types: ["card", "gcash", "paymaya"],
           customer: {
             email: email,
             name: name,
