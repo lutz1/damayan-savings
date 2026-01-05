@@ -185,7 +185,7 @@ app.post("/api/create-payment-link", async (req, res) => {
           statement_descriptor: "Amayan Deposit",
           success_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/deposit-success?session_id={session_id}`,
           cancel_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/deposit-cancel`,
-          payment_method_types: ["card", "gcash", "paymaya"],
+          payment_method_types: ["qrph"], // or ["card", "paymaya"] depending on what's available
           customer: {
             email: email,
             name: name,
@@ -256,7 +256,6 @@ app.post("/api/paymongo-webhook", async (req, res) => {
 
     if (data.type === "checkout_session.payment.success") {
       const checkoutId = data.attributes.checkout_session_id;
-      const paymentStatus = data.attributes.status; // "paid"
 
       // Get payment record from Firestore
       const paymentDoc = await db.collection("payments").doc(checkoutId).get();
