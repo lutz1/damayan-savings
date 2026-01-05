@@ -149,6 +149,12 @@ app.post("/api/create-payment-link", async (req, res) => {
       return res.status(400).json({ error: "Amount must be greater than zero" });
     }
 
+    // Verify PayMongo keys are loaded
+    if (!process.env.PAYMONGO_SECRET_KEY) {
+      console.error("PAYMONGO_SECRET_KEY not found in environment");
+      return res.status(500).json({ error: "PayMongo configuration error" });
+    }
+
     // Verify user authentication
     let decodedToken;
     try {
@@ -188,6 +194,8 @@ app.post("/api/create-payment-link", async (req, res) => {
       },
     };
 
+    console.log("Creating PayMongo checkout for user:", userId, "amount:", numAmount);
+    
     const response = await axios.post(paymongoUrl, checkoutData, {
       headers: {
         Authorization: `Basic ${paymongoAuth}`,
@@ -216,8 +224,16 @@ app.post("/api/create-payment-link", async (req, res) => {
       checkoutId,
     });
   } catch (error) {
-    console.error("PayMongo error:", error.response?.data || error.message);
-    res.status(500).json({ error: "Failed to create payment link" });
+    console.error("PayMongo error details:", {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data,
+      config: error.config?.url
+    });
+    res.status(500).json({ 
+      error: "Failed to create payment link",
+      details: error.response?.data?.errors || error.message
+    });
   }
 });
 
