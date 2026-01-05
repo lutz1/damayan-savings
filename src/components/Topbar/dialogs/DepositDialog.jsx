@@ -16,12 +16,13 @@ import {
   ListItem,
   ListItemText,
   Chip,
+  MenuItem,
 } from "@mui/material";
 import { Savings, CheckCircle, CloudUpload, HelpOutline } from "@mui/icons-material";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-import gcashImage from "../../../assets/bpii.jpg";
+import gcashImage from "../../../assets/gcash.jpg";
 import { app } from "../../../firebase";
 
 // ✅ Reusable confirmation dialog
@@ -91,11 +92,10 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
-  const [showQR, setShowQR] = useState(false);
   const [showReceiptForm, setShowReceiptForm] = useState(false);
   const [depositLogs, setDepositLogs] = useState([]);
   const [confirmOpen, setConfirmOpen] = useState(false); // 🟢 Confirmation dialog state
-  const [qrDownloaded, setQrDownloaded] = useState(false); // Track if QR was downloaded
+  const [selectedPayment, setSelectedPayment] = useState("");
 
   // Charges removed
 
@@ -166,7 +166,6 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
       setReference("");
       setReceipt(null);
       setPreview("");
-      setShowQR(false);
       setShowReceiptForm(false);
     } catch (err) {
       console.error(err);
@@ -181,7 +180,6 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
     setSuccess(false);
     setReceipt(null);
     setPreview("");
-    setShowQR(false);
     setShowReceiptForm(false);
     onClose();
   };
@@ -199,48 +197,73 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
 
   // Removed unused handleOpenGCash
 
-  const handleOpenPaymentApp = (appType) => {
-    const isMobile = /iPhone|iPad|iPod|Android/.test(navigator.userAgent);
+  // Removed unused handleOpenPaymentApp (no longer needed)
+
+  const handleOpenGCash = () => {
+    const userAgent = navigator.userAgent;
+    const isIOS = /iPhone|iPad|iPod/.test(userAgent);
+    const isAndroid = /Android/.test(userAgent);
     
-    const appLinks = {
-      gcash: {
-        ios: "gcash://",
-        android: "intent://com.globe.gcash.android#Intent;scheme=gcash;action=android.intent.action.VIEW;end",
-        web: "https://m.gcash.com"
-      },
-      bdo: {
-        ios: "bdo://",
-        android: "intent://com.bdo.mobile://Intent;scheme=bdo;action=android.intent.action.VIEW;end",
-        web: "https://www.bdo.com.ph/personal"
-      },
-      bpi: {
-        ios: "bpi://",
-        android: "intent://com.bpi.bpimobile://Intent;scheme=bpi;action=android.intent.action.VIEW;end",
-        web: "https://www.bpi.com.ph/personal"
-      },
-      maya: {
-        ios: "maya://",
-        android: "intent://com.maya.app://Intent;scheme=maya;action=android.intent.action.VIEW;end",
-        web: "https://www.mayaapp.com"
-      }
-    };
-
-    const links = appLinks[appType];
-    if (!links) return;
-
-    if (!isMobile) {
-      window.open(links.web, "_blank");
+    if (!isIOS && !isAndroid) {
+      // Desktop
+      window.open("https://m.gcash.com", "_blank");
       return;
     }
 
-    if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
-      window.location.href = links.ios;
-    } else if (/Android/.test(navigator.userAgent)) {
-      window.location.href = links.android;
+    // Use iframe method for more reliable deep linking
+    const openAppWithFallback = (scheme, fallbackUrl) => {
+      try {
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = scheme;
+        document.body.appendChild(iframe);
+        
+        setTimeout(() => {
+          try {
+            document.body.removeChild(iframe);
+          } catch (e) {
+            // Iframe already removed
+          }
+          if (fallbackUrl) {
+            window.open(fallbackUrl, '_blank');
+          }
+        }, 2500);
+      } catch (e) {
+        console.error('Failed to open app:', e);
+        if (fallbackUrl) {
+          window.open(fallbackUrl, '_blank');
+        }
+      }
+    };
+
+    if (isIOS) {
+      // iOS: Try GCash app scheme with App Store fallback
+      openAppWithFallback(
+        'gcash://',
+        'https://apps.apple.com/ph/app/gcash/id562847418'
+      );
+    } else if (isAndroid) {
+      // Android: Try multiple intent formats
+      try {
+        // Try market:// scheme first (direct to Play Store if app installed)
+        const intentUrl = `intent://home#Intent;scheme=gcash;package=com.globe.gcash.android;action=android.intent.action.VIEW;LaunchFlags=0x10200000;end`;
+        window.location.href = intentUrl;
+        
+        // If that doesn't work, fallback to direct package open
+        setTimeout(() => {
+          try {
+            window.location.href = `intent://com.globe.gcash.android#Intent;scheme=package;action=android.intent.action.VIEW;end`;
+          } catch (e) {
+            // Final fallback to Play Store
+            window.open('https://play.google.com/store/apps/details?id=com.globe.gcash.android', '_blank');
+          }
+        }, 1000);
+      } catch (e) {
+        // Fallback to Play Store
+        window.open('https://play.google.com/store/apps/details?id=com.globe.gcash.android', '_blank');
+      }
     }
   };
-
-  // handleDownloadQR removed (no longer used)
 
   return (
     <>
@@ -317,169 +340,73 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
                 </Alert>
               )}
 
-              {!showQR && (
+              {!showReceiptForm && (
                 <>
-                  <Button
-                    variant="contained"
+                  <TextField
+                    select
                     fullWidth
-                    sx={{
-                      mb: 2,
-                      bgcolor: "#81C784",
-                      "&:hover": { bgcolor: "#66BB6A" },
-                    }}
-                    onClick={() => {
-                      // Download the QR image directly
-                      const link = document.createElement("a");
-                      link.href = gcashImage;
-                      link.download = `GCash_QR_${Date.now()}.jpg`;
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                      setQrDownloaded(true);
-                    }}
+                    label="Select Payment Method"
+                    value={selectedPayment}
+                    onChange={e => setSelectedPayment(e.target.value)}
+                    sx={{ mb: 2, background: 'rgba(255,255,255,0.03)' }}
                   >
-                    Download QR Code
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    fullWidth
-                    disabled={!qrDownloaded}
-                    sx={{
-                      borderColor: "#fff",
-                      color: "#fff",
-                      mb: 2,
-                      opacity: 1,
-                      "&.Mui-disabled": {
-                        borderColor: "#fff",
-                        color: "#fff",
-                        opacity: 1
-                      }
-                    }}
-                    onClick={() => setShowReceiptForm(true)}
-                  >
-                    Proceed to Upload Receipt
-                  </Button>
-                  <Divider sx={{ my: 2, borderColor: "rgba(255,255,255,0.2)" }} />
-                  <Typography variant="body2" sx={{ mb: 1, color: "rgba(255,255,255,0.7)", fontWeight: 500 }}>
-                    Or open payment app:
-                  </Typography>
-                  <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, mb: 2 }}>
-                    <Button
-                      variant="contained"
-                      size="small"
-                      disabled={!qrDownloaded}
-                      sx={{
-                        bgcolor: "#0066CC",
-                        color: "#fff",
-                        fontWeight: 600,
-                        fontSize: "0.85rem",
-                        opacity: 1,
-                        "&.Mui-disabled": {
-                          bgcolor: "#0066CC",
+                    <MenuItem value="gcash">GCash</MenuItem>
+                    {/* Add more payment methods here as needed */}
+                  </TextField>
+                  {selectedPayment === "gcash" && (
+                    <Box sx={{ textAlign: "center", my: 2 }}>
+                      <img
+                        src={gcashImage}
+                        alt="GCash QR"
+                        style={{ width: "100%", maxWidth: 260, borderRadius: 8, marginBottom: 8 }}
+                      />
+                      <Typography variant="body2" sx={{ color: "#FFD54F", mb: 2 }}>
+                        Long press the QR code above and tap "Add to Photos" or "Save Image" to save it to your phone.
+                      </Typography>
+                      <Button
+                        variant="outlined"
+                        fullWidth
+                        sx={{
+                          borderColor: "#fff",
                           color: "#fff",
-                          opacity: 1
-                        },
-                        "&:hover": { bgcolor: "#0052A3" }
-                      }}
-                      onClick={() => handleOpenPaymentApp("gcash")}
-                    >
-                      GCash
-                    </Button>
-                    <Button
-                      variant="contained"
-                      size="small"
-                      disabled={!qrDownloaded}
-                      sx={{
-                        bgcolor: "#003DA5",
-                        color: "#fff",
-                        fontWeight: 600,
-                        fontSize: "0.85rem",
-                        opacity: 1,
-                        "&.Mui-disabled": {
-                          bgcolor: "#003DA5",
-                          color: "#fff",
-                          opacity: 1
-                        },
-                        "&:hover": { bgcolor: "#002D7F" }
-                      }}
-                      onClick={() => handleOpenPaymentApp("bdo")}
-                    >
-                      BDO
-                    </Button>
-                    <Button
-                      variant="contained"
-                      size="small"
-                      disabled={!qrDownloaded}
-                      sx={{
-                        bgcolor: "#E60000",
-                        color: "#fff",
-                        fontWeight: 600,
-                        fontSize: "0.85rem",
-                        opacity: 1,
-                        "&.Mui-disabled": {
-                          bgcolor: "#E60000",
-                          color: "#fff",
-                          opacity: 1
-                        },
-                        "&:hover": { bgcolor: "#CC0000" }
-                      }}
-                      onClick={() => handleOpenPaymentApp("bpi")}
-                    >
-                      BPI
-                    </Button>
-                    <Button
-                      variant="contained"
-                      size="small"
-                      disabled={!qrDownloaded}
-                      sx={{
-                        bgcolor: "#8B3DFF",
-                        color: "#fff",
-                        fontWeight: 600,
-                        fontSize: "0.85rem",
-                        opacity: 1,
-                        "&.Mui-disabled": {
-                          bgcolor: "#8B3DFF",
-                          color: "#fff",
-                          opacity: 1
-                        },
-                        "&:hover": { bgcolor: "#6B2FCC" }
-                      }}
-                      onClick={() => handleOpenPaymentApp("maya")}
-                    >
-                      Maya
-                    </Button>
-                  </Box>
-                  {/* QR download alert removed */}
+                          mb: 1,
+                          opacity: 1,
+                          "&.Mui-disabled": {
+                            borderColor: "#fff",
+                            color: "#fff",
+                            opacity: 1
+                          }
+                        }}
+                        onClick={() => {
+                          handleOpenGCash();
+                          setShowReceiptForm(true);
+                        }}
+                        disabled={!selectedPayment}
+                      >
+                        I've Saved the QR Code
+                      </Button>
+                      <Button
+                        variant="contained"
+                        fullWidth
+                        sx={{
+                          bgcolor: "rgba(129, 199, 132, 0.3)",
+                          color: "#81C784",
+                          border: "1px solid #81C784",
+                          fontWeight: 600,
+                          "&:hover": { 
+                            bgcolor: "rgba(129, 199, 132, 0.5)",
+                          }
+                        }}
+                        onClick={handleOpenGCash}
+                      >
+                        Open GCash App
+                      </Button>
+                    </Box>
+                  )}
                 </>
               )}
 
-              {showQR && !showReceiptForm && (
-                <Box sx={{ textAlign: "center", mb: 2 }}>
-                  <Button
-                    variant="contained"
-                    fullWidth
-                    sx={{
-                      bgcolor: "#81C784",
-                      "&:hover": { bgcolor: "#66BB6A" },
-                    }}
-                    onClick={() => setShowQR(false)}
-                  >
-                    Download QR Code
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    fullWidth
-                    sx={{
-                      borderColor: "#fff",
-                      color: "#fff",
-                      mt: 2
-                    }}
-                    onClick={() => setShowReceiptForm(true)}
-                  >
-                    Proceed to Upload Receipt
-                  </Button>
-                </Box>
-              )}
+              {/* Removed showQR block - no longer needed */}
 
               {showReceiptForm && (
                 <>
