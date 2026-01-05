@@ -136,6 +136,159 @@ app.post("/api/deposit-funds", async (req, res) => {
   }
 });
 
+// 💳 PayMongo Checkout Endpoint
+app.post("/api/create-payment-link", async (req, res) => {
+  try {
+    const { idToken, amount, name, email } = req.body;
+    if (!idToken || !amount || !name || !email) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const numAmount = parseFloat(amount);
+    if (numAmount <= 0) {
+      return res.status(400).json({ error: "Amount must be greater than zero" });
+    }
+
+    // Verify user authentication
+    let decodedToken;
+    try {
+      decodedToken = await auth.verifyIdToken(idToken);
+    } catch (error) {
+      console.error("Token verification failed:", error);
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const userId = decodedToken.uid;
+
+    // Create checkout session with PayMongo
+    const paymongoUrl = "https://api.paymongo.com/v1/checkout_sessions";
+    const paymongoAuth = Buffer.from(`${process.env.PAYMONGO_SECRET_KEY}:`).toString("base64");
+
+    const checkoutData = {
+      data: {
+        attributes: {
+          amount: Math.round(numAmount * 100), // Convert to centavos
+          currency: "PHP",
+          description: `Deposit for ${name}`,
+          statement_descriptor: "Amayan Deposit",
+          success_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/deposit-success?session_id={session_id}`,
+          cancel_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/deposit-cancel`,
+          customer: {
+            email: email,
+            name: name,
+          },
+          line_items: [
+            {
+              name: "Wallet Deposit",
+              quantity: 1,
+              amount: Math.round(numAmount * 100),
+              currency: "PHP",
+            },
+          ],
+        },
+      },
+    };
+
+    const response = await axios.post(paymongoUrl, checkoutData, {
+      headers: {
+        Authorization: `Basic ${paymongoAuth}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    const checkoutId = response.data.data.id;
+    const checkoutUrl = response.data.data.attributes.checkout_url;
+
+    // Store payment reference in Firestore
+    await db.collection("payments").doc(checkoutId).set({
+      userId,
+      amount: numAmount,
+      currency: "PHP",
+      status: "pending",
+      checkoutId,
+      email,
+      name,
+      createdAt: new Date(),
+    });
+
+    res.json({
+      success: true,
+      checkoutUrl,
+      checkoutId,
+    });
+  } catch (error) {
+    console.error("PayMongo error:", error.response?.data || error.message);
+    res.status(500).json({ error: "Failed to create payment link" });
+  }
+});
+
+// 🔔 PayMongo Webhook Handler
+app.post("/api/paymongo-webhook", async (req, res) => {
+  try {
+    const { data } = req.body;
+
+    if (data.type === "checkout_session.payment.success") {
+      const checkoutId = data.attributes.checkout_session_id;
+      const paymentStatus = data.attributes.status; // "paid"
+
+      // Get payment record from Firestore
+      const paymentDoc = await db.collection("payments").doc(checkoutId).get();
+
+      if (!paymentDoc.exists) {
+        console.error("Payment record not found:", checkoutId);
+        return res.status(404).json({ error: "Payment not found" });
+      }
+
+      const paymentData = paymentDoc.data();
+      const { userId, amount } = paymentData;
+
+      // Create deposit record
+      const depositRef = db.collection("deposits").doc();
+      await db.runTransaction(async (transaction) => {
+        // Update user eWallet
+        const userRef = db.collection("users").doc(userId);
+        const userDoc = await transaction.get(userRef);
+
+        if (!userDoc.exists) {
+          throw new Error("User not found");
+        }
+
+        const currentBalance = Number(userDoc.data().eWallet) || 0;
+        transaction.update(userRef, {
+          eWallet: currentBalance + amount,
+          updatedAt: new Date(),
+        });
+
+        // Create deposit record
+        transaction.set(depositRef, {
+          userId,
+          name: paymentData.name,
+          amount,
+          reference: checkoutId,
+          receiptUrl: "", // PayMongo handles receipt
+          status: "Approved",
+          paymentMethod: "PayMongo",
+          createdAt: new Date(),
+        });
+
+        // Update payment status
+        transaction.update(db.collection("payments").doc(checkoutId), {
+          status: "completed",
+          depositId: depositRef.id,
+          completedAt: new Date(),
+        });
+      });
+
+      console.info(`[paymongo-webhook] user=${userId} amount=${amount} checkoutId=${checkoutId}`);
+      return res.json({ success: true });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Webhook error:", error);
+    res.status(500).json({ error: "Webhook processing failed" });
+  }
+});
+
 app.post("/api/chat", async (req, res) => {
   const { messages } = req.body;
 

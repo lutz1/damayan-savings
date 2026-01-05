@@ -16,13 +16,11 @@ import {
   ListItem,
   ListItemText,
   Chip,
-  MenuItem,
 } from "@mui/material";
 import { Savings, CheckCircle, CloudUpload, HelpOutline } from "@mui/icons-material";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-import gcashImage from "../../../assets/gcash.jpg";
 import { app } from "../../../firebase";
 
 // ✅ Reusable confirmation dialog
@@ -94,10 +92,8 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
   const [error, setError] = useState("");
   const [showReceiptForm, setShowReceiptForm] = useState(false);
   const [depositLogs, setDepositLogs] = useState([]);
-  const [confirmOpen, setConfirmOpen] = useState(false); // 🟢 Confirmation dialog state
-  const [selectedPayment, setSelectedPayment] = useState("");
-
-  // Charges removed
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [processingPayment, setProcessingPayment] = useState(false);
 
   const auth = getAuth();
   const currentUser = auth.currentUser;
@@ -195,75 +191,48 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
     }
   };
 
-  // Removed unused handleOpenGCash
-
-  // Removed unused handleOpenPaymentApp (no longer needed)
-
-  const handleOpenGCash = () => {
-    const userAgent = navigator.userAgent;
-    const isIOS = /iPhone|iPad|iPod/.test(userAgent);
-    const isAndroid = /Android/.test(userAgent);
-    
-    if (!isIOS && !isAndroid) {
-      // Desktop
-      window.open("https://m.gcash.com", "_blank");
-      return;
-    }
-
-    // Use iframe method for more reliable deep linking
-    const openAppWithFallback = (scheme, fallbackUrl) => {
-      try {
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.src = scheme;
-        document.body.appendChild(iframe);
-        
-        setTimeout(() => {
-          try {
-            document.body.removeChild(iframe);
-          } catch (e) {
-            // Iframe already removed
-          }
-          if (fallbackUrl) {
-            window.open(fallbackUrl, '_blank');
-          }
-        }, 2500);
-      } catch (e) {
-        console.error('Failed to open app:', e);
-        if (fallbackUrl) {
-          window.open(fallbackUrl, '_blank');
-        }
+  // Handle PayMongo payment
+  const handlePayMongoPayment = async () => {
+    try {
+      if (!amount || parseFloat(amount) <= 0) {
+        setError("Please enter a valid deposit amount.");
+        return;
       }
-    };
 
-    if (isIOS) {
-      // iOS: Try GCash app scheme with App Store fallback
-      openAppWithFallback(
-        'gcash://',
-        'https://apps.apple.com/ph/app/gcash/id562847418'
-      );
-    } else if (isAndroid) {
-      // Android: Try multiple intent formats
-      try {
-        // Try market:// scheme first (direct to Play Store if app installed)
-        const intentUrl = `intent://home#Intent;scheme=gcash;package=com.globe.gcash.android;action=android.intent.action.VIEW;LaunchFlags=0x10200000;end`;
-        window.location.href = intentUrl;
-        
-        // If that doesn't work, fallback to direct package open
-        setTimeout(() => {
-          try {
-            window.location.href = `intent://com.globe.gcash.android#Intent;scheme=package;action=android.intent.action.VIEW;end`;
-          } catch (e) {
-            // Final fallback to Play Store
-            window.open('https://play.google.com/store/apps/details?id=com.globe.gcash.android', '_blank');
-          }
-        }, 1000);
-      } catch (e) {
-        // Fallback to Play Store
-        window.open('https://play.google.com/store/apps/details?id=com.globe.gcash.android', '_blank');
-      }
+      setProcessingPayment(true);
+      setError("");
+
+      const idToken = await auth.currentUser.getIdToken();
+      const API_BASE = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
+      const depositName = userData?.name && userData?.name.trim() 
+        ? userData.name 
+        : (currentUser.displayName || currentUser.email || "Unknown User");
+
+      const response = await fetch(`${API_BASE}/api/create-payment-link`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idToken,
+          amount: parseFloat(amount),
+          name: depositName,
+          email: currentUser.email,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Failed to create payment");
+
+      // Redirect to PayMongo checkout
+      window.location.href = result.checkoutUrl;
+    } catch (err) {
+      console.error("PayMongo error:", err);
+      setError("Payment creation failed. Please try again.");
+    } finally {
+      setProcessingPayment(false);
     }
   };
+
+
 
   return (
     <>
@@ -342,71 +311,59 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
 
               {!showReceiptForm && (
                 <>
+                  <Typography variant="subtitle2" sx={{ mb: 2, color: "#FFD54F", fontWeight: 600 }}>
+                    💳 Fast & Secure Payment
+                  </Typography>
                   <TextField
-                    select
                     fullWidth
-                    label="Select Payment Method"
-                    value={selectedPayment}
-                    onChange={e => setSelectedPayment(e.target.value)}
-                    sx={{ mb: 2, background: 'rgba(255,255,255,0.03)' }}
+                    type="number"
+                    label="Deposit Amount (₱)"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    sx={{
+                      mb: 2,
+                      "& .MuiInputBase-root": { color: "#fff" },
+                      "& .MuiInputLabel-root": {
+                        color: "rgba(255,255,255,0.7)",
+                      },
+                    }}
+                  />
+                  
+                  <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.7)", mb: 1.5 }}>
+                    ✅ Supports GCash, Credit Cards & Bank Transfer
+                  </Typography>
+
+                  <Button
+                    variant="contained"
+                    fullWidth
+                    disabled={processingPayment || !amount || parseFloat(amount) <= 0}
+                    sx={{
+                      bgcolor: "#81C784",
+                      color: "#000",
+                      fontWeight: 600,
+                      mb: 1,
+                      "&:hover": { bgcolor: "#66BB6A" },
+                      "&.Mui-disabled": { opacity: 0.6 },
+                    }}
+                    onClick={handlePayMongoPayment}
                   >
-                    <MenuItem value="gcash">GCash</MenuItem>
-                    {/* Add more payment methods here as needed */}
-                  </TextField>
-                  {selectedPayment === "gcash" && (
-                    <Box sx={{ textAlign: "center", my: 2 }}>
-                      <img
-                        src={gcashImage}
-                        alt="GCash QR"
-                        style={{ width: "100%", maxWidth: 260, borderRadius: 8, marginBottom: 8 }}
-                      />
-                      <Typography variant="body2" sx={{ color: "#FFD54F", mb: 2 }}>
-                        Long press the QR code above and tap "Add to Photos" or "Save Image" to save it to your phone.
-                      </Typography>
-                      <Button
-                        variant="outlined"
-                        fullWidth
-                        sx={{
-                          borderColor: "#fff",
-                          color: "#fff",
-                          mb: 1,
-                          opacity: 1,
-                          "&.Mui-disabled": {
-                            borderColor: "#fff",
-                            color: "#fff",
-                            opacity: 1
-                          }
-                        }}
-                        onClick={() => {
-                          handleOpenGCash();
-                          setShowReceiptForm(true);
-                        }}
-                        disabled={!selectedPayment}
-                      >
-                        I've Saved the QR Code
-                      </Button>
-                      <Button
-                        variant="contained"
-                        fullWidth
-                        sx={{
-                          bgcolor: "rgba(129, 199, 132, 0.3)",
-                          color: "#81C784",
-                          border: "1px solid #81C784",
-                          fontWeight: 600,
-                          "&:hover": { 
-                            bgcolor: "rgba(129, 199, 132, 0.5)",
-                          }
-                        }}
-                        onClick={handleOpenGCash}
-                      >
-                        Open GCash App
-                      </Button>
-                    </Box>
-                  )}
+                    {processingPayment ? (
+                      <>
+                        <CircularProgress size={20} sx={{ color: "#000", mr: 1 }} />
+                        Processing...
+                      </>
+                    ) : (
+                      "Proceed to Payment"
+                    )}
+                  </Button>
+
+                  <Typography variant="caption" sx={{ display: "block", textAlign: "center", color: "rgba(255,255,255,0.6)", mt: 1 }}>
+                    You will be redirected to secure PayMongo checkout
+                  </Typography>
                 </>
               )}
 
-              {/* Removed showQR block - no longer needed */}
+              {/* Removed showQR block - using PayMongo checkout instead */}
 
               {showReceiptForm && (
                 <>
