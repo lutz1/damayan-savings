@@ -227,8 +227,8 @@ app.post("/api/create-payment-link", async (req, res) => {
     console.error("PayMongo error details:", {
       message: error.message,
       status: error.response?.status,
-      data: error.response?.data,
-      config: error.config?.url
+      data: JSON.stringify(error.response?.data, null, 2),
+      requestData: JSON.stringify(checkoutData, null, 2)
     });
     res.status(500).json({ 
       error: "Failed to create payment link",
