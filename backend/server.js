@@ -181,18 +181,18 @@ app.post("/api/create-payment-link", async (req, res) => {
         attributes: {
           amount: Math.round(numAmount * 100), // Convert to centavos
           currency: "PHP",
-          description: `Deposit for ${name}`,
-          statement_descriptor: "Amayan Deposit",
+          description: "Damayan Savings Deposit",
+          statement_descriptor: "Damayan Savings",
           success_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/deposit-success?session_id={session_id}`,
           cancel_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/deposit-cancel`,
           payment_method_types: ["qrph"], // or ["card", "paymaya"] depending on what's available
           customer: {
             email: email,
-            name: name,
+            name: "Damayan Savings",
           },
           line_items: [
             {
-              name: "Wallet Deposit",
+              name: "Damayan Savings Deposit",
               quantity: 1,
               amount: Math.round(numAmount * 100),
               currency: "PHP",
