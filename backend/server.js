@@ -220,7 +220,7 @@ app.post("/api/create-payment-link", async (req, res) => {
     const checkoutUrl = response.data.data.attributes.checkout_url;
 
     // Store payment reference in Firestore
-    await db.collection("payments").doc(checkoutId).set({
+    await db.collection("deposits").doc(checkoutId).set({
       userId,
       amount: numAmount,
       currency: "PHP",
