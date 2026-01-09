@@ -86,16 +86,30 @@ const OverrideUplineRewardsDialog = ({
             {[...overrideList]
               .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
               .map((o) => {
+                // Check if dueDate has passed for uplineRewards collection
+                const dueDate = o.dueDate
+                  ? (typeof o.dueDate === "object" && o.dueDate.seconds
+                      ? new Date(o.dueDate.seconds * 1000)
+                      : new Date(o.dueDate))
+                  : null;
+                
+                const isClaimed = o.claimed || o.status === "Credited";
+                const isClaimable = dueDate && new Date() >= dueDate && !isClaimed;
+                
+                // Fallback for old override collection (with expirationDate)
                 const isExpired = o.expirationDate && new Date(o.expirationDate) < new Date();
-                const credited = o.status === "Credited" || isExpired;
-                const profitStatus = credited ? "Credited" : "Pending";
-                const profitIcon = credited ? "✅" : "⏳";
-                const borderColor = credited ? "#4caf50" : "#1976d2";
-                const iconBg = credited ? "rgba(76,175,80,0.12)" : "rgba(33,150,243,0.12)";
-                const iconColor = credited ? "#81C784" : "#64B5F6";
+                const credited = o.status === "Credited" || isExpired || isClaimed;
+                
+                const profitStatus = credited ? "Credited" : (isClaimable ? "Ready to Claim" : "Pending");
+                const profitIcon = credited ? "✅" : (isClaimable ? "✓" : "⏳");
+                const borderColor = credited ? "#4caf50" : (isClaimable ? "#fdd835" : "#1976d2");
+                const iconBg = credited ? "rgba(76,175,80,0.12)" : (isClaimable ? "rgba(253,216,53,0.12)" : "rgba(33,150,243,0.12)");
+                const iconColor = credited ? "#81C784" : (isClaimable ? "#FBC02D" : "#64B5F6");
+
                 const handleSingleOverrideTransfer = async () => {
                   if (!user) return;
                   if (credited) return alert("Already credited.");
+                  if (!isClaimable) return alert("This reward is not yet due. Check back after the due date.");
                   const confirmed = window.confirm(
                     `Are you sure you want to transfer ₱${o.amount.toLocaleString()} to your eWallet?`
                   );
@@ -232,7 +246,7 @@ const OverrideUplineRewardsDialog = ({
                         {releaseDate}
                       </Typography>
                     </Box>
-                    {!credited && (
+                    {!credited && isClaimable && (
                       <Button
                         variant="contained"
                         size="small"

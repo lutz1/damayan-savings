@@ -260,60 +260,71 @@ const handleTransferToWallet = async ({ amount, type, rewardId = null }) => {
 };
 
 
-
-// Listen for override earnings where user is the upline and type is 'Upline Capital Share Bonus'
+// Listen for upline rewards where user is the upline
 useEffect(() => {
   if (!user) return;
 
   const q = query(
-    collection(db, "override"),
-    where("uplineId", "==", user.uid),
-    where("type", "==", "Upline Capital Share Bonus")
+    collection(db, "uplineRewards"),
+    where("uplineId", "==", user.uid)
   );
 
   const unsubscribe = onSnapshot(q, (snapshot) => {
-    const overrides = snapshot.docs.map((doc) => ({
+    const rewards = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
 
-    setOverrideList(overrides);
+    setOverrideList(rewards);
   });
 
   return () => unsubscribe();
 }, [user]);
 
 
-// Calculate override earnings from overrideList and send notification if available
+// Calculate upline reward earnings and send notification if claimable
 const overrideNotifiedRef = useRef(false);
 useEffect(() => {
-  // Only include credited OR matured (releaseDate in the past) rewards
   const now = new Date();
-  const total = overrideList.reduce((sum, o) => {
-    const releaseDate = o.releaseDate
-      ? (typeof o.releaseDate === "object" && o.releaseDate.seconds
-          ? new Date(o.releaseDate.seconds * 1000)
-          : new Date(o.releaseDate))
+  
+  // Calculate total from rewards that are due (dueDate passed)
+  const total = overrideList.reduce((sum, reward) => {
+    const dueDate = reward.dueDate
+      ? (typeof reward.dueDate === "object" && reward.dueDate.seconds
+          ? new Date(reward.dueDate.seconds * 1000)
+          : new Date(reward.dueDate))
       : null;
-    const isMatured = releaseDate && releaseDate <= now;
-    const isCredited = o.status === "Credited";
-    if (isCredited || isMatured) {
-      return sum + (Number(o.amount) || 0);
+    
+    const isDue = dueDate && dueDate <= now;
+    const isClaimed = reward.claimed || reward.status === "Credited";
+    
+    if (isDue && !isClaimed) {
+      return sum + (Number(reward.amount) || 0);
     }
     return sum;
   }, 0);
+  
   setOverrideEarnings(total);
 
-  // Notify if there are available override rewards to transfer and not already notified in this session
-  const hasAvailable = overrideList.some(o => {
-    const isExpired = o.expirationDate && new Date(o.expirationDate) < new Date();
-    return o.status !== "Credited" && !isExpired;
+  // Notify if there are claimable rewards (dueDate passed and not claimed)
+  const hasClaimable = overrideList.some(reward => {
+    const dueDate = reward.dueDate
+      ? (typeof reward.dueDate === "object" && reward.dueDate.seconds
+          ? new Date(reward.dueDate.seconds * 1000)
+          : new Date(reward.dueDate))
+      : null;
+    
+    const isDue = dueDate && dueDate <= now;
+    const isClaimed = reward.claimed || reward.status === "Credited";
+    
+    return isDue && !isClaimed;
   });
-  if (hasAvailable && !overrideNotifiedRef.current && user) {
+  
+  if (hasClaimable && !overrideNotifiedRef.current && user) {
     sendOverrideTransferAvailableNotification(user.uid);
     overrideNotifiedRef.current = true;
   }
-  if (!hasAvailable) {
+  if (!hasClaimable) {
     overrideNotifiedRef.current = false;
   }
 }, [overrideList, user]);
