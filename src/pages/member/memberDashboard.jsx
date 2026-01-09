@@ -624,9 +624,15 @@ const fetchPaybackAndCapital = async (uid) => {
                       color="warning"
                       variant="dot"
                       overlap="circular"
-                      invisible={!overrideList.some(o => {
-                        const isExpired = o.expirationDate && new Date(o.expirationDate) < new Date();
-                        return o.status !== "Credited" && !isExpired;
+                      invisible={!overrideList.some(reward => {
+                        const dueDate = reward.dueDate
+                          ? (typeof reward.dueDate === "object" && reward.dueDate.seconds
+                              ? new Date(reward.dueDate.seconds * 1000)
+                              : new Date(reward.dueDate))
+                          : null;
+                        const isDue = dueDate && new Date() >= dueDate;
+                        const isClaimed = reward.claimed || reward.status === "Credited";
+                        return isDue && !isClaimed;
                       })}
                       anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
                     >
@@ -634,7 +640,7 @@ const fetchPaybackAndCapital = async (uid) => {
                     </Badge>
                   </IconButton>
                 ),
-                subtitle: "Credited rewards (after expiration date)"
+                subtitle: "Upline rewards (after 30-day maturation)"
               }].map((card, idx) => (
                 <Grid item key={card.label} sx={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
                   <Card

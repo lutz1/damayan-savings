@@ -242,6 +242,115 @@ app.post("/api/transfer-override-reward", async (req, res) => {
   }
 });
 
+// 🔄 Migrate Payback Rewards - Create uplineRewards for all existing payback entries
+app.post("/api/migrate-payback-rewards", async (req, res) => {
+  console.log("[migrate-rewards] 🔄 Migration started");
+  try {
+    const { adminIdToken } = req.body;
+    
+    // Verify admin authentication
+    let decodedToken;
+    try {
+      decodedToken = await auth.verifyIdToken(adminIdToken);
+    } catch (error) {
+      console.error("[migrate-rewards] ❌ Token verification failed:", error);
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    // Verify user is admin
+    const userDoc = await db.collection("users").doc(decodedToken.uid).get();
+    if (!userDoc.exists || !["admin", "ceo"].includes(userDoc.data().role.toUpperCase())) {
+      console.error("[migrate-rewards] ❌ User is not admin");
+      return res.status(403).json({ error: "Only admins can run migrations" });
+    }
+
+    // Get all payback entries
+    const paybackSnapshot = await db.collection("paybackEntries").get();
+    console.log(`[migrate-rewards] 📊 Found ${paybackSnapshot.docs.length} payback entries`);
+
+    let createdCount = 0;
+    let skippedCount = 0;
+    const errors = [];
+
+    // For each payback entry, create uplineReward if it doesn't exist
+    for (const paybackDoc of paybackSnapshot.docs) {
+      const paybackData = paybackDoc.data();
+      const paybackId = paybackDoc.id;
+
+      try {
+        // Check if uplineReward already exists for this payback entry
+        const existingReward = await db
+          .collection("uplineRewards")
+          .where("paybackEntryId", "==", paybackId)
+          .limit(1)
+          .get();
+
+        if (!existingReward.empty) {
+          console.log(`[migrate-rewards] ⏭️ Reward exists for payback ${paybackId}`);
+          skippedCount++;
+          continue;
+        }
+
+        // Get upline user data
+        const uplineQuery = await db
+          .collection("users")
+          .where("username", "==", paybackData.uplineUsername)
+          .limit(1)
+          .get();
+
+        if (uplineQuery.empty) {
+          errors.push(`Upline "${paybackData.uplineUsername}" not found for payback ${paybackId}`);
+          skippedCount++;
+          continue;
+        }
+
+        const uplineId = uplineQuery.docs[0].id;
+        const uplineUsername = paybackData.uplineUsername;
+
+        // Calculate expiration date from original payback entry
+        const expirationDate = new Date(paybackData.expirationDate || new Date(paybackData.createdAt.toDate().getTime() + 30 * 24 * 60 * 60 * 1000)).toISOString();
+
+        // Create uplineReward
+        const uplineRewardRef = db.collection("uplineRewards").doc();
+        await uplineRewardRef.set({
+          uplineId,
+          uplineUsername,
+          fromUserId: paybackData.userId,
+          paybackEntryId: paybackId,
+          amount: 65,
+          currency: "PHP",
+          status: "Pending",
+          dueDate: expirationDate,
+          claimed: false,
+          createdAt: paybackData.createdAt, // Use original payback creation time
+        });
+
+        console.log(`[migrate-rewards] ✅ Created reward for payback ${paybackId} (upline: ${uplineUsername})`);
+        createdCount++;
+      } catch (error) {
+        errors.push(`Error processing payback ${paybackId}: ${error.message}`);
+        console.error(`[migrate-rewards] ❌ Error for payback ${paybackId}:`, error);
+      }
+    }
+
+    console.info(
+      `[migrate-rewards] ✅ MIGRATION COMPLETE - created=${createdCount} skipped=${skippedCount} errors=${errors.length}`
+    );
+
+    res.json({
+      success: true,
+      summary: {
+        totalPaybackEntries: paybackSnapshot.docs.length,
+        rewardsCreated: createdCount,
+        rewardsSkipped: skippedCount,
+        errors: errors.length > 0 ? errors : [],
+      },
+    });
+  } catch (error) {
+    console.error("[migrate-rewards] ❌ Migration error:", error);
+    res.status(500).json({ error: "Migration failed" });
+  }
+});
 
 
 // Lightweight request logger for Render logs
