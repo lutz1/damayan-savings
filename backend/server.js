@@ -219,16 +219,17 @@ app.post("/api/create-payment-link", async (req, res) => {
     const checkoutId = response.data.data.id;
     const checkoutUrl = response.data.data.attributes.checkout_url;
 
-    // Store payment reference in Firestore
-    await db.collection("deposits").doc(checkoutId).set({
+    // Store payment metadata in Firestore (NOT a deposit yet - only for webhook reference)
+    // This is just a temporary record to map checkoutId to user data when webhook confirms payment
+    await db.collection("paymentMetadata").doc(checkoutId).set({
       userId,
       amount: numAmount,
       currency: "PHP",
-      status: "pending",
       checkoutId,
       email,
       name,
       createdAt: new Date(),
+      // status is NOT set here - deposit only created on successful webhook
     });
 
     res.json({
@@ -257,24 +258,24 @@ app.post("/api/paymongo-webhook", async (req, res) => {
     if (data.type === "checkout_session.payment.success") {
       const checkoutId = data.attributes.checkout_session_id;
 
-      // Get payment record from Firestore
-      const paymentDoc = await db.collection("payments").doc(checkoutId).get();
+      // Get payment metadata from Firestore
+      const metadataDoc = await db.collection("paymentMetadata").doc(checkoutId).get();
 
-      if (!paymentDoc.exists) {
-        console.error("Payment record not found:", checkoutId);
-        return res.status(404).json({ error: "Payment not found" });
+      if (!metadataDoc.exists) {
+        console.error("Payment metadata not found:", checkoutId);
+        return res.status(404).json({ error: "Payment metadata not found" });
       }
 
-      const paymentData = paymentDoc.data();
-      const { userId, amount } = paymentData;
+      const metadataData = metadataDoc.data();
+      const { userId, amount, name } = metadataData;
 
-      // Create deposit record with Pending status (admin approval required)
+      // Create deposit record ONLY on successful payment
       const depositRef = db.collection("deposits").doc();
       await db.runTransaction(async (transaction) => {
-        // Create deposit record with Pending status
+        // Create deposit record with Pending status (admin approval required)
         transaction.set(depositRef, {
           userId,
-          name: paymentData.name,
+          name,
           amount,
           reference: checkoutId,
           receiptUrl: "", // PayMongo handles receipt
@@ -283,15 +284,14 @@ app.post("/api/paymongo-webhook", async (req, res) => {
           createdAt: new Date(),
         });
 
-        // Update payment status
-        transaction.update(db.collection("payments").doc(checkoutId), {
-          status: "completed",
+        // Update metadata to link deposit
+        transaction.update(db.collection("paymentMetadata").doc(checkoutId), {
           depositId: depositRef.id,
           completedAt: new Date(),
         });
       });
 
-      console.info(`[paymongo-webhook] user=${userId} amount=${amount} checkoutId=${checkoutId}`);
+      console.info(`[paymongo-webhook] user=${userId} amount=${amount} checkoutId=${checkoutId} depositId=${depositRef.id}`);
       return res.json({ success: true });
     }
 
