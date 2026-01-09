@@ -227,67 +227,107 @@ const fetchPaybackData = useCallback(async (userId) => {
 // Removed: handleOpenConfirmDialog (unused)
   // ===================== Add Payback Entry (continued) =====================
   const handleAddPayback = async () => {
+    setAdding(true);
+    let transactionSuccessful = false;
+    let paybackEntryId = null;
+
     try {
       const user = auth.currentUser;
-      if (!user) return;
+      if (!user) {
+        alert("User not authenticated.");
+        return;
+      }
+
+      // Verify server connection by attempting a simple read
+      try {
+        const testRef = doc(db, "users", user.uid);
+        await getDoc(testRef);
+      } catch (connError) {
+        console.error("❌ Server connection failed:", connError);
+        alert("Server connection failed. Please check your internet and try again.");
+        return;
+      }
 
       const userRef = doc(db, "users", user.uid);
       const userSnap = await getDoc(userRef);
       if (!userSnap.exists()) {
-        setAdding(false);
-        return alert("User not found.");
+        alert("User not found.");
+        return;
       }
 
       const walletBalance = userSnap.data().eWallet || 0;
       const amountNum = parseFloat(amount);
       if (amountNum > walletBalance) {
-        setAdding(false);
-        return alert("Insufficient wallet balance.");
+        alert("Insufficient wallet balance.");
+        return;
       }
 
       // Get upline user doc
       const q = query(collection(db, "users"), where("username", "==", uplineUsername));
       const snap = await getDocs(q);
       if (snap.empty) {
-        setAdding(false);
-        return alert("Upline not found.");
+        alert("Upline not found.");
+        return;
       }
 
-      const uplineDoc = snap.docs[0].data();
-
-      // Deduct wallet using transaction to avoid race conditions
-      await runTransaction(db, async (tx) => {
-        const uSnap = await tx.get(userRef);
-        if (!uSnap.exists()) throw new Error("User not found during transaction.");
-        const current = uSnap.data().eWallet || 0;
-        if (current < amountNum) throw new Error("Insufficient wallet balance.");
-        tx.update(userRef, { eWallet: current - amountNum });
-      });
-
-      // Prepare payback entry
+      // Call backend endpoint to create payback entry securely
       const entryDate = new Date(selectedDate || new Date()).toISOString();
-      const expirationDate = new Date(new Date(entryDate).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      const idToken = await user.getIdToken();
+      const API_BASE = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
 
-      // Add payback entry
-      const docRef = await addDoc(collection(db, "paybackEntries"), {
-        userId: user.uid,
-        uplineUsername,
-        amount: amountNum,
-        role: uplineDoc.role,
-        date: entryDate,
-        expirationDate,
-        rewardGiven: false,
-        createdAt: new Date().toISOString(),
-      });
+      let response;
+      let retries = 0;
+      const maxRetries = 3;
+
+      while (retries < maxRetries && !paybackEntryId) {
+        try {
+          response = await fetch(`${API_BASE}/api/add-payback-entry`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              idToken,
+              uplineUsername,
+              amount: amountNum,
+              entryDate,
+            }),
+          });
+
+          let result;
+          try {
+            result = await response.json();
+          } catch (e) {
+            throw new Error("Server error: Invalid response");
+          }
+
+          if (!response.ok) {
+            throw new Error(result.error || "Failed to create payback entry");
+          }
+
+          paybackEntryId = result.paybackEntryId;
+          transactionSuccessful = true;
+        } catch (fetchError) {
+          retries++;
+          if (retries < maxRetries) {
+            console.warn(`Retry ${retries}/${maxRetries} for payback entry...`);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } else {
+            throw fetchError;
+          }
+        }
+      }
+
+      if (!paybackEntryId) {
+        throw new Error("Failed to create payback entry after multiple retries");
+      }
 
       // Prepare receipt data for dialog
       setLastAddReceipt({
-      reference: docRef.id,
-      amount: amountNum,
-      date: new Date(entryDate).toLocaleString(),
-      uplineUsername: uplineUsername,
-      createdAt: new Date().toLocaleString(),
-    });
+        reference: paybackEntryId,
+        amount: amountNum,
+        date: new Date(entryDate).toLocaleString(),
+        uplineUsername: uplineUsername,
+        createdAt: new Date().toLocaleString(),
+      });
       setAddReceiptDialog(true);
 
       await fetchPaybackData(user.uid);
@@ -295,7 +335,12 @@ const fetchPaybackData = useCallback(async (userId) => {
       setOpenAddDialog(false);
     } catch (err) {
       console.error("❌ Error adding payback entry:", err);
-      alert("Failed to add entry.");
+
+      if (transactionSuccessful && !paybackEntryId) {
+        alert("⚠️ Wallet deducted but payback entry creation failed. Please contact support with reference: " + new Date().getTime());
+      } else {
+        alert("Failed to add entry: " + err.message);
+      }
     } finally {
       setAdding(false);
     }

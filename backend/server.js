@@ -13,7 +13,122 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 💼 Transfer Override Reward Endpoint
+// � Add Payback Entry Endpoint
+app.post("/api/add-payback-entry", async (req, res) => {
+  try {
+    const { idToken, uplineUsername, amount, entryDate } = req.body;
+    
+    // Validate input
+    if (!idToken || !uplineUsername || !amount || !entryDate) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      return res.status(400).json({ error: "Amount must be greater than zero" });
+    }
+
+    if (numAmount < 300) {
+      return res.status(400).json({ error: "Minimum payback entry is ₱300" });
+    }
+
+    // Verify user authentication
+    let decodedToken;
+    try {
+      decodedToken = await auth.verifyIdToken(idToken);
+    } catch (error) {
+      console.error("Token verification failed:", error);
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const userId = decodedToken.uid;
+
+    // Run transaction
+    try {
+      const result = await db.runTransaction(async (transaction) => {
+        // Get user document
+        const userRef = db.collection("users").doc(userId);
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists) {
+          throw new Error("User not found");
+        }
+
+        const userData = userDoc.data();
+        const walletBalance = userData.eWallet || 0;
+
+        // Check wallet balance
+        if (walletBalance < numAmount) {
+          throw new Error("Insufficient wallet balance");
+        }
+
+        // Get upline document
+        const uplineQuery = await db
+          .collection("users")
+          .where("username", "==", uplineUsername)
+          .limit(1)
+          .get();
+
+        if (uplineQuery.empty) {
+          throw new Error("Upline not found");
+        }
+
+        const uplineData = uplineQuery.docs[0].data();
+
+        // Deduct wallet
+        transaction.update(userRef, {
+          eWallet: walletBalance - numAmount,
+          updatedAt: new Date(),
+        });
+
+        // Create payback entry
+        const expirationDate = new Date(new Date(entryDate).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        const paybackRef = db.collection("paybackEntries").doc();
+        transaction.set(paybackRef, {
+          userId,
+          uplineUsername,
+          amount: numAmount,
+          role: uplineData.role || "MEMBER",
+          date: entryDate,
+          expirationDate,
+          rewardGiven: false,
+          createdAt: new Date(),
+        });
+
+        // Create transaction log for audit trail
+        const logRef = db.collection("paybackTransactionLogs").doc();
+        transaction.set(logRef, {
+          userId,
+          uplineUsername,
+          amount: numAmount,
+          paybackEntryId: paybackRef.id,
+          walletDeducted: numAmount,
+          status: "Success",
+          createdAt: new Date(),
+        });
+
+        return {
+          success: true,
+          paybackEntryId: paybackRef.id,
+          newBalance: walletBalance - numAmount,
+        };
+      });
+
+      console.info(
+        `[payback-entry] user=${userId} upline=${uplineUsername} amount=${numAmount} entryId=${result.paybackEntryId}`
+      );
+
+      res.json(result);
+    } catch (transactionError) {
+      console.error("Payback entry transaction failed:", transactionError);
+      res.status(400).json({ error: transactionError.message });
+    }
+  } catch (error) {
+    console.error("Add payback entry error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// �💼 Transfer Override Reward Endpoint
 app.post("/api/transfer-override-reward", async (req, res) => {
   try {
     const { idToken, overrideId, amount } = req.body;
