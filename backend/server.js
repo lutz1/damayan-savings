@@ -15,20 +15,25 @@ app.use(express.json());
 
 // � Add Payback Entry Endpoint
 app.post("/api/add-payback-entry", async (req, res) => {
+  console.log("[payback-entry] 🔄 Request received");
   try {
     const { idToken, uplineUsername, amount, entryDate } = req.body;
+    console.log("[payback-entry] Validating input:", { uplineUsername, amount, entryDate });
     
     // Validate input
     if (!idToken || !uplineUsername || !amount || !entryDate) {
+      console.error("[payback-entry] ❌ Missing required fields");
       return res.status(400).json({ error: "Missing required fields" });
     }
 
     const numAmount = parseFloat(amount);
     if (isNaN(numAmount) || numAmount <= 0) {
+      console.error("[payback-entry] ❌ Invalid amount");
       return res.status(400).json({ error: "Amount must be greater than zero" });
     }
 
     if (numAmount < 300) {
+      console.error("[payback-entry] ❌ Amount below minimum (₱300)");
       return res.status(400).json({ error: "Minimum payback entry is ₱300" });
     }
 
@@ -36,8 +41,9 @@ app.post("/api/add-payback-entry", async (req, res) => {
     let decodedToken;
     try {
       decodedToken = await auth.verifyIdToken(idToken);
+      console.log("[payback-entry] ✅ User authenticated:", decodedToken.uid);
     } catch (error) {
-      console.error("Token verification failed:", error);
+      console.error("[payback-entry] ❌ Token verification failed:", error);
       return res.status(401).json({ error: "Unauthorized" });
     }
 
@@ -114,16 +120,16 @@ app.post("/api/add-payback-entry", async (req, res) => {
       });
 
       console.info(
-        `[payback-entry] user=${userId} upline=${uplineUsername} amount=${numAmount} entryId=${result.paybackEntryId}`
+        `[payback-entry] ✅ TRANSACTION SUCCESS - user=${userId} upline=${uplineUsername} amount=₱${numAmount} entryId=${result.paybackEntryId}`
       );
 
       res.json(result);
     } catch (transactionError) {
-      console.error("Payback entry transaction failed:", transactionError);
+      console.error("[payback-entry] ❌ Transaction failed:", transactionError);
       res.status(400).json({ error: transactionError.message });
     }
   } catch (error) {
-    console.error("Add payback entry error:", error);
+    console.error("[payback-entry] ❌ Error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
