@@ -79,6 +79,7 @@ app.post("/api/add-payback-entry", async (req, res) => {
         }
 
         const uplineData = uplineQuery.docs[0].data();
+        const uplineId = uplineQuery.docs[0].id;
 
         // Deduct wallet
         transaction.update(userRef, {
@@ -100,6 +101,21 @@ app.post("/api/add-payback-entry", async (req, res) => {
           createdAt: new Date(),
         });
 
+        // Create upline reward immediately in separate collection (for fast querying)
+        const uplineRewardRef = db.collection("uplineRewards").doc();
+        transaction.set(uplineRewardRef, {
+          uplineId,
+          uplineUsername,
+          fromUserId: userId,
+          paybackEntryId: paybackRef.id,
+          amount: 65,
+          currency: "PHP",
+          status: "Pending",
+          dueDate: expirationDate,
+          claimed: false,
+          createdAt: new Date(),
+        });
+
         // Create transaction log for audit trail
         const logRef = db.collection("paybackTransactionLogs").doc();
         transaction.set(logRef, {
@@ -107,6 +123,8 @@ app.post("/api/add-payback-entry", async (req, res) => {
           uplineUsername,
           amount: numAmount,
           paybackEntryId: paybackRef.id,
+          uplineRewardId: uplineRewardRef.id,
+          uplineRewardAmount: 65,
           walletDeducted: numAmount,
           status: "Success",
           createdAt: new Date(),
@@ -116,11 +134,17 @@ app.post("/api/add-payback-entry", async (req, res) => {
           success: true,
           paybackEntryId: paybackRef.id,
           newBalance: walletBalance - numAmount,
+          uplineReward: {
+            amount: 65,
+            currency: "PHP",
+            claimableAfterDays: 30,
+            description: "Upline will receive ₱65 override reward when entry expires"
+          }
         };
       });
 
       console.info(
-        `[payback-entry] ✅ TRANSACTION SUCCESS - user=${userId} upline=${uplineUsername} amount=₱${numAmount} entryId=${result.paybackEntryId}`
+        `[payback-entry] ✅ TRANSACTION SUCCESS - user=${userId} upline=${uplineUsername} amount=₱${numAmount} uplineReward=₱65 (in 30 days) entryId=${result.paybackEntryId}`
       );
 
       res.json(result);

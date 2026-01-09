@@ -99,7 +99,38 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // 💸 PAYBACK ENTRIES
+    // � UPLINE REWARDS
+    match /uplineRewards/{rewardId} {
+      // Allow upline to read their own rewards
+      allow read: if request.auth != null &&
+        (resource.data.uplineId == request.auth.uid || userRole() in ["admin", "ceo"]);
+
+      // Allow listing rewards for current upline
+      allow list: if request.auth != null &&
+        request.query.where("uplineId", "==", request.auth.uid);
+
+      // Only server (Admin SDK) can create upline rewards
+      allow create: if request.auth == null;
+
+      // Allow upline to claim/update their rewards
+      allow update: if request.auth != null &&
+        (
+          (resource.data.uplineId == request.auth.uid &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              "claimed",
+              "claimedAt",
+              "transferredAmount",
+              "status",
+              "updatedAt"
+            ])
+          ) ||
+          userRole() in ["admin", "ceo"]
+        );
+
+      // Only admins can delete
+      allow delete: if request.auth != null && userRole() in ["admin", "ceo"];
+    }
+
     match /paybackEntries/{docId} {
       allow read: if request.auth != null && (
         resource.data.userId == request.auth.uid ||
