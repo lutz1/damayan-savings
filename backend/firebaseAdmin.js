@@ -1,6 +1,6 @@
 // firebaseAdmin.js
-import admin from "firebase-admin";
-import dotenv from "dotenv";
+const admin = require("firebase-admin");
+const dotenv = require("dotenv");
 
 dotenv.config();
 
@@ -16,6 +16,9 @@ if (!admin.apps.length) {
   });
 }
 
-export const db = admin.firestore();
-export const auth = admin.auth();
-export default admin;
+module.exports = {
+  db: admin.firestore(),
+  auth: admin.auth(),
+};
+
+module.exports.default = admin;
