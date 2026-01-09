@@ -6,7 +6,6 @@ import {
   Box,
   Typography
 } from "@mui/material";
-import bgImage from "../../../../assets/bg.jpg";
 
 const PassiveIncomeEarn = ({ open, onClose, paybackEntries, setTransferAmount, setTransferDialogOpen }) => {
   return (
