@@ -65,6 +65,17 @@ app.post("/api/transfer-override-reward", async (req, res) => {
         // Mark override as credited
         transaction.update(overrideRef, { status: "Credited" });
 
+        // Create override transaction record for history
+        const overrideTransactionRef = db.collection("overrideTransactions").doc();
+        transaction.set(overrideTransactionRef, {
+          userId,
+          overrideId,
+          amount: numAmount,
+          status: "Credited",
+          createdAt: new Date(),
+          fromUsername: overrideData.fromUsername || overrideData.fromUser || "System",
+        });
+
         return {
           success: true,
           newBalance,

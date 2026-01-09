@@ -136,6 +136,18 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
         })
       );
 
+      // Override Transactions
+      setupListener(
+        query(collection(db, "overrideTransactions"), where("userId", "==", uid)),
+        "override",
+        (d) => ({
+          ...d,
+          source: "override",
+          displayType: `Override Earnings from ${d.fromUsername || "System"}`,
+          isCredit: true,
+        })
+      );
+
       return () => unsubscribers.forEach((unsub) => unsub());
     };
 
