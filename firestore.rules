@@ -351,7 +351,21 @@ service cloud.firestore {
     }
 
         // ==========================================
-    // 🔔 NOTIFICATIONS
+    // � OVERRIDE TRANSACTIONS
+    match /overrideTransactions/{docId} {
+      allow read: if request.auth != null &&
+        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo"]);
+
+      allow list: if request.auth != null &&
+        request.query.where("userId", "==", request.auth.uid);
+
+      allow create: if request.auth == null; // Allow server-side (Admin SDK) only
+
+      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
+    }
+
+    // ==========================================
+    // �🔔 NOTIFICATIONS
     match /notifications/{notifId} {
       // Allow users to read their own notifications
       allow read: if request.auth != null && resource.data.userId == request.auth.uid;
