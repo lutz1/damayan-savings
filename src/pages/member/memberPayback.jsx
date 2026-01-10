@@ -113,23 +113,10 @@ const handleUplineReward = useCallback(async (entries) => {
           const uplineDoc = snap.docs[0];
           const uplineData = uplineDoc.data();
 
-          // ✅ Store ₱65 in override (not credited yet)
-          const overrideRef = await addDoc(collection(db, "override"), {
-            uplineId: uplineDoc.id,
-            uplineUsername: uplineData.username,
-            memberId: entry.userId,
-            memberUsername: entry.memberUsername || "",
-            paybackEntryId: entry.id,
-            amount: 65,
-            credited: false, // not yet credited
-            createdAt: new Date().toISOString(),
-            expirationDate: entry.expirationDate, // for reference
-            type: "UplineReward",
-          });
+          // Backend now handles uplineRewards creation via /api/add-payback-entry
+          console.log(`Upline reward will be created by backend for: ${uplineData.username}`);
 
-          console.log(`💰 ₱65 override created for upline: ${uplineData.username} | Override ID: ${overrideRef.id}`);
-
-          // ✅ Mark payback entry as rewarded so it won’t repeat
+          // Mark payback entry as rewarded so it won't repeat
           const entryRef = doc(db, "paybackEntries", entry.id);
           await updateDoc(entryRef, { rewardGiven: true });
           console.log(`✅ Entry ${entry.id} marked as rewarded.`);
