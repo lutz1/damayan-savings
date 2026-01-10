@@ -5,7 +5,7 @@ import { useTheme } from "@mui/material/styles";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
 import bgImage from "../../assets/bg.jpg";
-import { collection, getDocs, addDoc, doc, getDoc, updateDoc, query, where } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc, updateDoc, query, where } from "firebase/firestore";
 import PaybackTransactions from "./components/paybackTransactions";
 import AddPaybackEntryDialog from "./components/dialogs/AddPaybackEntryDialog";
 import PassiveIncomeEarn from "./components/dialogs/passiveIncomeEarn";
