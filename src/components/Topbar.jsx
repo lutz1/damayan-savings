@@ -47,7 +47,6 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "@mui/material/styles";
 import tclcLogo from "../assets/tclc-logo1.png";
-import NotificationBell from "./Topbar/components/NotificationBell";
 
 // Dialog components
 import PurchaseCodesDialog from "./Topbar/dialogs/PurchaseCodesDialog";
@@ -199,10 +198,6 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {} }) => {
 
           {/* Right */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <NotificationBell 
-              onReferralTransferClick={dialogProps.onReferralTransferClick}
-              onOverrideTransferClick={dialogProps.onOverrideTransferClick}
-            />
             <IconButton color="inherit" onClick={openDrawer}>
               <Avatar
                 alt={userData.username}
