@@ -110,7 +110,7 @@ const handleUplineReward = useCallback(async (entries) => {
           const uplineData = uplineDoc.data();
 
           // ✅ Store ₱65 in override (not credited yet)
-          const overrideRef = await addDoc(collection(db, "override"), {
+          await addDoc(collection(db, "override"), {
             uplineId: uplineDoc.id,
             uplineUsername: uplineData.username,
             memberId: entry.userId,
