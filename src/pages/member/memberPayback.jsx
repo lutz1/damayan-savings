@@ -94,14 +94,10 @@ const MemberPayback = () => {
 const handleUplineReward = useCallback(async (entries) => {
   // TODO: Replace moment with native Date if needed
   const today = new Date();
-  console.log("🟡 Checking for expired payback entries eligible for ₱65 upline reward...");
-  console.log("📅 Today's Date:", today.toISOString().slice(0, 10));
-  console.log("📄 Total entries to check:", entries.length);
 
   for (const entry of entries) {
     // TODO: Replace moment with native Date if needed
     const dueDate = new Date(entry.expirationDate);
-    console.log(`🔹 Entry: ${entry.id} | Expiration: ${entry.expirationDate} | RewardGiven: ${entry.rewardGiven}`);
 
     // Only process if the entry is due and not yet rewarded
     if (today >= dueDate && !entry.rewardGiven) {
@@ -110,25 +106,17 @@ const handleUplineReward = useCallback(async (entries) => {
         const snap = await getDocs(q);
 
         if (!snap.empty) {
-          const uplineDoc = snap.docs[0];
-          const uplineData = uplineDoc.data();
-
           // Backend now handles uplineRewards creation via /api/add-payback-entry
-          console.log(`Upline reward will be created by backend for: ${uplineData.username}`);
 
           // Mark payback entry as rewarded so it won't repeat
           const entryRef = doc(db, "paybackEntries", entry.id);
           await updateDoc(entryRef, { rewardGiven: true });
-          console.log(`✅ Entry ${entry.id} marked as rewarded.`);
         }
       } catch (err) {
-        console.error("Error creating upline override reward:", err);
+        // Handle error silently
       }
-    } else {
-      console.log("⏩ Entry not yet due or already rewarded. Skipping...");
     }
   }
-  console.log("🟢 Upline reward checking completed.");
 }, []);
 
   // ===================== Fetch Payback Data =====================
@@ -230,7 +218,6 @@ const fetchPaybackData = useCallback(async (userId) => {
         const testRef = doc(db, "users", user.uid);
         await getDoc(testRef);
       } catch (connError) {
-        console.error("❌ Server connection failed:", connError);
         alert("Server connection failed. Please check your internet and try again.");
         return;
       }
@@ -295,7 +282,6 @@ const fetchPaybackData = useCallback(async (userId) => {
         } catch (fetchError) {
           retries++;
           if (retries < maxRetries) {
-            console.warn(`Retry ${retries}/${maxRetries} for payback entry...`);
             await new Promise(resolve => setTimeout(resolve, 1000));
           } else {
             throw fetchError;
@@ -321,8 +307,6 @@ const fetchPaybackData = useCallback(async (userId) => {
       resetAddFields();
       setOpenAddDialog(false);
     } catch (err) {
-      console.error("❌ Error adding payback entry:", err);
-
       if (transactionSuccessful && !paybackEntryId) {
         alert("⚠️ Wallet deducted but payback entry creation failed. Please contact support with reference: " + new Date().getTime());
       } else {
@@ -434,7 +418,6 @@ const fetchPaybackData = useCallback(async (userId) => {
       // Re-fetch payback data to update status and history
       await fetchPaybackData(user.uid);
     } catch (err) {
-      console.error("Transfer failed:", err);
       alert(err.message || "Transfer failed.");
     }
   };
