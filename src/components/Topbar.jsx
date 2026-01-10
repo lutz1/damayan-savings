@@ -206,7 +206,7 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {} }) => {
             <IconButton color="inherit" onClick={openDrawer}>
               <Avatar
                 alt={userData.username}
-                src={userData.profilePicture || "/images/avatar-placeholder.png"}
+                src={userData.profilePicture || "/logo192.png"}
                 sx={{
                   bgcolor: "secondary.main",
                   border: "2px solid rgba(255,255,255,0.3)",
@@ -300,7 +300,7 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {} }) => {
                 <Box sx={{ textAlign: "center", mt: 2 }}>
                   <Avatar
                     alt={userData.username}
-                    src={userData.profilePicture || "/images/avatar-placeholder.png"} // ✅ updated
+                    src={userData.profilePicture || "/logo192.png"}
                     sx={{
                       width: 80,
                       height: 80,
