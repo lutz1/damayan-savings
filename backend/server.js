@@ -183,18 +183,18 @@ app.post("/api/transfer-override-reward", async (req, res) => {
     // Run transaction
     try {
       const result = await db.runTransaction(async (transaction) => {
-        // Get override reward
-        const overrideRef = db.collection("override").doc(overrideId);
-        const overrideDoc = await transaction.get(overrideRef);
-        if (!overrideDoc.exists) {
+        // Get upline reward from uplineRewards collection
+        const uplineRewardRef = db.collection("uplineRewards").doc(overrideId);
+        const uplineRewardDoc = await transaction.get(uplineRewardRef);
+        if (!uplineRewardDoc.exists) {
           throw new Error("Override reward not found");
         }
-        const overrideData = overrideDoc.data();
-        if (overrideData.uplineId !== userId) {
+        const rewardData = uplineRewardDoc.data();
+        if (rewardData.uplineId !== userId) {
           throw new Error("Unauthorized: Not your override reward");
         }
-        if (overrideData.status === "Credited") {
-          throw new Error("Already credited");
+        if (rewardData.claimed || rewardData.status === "Credited") {
+          throw new Error("Already claimed");
         }
 
         // Update user eWallet
@@ -207,8 +207,12 @@ app.post("/api/transfer-override-reward", async (req, res) => {
         const newBalance = (userData.eWallet || 0) + numAmount;
         transaction.update(userRef, { eWallet: newBalance, updatedAt: new Date() });
 
-        // Mark override as credited
-        transaction.update(overrideRef, { status: "Credited" });
+        // Mark upline reward as claimed and status as Credited
+        transaction.update(uplineRewardRef, { 
+          claimed: true,
+          claimedAt: new Date(),
+          status: "Credited" 
+        });
 
         // Create override transaction record for history
         const overrideTransactionRef = db.collection("overrideTransactions").doc();
@@ -218,7 +222,7 @@ app.post("/api/transfer-override-reward", async (req, res) => {
           amount: numAmount,
           status: "Credited",
           createdAt: new Date(),
-          fromUsername: overrideData.fromUsername || overrideData.fromUser || "System",
+          fromUsername: rewardData.fromUsername || "System",
         });
 
         return {
@@ -229,7 +233,7 @@ app.post("/api/transfer-override-reward", async (req, res) => {
       });
 
       console.info(
-        `[override-transfer] user=${userId} overrideId=${overrideId} amount=${amount}`
+        `[override-transfer] user=${userId} overrideId=${overrideId} amount=${numAmount}`
       );
       res.json(result);
     } catch (transactionError) {
