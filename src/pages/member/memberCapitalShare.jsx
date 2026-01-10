@@ -80,9 +80,25 @@ const MemberCapitalShare = () => {
       const snap = await getDoc(userRef);
       if (snap.exists()) {
         const data = snap.data();
-        setUserData(data);
+        
+        // ✅ CHECK: Validate if activation has expired after 1 year
+        let capitalShareActive = data.capitalShareActive;
+        if (data.capitalShareActive && data.capitalActivatedAt) {
+          const activatedAt = data.capitalActivatedAt.toDate ? data.capitalActivatedAt.toDate() : new Date(data.capitalActivatedAt);
+          const expirationDate = new Date(activatedAt);
+          expirationDate.setFullYear(expirationDate.getFullYear() + 1);
+          
+          const now = new Date();
+          if (now > expirationDate) {
+            // Activation expired - reset and show activation overlay
+            capitalShareActive = false;
+            await updateDoc(userRef, { capitalShareActive: false });
+          }
+        }
+        
+        setUserData({ ...data, capitalShareActive });
 
-        if (!data.capitalShareActive) {
+        if (!capitalShareActive) {
           const codesRef = collection(db, "purchaseCodes");
           const q = query(
             codesRef,
@@ -731,6 +747,11 @@ const MemberCapitalShare = () => {
               <Typography variant="h6" gutterBottom>
                 🧩 Capital Share Not Activated
               </Typography>
+              {userData?.capitalActivatedAt && (
+                <Typography variant="body2" color="error" sx={{ mb: 2, fontWeight: 600 }}>
+                  ⚠️ Your previous activation has expired. Please activate a new code to continue.
+                </Typography>
+              )}
               {codes.length > 0 ? (
                 <>
                   <Typography variant="body2" color="text.secondary">
@@ -763,6 +784,9 @@ const MemberCapitalShare = () => {
         <Dialog open={openDialog} onClose={() => setOpenDialog(false)} fullWidth maxWidth="xs">
           <DialogTitle>Activate Capital Share</DialogTitle>
           <DialogContent>
+            <Typography variant="body2" sx={{ mb: 2, color: "#1976d2", fontWeight: 600 }}>
+              ℹ️ Activation is valid for 1 year. After 1 year, you'll need to activate a new code to continue.
+            </Typography>
             <TextField
               select
               fullWidth
