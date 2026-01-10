@@ -182,10 +182,6 @@ const filteredDownlineCodes = useMemo(() => {
         (c) => c.type === "Downline Code"
       );
       
-      // Debug: log the data structure
-      console.log("Purchase Codes Sample:", codesWithUserInfo.slice(0, 2));
-      console.log("Capital Share Count:", capitalShare.length, "Downline Count:", downline.length);
-
       const totalCapital = capitalShare.reduce(
         (acc, curr) => acc + (Number(curr.amount) || 0),
         0

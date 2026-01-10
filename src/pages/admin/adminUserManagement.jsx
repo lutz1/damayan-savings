@@ -293,7 +293,6 @@ const AdminUserManagement = () => {
         payoutReleased: true,
         releasedAt: serverTimestamp(),
       });
-      console.log(`✅ Updated Direct Invite Reward for ${referrerUsername}`);
     } else {
       await addDoc(collection(db, "referralReward"), {
         userId: referrerId,
@@ -307,9 +306,6 @@ const AdminUserManagement = () => {
         createdAt: serverTimestamp(),
         releasedAt: serverTimestamp(),
       });
-      console.log(
-        `✅ Created Direct Invite Reward ₱${directRewardAmount} for ${referrerUsername}`
-      );
     }
 
     // Mark invitee referralReward = true
@@ -322,7 +318,7 @@ const AdminUserManagement = () => {
     // =========================================================
 // 🌐 NETWORK BONUS DISTRIBUTION (skip inviter)
 let currentUpline = inviterUpline;
-console.log(`=== 🧭 Network Bonus Distribution for ${invite.inviteeUsername} ===`);
+
 
 // Reset MD slot index
 handleApproveInvite.mdSlotIndex = 0;
@@ -339,7 +335,6 @@ while (currentUpline) {
   const uplineSnap = await getDocs(uplineQuery);
 
   if (uplineSnap.empty) {
-    console.log(`⚠️ No upline found for ${currentUpline}`);
     break;
   }
 
@@ -351,7 +346,6 @@ while (currentUpline) {
 
   // Skip inviter
   if (uplineUsername === referrerUsername) {
-    console.log(`⛔ Skipping inviter (${uplineUsername}) from network bonus`);
     currentUpline = nextUpline;
     continue;
   }
@@ -378,7 +372,7 @@ while (currentUpline) {
       bonusAmount = 5;
     } else {
       bonusAmount = 0;
-      console.log(`🚫 Agent bonus limit reached (Level ${networkLevel}), no bonus`);
+
     }
   }
 
@@ -406,18 +400,13 @@ while (currentUpline) {
         createdAt: serverTimestamp(),
         releasedAt: serverTimestamp(),
       });
-
-      console.log(`💸 ${uplineUsername} (${uplineRole}) earned ₱${bonusAmount}`);
     } else {
-      console.log(`ℹ️ Network bonus already exists for ${uplineUsername}`);
     }
   }
 
   currentUpline = nextUpline;
   networkLevel++; // ⬆️ Increase depth level
 }
-
-console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} ===`);
 
     // =========================================================
     // 🧹 Remove pending invite

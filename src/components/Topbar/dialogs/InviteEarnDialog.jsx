@@ -131,7 +131,6 @@ const isValidEmail = (email) => {
           payoutReleased: false,
           createdAt: serverTimestamp(),
         });
-        console.log(`✅ Direct Reward ₱${inviterReward} → ${userData.username}`);
       }
 
       // 4️⃣ Network Bonuses
@@ -151,10 +150,8 @@ const isValidEmail = (email) => {
         const uplineId = snap.docs[0].id;
         const role = uplineUser.role;
 
-        console.log("🧭 Checking upline:", uplineUser.username, role);
-
         if (role?.toLowerCase() === "ceo") {
-          console.log("⛔ CEO found, stopping network bonuses chain");
+
           break;
         }
 
@@ -171,7 +168,6 @@ const isValidEmail = (email) => {
             payoutReleased: false,
             createdAt: serverTimestamp(),
           });
-          console.log(`💸 Network Bonus ₱15 → ${uplineUser.username} (MasterMD)`);
         }
 
         // MD bonuses (updated logic)
@@ -189,7 +185,6 @@ if (role?.toLowerCase() === "md") {
       payoutReleased: false,
       createdAt: serverTimestamp(),
     });
-    console.log(`💸 MD Bonus ₱10 → ${uplineUser.username}`);
   }
 
   // After first MD, do NOT give any more MD bonuses
@@ -214,7 +209,6 @@ if (role?.toLowerCase() === "md") {
             payoutReleased: false,
             createdAt: serverTimestamp(),
           });
-          console.log(`💸 Network Bonus ₱${bonus} → ${uplineUser.username} (${role})`);
         }
 
         currentUplineUsername = uplineUser.referredBy || null;

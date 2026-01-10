@@ -41,13 +41,11 @@ let deferredPrompt;
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredPrompt = e;
-  console.log('📲 PWA install prompt available');
   // Store for later use in your app
   window.pwaInstallPrompt = deferredPrompt;
 });
 
 window.addEventListener('appinstalled', () => {
-  console.log('✅ PWA installed successfully');
   deferredPrompt = null;
   window.pwaInstallPrompt = null;
 });

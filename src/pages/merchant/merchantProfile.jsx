@@ -51,7 +51,6 @@ useEffect(() => {
   const loadMerchant = async () => {
     try {
       const snap = await getDoc(doc(db, "users", merchantId));
-      console.log("User doc:", snap.data());
       if (snap.exists()) {
         const data = snap.data();
         setMerchantData(data);
