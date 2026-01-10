@@ -51,6 +51,7 @@ useEffect(() => {
     (snap) => {
       if (snap.exists()) {
         const data = snap.data();
+        console.log("User doc:", data);
 
         setMerchantName(
           data.name || data.merchantProfile?.merchantName || "Merchant"

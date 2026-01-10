@@ -308,10 +308,16 @@ const MemberCapitalShare = () => {
           releaseDate,
         });
 
+        // 🧾 Debug logs
+        console.log("✅ Upline Bonus Recorded!");
+        console.log(`Upline Username: ${userData.referredBy}`);
+        console.log(`Bonus Amount: ₱${uplineBonus.toFixed(2)}`);
+        console.log(`Release Date (after 1 month):`, releaseDate);
       } else {
         console.warn("⚠️ No upline found for referredBy:", userData.referredBy);
       }
     } else {
+      console.log("ℹ️ No referredBy/upline, skipping upline bonus.");
     }
 
     alert("✅ Capital Share entry added successfully!");

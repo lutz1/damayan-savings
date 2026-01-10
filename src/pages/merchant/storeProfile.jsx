@@ -174,6 +174,7 @@ export default function StoreProfilePage() {
                 await deleteObject(ref(storage, path)); 
               }
             } catch (err) {
+              console.log('Could not delete old image:', err.code);
             }
           }
           setCoverImage(url);
@@ -220,6 +221,7 @@ export default function StoreProfilePage() {
                 await deleteObject(ref(storage, path));
               }
             } catch (err) {
+              console.log('Could not delete old logo:', err.code);
             }
           }
           setLogoImage(url);
@@ -380,6 +382,7 @@ export default function StoreProfilePage() {
                             setCoverImage("");
                             setSnack({ open: true, severity: "success", message: "Image removed" });
                           } catch (e) {
+                            console.log('Delete error:', e.code);
                             // Even if delete fails, clear the UI
                             setCoverImage("");
                             setSnack({ open: true, severity: "warning", message: "Image reference cleared" });
@@ -448,6 +451,7 @@ export default function StoreProfilePage() {
                             setLogoImage("");
                             setSnack({ open: true, severity: "success", message: "Logo removed" });
                           } catch (e) {
+                            console.log('Delete error:', e.code);
                             setLogoImage("");
                             setSnack({ open: true, severity: "warning", message: "Logo reference cleared" });
                           }

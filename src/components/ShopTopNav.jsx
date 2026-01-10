@@ -65,6 +65,7 @@ export default function ShopTopNav({
 
     rec.onstart = () => {
       setListening(true);
+      console.log(`🎤 Listening started... (attempt ${retryCountRef.current + 1})`);
     };
 
     rec.onresult = (e) => {
@@ -76,6 +77,7 @@ export default function ShopTopNav({
       }
       transcript = transcript.trim();
       if (transcript) {
+        console.log("📝 Transcript:", transcript);
         retryCountRef.current = 0;
         onSearchChange({ target: { value: transcript } });
         setListening(false);
@@ -87,6 +89,7 @@ export default function ShopTopNav({
       
       if (e.error === "no-speech" && retryCountRef.current < maxRetries) {
         retryCountRef.current += 1;
+        console.log(`🔄 Retrying... (${retryCountRef.current}/${maxRetries})`);
         onVoiceError?.(`No speech detected. Retrying... (${retryCountRef.current}/${maxRetries})`);
         setTimeout(() => startListening(true), 500);
         return;
@@ -107,6 +110,7 @@ export default function ShopTopNav({
 
     rec.onend = () => {
       setListening(false);
+      console.log("🎤 Listening ended");
     };
 
     try {

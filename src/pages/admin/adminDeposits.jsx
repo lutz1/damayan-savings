@@ -124,6 +124,7 @@ const AdminDeposits = () => {
                   return { ...deposit, name: displayName };
                 }
               } catch (err) {
+                console.warn("Failed to fetch user for deposit:", deposit.id, err);
               }
             }
             return deposit;
@@ -181,6 +182,12 @@ const AdminDeposits = () => {
           await updateDoc(userRef, {
             eWallet: safeBalance + safeDeposit,
             lastUpdated: new Date(),
+          });
+          console.log("[ADMIN] Updated user eWallet:", {
+            userId,
+            before: currentBalance,
+            deposit: safeDeposit,
+            after: safeBalance + safeDeposit,
           });
         }
       }
