@@ -75,16 +75,26 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
         (d) => ({ ...d, source: "withdrawal", displayType: "Withdrawal", isCredit: false })
       );
 
-      // Deposits (including Monthly Profit Transfers)
+      // Deposits (including Monthly Profit Transfers & Capital Share Transfers)
       setupListener(
         query(collection(db, "deposits"), where("userId", "==", uid)),
         "deposit",
-        (d) => ({ 
-          ...d, 
-          source: "deposit", 
-          displayType: d.type === "Monthly Profit Transfer" ? "Monthly Profit Transfer" : "Deposit", 
-          isCredit: true 
-        })
+        (d) => {
+          let displayType = "Deposit";
+          if (d.type === "Monthly Profit Transfer") {
+            displayType = "📈 Monthly Profit Earn";
+          } else if (d.type === "Capital Share Transfer") {
+            displayType = "💰 Capital Share Transfer";
+          } else if (d.type === "PayMongo") {
+            displayType = "💳 PayMongo Deposit";
+          }
+          return { 
+            ...d, 
+            source: "deposit", 
+            displayType, 
+            isCredit: true 
+          };
+        }
       );
 
       // Transfers (sent)

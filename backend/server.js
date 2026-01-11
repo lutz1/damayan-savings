@@ -718,7 +718,252 @@ app.post("/api/transfer-funds", async (req, res) => {
   }
 });
 
-// 💸 Passive Income Transfer Endpoint
+// � Transfer Profit from Capital Share Endpoint
+app.post("/api/transfer-profit", async (req, res) => {
+  try {
+    const { idToken, entryId, amount } = req.body;
+
+    // Validate input
+    if (!idToken || !entryId || !amount) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const numAmount = parseFloat(amount);
+    if (numAmount <= 0) {
+      return res.status(400).json({ error: "Amount must be greater than zero" });
+    }
+
+    // Verify user authentication
+    let decodedToken;
+    try {
+      decodedToken = await auth.verifyIdToken(idToken);
+    } catch (error) {
+      console.error("Token verification failed:", error);
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const userId = decodedToken.uid;
+
+    // Run transaction
+    try {
+      const result = await db.runTransaction(async (transaction) => {
+        // Get capital share entry
+        const entryRef = db.collection("capitalShareEntries").doc(entryId);
+        const entryDoc = await transaction.get(entryRef);
+
+        if (!entryDoc.exists) {
+          throw new Error("Capital share entry not found");
+        }
+
+        const entryData = entryDoc.data();
+
+        // Verify entry belongs to user
+        if (entryData.userId !== userId) {
+          throw new Error("Unauthorized: Not your capital share entry");
+        }
+
+        // Verify profit is available
+        if (!entryData.profit || entryData.profit <= 0) {
+          throw new Error("No profit available for this entry");
+        }
+
+        // Verify profit hasn't been claimed yet
+        if (entryData.profitStatus === "Claimed") {
+          throw new Error("This profit was already claimed");
+        }
+
+        // Verify amount matches profit amount
+        if (Math.abs(numAmount - (entryData.profit || 0)) > 0.01) {
+          throw new Error("Profit amount mismatch");
+        }
+
+        // Get user document
+        const userRef = db.collection("users").doc(userId);
+        const userDoc = await transaction.get(userRef);
+
+        if (!userDoc.exists) {
+          throw new Error("User not found");
+        }
+
+        const userData = userDoc.data();
+        const currentBalance = Number(userData.eWallet || 0);
+
+        // Update user eWallet (no fees for profit transfers)
+        transaction.update(userRef, {
+          eWallet: currentBalance + numAmount,
+          updatedAt: new Date(),
+        });
+
+        // Update entry status
+        transaction.update(entryRef, {
+          profitStatus: "Claimed",
+          profitClaimedAmount: numAmount,
+          profitClaimedAt: new Date(),
+        });
+
+        // Create deposit record for wallet history
+        const depositRef = db.collection("deposits").doc();
+        transaction.set(depositRef, {
+          userId: userId,
+          amount: numAmount,
+          status: "Approved",
+          type: "Monthly Profit Transfer",
+          sourceEntryId: entryId,
+          createdAt: new Date(),
+        });
+
+        return {
+          success: true,
+          newBalance: currentBalance + numAmount,
+          transferId: depositRef.id,
+        };
+      });
+
+      console.info(
+        `[transfer-profit] user=${userId} entryId=${entryId} amount=${numAmount.toFixed(2)} newBalance=${(result.newBalance || 0).toFixed(2)}`
+      );
+
+      res.json(result);
+    } catch (transactionError) {
+      console.error("Transfer profit transaction failed:", transactionError);
+      res.status(400).json({ error: transactionError.message });
+    }
+  } catch (error) {
+    console.error("Transfer profit error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+// 💰 Transfer Capital Share to Wallet Endpoint
+app.post("/api/transfer-capital-share", async (req, res) => {
+  try {
+    const { idToken, entryId, amount } = req.body;
+
+    // Validate input
+    if (!idToken || !entryId || !amount) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const numAmount = parseFloat(amount);
+    if (numAmount <= 0) {
+      return res.status(400).json({ error: "Amount must be greater than zero" });
+    }
+
+    // Verify user authentication
+    let decodedToken;
+    try {
+      decodedToken = await auth.verifyIdToken(idToken);
+    } catch (error) {
+      console.error("Token verification failed:", error);
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const userId = decodedToken.uid;
+
+    // Run transaction
+    try {
+      const result = await db.runTransaction(async (transaction) => {
+        // Get capital share entry
+        const entryRef = db.collection("capitalShareEntries").doc(entryId);
+        const entryDoc = await transaction.get(entryRef);
+
+        if (!entryDoc.exists) {
+          throw new Error("Capital share entry not found");
+        }
+
+        const entryData = entryDoc.data();
+
+        // Verify entry belongs to user
+        if (entryData.userId !== userId) {
+          throw new Error("Unauthorized: Not your capital share entry");
+        }
+
+        // Verify transferable portion is available
+        if (!entryData.transferablePortion || entryData.transferablePortion <= 0) {
+          throw new Error("No transferable portion available for this entry");
+        }
+
+        // Verify amount hasn't been fully transferred yet
+        if (entryData.transferredAmount && entryData.transferredAmount >= entryData.transferablePortion) {
+          throw new Error("This entry has already been fully transferred");
+        }
+
+        // Calculate actual transfer amount
+        const actualTransferAmount = entryData.transferablePortion - (entryData.transferredAmount || 0);
+
+        // Verify amount matches
+        if (Math.abs(numAmount - actualTransferAmount) > 0.01) {
+          throw new Error("Transfer amount mismatch");
+        }
+
+        // Verify transferable date has passed
+        let transferableAfterDate = entryData.transferableAfterDate;
+        if (transferableAfterDate && typeof transferableAfterDate.toDate === "function") {
+          transferableAfterDate = transferableAfterDate.toDate();
+        }
+        
+        const now = new Date();
+        if (transferableAfterDate && now < transferableAfterDate) {
+          throw new Error("This entry is not yet transferable. Please wait until the 1-month period has passed");
+        }
+
+        // Get user document
+        const userRef = db.collection("users").doc(userId);
+        const userDoc = await transaction.get(userRef);
+
+        if (!userDoc.exists) {
+          throw new Error("User not found");
+        }
+
+        const userData = userDoc.data();
+        const currentBalance = Number(userData.eWallet || 0);
+
+        // Update user eWallet (no fees for capital share transfers)
+        transaction.update(userRef, {
+          eWallet: currentBalance + numAmount,
+          updatedAt: new Date(),
+        });
+
+        // Create deposit record for wallet history
+        const depositRef = db.collection("deposits").doc();
+        transaction.set(depositRef, {
+          userId: userId,
+          amount: numAmount,
+          status: "Approved",
+          type: "Capital Share Transfer",
+          sourceEntryId: entryId,
+          createdAt: new Date(),
+        });
+
+        // Update entry to mark as transferred and STOP profit generation
+        transaction.update(entryRef, {
+          transferredAmount: (entryData.transferredAmount || 0) + numAmount,
+          transferredAt: new Date(),
+          profitEnabled: false, // Stop monthly profit generation
+          profitStatus: "Stopped",
+        });
+
+        return {
+          success: true,
+          newBalance: currentBalance + numAmount,
+          transferId: depositRef.id,
+        };
+      });
+
+      console.info(
+        `[transfer-capital-share] user=${userId} entryId=${entryId} amount=${numAmount.toFixed(2)} newBalance=${(result.newBalance || 0).toFixed(2)}`
+      );
+
+      res.json(result);
+    } catch (transactionError) {
+      console.error("Transfer capital share transaction failed:", transactionError);
+      res.status(400).json({ error: transactionError.message });
+    }
+  } catch (error) {
+    console.error("Transfer capital share error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+// �💸 Passive Income Transfer Endpoint
 app.post("/api/transfer-passive-income", async (req, res) => {
   try {
     const { idToken, paybackEntryId, amount } = req.body;

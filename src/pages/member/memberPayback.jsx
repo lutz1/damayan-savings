@@ -67,6 +67,7 @@ const MemberPayback = () => {
   const [transferAmount, setTransferAmount] = useState("");
   const [transferSuccessDialog, setTransferSuccessDialog] = useState(false);
   const [lastTransferReceipt, setLastTransferReceipt] = useState(null);
+  const [loadingTransfer, setLoadingTransfer] = useState(null); // null or entry ID
   const [loading, setLoading] = useState(true);
 
   // Add Payback Dialog
@@ -383,6 +384,9 @@ const fetchPaybackData = useCallback(async (userId) => {
         return;
       }
 
+      // Set loading state for this entry
+      setLoadingTransfer(maturedEntry.id);
+
       const idToken = await user.getIdToken();
       const API_BASE = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
       const response = await fetch(`${API_BASE}/api/transfer-passive-income`, {
@@ -419,6 +423,8 @@ const fetchPaybackData = useCallback(async (userId) => {
       await fetchPaybackData(user.uid);
     } catch (err) {
       alert(err.message || "Transfer failed.");
+    } finally {
+      setLoadingTransfer(null);
     }
   };
 
@@ -609,6 +615,7 @@ const fetchPaybackData = useCallback(async (userId) => {
         paybackEntries={paybackEntries}
         setTransferAmount={setTransferAmount}
         setTransferDialogOpen={setTransferDialogOpen}
+        loadingTransferId={loadingTransfer}
       />
 
       {/* Transfer Dialog */}

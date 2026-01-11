@@ -4,10 +4,11 @@ import {
   DialogContent,
   Button,
   Box,
-  Typography
+  Typography,
+  CircularProgress
 } from "@mui/material";
 
-const PassiveIncomeEarn = ({ open, onClose, paybackEntries, setTransferAmount, setTransferDialogOpen }) => {
+const PassiveIncomeEarn = ({ open, onClose, paybackEntries, setTransferAmount, setTransferDialogOpen, loadingTransferId }) => {
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" PaperProps={{ sx: { background: `linear-gradient(120deg, rgba(30, 41, 59, 0.95), rgba(33, 47, 61, 0.9))`, backdropFilter: "blur(14px)", border: `1px solid rgba(79, 195, 247, 0.2)`, borderRadius: 2, boxShadow: '0 4px 24px rgba(0,0,0,0.3)', overflow: 'hidden', maxWidth: { xs: '100%', sm: 500, md: 500 } } }}>
       {/* Reduced header with X button */}
@@ -167,13 +168,17 @@ const PassiveIncomeEarn = ({ open, onClose, paybackEntries, setTransferAmount, s
                       <Button
                         variant="contained"
                         size="small"
-                        sx={{ fontWeight: 700, borderRadius: 1, textTransform: 'none', py: 0.5, px: 1, fontSize: 10, bgcolor: '#4CAF50', color: '#fff', minWidth: 'fit-content', flex: 0, whiteSpace: 'nowrap', '&:hover': { bgcolor: '#388e3c' } }}
+                        disabled={loadingTransferId === e.id}
+                        sx={{ fontWeight: 700, borderRadius: 1, textTransform: 'none', py: 0.5, px: 1, fontSize: 10, bgcolor: '#4CAF50', color: '#fff', minWidth: 'fit-content', flex: 0, whiteSpace: 'nowrap', '&:hover': { bgcolor: '#388e3c' }, '&:disabled': { bgcolor: 'rgba(76, 175, 80, 0.5)', color: 'rgba(255,255,255,0.7)' } }}
                         onClick={() => {
                           setTransferAmount((e.amount * 0.02).toFixed(2));
                           setTransferDialogOpen(true);
                         }}
                       >
-                        Transfer
+                        {loadingTransferId === e.id ? (
+                          <CircularProgress size={12} color="inherit" sx={{ mr: 0.5 }} />
+                        ) : null}
+                        {loadingTransferId === e.id ? 'Processing...' : 'Transfer'}
                       </Button>
                     )}
                   </Box>
