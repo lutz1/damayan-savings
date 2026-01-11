@@ -57,7 +57,7 @@ import InviteEarnDialog from "./Topbar/dialogs/InviteEarnDialog";
 import EwalletHistoryDialog from "./Topbar/dialogs/EwalletHistoryDialog";
 import { History as HistoryIcon } from "@mui/icons-material";
 
-const Topbar = ({ open, onToggleSidebar, dialogProps = {} }) => {
+const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = false, onDepositDialogChange = null }) => {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -65,7 +65,7 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {} }) => {
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [slideIn, setSlideIn] = useState(false);
-  const [dialog, setDialog] = useState(null);
+  const [dialog, setDialog] = useState(openDepositDialog ? "deposit" : null);
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
   const [userData, setUserData] = useState({
     username: "",
@@ -130,6 +130,13 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {} }) => {
       unsubscribeAuth();
     };
   }, []);
+
+  // 🔹 Sync dialog state with prop
+  useEffect(() => {
+    if (openDepositDialog) {
+      setDialog("deposit");
+    }
+  }, [openDepositDialog]);
 
   const handleLogout = async () => {
     try {

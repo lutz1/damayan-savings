@@ -2,6 +2,7 @@ import OverrideUplineRewardsDialog from "./components/dialogs/OverrideUplineRewa
 import RewardHistoryDialog from "./components/dialogs/RewardHistoryDialog";
 /* eslint-disable no-unused-vars */
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import { sendReferralTransferAvailableNotification } from "../../utils/referralNotifications";
 import { sendOverrideTransferAvailableNotification } from "../../utils/overrideNotifications";
 import {
@@ -47,6 +48,9 @@ import bgImage from "../../assets/bg.jpg";
 import NetworkGroupSales from "./components/dialogs/networkGroupsales";
 
 const MemberDashboard = () => {
+    // Get location for deposit dialog redirect
+    const location = useLocation();
+    
     // Animated count-up states for card values
     const [displayContribution, setDisplayContribution] = useState(0);
     const [displayCapitalShare, setDisplayCapitalShare] = useState(0);
@@ -141,6 +145,7 @@ useEffect(() => {
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [openDepositDialog, setOpenDepositDialog] = useState(false);
   const [roleCounts, setRoleCounts] = useState({
     MD: 0,
     MS: 0,
@@ -370,6 +375,15 @@ useEffect(() => {
 
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
 
+  // 🔹 Check if we should open deposit dialog (from deposit-cancel page)
+  useEffect(() => {
+    if (location.state?.openDepositDialog) {
+      setOpenDepositDialog(true);
+      // Clear the state to prevent opening dialog on subsequent visits
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [location]);
+
   // 🔹 Listen to referral counts
   const listenToReferrals = useCallback((username) => {
     if (!username) return;
@@ -535,6 +549,8 @@ const fetchPaybackAndCapital = async (uid) => {
         <Topbar
           open={sidebarOpen}
           onToggleSidebar={handleToggleSidebar}
+          openDepositDialog={openDepositDialog}
+          onDepositDialogChange={setOpenDepositDialog}
           dialogProps={{
             onReferralTransferClick: () => setRewardDialogOpen(true),
             onOverrideTransferClick: () => setOverrideDialogOpen(true),

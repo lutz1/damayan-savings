@@ -53,6 +53,8 @@ import MemberPayback from "./pages/member/memberPayback";
 import MemberCapitalShare from "./pages/member/memberCapitalShare";
 
 import MemberProfile from "./pages/member/memberProfile";
+import DepositSuccess from "./pages/depositSuccess";
+import DepositCancel from "./pages/depositCancel";
 
 
 function App() {
@@ -164,6 +166,8 @@ function App() {
             <Route path="/login" element={<Login />} />
             {/* Mobile install handled inline on the login page */}
             <Route path="/location-access" element={<LocationAccess />} />
+            <Route path="/deposit-success" element={<DepositSuccess />} />
+            <Route path="/deposit-cancel" element={<DepositCancel />} />
 
             {/* ======================
                 ADMIN

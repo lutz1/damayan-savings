@@ -564,7 +564,7 @@ app.post("/api/paymongo-webhook", async (req, res) => {
       const metadataDoc = await db.collection("paymentMetadata").doc(checkoutId).get();
 
       if (!metadataDoc.exists) {
-        console.error("Payment metadata not found:", checkoutId);
+        console.error("[paymongo-webhook] Payment metadata not found:", checkoutId);
         return res.status(404).json({ error: "Payment metadata not found" });
       }
 
@@ -574,17 +574,30 @@ app.post("/api/paymongo-webhook", async (req, res) => {
       // Create deposit record ONLY on successful payment
       const depositRef = db.collection("deposits").doc();
       await db.runTransaction(async (transaction) => {
-        // Create deposit record with Pending status (admin approval required)
+        // Create deposit record with Approved status for PayMongo payments
         transaction.set(depositRef, {
           userId,
           name,
           amount,
           reference: checkoutId,
           receiptUrl: "", // PayMongo handles receipt
-          status: "Pending",
+          status: "Approved",
           paymentMethod: "PayMongo",
           createdAt: new Date(),
         });
+
+        // Update user eWallet immediately (no admin approval needed for PayMongo)
+        const userRef = db.collection("users").doc(userId);
+        const userDoc = await transaction.get(userRef);
+        if (userDoc.exists) {
+          const currentBalance = Number(userDoc.data().eWallet || 0);
+          const safeBalance = isNaN(currentBalance) ? 0 : currentBalance;
+          const safeAmount = isNaN(Number(amount)) ? 0 : Number(amount);
+          transaction.update(userRef, {
+            eWallet: safeBalance + safeAmount,
+            updatedAt: new Date(),
+          });
+        }
 
         // Update metadata to link deposit
         transaction.update(db.collection("paymentMetadata").doc(checkoutId), {
@@ -593,14 +606,110 @@ app.post("/api/paymongo-webhook", async (req, res) => {
         });
       });
 
-      console.info(`[paymongo-webhook] user=${userId} amount=${amount} checkoutId=${checkoutId} depositId=${depositRef.id}`);
+      console.info(`[paymongo-webhook] ✅ user=${userId} amount=₱${amount} checkoutId=${checkoutId} depositId=${depositRef.id}`);
       return res.json({ success: true });
     }
 
     res.json({ success: true });
   } catch (error) {
-    console.error("Webhook error:", error);
+    console.error("[paymongo-webhook] ❌ Error:", error);
     res.status(500).json({ error: "Webhook processing failed" });
+  }
+});
+
+// 🔐 Verify PayMongo Payment (called from frontend success page)
+app.post("/api/verify-paymongo-payment", async (req, res) => {
+  try {
+    const { idToken, sessionId } = req.body;
+
+    if (!idToken || !sessionId) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // Verify user authentication
+    let decodedToken;
+    try {
+      decodedToken = await auth.verifyIdToken(idToken);
+    } catch (error) {
+      console.error("[verify-payment] Token verification failed:", error);
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const userId = decodedToken.uid;
+
+    // Check if deposit was already created by webhook
+    const metadataDoc = await db.collection("paymentMetadata").doc(sessionId).get();
+
+    if (!metadataDoc.exists) {
+      console.error("[verify-payment] Payment metadata not found:", sessionId);
+      return res.status(404).json({ error: "Payment not found" });
+    }
+
+    const metadataData = metadataDoc.data();
+
+    // Verify userId matches
+    if (metadataData.userId !== userId) {
+      console.error("[verify-payment] User mismatch:", { expected: metadataData.userId, actual: userId });
+      return res.status(403).json({ error: "Unauthorized: Payment belongs to different user" });
+    }
+
+    // If deposit already created (by webhook), return success
+    if (metadataData.depositId) {
+      console.info(`[verify-payment] ✅ Deposit already created: ${metadataData.depositId}`);
+      return res.json({
+        success: true,
+        depositId: metadataData.depositId,
+        message: "Payment verified and deposit created",
+      });
+    }
+
+    // If webhook hasn't processed yet, create deposit manually
+    console.warn("[verify-payment] ⚠️ Webhook not processed, creating deposit manually");
+    const depositRef = db.collection("deposits").doc();
+
+    await db.runTransaction(async (transaction) => {
+      // Create deposit record
+      transaction.set(depositRef, {
+        userId,
+        name: metadataData.name,
+        amount: metadataData.amount,
+        reference: sessionId,
+        receiptUrl: "",
+        status: "Approved",
+        paymentMethod: "PayMongo",
+        createdAt: new Date(),
+      });
+
+      // Update user eWallet
+      const userRef = db.collection("users").doc(userId);
+      const userDoc = await transaction.get(userRef);
+      if (userDoc.exists) {
+        const currentBalance = Number(userDoc.data().eWallet || 0);
+        const safeBalance = isNaN(currentBalance) ? 0 : currentBalance;
+        const safeAmount = isNaN(Number(metadataData.amount)) ? 0 : Number(metadataData.amount);
+        transaction.update(userRef, {
+          eWallet: safeBalance + safeAmount,
+          updatedAt: new Date(),
+        });
+      }
+
+      // Update metadata
+      transaction.update(db.collection("paymentMetadata").doc(sessionId), {
+        depositId: depositRef.id,
+        completedAt: new Date(),
+      });
+    });
+
+    console.info(`[verify-payment] ✅ user=${userId} amount=₱${metadataData.amount} sessionId=${sessionId} depositId=${depositRef.id}`);
+
+    res.json({
+      success: true,
+      depositId: depositRef.id,
+      message: "Payment verified and deposit created",
+    });
+  } catch (error) {
+    console.error("[verify-payment] ❌ Error:", error);
+    res.status(500).json({ error: "Payment verification failed" });
   }
 });
 
