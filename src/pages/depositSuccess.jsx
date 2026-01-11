@@ -47,6 +47,7 @@ const DepositSuccess = () => {
             });
 
             const result = await response.json();
+            console.log("[depositSuccess] Verification response:", { status: response.status, result });
 
             if (response.ok) {
               setStatus("success");
@@ -55,7 +56,9 @@ const DepositSuccess = () => {
               setTimeout(() => navigate("/member/dashboard"), 3000);
             } else {
               setStatus("error");
-              setMessage(result.error || "Payment verification failed. Please contact support.");
+              const errorMsg = result.error || "Payment verification failed. Please contact support.";
+              console.error("[depositSuccess] Verification failed:", errorMsg);
+              setMessage(errorMsg);
             }
 
             unsubscribe();
