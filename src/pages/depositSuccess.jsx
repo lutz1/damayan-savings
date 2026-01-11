@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Box, Typography, CircularProgress, Card, CardContent, Button } from "@mui/material";
 import { CheckCircle, ErrorOutline } from "@mui/icons-material";
-import { getAuth } from "firebase/auth";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 import bgImage from "../assets/bg.jpg";
 
 const DepositSuccess = () => {
@@ -22,38 +22,50 @@ const DepositSuccess = () => {
           return;
         }
 
-        const user = auth.currentUser;
-        if (!user) {
-          setStatus("error");
-          setMessage("Please log in first.");
-          return;
-        }
+        // Wait for auth state to load
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+          try {
+            if (!user) {
+              setStatus("error");
+              setMessage("Please log in first.");
+              unsubscribe();
+              return;
+            }
 
-        // Get ID token to verify payment on backend
-        const idToken = await user.getIdToken();
-        const API_BASE = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
+            // Get ID token to verify payment on backend
+            const idToken = await user.getIdToken();
+            const API_BASE = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
 
-        // Call backend to verify and create deposit
-        const response = await fetch(`${API_BASE}/api/verify-paymongo-payment`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            idToken,
-            sessionId,
-          }),
+            // Call backend to verify and create deposit
+            const response = await fetch(`${API_BASE}/api/verify-paymongo-payment`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                idToken,
+                sessionId,
+              }),
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+              setStatus("success");
+              setMessage("Deposit successful! Your eWallet has been credited.");
+              // Redirect to member dashboard after 3 seconds
+              setTimeout(() => navigate("/member/dashboard"), 3000);
+            } else {
+              setStatus("error");
+              setMessage(result.error || "Payment verification failed. Please contact support.");
+            }
+
+            unsubscribe();
+          } catch (err) {
+            console.error("Payment verification error:", err);
+            setStatus("error");
+            setMessage("An error occurred. Please refresh and try again.");
+            unsubscribe();
+          }
         });
-
-        const result = await response.json();
-
-        if (response.ok) {
-          setStatus("success");
-          setMessage("Deposit successful! Your eWallet has been credited.");
-          // Redirect to member dashboard after 3 seconds
-          setTimeout(() => navigate("/member/dashboard"), 3000);
-        } else {
-          setStatus("error");
-          setMessage(result.error || "Payment verification failed. Please contact support.");
-        }
       } catch (err) {
         console.error("Payment verification error:", err);
         setStatus("error");
