@@ -235,7 +235,8 @@ const AdminDeposits = () => {
   // Check if user can approve/reject
   const canApproveReject = ["admin", "ceo"].includes(userRole);
   
-  // Debug log
+  // Debug log - only depends on userRole since canApproveReject is derived from it
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     console.log("[adminDeposits] Permissions check:", {
       userRole,
