@@ -82,7 +82,7 @@ const MemberCapitalShare = () => {
         const data = snap.data();
         
         // ✅ CHECK: Validate if activation has expired after 1 year
-        let capitalShareActive = data.capitalShareActive;
+        let activationExpired = false;
         if (data.capitalShareActive && data.capitalActivatedAt) {
           const activatedAt = data.capitalActivatedAt.toDate ? data.capitalActivatedAt.toDate() : new Date(data.capitalActivatedAt);
           const expirationDate = new Date(activatedAt);
@@ -90,15 +90,15 @@ const MemberCapitalShare = () => {
           
           const now = new Date();
           if (now > expirationDate) {
-            // Activation expired - reset and show activation overlay
-            capitalShareActive = false;
-            await updateDoc(userRef, { capitalShareActive: false });
+            // Activation expired - need to reactivate to ADD NEW ENTRIES
+            activationExpired = true;
           }
         }
         
-        setUserData({ ...data, capitalShareActive });
+        setUserData({ ...data, activationExpired });
 
-        if (!capitalShareActive) {
+        // Fetch available codes if activation is expired OR not active
+        if (!data.capitalShareActive || activationExpired) {
           const codesRef = collection(db, "purchaseCodes");
           const q = query(
             codesRef,
@@ -649,6 +649,11 @@ const MemberCapitalShare = () => {
                     alert("Activate Capital Share first.");
                     return;
                   }
+                  if (userData?.activationExpired) {
+                    alert("⚠️ Your Capital Share activation has expired. Please activate a new code to add new entries.");
+                    setOpenDialog(true);
+                    return;
+                  }
                   setSelectedDate(new Date());
                   setOpenAddDialog(true);
                 }}
@@ -729,8 +734,8 @@ const MemberCapitalShare = () => {
           </DialogActions>
                 </Dialog>
         </Dialog>
-        {/* Activation Overlay */}
-        {!userData?.capitalShareActive && (
+        {/* Activation Overlay - Only show if NOT activated at all */}
+        {!userData?.capitalShareActive && !userData?.activationExpired && (
           <Box
             sx={{
               position: "absolute",
@@ -747,11 +752,6 @@ const MemberCapitalShare = () => {
               <Typography variant="h6" gutterBottom>
                 🧩 Capital Share Not Activated
               </Typography>
-              {userData?.capitalActivatedAt && (
-                <Typography variant="body2" color="error" sx={{ mb: 2, fontWeight: 600 }}>
-                  ⚠️ Your previous activation has expired. Please activate a new code to continue.
-                </Typography>
-              )}
               {codes.length > 0 ? (
                 <>
                   <Typography variant="body2" color="text.secondary">
