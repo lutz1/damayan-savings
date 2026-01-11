@@ -222,6 +222,12 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Failed to create payment");
 
+      // Store checkoutId in sessionStorage so success page can retrieve it
+      if (result.checkoutId) {
+        sessionStorage.setItem("paymongo_checkout_id", result.checkoutId);
+        console.log("[DepositDialog] Stored checkoutId:", result.checkoutId);
+      }
+
       // Redirect to PayMongo checkout
       window.location.href = result.checkoutUrl;
     } catch (err) {

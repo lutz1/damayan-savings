@@ -485,7 +485,7 @@ app.post("/api/create-payment-link", async (req, res) => {
           currency: "PHP",
           description: "Damayan Savings Deposit",
           statement_descriptor: "Damayan Savings",
-          success_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/deposit-success?session_id={session_id}`,
+          success_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/deposit-success`,
           cancel_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/deposit-cancel`,
           payment_method_types: ["qrph"], // or ["card", "paymaya"] depending on what's available
           customer: {

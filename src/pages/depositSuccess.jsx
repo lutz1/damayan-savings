@@ -15,7 +15,17 @@ const DepositSuccess = () => {
   useEffect(() => {
     const verifyPayment = async () => {
       try {
-        const sessionId = searchParams.get("session_id");
+        // Try to get session_id from URL first, fallback to sessionStorage
+        let sessionId = searchParams.get("session_id");
+        
+        if (!sessionId || sessionId === "{session_id}") {
+          // PayMongo didn't pass session_id, try sessionStorage
+          sessionId = sessionStorage.getItem("paymongo_checkout_id");
+          console.log("[depositSuccess] Using stored checkoutId:", sessionId);
+        } else {
+          console.log("[depositSuccess] Using URL session_id:", sessionId);
+        }
+
         if (!sessionId) {
           setStatus("error");
           setMessage("No payment session found.");
