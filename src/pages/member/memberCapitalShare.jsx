@@ -40,7 +40,6 @@ import { auth, db } from "../../firebase";
 const MIN_AMOUNT = 1000;
 const LOCK_IN = 5000;
 const MONTHLY_RATE = 0.05;
-const TRANSFER_CHARGE = 0.01;
 
 
 const MemberCapitalShare = () => {
@@ -132,6 +131,12 @@ const MemberCapitalShare = () => {
 
       snap.docs.forEach((docEntry) => {
         const data = docEntry.data();
+        
+        // 🔹 Skip profit calculation if entry has been transferred
+        if (data.profitEnabled === false) {
+          return;
+        }
+        
         let nextProfitDate = data.nextProfitDate?.toDate ? data.nextProfitDate.toDate() : data.nextProfitDate;
         const createdAt = data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt;
         const expireDate = new Date(createdAt);
@@ -166,19 +171,73 @@ const MemberCapitalShare = () => {
 
     const q = query(
       collection(db, "capitalShareEntries"),
-      where("userId", "==", user.uid),
-      orderBy("createdAt", "desc")
+      where("userId", "==", user.uid)
     );
     const snap = await getDocs(q);
+    
+    // 🔹 Sort entries by createdAt in JavaScript (ascending)
+    const sortedDocs = snap.docs.sort((a, b) => {
+      const dateA = a.data().createdAt?.toDate?.() || new Date(0);
+      const dateB = b.data().createdAt?.toDate?.() || new Date(0);
+      return dateA.getTime() - dateB.getTime();
+    });
 
     const now = new Date();
     let totalCapital = 0;
     let totalProfit = 0;
     const calendarData = [];
+    
+    // 🔹 Retroactively assign lock-in to old entries if missing
+    let cumulativeLockIn = 0;
+    const entriesToUpdate = [];
+    
+    sortedDocs.forEach((docSnap) => {
+      const data = docSnap.data();
+      
+      if (!data.lockInPortion) {
+        const remainingLockInNeeded = Math.max(0, LOCK_IN - cumulativeLockIn);
+        const lockInPortion = remainingLockInNeeded > 0 
+          ? Math.min(data.amount || 0, remainingLockInNeeded)
+          : 0;
+        const transferablePortion = (data.amount || 0) - lockInPortion;
+        
+        entriesToUpdate.push({
+          docRef: docSnap.ref,
+          lockInPortion,
+          transferablePortion,
+          transferableAfterDate: data.transferableAfterDate || new Date(data.createdAt.toDate().getTime() + 30 * 24 * 60 * 60 * 1000),
+        });
+        
+        cumulativeLockIn += lockInPortion;
+      } else {
+        cumulativeLockIn += data.lockInPortion || 0;
+      }
+    });
+    
+    // Update old entries in background (non-blocking)
+    if (entriesToUpdate.length > 0) {
+      entriesToUpdate.forEach(async (update) => {
+        await updateDoc(update.docRef, {
+          lockInPortion: update.lockInPortion,
+          transferablePortion: update.transferablePortion,
+          transferableAfterDate: update.transferableAfterDate,
+        });
+      });
+    }
 
     const history = snap.docs.map((docSnap) => {
       const data = docSnap.data();
       const entry = { id: docSnap.id, ...data };
+      
+      // 🔹 Apply retroactive lock-in if missing
+      if (!entry.lockInPortion) {
+        const updateInfo = entriesToUpdate.find(u => u.docRef.id === docSnap.id);
+        if (updateInfo) {
+          entry.lockInPortion = updateInfo.lockInPortion;
+          entry.transferablePortion = updateInfo.transferablePortion;
+          entry.transferableAfterDate = updateInfo.transferableAfterDate;
+        }
+      }
 
       if (entry.nextProfitDate && typeof entry.nextProfitDate.toDate === "function") {
         entry.nextProfitDate = entry.nextProfitDate.toDate();
@@ -188,6 +247,11 @@ const MemberCapitalShare = () => {
       }
       if (entry.date && typeof entry.date.toDate === "function") {
         entry.date = entry.date.toDate();
+      }
+      if (entry.transferableAfterDate && typeof entry.transferableAfterDate.toDate === "function") {
+        entry.transferableAfterDate = entry.transferableAfterDate.toDate();
+      } else if (entry.transferableAfterDate && typeof entry.transferableAfterDate === "number") {
+        entry.transferableAfterDate = new Date(entry.transferableAfterDate);
       }
 
       entry.profitStatus = entry.profitStatus || "Pending";
@@ -199,7 +263,7 @@ const MemberCapitalShare = () => {
       const isActive = now <= expireDate;
 
       if (isActive) {
-        // ✅ Include full amount (not just lock-in)
+        // ✅ Include full amount
         totalCapital += entry.amount || 0;
 
         // 🧮 Sum unclaimed profit
@@ -217,6 +281,9 @@ const MemberCapitalShare = () => {
 
       return entry;
     });
+    
+    // 🔹 Reverse to descending order for display
+    history.reverse();
 
     setTransactionHistory(history);
     setCapitalAmount(totalCapital);
@@ -273,10 +340,78 @@ const MemberCapitalShare = () => {
     return alert("Insufficient wallet balance.");
 
   try {
+    // 🔹 Fetch existing entries to calculate cumulative lock-in
     const entriesRef = collection(db, "capitalShareEntries");
-    const lockInAmount = Math.min(LOCK_IN, entryAmount);
-    const transferableAmount =
-      entryAmount > LOCK_IN ? entryAmount - LOCK_IN : 0;
+    const q = query(
+      entriesRef,
+      where("userId", "==", user.uid)
+    );
+    const existingSnap = await getDocs(q);
+    
+    // 🔹 Sort entries by createdAt in JavaScript
+    const sortedDocs = existingSnap.docs.sort((a, b) => {
+      const dateA = a.data().createdAt?.toDate?.() || new Date(0);
+      const dateB = b.data().createdAt?.toDate?.() || new Date(0);
+      return dateA.getTime() - dateB.getTime();
+    });
+    // 🔹 Retroactively calculate lock-in for entries that don't have lockInPortion
+    let cumulativeLockIn = 0;
+    const entriesToUpdate = [];
+
+    for (const doc of sortedDocs) {
+      const data = doc.data();
+      
+      // If entry doesn't have lockInPortion, it's an old entry - calculate it retroactively
+      if (!data.lockInPortion) {
+        const remainingLockInNeeded = Math.max(0, LOCK_IN - cumulativeLockIn);
+        const lockInPortion = remainingLockInNeeded > 0 
+          ? Math.min(data.amount || 0, remainingLockInNeeded)
+          : 0;
+        const transferablePortion = (data.amount || 0) - lockInPortion;
+
+        // Queue this entry for update with retroactive lock-in
+        entriesToUpdate.push({
+          docRef: doc.ref,
+          lockInPortion,
+          transferablePortion,
+          transferableAfterDate: data.transferableAfterDate || new Date(data.createdAt.toDate().getTime() + 30 * 24 * 60 * 60 * 1000),
+        });
+
+        cumulativeLockIn += lockInPortion;
+      } else {
+        // Entry already has lockInPortion, use it
+        cumulativeLockIn += data.lockInPortion || 0;
+      }
+    }
+
+    // 🔹 Update old entries with retroactive lock-in
+    for (const update of entriesToUpdate) {
+      await updateDoc(update.docRef, {
+        lockInPortion: update.lockInPortion,
+        transferablePortion: update.transferablePortion,
+        transferableAfterDate: update.transferableAfterDate,
+      });
+    }
+
+    // 🔹 Calculate lock-in and transferable portions for NEW entry
+    let lockInPortion = 0;
+    let transferablePortion = 0;
+    
+    const remainingLockInNeeded = Math.max(0, LOCK_IN - cumulativeLockIn);
+    
+    if (remainingLockInNeeded > 0) {
+      // Entry contributes to lock-in
+      lockInPortion = Math.min(entryAmount, remainingLockInNeeded);
+      transferablePortion = entryAmount - lockInPortion;
+    } else {
+      // All entries from this point are fully transferable
+      transferablePortion = entryAmount;
+    }
+
+    // 🔹 Calculate when the entry becomes transferable
+    const now = new Date();
+    const transferableAfterDate = new Date(now);
+    transferableAfterDate.setMonth(transferableAfterDate.getMonth() + 1);
 
     // 🔹 Add capital share entry
     await addDoc(entriesRef, {
@@ -285,10 +420,11 @@ const MemberCapitalShare = () => {
       date: selectedDate,
       profit: 0,
       profitStatus: "Pending",
-      lockIn: lockInAmount,
-      transferable: transferableAmount,
+      lockInPortion: lockInPortion,
+      transferablePortion: transferablePortion,
       status: "Approved",
       createdAt: serverTimestamp(),
+      transferableAfterDate: transferableAfterDate,
       nextProfitDate: new Date(
         new Date().setMonth(new Date().getMonth() + 1)
       ),
@@ -347,38 +483,6 @@ const MemberCapitalShare = () => {
   }
 };
 
-  const handleTransferCapitalShare = async (entry) => {
-    const now = new Date();
-    const createdAt = entry.createdAt?.toDate ? entry.createdAt.toDate() : entry.createdAt;
-    if ((entry.lockIn || 0) < LOCK_IN) return alert("Capital below ₱5000 is not transferable.");
-    if ((now - createdAt) / (1000 * 60 * 60 * 24) < 30) return alert("Capital transferable only after 1 month.");
-
-    const transferAmount = Number(
-      prompt(`Enter amount to transfer (max ₱${entry.lockIn.toLocaleString()}):`, entry.lockIn)
-    );
-    if (!transferAmount || transferAmount <= 0) return;
-    if (transferAmount > entry.lockIn) return alert("Exceeds transferable capital.");
-
-    const fee = transferAmount * TRANSFER_CHARGE;
-    const net = transferAmount - fee;
-    const walletBalance = Number(userData?.eWallet || 0);
-
-    try {
-      const userRef = doc(db, "users", user.uid);
-      await updateDoc(userRef, { eWallet: walletBalance + net });
-
-      const entryRef = doc(db, "capitalShareEntries", entry.id);
-      await updateDoc(entryRef, { lockIn: entry.lockIn - transferAmount });
-
-      alert(`Transferred ₱${net.toLocaleString()} to wallet (1% fee applied).`);
-      await fetchUserData(user);
-      await fetchTransactionHistory();
-    } catch (err) {
-      console.error(err);
-      alert("Transfer failed.");
-    }
-  };
-
   const handleTransferProfitEntry = async (entry) => {
     if (!entry?.profit || entry.profit <= 0) return alert("No profit available for this entry.");
     if (entry.profitStatus === "Claimed") return alert("This profit was already claimed.");
@@ -413,6 +517,63 @@ const MemberCapitalShare = () => {
     } catch (err) {
       console.error(err);
       alert("Profit transfer failed.");
+    }
+  };
+
+  const handleTransferCapitalToWallet = async (entry) => {
+    const now = new Date();
+    const transferableAfterDate = entry.transferableAfterDate instanceof Date
+      ? entry.transferableAfterDate
+      : entry.transferableAfterDate?.toDate?.();
+
+    // Check if past transferable date
+    if (!transferableAfterDate || now < transferableAfterDate) {
+      return alert("❌ This entry is not yet transferable. Please wait until the 1-month period has passed.");
+    }
+
+    // Check if there's transferable portion
+    if (!entry.transferablePortion || entry.transferablePortion <= 0) {
+      return alert("❌ No transferable portion available for this entry.");
+    }
+
+    // Check if already transferred
+    if (entry.transferredAmount && entry.transferredAmount >= entry.transferablePortion) {
+      return alert("❌ This entry has already been fully transferred.");
+    }
+
+    const transferAmount = entry.transferablePortion - (entry.transferredAmount || 0);
+    const walletBalance = Number(userData?.eWallet || 0);
+
+    try {
+      // Update user wallet
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, { eWallet: walletBalance + transferAmount });
+
+      // Log to deposits
+      await addDoc(collection(db, "deposits"), {
+        userId: user.uid,
+        amount: transferAmount,
+        status: "Approved",
+        type: "Capital Share Transfer",
+        sourceEntryId: entry.id,
+        createdAt: serverTimestamp(),
+      });
+
+      // Update entry to mark as transferred and STOP profit generation
+      const entryRef = doc(db, "capitalShareEntries", entry.id);
+      await updateDoc(entryRef, {
+        transferredAmount: (entry.transferredAmount || 0) + transferAmount,
+        transferredAt: serverTimestamp(),
+        profitEnabled: false, // Stop monthly profit generation
+        profitStatus: "Stopped",
+      });
+
+      alert(`✅ Transferred ₱${transferAmount.toLocaleString()} to wallet.\n\n⚠️ Monthly profit generation for this entry has been stopped.`);
+      await fetchUserData(user);
+      await fetchTransactionHistory();
+    } catch (err) {
+      console.error(err);
+      alert("❌ Transfer failed.");
     }
   };
 
@@ -494,14 +655,14 @@ const MemberCapitalShare = () => {
           <Grid item xs={12} md={12} sx={{ mb: { xs: 2, md: 0 }, display: 'flex', width: '100%' }}>
             <Card
               sx={{
-                background: `linear-gradient(120deg, rgba(79,195,247,0.15) 80%, rgba(255,255,255,0.04))`,
+                background: `linear-gradient(120deg, rgba(231,237,241,0.27), rgba(33,150,243,0.08))`,
                 backdropFilter: "blur(14px)",
                 border: `2px solid #4FC3F733`,
                 borderRadius: "18px",
                 p: 3,
                 width: '100%',
                 minWidth: 0,
-                boxShadow: `0 4px 24px 0 #4FC3F722`,
+                boxShadow: `0 4px 24px 0 rgba(33,150,243,0.10)`,
                 transition: "transform 0.3s, box-shadow 0.3s",
                 position: "relative",
                 overflow: "hidden",
@@ -535,23 +696,12 @@ const MemberCapitalShare = () => {
                 {capitalAmount > 0 && (
                   <Box sx={{ mt: 1.5 }}>
                     <Typography variant="body2" sx={{ color: '#b0bec5', fontWeight: 600, fontSize: 13 }}>
-                      🔒 Lock-in: ₱{Math.min(capitalAmount, LOCK_IN).toLocaleString()}
+                      🔒 Lock-in (5,000 target): ₱{Math.min(
+                        transactionHistory.reduce((sum, t) => sum + (t.lockInPortion || 0), 0),
+                        LOCK_IN
+                      ).toLocaleString()}
                     </Typography>
-                    {capitalAmount > LOCK_IN && (
-                      <Typography variant="body2" sx={{ color: '#b0bec5', fontWeight: 600, fontSize: 13 }}>
-                        💼 Transferable: ₱{(capitalAmount - LOCK_IN).toLocaleString()}
-                      </Typography>
-                    )}
                   </Box>
-                )}
-                {capitalAmount >= LOCK_IN && (
-                  <Button
-                    variant="contained"
-                    sx={{ mt: 2, fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 2.5, py: 1, fontSize: 15 }}
-                    onClick={() => handleTransferCapitalShare(transactionHistory[0])}
-                  >
-                    Transfer Capital to Wallet
-                  </Button>
                 )}
               </Box>
             </Card>
@@ -669,17 +819,26 @@ const MemberCapitalShare = () => {
 
 
         {/* Add Entry Dialog */}
-        <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)} fullWidth maxWidth="xs">
-          <DialogTitle>Add Capital Share Entry</DialogTitle>
-          <DialogContent>
+        <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)} fullWidth maxWidth="xs" PaperProps={{
+          sx: {
+            background: `linear-gradient(120deg, rgba(30, 41, 59, 0.95), rgba(33, 47, 61, 0.9))`,
+            backdropFilter: "blur(14px)",
+            border: `1px solid rgba(79, 195, 247, 0.2)`,
+          }
+        }}>
+          <DialogTitle sx={{ bgcolor: "rgba(31, 150, 243, 0.15)", color: "#4FC3F7", fontWeight: 700, borderBottom: "1px solid rgba(79, 195, 247, 0.15)" }}>
+            Add Capital Share Entry
+          </DialogTitle>
+          <DialogContent sx={{ bgcolor: "transparent", mt: 2 }}>
             <TextField
               label="Selected Date"
               type="date"
               fullWidth
               value={selectedDate ? selectedDate.toISOString().slice(0, 10) : ''}
               onChange={(e) => setSelectedDate(new Date(e.target.value))}
-              sx={{ mb: 2, mt: 1 }}
-              InputLabelProps={{ shrink: true }}
+              sx={{ mb: 2, mt: 1, '& .MuiOutlinedInput-root': { color: '#b0bec5' }, '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(79, 195, 247, 0.3)' }, '& .MuiInputBase-input': { color: '#b0bec5' }, '& label': { color: '#90CAF9' } }}
+              InputLabelProps={{ shrink: true, style: { color: '#90CAF9' } }}
+              inputProps={{ style: { color: '#b0bec5' } }}
             />
             <TextField
               label="Amount (₱)"
@@ -687,22 +846,25 @@ const MemberCapitalShare = () => {
               fullWidth
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              sx={{ mb: 2 }}
-              inputProps={{ min: MIN_AMOUNT }}
+              sx={{ mb: 2, '& .MuiOutlinedInput-root': { color: '#b0bec5' }, '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(79, 195, 247, 0.3)' }, '& .MuiInputBase-input': { color: '#b0bec5' }, '& label': { color: '#90CAF9' } }}
+              InputLabelProps={{ style: { color: '#90CAF9' } }}
+              inputProps={{ min: MIN_AMOUNT, style: { color: '#b0bec5' } }}
             />
             <TextField
             label="Upline Username"
             fullWidth
             value={userData?.referredBy || "No Upline"}
-            InputProps={{ readOnly: true }}
-            sx={{ mb: 2 }}
+            InputProps={{ readOnly: true, style: { color: '#b0bec5' } }}
+            sx={{ mb: 2, '& .MuiOutlinedInput-root': { color: '#b0bec5' }, '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(79, 195, 247, 0.3)' }, '& .MuiInputBase-input': { color: '#b0bec5' }, '& label': { color: '#90CAF9' } }}
+            InputLabelProps={{ style: { color: '#90CAF9' } }}
           />
           </DialogContent>
-          <DialogActions>
-          <Button onClick={() => setOpenAddDialog(false)}>Cancel</Button>
+          <DialogActions sx={{ borderTop: "1px solid rgba(79, 195, 247, 0.15)", pt: 2 }}>
+          <Button onClick={() => setOpenAddDialog(false)} sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: 'none', color: '#4FC3F7' }}>Cancel</Button>
           <Button
             variant="contained"
             onClick={() => setConfirmDialogOpen(true)}
+            sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: 'none', bgcolor: '#1976d2' }}
           >
             Submit
           </Button>
@@ -713,21 +875,29 @@ const MemberCapitalShare = () => {
           onClose={() => setConfirmDialogOpen(false)}
           fullWidth
           maxWidth="xs"
+          PaperProps={{
+            sx: {
+              background: `linear-gradient(120deg, rgba(30, 41, 59, 0.95), rgba(33, 47, 61, 0.9))`,
+              backdropFilter: "blur(14px)",
+              border: `1px solid rgba(79, 195, 247, 0.2)`,
+            }
+          }}
         >
-          <DialogTitle>Confirm Submission</DialogTitle>
-          <DialogContent>
-            <Typography>
+          <DialogTitle sx={{ bgcolor: "rgba(31, 150, 243, 0.15)", color: "#4FC3F7", fontWeight: 700, borderBottom: "1px solid rgba(79, 195, 247, 0.15)" }}>Confirm Submission</DialogTitle>
+          <DialogContent sx={{ bgcolor: "transparent", mt: 2 }}>
+            <Typography sx={{ color: '#b0bec5' }}>
               Are you sure you want to add a capital share entry of ₱{Number(amount).toLocaleString()} on {selectedDate?.toDateString()}?
             </Typography>
           </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setConfirmDialogOpen(false)}>Cancel</Button>
+          <DialogActions sx={{ borderTop: "1px solid rgba(79, 195, 247, 0.15)", pt: 2 }}>
+            <Button onClick={() => setConfirmDialogOpen(false)} sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: 'none', color: '#4FC3F7' }}>Cancel</Button>
             <Button
               variant="contained"
               onClick={async () => {
                 setConfirmDialogOpen(false);
                 await handleAddEntry();
               }}
+              sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: 'none', bgcolor: '#1976d2' }}
             >
               Confirm
             </Button>
@@ -781,10 +951,16 @@ const MemberCapitalShare = () => {
         )}
 
         {/* Activate Dialog */}
-        <Dialog open={openDialog} onClose={() => setOpenDialog(false)} fullWidth maxWidth="xs">
-          <DialogTitle>Activate Capital Share</DialogTitle>
-          <DialogContent>
-            <Typography variant="body2" sx={{ mb: 2, color: "#1976d2", fontWeight: 600 }}>
+        <Dialog open={openDialog} onClose={() => setOpenDialog(false)} fullWidth maxWidth="xs" PaperProps={{
+          sx: {
+            background: `linear-gradient(120deg, rgba(30, 41, 59, 0.95), rgba(33, 47, 61, 0.9))`,
+            backdropFilter: "blur(14px)",
+            border: `1px solid rgba(79, 195, 247, 0.2)`,
+          }
+        }}>
+          <DialogTitle sx={{ bgcolor: "rgba(31, 150, 243, 0.15)", color: "#4FC3F7", fontWeight: 700, borderBottom: "1px solid rgba(79, 195, 247, 0.15)" }}>Activate Capital Share</DialogTitle>
+          <DialogContent sx={{ bgcolor: "transparent", mt: 2 }}>
+            <Typography variant="body2" sx={{ mb: 2, color: "#FFB74D", fontWeight: 600 }}>
               ℹ️ Activation is valid for 1 year. After 1 year, you'll need to activate a new code to continue.
             </Typography>
             <TextField
@@ -793,6 +969,8 @@ const MemberCapitalShare = () => {
               SelectProps={{ native: true }}
               value={selectedCode}
               onChange={(e) => setSelectedCode(e.target.value)}
+              sx={{ '& .MuiOutlinedInput-root': { color: '#b0bec5' }, '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(79, 195, 247, 0.3)' }, '& .MuiInputBase-input': { color: '#b0bec5' } }}
+              inputProps={{ style: { color: '#b0bec5' } }}
             >
               <option value="">-- Select Code --</option>
               {codes.map((c) => (
@@ -802,9 +980,9 @@ const MemberCapitalShare = () => {
               ))}
             </TextField>
           </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-            <Button variant="contained" onClick={handleActivate}>
+          <DialogActions sx={{ borderTop: "1px solid rgba(79, 195, 247, 0.15)", pt: 2 }}>
+            <Button onClick={() => setOpenDialog(false)} sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: 'none', color: '#4FC3F7' }}>Cancel</Button>
+            <Button variant="contained" onClick={handleActivate} sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: 'none', bgcolor: '#1976d2' }}>
               Activate
             </Button>
           </DialogActions>
@@ -821,59 +999,82 @@ const MemberCapitalShare = () => {
             <Box sx={{ width: '100%', flex: 1, overflowY: 'auto', height: '100%' }}>
               {transactionHistory.map((t, idx) => {
                 const now = new Date();
-                const nextProfitDate = t.nextProfitDate instanceof Date
-                  ? t.nextProfitDate
-                  : t.nextProfitDate?.toDate?.();
-                const profitStatus = nextProfitDate
-                  ? nextProfitDate > now
-                    ? "Pending"
-                    : "Profit Earn"
-                  : "-";
-                const profitIcon = profitStatus === "Pending" ? "⏳" : profitStatus === "Profit Earn" ? "✅" : "";
-                const borderColor = profitStatus === "Profit Earn" ? '#4caf50' : '#1976d2';
-                const iconBg = profitStatus === "Profit Earn" ? '#e8f5e9' : '#e3f2fd';
-                const iconColor = profitStatus === "Profit Earn" ? '#388e3c' : '#1976d2';
+                const transferableAfterDate = t.transferableAfterDate instanceof Date
+                  ? t.transferableAfterDate
+                  : t.transferableAfterDate?.toDate?.();
+                
+                // Determine lock-in status
+                const isLocked = t.lockInPortion > 0;
+                const canTransferByTime = transferableAfterDate && now >= transferableAfterDate;
+                const transferStatus = isLocked ? "🔒 Locked" : canTransferByTime ? "✅ Available" : "⏳ Locked (1 month)";
+                
+                const borderColor = isLocked ? '#ff9800' : canTransferByTime ? '#4caf50' : '#1976d2';
+                const iconBg = isLocked ? '#fff3e0' : canTransferByTime ? '#e8f5e9' : '#e3f2fd';
+                const iconColor = isLocked ? '#f57c00' : canTransferByTime ? '#388e3c' : '#1976d2';
+                
                 return (
                   <Card key={idx} sx={{
-                    mb: 2,
-                    p: 2.5,
-                    borderRadius: 3,
-                    boxShadow: '0 2px 12px 0 #1976d222',
-                    bgcolor: '#fff',
-                    border: `2px solid ${borderColor}`,
+                    mb: 1.5,
+                    p: 1.5,
+                    borderRadius: 2,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                    bgcolor: 'rgba(33, 47, 61, 0.6)',
+                    border: `1.5px solid ${borderColor}`,
                     display: 'flex',
                     flexDirection: 'row',
                     alignItems: 'center',
-                    gap: 2,
+                    gap: 1.5,
                   }}>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', mr: 2 }}>
-                      <Box sx={{ fontSize: 32, bgcolor: iconBg, color: iconColor, borderRadius: '50%', width: 54, height: 54, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px #0002', mb: 1 }}>
-                        💰
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minW: 50 }}>
+                      <Box sx={{ fontSize: 24, bgcolor: iconBg, color: iconColor, borderRadius: '50%', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px #0002' }}>
+                        {t.profitEnabled === false ? "🛑" : "💰"}
                       </Box>
-                      <Typography variant="body2" sx={{ fontWeight: 700, color: iconColor, textAlign: 'center' }}>
-                        {profitIcon} {profitStatus}
-                      </Typography>
                     </Box>
-                    <Box sx={{ flex: 1 }}>
-                      <Typography variant="h6" sx={{ fontWeight: 800, color: '#1976d2', mb: 0.5 }}>
-                        ₱{t.amount.toLocaleString()}
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: '#607d8b', fontWeight: 600, mb: 0.5 }}>
-                        Status: {t.status}
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: '#607d8b', fontWeight: 600, mb: 0.5 }}>
-                        Next Profit Date: {nextProfitDate ? nextProfitDate.toDateString() : "-"}
-                      </Typography>
-                      <Button
-                        variant="outlined"
-                        sx={{ mt: 1, fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 2, py: 1, fontSize: 15 }}
-                        onClick={() => {
-                          setEntryDetailsOpen(true);
-                          setSelectedEntry(t);
-                        }}
-                      >
-                        View Details
-                      </Button>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 0.5 }}>
+                        <Typography variant="h6" sx={{ fontWeight: 800, color: '#1976d2', fontSize: 16 }}>
+                          ₱{t.amount.toLocaleString()}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: iconColor, fontWeight: 700, fontSize: 11 }}>
+                          {t.profitEnabled === false ? "Stopped" : transferStatus}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 0.5 }}>
+                        {t.lockInPortion > 0 && (
+                          <Typography variant="caption" sx={{ color: '#ff9800', fontWeight: 600, fontSize: 11 }}>
+                            🔒 ₱{t.lockInPortion.toLocaleString()}
+                          </Typography>
+                        )}
+                        {t.transferablePortion > 0 && (
+                          <Typography variant="caption" sx={{ color: '#4caf50', fontWeight: 600, fontSize: 11 }}>
+                            💼 ₱{t.transferablePortion.toLocaleString()}
+                          </Typography>
+                        )}
+                      </Box>
+                      <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap', mt: 0.5 }}>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          sx={{ fontWeight: 600, borderRadius: 1.5, textTransform: 'none', px: 1.5, py: 0.5, fontSize: 11, minWidth: 'auto' }}
+                          onClick={() => {
+                            setEntryDetailsOpen(true);
+                            setSelectedEntry(t);
+                          }}
+                        >
+                          View Details
+                        </Button>
+                        {t.transferablePortion > 0 && (
+                          <Button
+                            variant="contained"
+                            size="small"
+                            sx={{ fontWeight: 600, borderRadius: 1.5, textTransform: 'none', px: 1.5, py: 0.5, fontSize: 11, bgcolor: '#4caf50', minWidth: 'auto', '&:hover': { bgcolor: '#45a049' } }}
+                            disabled={!canTransferByTime || (t.transferredAmount && t.transferredAmount >= t.transferablePortion)}
+                            onClick={() => handleTransferCapitalToWallet(t)}
+                          >
+                            Transfer
+                          </Button>
+                        )}
+                      </Box>
                     </Box>
                   </Card>
                 );
@@ -889,88 +1090,98 @@ const MemberCapitalShare = () => {
         </Card>
 
         {/* Monthly Profit History Dialog */}
-        <Dialog open={profitHistoryOpen} onClose={() => setProfitHistoryOpen(false)} fullWidth maxWidth="sm">
-          <DialogTitle sx={{ bgcolor: "#1976d2", color: "#fff" }}>
+        <Dialog open={profitHistoryOpen} onClose={() => setProfitHistoryOpen(false)} fullWidth maxWidth="sm" PaperProps={{
+          sx: {
+            background: `linear-gradient(120deg, rgba(30, 41, 59, 0.95), rgba(33, 47, 61, 0.9))`,
+            backdropFilter: "blur(14px)",
+            border: `1px solid rgba(79, 195, 247, 0.2)`,
+          }
+        }}>
+          <DialogTitle sx={{ bgcolor: "rgba(31, 150, 243, 0.15)", color: "#4FC3F7", fontWeight: 700, borderBottom: "1px solid rgba(79, 195, 247, 0.15)" }}>
             Monthly Profit History
           </DialogTitle>
-          <DialogContent dividers sx={{ bgcolor: "#f5f5f5" }}>
+          <DialogContent sx={{ bgcolor: "transparent", mt: 2 }}>
             {transactionHistory.length > 0 ? (
               transactionHistory.map((t) => (
                 <Box
                   key={t.id}
                   sx={{
                     mb: 2,
-                    p: 2,
+                    p: 1.5,
                     borderRadius: 2,
-                    bgcolor: "#fff",
-                    boxShadow: "0px 2px 6px rgba(0,0,0,0.15)",
+                    bgcolor: "rgba(33, 47, 61, 0.6)",
+                    border: "1px solid rgba(79, 195, 247, 0.15)",
+                    boxShadow: "0px 2px 6px rgba(0,0,0,0.3)",
                   }}
                 >
-                  <Typography variant="subtitle2" color="text.secondary">
+                  <Typography variant="subtitle2" sx={{ color: "#90CAF9", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, mb: 0.5 }}>
                     Profit Amount
                   </Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 700, color: "#4caf50" }}>
+                  <Typography variant="h6" sx={{ fontWeight: 800, color: "#4CAF50", mb: 1, textShadow: '1px 1px 4px #000' }}>
                     ₱{Number(t.profit || 0).toLocaleString()}
                   </Typography>
 
-                  <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 1 }}>
-                    <Typography
+                  <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 1 }}>
+                    <Box
                       sx={{
                         px: 1.5,
                         py: 0.5,
-                        borderRadius: 1,
-                        bgcolor: t.profitStatus === "Claimed" ? "#e8f5e9" : "#fff3e0",
-                        color: t.profitStatus === "Claimed" ? "#2e7d32" : "#ef6c00",
-                        fontWeight: 600,
-                        fontSize: 12,
+                        borderRadius: 1.5,
+                        bgcolor: t.profitStatus === "Claimed" ? "rgba(76, 175, 80, 0.2)" : "rgba(255, 152, 0, 0.2)",
+                        border: `1.5px solid ${t.profitStatus === "Claimed" ? "#4CAF50" : "#FF9800"}`,
+                        color: t.profitStatus === "Claimed" ? "#81C784" : "#FFB74D",
+                        fontWeight: 700,
+                        fontSize: 11,
                       }}
                     >
-                      Status: {t.profitStatus}
-                    </Typography>
+                      {t.profitStatus === "Claimed" ? "✅ Claimed" : "⏳ " + (t.profitStatus || "Pending")}
+                    </Box>
 
                     {t.nextProfitDate && (
-                      <Typography
+                      <Box
                         sx={{
                           px: 1.5,
                           py: 0.5,
-                          borderRadius: 1,
-                          bgcolor: "#e0f2f1",
-                          color: "#004d40",
-                          fontWeight: 600,
-                          fontSize: 12,
+                          borderRadius: 1.5,
+                          bgcolor: "rgba(76, 175, 80, 0.15)",
+                          border: "1.5px solid #4CAF50",
+                          color: "#81C784",
+                          fontWeight: 700,
+                          fontSize: 11,
                         }}
                       >
-                        Next Profit: {t.nextProfitDate.toDateString()}
-                      </Typography>
+                        📅 {t.nextProfitDate.toDateString()}
+                      </Box>
                     )}
                   </Box>
 
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 1 }}>
-                    <Typography variant="body2">
-                      Capital: ₱{Number(t.amount || 0).toLocaleString()}
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 1.5 }}>
+                    <Typography variant="body2" sx={{ color: "#b0bec5", fontWeight: 600 }}>
+                      Capital: <strong style={{ color: '#4FC3F7' }}>₱{Number(t.amount || 0).toLocaleString()}</strong>
                     </Typography>
                     <Button
                       variant="contained"
                       size="small"
                       disabled={!t.profit || t.profit <= 0 || t.profitStatus === "Claimed"}
+                      sx={{ fontWeight: 600, borderRadius: 1.5, textTransform: 'none', fontSize: 12, bgcolor: '#4CAF50', '&:hover': { bgcolor: '#45a049' } }}
                       onClick={() => {
                         setSelectedProfitEntry(t);
                         setProfitConfirmOpen(true);
                       }}
                     >
-                      Transfer To Wallet
+                      Transfer
                     </Button>
                   </Box>
                 </Box>
               ))
             ) : (
-              <Typography sx={{ textAlign: "center", py: 3 }}>
+              <Typography sx={{ textAlign: "center", py: 3, color: "#b0bec5" }}>
                 No profit history yet.
               </Typography>
             )}
           </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setProfitHistoryOpen(false)} variant="contained">
+          <DialogActions sx={{ borderTop: "1px solid rgba(79, 195, 247, 0.15)", pt: 2 }}>
+            <Button onClick={() => setProfitHistoryOpen(false)} variant="contained" sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: 'none', bgcolor: '#1976d2' }}>
               Close
             </Button>
           </DialogActions>
@@ -985,20 +1196,28 @@ const MemberCapitalShare = () => {
           }}
           fullWidth
           maxWidth="xs"
+          PaperProps={{
+            sx: {
+              background: `linear-gradient(120deg, rgba(30, 41, 59, 0.95), rgba(33, 47, 61, 0.9))`,
+              backdropFilter: "blur(14px)",
+              border: `1px solid rgba(79, 195, 247, 0.2)`,
+            }
+          }}
         >
-          <DialogTitle>Confirm Transfer</DialogTitle>
-          <DialogContent>
-            <Typography>
+          <DialogTitle sx={{ bgcolor: "rgba(31, 150, 243, 0.15)", color: "#4FC3F7", fontWeight: 700, borderBottom: "1px solid rgba(79, 195, 247, 0.15)" }}>Confirm Transfer</DialogTitle>
+          <DialogContent sx={{ bgcolor: "transparent", mt: 2 }}>
+            <Typography sx={{ color: '#b0bec5' }}>
               Transfer profit of ₱{Number(selectedProfitEntry?.profit || 0).toLocaleString()} to your wallet?
             </Typography>
           </DialogContent>
-          <DialogActions>
+          <DialogActions sx={{ borderTop: "1px solid rgba(79, 195, 247, 0.15)", pt: 2 }}>
             <Button
               onClick={() => {
                 setProfitConfirmOpen(false);
                 setSelectedProfitEntry(null);
               }}
               disabled={profitTransferLoading}
+              sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: 'none', color: '#4FC3F7' }}
             >
               Cancel
             </Button>
@@ -1016,6 +1235,7 @@ const MemberCapitalShare = () => {
                   setProfitTransferLoading(false);
                 }
               }}
+              sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: 'none', bgcolor: '#1976d2' }}
             >
               {profitTransferLoading ? (
                 <CircularProgress size={20} color="inherit" />
@@ -1035,59 +1255,98 @@ const MemberCapitalShare = () => {
           }}
           fullWidth
           maxWidth="xs"
+          PaperProps={{
+            sx: {
+              background: `linear-gradient(120deg, rgba(30, 41, 59, 0.95), rgba(33, 47, 61, 0.9))`,
+              backdropFilter: "blur(14px)",
+              border: `1px solid rgba(79, 195, 247, 0.2)`,
+            }
+          }}
         >
-          <DialogTitle sx={{ bgcolor: "#1976d2", color: "#fff" }}>
+          <DialogTitle sx={{ bgcolor: "rgba(31, 150, 243, 0.15)", color: "#4FC3F7", fontWeight: 700, borderBottom: "1px solid rgba(79, 195, 247, 0.15)" }}>
             Capital Share Entry Details
           </DialogTitle>
-          <DialogContent sx={{ mt: 2 }}>
+          <DialogContent sx={{ mt: 2, bgcolor: "transparent" }}>
             {selectedEntry && (
               <Box>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Amount
+                <Typography variant="subtitle2" sx={{ color: "#90CAF9", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, mb: 0.5 }}>
+                  Total Amount
                 </Typography>
-                <Typography variant="h5" sx={{ fontWeight: 700, color: "#4caf50", mb: 2 }}>
+                <Typography variant="h5" sx={{ fontWeight: 800, color: "#4FC3F7", mb: 2, textShadow: '1px 1px 4px #000' }}>
                   ₱{Number(selectedEntry.amount || 0).toLocaleString()}
                 </Typography>
 
-                <Typography variant="subtitle2" color="text.secondary">
-                  Date Added
+                <Typography variant="subtitle2" sx={{ color: "#90CAF9", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, mt: 2, mb: 0.5 }}>
+                  Entry Date
                 </Typography>
-                <Typography variant="body1" sx={{ mb: 2 }}>
+                <Typography variant="body2" sx={{ color: "#b0bec5", mb: 2 }}>
                   {selectedEntry.date instanceof Date
                     ? selectedEntry.date.toDateString()
                     : selectedEntry.date?.toDate?.().toDateString() || "N/A"}
                 </Typography>
 
-                <Typography variant="subtitle2" color="text.secondary">
+                {selectedEntry.lockInPortion > 0 && (
+                  <>
+                    <Typography variant="subtitle2" sx={{ color: "#90CAF9", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, mt: 2, mb: 0.5 }}>
+                      🔒 Lock-in Portion
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 2, color: "#FF9800", fontWeight: 700 }}>
+                      ₱{Number(selectedEntry.lockInPortion || 0).toLocaleString()} (Locked for 1 year)
+                    </Typography>
+                  </>
+                )}
+
+                {selectedEntry.transferablePortion > 0 && (
+                  <>
+                    <Typography variant="subtitle2" sx={{ color: "#90CAF9", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, mt: 2, mb: 0.5 }}>
+                      💼 Transferable Portion
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 2, color: "#4CAF50", fontWeight: 700 }}>
+                      ₱{Number(selectedEntry.transferablePortion || 0).toLocaleString()} (After 1 month)
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: "#FFB74D", fontStyle: "italic", display: "block", mb: 1.5, lineHeight: 1.4 }}>
+                      ⚠️ <strong>Important:</strong> Transfer only after profit is credited to avoid forfeiting upcoming profit.
+                    </Typography>
+                  </>
+                )}
+
+                <Typography variant="subtitle2" sx={{ color: "#90CAF9", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, mt: 2.5, mb: 0.5 }}>
+                  📈 Monthly Profit
+                </Typography>
+                <Typography variant="body2" sx={{ color: "#b0bec5", mb: 0.5 }}>
+                  Rate: <strong style={{ color: '#4CAF50' }}>5%</strong> monthly
+                </Typography>
+                <Typography variant="body2" sx={{ color: "#b0bec5", mb: 1 }}>
+                  Accrues: <strong style={{ color: '#4CAF50' }}>Every month</strong> automatically
+                </Typography>
+
+                <Typography variant="subtitle2" sx={{ color: "#90CAF9", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, mt: 2, mb: 0.5 }}>
                   Current Profit
                 </Typography>
-                <Typography variant="body1" sx={{ mb: 2 }}>
+                <Typography variant="h6" sx={{ fontWeight: 800, color: "#4CAF50", mb: 1, textShadow: '1px 1px 4px #000' }}>
                   ₱{Number(selectedEntry.profit || 0).toLocaleString()}
                 </Typography>
-
-                <Typography variant="subtitle2" color="text.secondary">
-                  Profit Status
-                </Typography>
-                <Typography
+                <Box
                   sx={{
-                    mb: 2,
                     px: 1.5,
-                    py: 0.5,
-                    borderRadius: 1,
-                    bgcolor: selectedEntry.profitStatus === "Claimed" ? "#e8f5e9" : "#fff3e0",
-                    color: selectedEntry.profitStatus === "Claimed" ? "#2e7d32" : "#ef6c00",
-                    fontWeight: 600,
-                    fontSize: 14,
+                    py: 0.75,
+                    borderRadius: 1.5,
+                    bgcolor: selectedEntry.profitStatus === "Claimed" ? "rgba(76, 175, 80, 0.2)" : "rgba(255, 152, 0, 0.2)",
+                    border: `1.5px solid ${selectedEntry.profitStatus === "Claimed" ? "#4CAF50" : "#FF9800"}`,
+                    color: selectedEntry.profitStatus === "Claimed" ? "#81C784" : "#FFB74D",
+                    fontWeight: 700,
+                    fontSize: 12,
                     display: "inline-block",
+                    mb: 1,
                   }}
                 >
-                  {selectedEntry.profitStatus || "Pending"}
-                </Typography>
+                  {selectedEntry.profitStatus === "Claimed" ? "✅ Claimed" : "⏳ " + (selectedEntry.profitStatus || "Pending")}
+                </Box>
 
-                <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 1 }}>
+                <Typography variant="subtitle2" sx={{ color: "#90CAF9", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, mt: 2, mb: 0.5 }}>
                   Next Profit Date
                 </Typography>
-                <Typography variant="body1">
+                <Typography variant="body2" sx={{ color: "#b0bec5" }}>
                   {selectedEntry.nextProfitDate instanceof Date
                     ? selectedEntry.nextProfitDate.toDateString()
                     : selectedEntry.nextProfitDate?.toDate?.().toDateString() || "N/A"}
@@ -1095,13 +1354,14 @@ const MemberCapitalShare = () => {
               </Box>
             )}
           </DialogContent>
-          <DialogActions>
+          <DialogActions sx={{ borderTop: "1px solid rgba(79, 195, 247, 0.15)", pt: 2 }}>
             <Button
               onClick={() => {
                 setEntryDetailsOpen(false);
                 setSelectedEntry(null);
               }}
               variant="contained"
+              sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: 'none', bgcolor: '#1976d2' }}
             >
               Close
             </Button>

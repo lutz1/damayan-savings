@@ -9,51 +9,53 @@ import {
 
 const PassiveIncomeEarn = ({ open, onClose, paybackEntries, setTransferAmount, setTransferDialogOpen }) => {
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" PaperProps={{ sx: { borderRadius: 4, boxShadow: 12, overflow: 'hidden', background: 'none', maxWidth: { xs: '100%', sm: 500, md: 500 } } }}>
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" PaperProps={{ sx: { background: `linear-gradient(120deg, rgba(30, 41, 59, 0.95), rgba(33, 47, 61, 0.9))`, backdropFilter: "blur(14px)", border: `1px solid rgba(79, 195, 247, 0.2)`, borderRadius: 2, boxShadow: '0 4px 24px rgba(0,0,0,0.3)', overflow: 'hidden', maxWidth: { xs: '100%', sm: 500, md: 500 } } }}>
       {/* Reduced header with X button */}
       <Box sx={{
-        bgcolor: '#1976d2',
-        color: '#fff',
-        px: { xs: 2, sm: 4 },
-        py: 2,
+        bgcolor: 'rgba(31, 150, 243, 0.15)',
+        color: '#4FC3F7',
+        px: { xs: 1.5, sm: 2 },
+        py: 1.2,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        borderTopLeftRadius: 4,
-        borderTopRightRadius: 4,
-        boxShadow: 2,
+        borderBottomLeftRadius: 0,
+        borderBottomRightRadius: 0,
+        boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
         position: 'relative',
         zIndex: 1,
+        borderBottom: '1px solid rgba(79, 195, 247, 0.2)',
       }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Box sx={{ fontSize: 28, mb: 0.5 }}>📈</Box>
-          <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: 0.5, color: '#fff', textShadow: '0 2px 12px #000a' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
+          <Box sx={{ fontSize: 24, mb: 0 }}>📈</Box>
+          <Typography variant="subtitle1" sx={{ fontWeight: 800, fontSize: 14, letterSpacing: 0.3, color: '#4FC3F7', textShadow: '0 2px 12px rgba(0,0,0,0.3)' }}>
             Passive Income Earn
           </Typography>
         </Box>
         <Button
           onClick={onClose}
-          sx={{ minWidth: 0, p: 0.5, color: '#fff', bgcolor: 'transparent', '&:hover': { bgcolor: '#1565c0' } }}
+          sx={{ minWidth: 0, p: 0.3, color: '#4FC3F7', bgcolor: 'transparent', '&:hover': { bgcolor: 'rgba(79, 195, 247, 0.15)' } }}
           aria-label="Close"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </Button>
       </Box>
       <DialogContent
         dividers
         sx={{
-          px: { xs: 2, sm: 4 },
-          py: 3,
-          background: 'rgba(30,41,59,0.98)',
+          px: { xs: 1.2, sm: 2 },
+          py: 1.2,
+          background: 'transparent',
           position: 'relative',
-          minHeight: 240,
-          borderBottomLeftRadius: 4,
-          borderBottomRightRadius: 4,
+          minHeight: 160,
+          borderBottomLeftRadius: 2,
+          borderBottomRightRadius: 2,
           zIndex: 0,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           overflowX: 'hidden',
+          borderTop: 'none',
         }}
       >
         {paybackEntries.length > 0 ? (
@@ -62,7 +64,7 @@ const PassiveIncomeEarn = ({ open, onClose, paybackEntries, setTransferAmount, s
               width: '100%',
               maxWidth: 560,
               mx: 'auto',
-              maxHeight: 400,
+              maxHeight: 320,
               overflowY: 'auto',
               scrollbarWidth: 'thin',
               scrollbarColor: 'rgba(255,255,255,0.15) transparent',
@@ -103,84 +105,75 @@ const PassiveIncomeEarn = ({ open, onClose, paybackEntries, setTransferAmount, s
                     key={e.id}
                     sx={{
                       display: 'flex',
-                      flexDirection: 'column',
-                      gap: 2,
-                      p: 2.5,
-                      mb: 1.5,
-                      borderRadius: 2.5,
-                      background: 'rgba(255,255,255,0.04)',
-                      border: '1px solid rgba(255,255,255,0.08)',
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 1,
+                      p: 1,
+                      mb: 0.7,
+                      borderRadius: 1.5,
+                      background: 'rgba(33, 47, 61, 0.6)',
+                      border: '1px solid rgba(79, 195, 247, 0.2)',
                       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                       '&:hover': {
-                        background: 'rgba(255,255,255,0.07)',
-                        border: '1px solid rgba(33,150,243,0.2)',
-                        boxShadow: '0 4px 12px rgba(33,150,243,0.15)',
+                        background: 'rgba(33, 47, 61, 0.8)',
+                        border: '1px solid rgba(79, 195, 247, 0.4)',
+                        boxShadow: '0 4px 12px rgba(79, 195, 247, 0.15)',
                       },
                     }}
                   >
-                    {/* Header: Amount + Status */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 2 }}>
-                      <Box>
-                        <Typography sx={{ fontSize: 11, color: '#90caf9', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, mb: 0.5 }}>
-                          2% Profit
-                        </Typography>
-                        <Typography sx={{ fontWeight: 800, fontSize: 32, color: '#fff', lineHeight: 1 }}>
-                          ₱{profit.toFixed(2)}
+                    {/* Amount */}
+                    <Box sx={{ minWidth: 'auto', flex: 0 }}>
+                      <Typography sx={{ fontWeight: 800, fontSize: 20, color: '#4FC3F7', lineHeight: 1 }}>
+                        ₱{profit.toFixed(0)}
+                      </Typography>
+                    </Box>
+                    
+                    {/* Dates compact */}
+                    <Box sx={{ display: 'flex', gap: 0.8, flex: 1, justifyContent: 'center', fontSize: 10, color: '#b0bec5' }}>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography sx={{ fontSize: 8, color: '#90CAF9', fontWeight: 600, mb: 0.1 }}>Made</Typography>
+                        <Typography sx={{ fontSize: 11 }}>
+                          {(() => {
+                            const val = e.createdAt || e.created;
+                            if (!val) return 'N/A';
+                            if (typeof val === 'string') {
+                              const d = new Date(val);
+                              return isNaN(d) ? val : d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
+                            }
+                            if (val.toDate) return val.toDate().toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
+                            if (val instanceof Date) return val.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
+                            return 'N/A';
+                          })()}
                         </Typography>
                       </Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.2, py: 0.6, borderRadius: 1.5, background: `${statusColor}15`, border: `1.5px solid ${statusColor}40` }}>
-                        <Typography sx={{ fontSize: 14, color: statusColor, fontWeight: 600 }}>{statusIcon}</Typography>
-                        <Typography sx={{ fontSize: 11, color: statusColor, fontWeight: 600, letterSpacing: 0.3 }}>
-                          {statusLabel}
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography sx={{ fontSize: 8, color: '#90CAF9', fontWeight: 600, mb: 0.1 }}>Release</Typography>
+                        <Typography sx={{ fontSize: 11 }}>
+                          {expirationDate ? expirationDate.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }) : "N/A"}
                         </Typography>
                       </Box>
                     </Box>
-
-                    {/* Dates Grid */}
-                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, py: 1 }}>
-                      <Box>
-                        <Typography sx={{ fontSize: 10, color: '#607d8b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3, mb: 0.6 }}>
-                          Created
-                        </Typography>
-                        <Typography sx={{ color: '#e0e0e0', fontSize: 14, fontWeight: 500 }}>
-                          {
-                            (() => {
-                              const val = e.createdAt || e.created;
-                              if (!val) return 'N/A';
-                              if (typeof val === 'string') {
-                                const d = new Date(val);
-                                return isNaN(d) ? val : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                              }
-                              if (val.toDate) return val.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                              if (val instanceof Date) return val.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                              return 'N/A';
-                            })()
-                          }
-                        </Typography>
-                      </Box>
-                      <Box>
-                        <Typography sx={{ fontSize: 10, color: '#607d8b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3, mb: 0.6 }}>
-                          Release
-                        </Typography>
-                        <Typography sx={{ color: '#e0e0e0', fontSize: 14, fontWeight: 500 }}>
-                          {expirationDate ? expirationDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : "N/A"}
-                        </Typography>
-                      </Box>
+                    
+                    {/* Status badge compact */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, px: 0.8, py: 0.3, borderRadius: 1, background: `${statusColor}15`, border: `1px solid ${statusColor}40`, minWidth: 'fit-content', flex: 0 }}>
+                      <Typography sx={{ fontSize: 12, color: statusColor, fontWeight: 600 }}>{statusIcon}</Typography>
+                      <Typography sx={{ fontSize: 9, color: statusColor, fontWeight: 600, letterSpacing: 0.2 }}>
+                        {statusLabel}
+                      </Typography>
                     </Box>
-
                     {/* Transfer Button */}
                     {canTransfer && (
                       <Button
                         variant="contained"
-                        color="success"
-                        fullWidth
-                        sx={{ fontWeight: 700, borderRadius: 2, textTransform: 'none', py: 1.3, fontSize: 14, mt: 0.5, background: '#4caf50', '&:hover': { background: '#388e3c' } }}
+                        size="small"
+                        sx={{ fontWeight: 700, borderRadius: 1, textTransform: 'none', py: 0.5, px: 1, fontSize: 10, bgcolor: '#4CAF50', color: '#fff', minWidth: 'fit-content', flex: 0, whiteSpace: 'nowrap', '&:hover': { bgcolor: '#388e3c' } }}
                         onClick={() => {
                           setTransferAmount((e.amount * 0.02).toFixed(2));
                           setTransferDialogOpen(true);
                         }}
                       >
-                        Transfer to E-Wallet
+                        Transfer
                       </Button>
                     )}
                   </Box>
@@ -188,12 +181,12 @@ const PassiveIncomeEarn = ({ open, onClose, paybackEntries, setTransferAmount, s
               })}
           </Box>
         ) : (
-          <Box sx={{ textAlign: 'center', py: 5 }}>
-            <Box sx={{ fontSize: 48, mb: 2, opacity: 0.6 }}>📊</Box>
-            <Typography sx={{ color: '#90caf9', fontWeight: 600, fontSize: 15, mb: 0.8 }}>
-              No Passive Income Yet
+          <Box sx={{ textAlign: 'center', py: 2 }}>
+            <Box sx={{ fontSize: 36, mb: 1, opacity: 0.6 }}>📊</Box>
+            <Typography sx={{ color: '#4FC3F7', fontWeight: 600, fontSize: 13, mb: 0.4 }}>
+              No Passive Income
             </Typography>
-            <Typography sx={{ color: '#b0bec5', fontSize: 12, lineHeight: 1.6 }}>
+            <Typography sx={{ color: '#b0bec5', fontSize: 10, lineHeight: 1.4 }}>
               Complete payback entries to start<br />earning 2% profit
             </Typography>
           </Box>
