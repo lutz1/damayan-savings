@@ -27,60 +27,65 @@ const DepositSuccess = () => {
         }
 
         if (!sessionId) {
+          console.error("[depositSuccess] ❌ No payment session found");
           setStatus("error");
-          setMessage("No payment session found.");
+          setMessage("No payment session found. Please try again.");
           return;
         }
 
-        // Wait for auth state to load
-        const unsubscribe = onAuthStateChanged(auth, async (user) => {
-          try {
-            if (!user) {
-              setStatus("error");
-              setMessage("Please log in first.");
-              unsubscribe();
-              return;
-            }
+        console.log("[depositSuccess] 🔄 Starting payment verification with sessionId:", sessionId);
 
-            // Get ID token to verify payment on backend
-            const idToken = await user.getIdToken();
-            const API_BASE = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
-
-            // Call backend to verify and create deposit
-            const response = await fetch(`${API_BASE}/api/verify-paymongo-payment`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                idToken,
-                sessionId,
-              }),
-            });
-
-            const result = await response.json();
-            console.log("[depositSuccess] Verification response:", { status: response.status, result });
-
-            if (response.ok) {
-              setStatus("success");
-              setMessage("Deposit successful! Your eWallet has been credited.");
-              // Redirect to member dashboard after 3 seconds
-              setTimeout(() => navigate("/member/dashboard"), 3000);
-            } else {
-              setStatus("error");
-              const errorMsg = result.error || "Payment verification failed. Please contact support.";
-              console.error("[depositSuccess] Verification failed:", errorMsg);
-              setMessage(errorMsg);
-            }
-
+        // Wait for auth state to load - wrap in Promise
+        const user = await new Promise((resolve) => {
+          const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            console.log("[depositSuccess] Auth state changed. User:", currentUser?.uid || "null");
             unsubscribe();
-          } catch (err) {
-            console.error("Payment verification error:", err);
-            setStatus("error");
-            setMessage("An error occurred. Please refresh and try again.");
-            unsubscribe();
-          }
+            resolve(currentUser);
+          });
         });
+
+        if (!user) {
+          console.error("[depositSuccess] ❌ No authenticated user found");
+          setStatus("error");
+          setMessage("Session expired. Please log in again and retry your deposit.");
+          return;
+        }
+
+        console.log("[depositSuccess] ✅ User authenticated:", user.uid);
+
+        // Get ID token to verify payment on backend
+        const idToken = await user.getIdToken();
+        const API_BASE = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
+
+        console.log("[depositSuccess] 📤 Calling verification endpoint:", `${API_BASE}/api/verify-paymongo-payment`);
+
+        // Call backend to verify and create deposit
+        const response = await fetch(`${API_BASE}/api/verify-paymongo-payment`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            idToken,
+            sessionId,
+          }),
+        });
+
+        const result = await response.json();
+        console.log("[depositSuccess] 📥 Verification response:", { status: response.status, result });
+
+        if (response.ok) {
+          setStatus("success");
+          setMessage("Deposit successful! Your eWallet has been credited.");
+          console.log("[depositSuccess] ✅ Payment verified successfully");
+          // Redirect to member dashboard after 3 seconds
+          setTimeout(() => navigate("/member/dashboard"), 3000);
+        } else {
+          setStatus("error");
+          const errorMsg = result.error || "Payment verification failed. Please contact support.";
+          console.error("[depositSuccess] ❌ Verification failed:", errorMsg);
+          setMessage(errorMsg);
+        }
       } catch (err) {
-        console.error("Payment verification error:", err);
+        console.error("[depositSuccess] ❌ Error:", err);
         setStatus("error");
         setMessage("An error occurred. Please refresh and try again.");
       }
