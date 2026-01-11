@@ -235,14 +235,14 @@ const AdminDeposits = () => {
   const canApproveReject = ["admin", "ceo"].includes(effectiveRole);
   
   // Debug log
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     console.log("[adminDeposits] Permissions check:", {
       userRole,
-      localStorageRole,
       effectiveRole,
       canApproveReject
     });
-  }, [userRole, canApproveReject]);
+  }, [userRole]);
 
   // 🔹 Filter deposits based on search & status
   const filteredDeposits = deposits.filter((d) => {
