@@ -1,7 +1,7 @@
 {
   "files": {
     "main.css": "/damayan-savings/static/css/main.560663ea.css",
-    "main.js": "/damayan-savings/static/js/main.d0332735.js",
+    "main.js": "/damayan-savings/static/js/main.313797bd.js",
     "static/js/453.94e2bd67.chunk.js": "/damayan-savings/static/js/453.94e2bd67.chunk.js",
     "static/media/merchantlogo.png": "/damayan-savings/static/media/merchantlogo.564fca123f6b9e6b0915.png",
     "static/media/tclc-logo1.png": "/damayan-savings/static/media/tclc-logo1.bb5ca32be2e40fa9359e.png",
@@ -10,11 +10,11 @@
     "static/media/bg.jpg": "/damayan-savings/static/media/bg.df8bc4a5288d8bc33ec2.jpg",
     "index.html": "/damayan-savings/index.html",
     "main.560663ea.css.map": "/damayan-savings/static/css/main.560663ea.css.map",
-    "main.d0332735.js.map": "/damayan-savings/static/js/main.d0332735.js.map",
+    "main.313797bd.js.map": "/damayan-savings/static/js/main.313797bd.js.map",
     "453.94e2bd67.chunk.js.map": "/damayan-savings/static/js/453.94e2bd67.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.560663ea.css",
-    "static/js/main.d0332735.js"
+    "static/js/main.313797bd.js"
   ]
 }
