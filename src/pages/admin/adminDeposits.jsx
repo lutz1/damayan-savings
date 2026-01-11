@@ -50,7 +50,10 @@ const AdminDeposits = () => {
   const [remarks, setRemarks] = useState("");
   const [proofImage, setProofImage] = useState(null);
   const [salesData, setSalesData] = useState({ total: 0, revenue: 0 });
-  const [userRole, setUserRole] = useState("");
+  // Initialize from localStorage to avoid delay on page refresh
+  const [userRole, setUserRole] = useState(() => 
+    localStorage.getItem("userRole")?.toLowerCase() || ""
+  );
 
   // 🔹 New states for search/filter/pagination
   const [searchTerm, setSearchTerm] = useState("");
@@ -87,7 +90,7 @@ const AdminDeposits = () => {
     "& .MuiSvgIcon-root": { color: "white" },
   };
 
-  // ✅ Fetch current user's role
+  // ✅ Fetch current user's role (verify and update from Firestore)
   useEffect(() => {
     const fetchRole = async () => {
       const user = auth.currentUser;
@@ -101,7 +104,7 @@ const AdminDeposits = () => {
         if (userDoc.exists()) {
           const role = userDoc.data().role?.toLowerCase() || "";
           setUserRole(role);
-          console.log("[adminDeposits] User role fetched:", role);
+          console.log("[adminDeposits] User role verified from Firestore:", role);
         }
       } catch (err) {
         console.error("[adminDeposits] Error fetching role:", err);
@@ -229,17 +232,13 @@ const AdminDeposits = () => {
   const handleViewProof = (url) => setProofImage(url);
   const closeProofDialog = () => setProofImage(null);
 
-  // Check if user can approve/reject - use Firestore role OR localStorage fallback
-  const localStorageRole = localStorage.getItem("userRole")?.toLowerCase() || "";
-  const effectiveRole = userRole || localStorageRole;
-  const canApproveReject = ["admin", "ceo"].includes(effectiveRole);
+  // Check if user can approve/reject
+  const canApproveReject = ["admin", "ceo"].includes(userRole);
   
   // Debug log
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     console.log("[adminDeposits] Permissions check:", {
       userRole,
-      effectiveRole,
       canApproveReject
     });
   }, [userRole]);
