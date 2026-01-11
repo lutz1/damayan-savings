@@ -307,37 +307,33 @@ const overrideNotifiedRef = useRef(false);
 useEffect(() => {
   const now = new Date();
   
-  // Calculate total from rewards that are due (dueDate passed)
+  // Calculate TOTAL from ALL rewards (for marketing purposes - show total earned, even if claimed)
   const total = overrideList.reduce((sum, reward) => {
-    const dueDate = reward.dueDate
-      ? (typeof reward.dueDate === "object" && reward.dueDate.seconds
-          ? new Date(reward.dueDate.seconds * 1000)
-          : new Date(reward.dueDate))
-      : null;
+    return sum + (Number(reward.amount) || 0);
+  }, 0);
+  
+  setOverrideEarnings(total);
+
+  // Notify if there are claimable rewards (dueDate/releaseDate passed and not claimed)
+  let claimableTotal = 0;
+  const hasClaimable = overrideList.some(reward => {
+    let dueDate = reward.dueDate || reward.releaseDate;
+    if (dueDate) {
+      if (typeof dueDate === "object" && dueDate.seconds) {
+        dueDate = new Date(dueDate.seconds * 1000);
+      } else if (typeof dueDate === "string" || typeof dueDate === "number") {
+        dueDate = new Date(dueDate);
+      }
+    }
     
     const isDue = dueDate && dueDate <= now;
     const isClaimed = reward.claimed || reward.status === "Credited";
     
     if (isDue && !isClaimed) {
-      return sum + (Number(reward.amount) || 0);
+      claimableTotal += Number(reward.amount) || 0;
+      return true;
     }
-    return sum;
-  }, 0);
-  
-  setOverrideEarnings(total);
-
-  // Notify if there are claimable rewards (dueDate passed and not claimed)
-  const hasClaimable = overrideList.some(reward => {
-    const dueDate = reward.dueDate
-      ? (typeof reward.dueDate === "object" && reward.dueDate.seconds
-          ? new Date(reward.dueDate.seconds * 1000)
-          : new Date(reward.dueDate))
-      : null;
-    
-    const isDue = dueDate && dueDate <= now;
-    const isClaimed = reward.claimed || reward.status === "Credited";
-    
-    return isDue && !isClaimed;
+    return false;
   });
   
   if (hasClaimable && !overrideNotifiedRef.current && user) {
