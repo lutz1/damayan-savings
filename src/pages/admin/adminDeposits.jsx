@@ -91,9 +91,21 @@ const AdminDeposits = () => {
   useEffect(() => {
     const fetchRole = async () => {
       const user = auth.currentUser;
-      if (!user) return;
-      const userDoc = await getDoc(doc(db, "users", user.uid));
-      if (userDoc.exists()) setUserRole(userDoc.data().role?.toLowerCase() || "");
+      if (!user) {
+        console.log("[adminDeposits] No user logged in");
+        return;
+      }
+      
+      try {
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists()) {
+          const role = userDoc.data().role?.toLowerCase() || "";
+          setUserRole(role);
+          console.log("[adminDeposits] User role fetched:", role);
+        }
+      } catch (err) {
+        console.error("[adminDeposits] Error fetching role:", err);
+      }
     };
     fetchRole();
   }, [auth]);
@@ -217,7 +229,20 @@ const AdminDeposits = () => {
   const handleViewProof = (url) => setProofImage(url);
   const closeProofDialog = () => setProofImage(null);
 
-  const canApproveReject = ["admin", "ceo"].includes(userRole);
+  // Check if user can approve/reject - use Firestore role OR localStorage fallback
+  const localStorageRole = localStorage.getItem("userRole")?.toLowerCase() || "";
+  const effectiveRole = userRole || localStorageRole;
+  const canApproveReject = ["admin", "ceo"].includes(effectiveRole);
+  
+  // Debug log
+  React.useEffect(() => {
+    console.log("[adminDeposits] Permissions check:", {
+      userRole,
+      localStorageRole,
+      effectiveRole,
+      canApproveReject
+    });
+  }, [userRole, canApproveReject]);
 
   // 🔹 Filter deposits based on search & status
   const filteredDeposits = deposits.filter((d) => {
