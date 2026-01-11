@@ -264,21 +264,41 @@ const handleTransferToWallet = async ({ amount, type, rewardId = null }) => {
 useEffect(() => {
   if (!user) return;
 
-  const q = query(
+  // Listen to uplineRewards collection (₱65 from payback entries)
+  const q1 = query(
     collection(db, "uplineRewards"),
     where("uplineId", "==", user.uid)
   );
 
-  const unsubscribe = onSnapshot(q, (snapshot) => {
-    const rewards = snapshot.docs.map((doc) => ({
+  const unsubscribe1 = onSnapshot(q1, (snapshot) => {
+    const uplineRewards = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
+      source: "uplineRewards", // Mark source for debugging
     }));
 
-    setOverrideList(rewards);
+    // Listen to override collection (5% from capital share entries)
+    const q2 = query(
+      collection(db, "override"),
+      where("uplineId", "==", user.uid)
+    );
+
+    const unsubscribe2 = onSnapshot(q2, (snapshot2) => {
+      const overrideRewards = snapshot2.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        source: "override", // Mark source for debugging
+      }));
+
+      // Combine both reward types
+      const allRewards = [...uplineRewards, ...overrideRewards];
+      setOverrideList(allRewards);
+    });
+
+    return () => unsubscribe2();
   });
 
-  return () => unsubscribe();
+  return () => unsubscribe1();
 }, [user]);
 
 

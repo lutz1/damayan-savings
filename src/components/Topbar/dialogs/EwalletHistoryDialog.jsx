@@ -155,7 +155,7 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
         (d) => ({
           ...d,
           source: "override",
-          displayType: `Override Earnings from ${d.fromUsername || "System"}`,
+          displayType: `💵 Override Earnings from ${d.fromUsername || "System"}`,
           isCredit: true,
         })
       );

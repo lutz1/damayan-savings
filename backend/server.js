@@ -183,18 +183,51 @@ app.post("/api/transfer-override-reward", async (req, res) => {
     // Run transaction
     try {
       const result = await db.runTransaction(async (transaction) => {
-        // Get upline reward from uplineRewards collection
+        // Try both collections: uplineRewards and override
+        let rewardData;
+        let rewardRef;
+        let collection_type;
+
+        // First try uplineRewards collection
         const uplineRewardRef = db.collection("uplineRewards").doc(overrideId);
         const uplineRewardDoc = await transaction.get(uplineRewardRef);
-        if (!uplineRewardDoc.exists) {
-          throw new Error("Override reward not found");
+        
+        if (uplineRewardDoc.exists) {
+          rewardData = uplineRewardDoc.data();
+          rewardRef = uplineRewardRef;
+          collection_type = "uplineRewards";
+        } else {
+          // Try override collection
+          const overrideRef = db.collection("override").doc(overrideId);
+          const overrideDoc = await transaction.get(overrideRef);
+          
+          if (overrideDoc.exists) {
+            rewardData = overrideDoc.data();
+            rewardRef = overrideRef;
+            collection_type = "override";
+          } else {
+            throw new Error("Override reward not found");
+          }
         }
-        const rewardData = uplineRewardDoc.data();
+
         if (rewardData.uplineId !== userId) {
           throw new Error("Unauthorized: Not your override reward");
         }
-        if (rewardData.claimed || rewardData.status === "Credited") {
+        if (rewardData.status === "Credited") {
           throw new Error("Already claimed");
+        }
+
+        // Check if reward is due (1 month has passed)
+        // For uplineRewards: check dueDate
+        // For override: check releaseDate
+        let dueDate = rewardData.dueDate || rewardData.releaseDate;
+        if (dueDate && typeof dueDate.toDate === "function") {
+          dueDate = dueDate.toDate();
+        }
+        
+        const now = new Date();
+        if (dueDate && now < dueDate) {
+          throw new Error("Reward is not yet due. Please wait until the due date has passed.");
         }
 
         // Update user eWallet
@@ -208,7 +241,7 @@ app.post("/api/transfer-override-reward", async (req, res) => {
         transaction.update(userRef, { eWallet: newBalance, updatedAt: new Date() });
 
         // Mark upline reward as claimed and status as Credited
-        transaction.update(uplineRewardRef, { 
+        transaction.update(rewardRef, { 
           claimed: true,
           claimedAt: new Date(),
           status: "Credited" 
