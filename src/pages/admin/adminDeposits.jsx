@@ -413,6 +413,9 @@ const AdminDeposits = () => {
                         .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                         .map((d) => {
                           const status = d.status?.toLowerCase() || "pending";
+                          const isPending = status === "pending";
+                          const canAction = canApproveReject && isPending;
+                          
                           return (
                             <motion.tr
                               key={d.id}
@@ -445,7 +448,7 @@ const AdminDeposits = () => {
                                   : "—"}
                               </TableCell>
                               <TableCell>
-                                {canApproveReject && status === "pending" ? (
+                                {canAction ? (
                                   <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
                                     {d.receiptUrl && (
                                       <Button
@@ -471,7 +474,7 @@ const AdminDeposits = () => {
                                     variant="body2"
                                     sx={{ color: "rgba(255,255,255,0.6)" }}
                                   >
-                                    {status === "pending" ? "—" : "Done"}
+                                    —
                                   </Typography>
                                 )}
                               </TableCell>
