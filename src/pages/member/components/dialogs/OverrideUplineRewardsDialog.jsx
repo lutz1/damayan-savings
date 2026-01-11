@@ -87,11 +87,14 @@ const OverrideUplineRewardsDialog = ({
               .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
               .map((o) => {
                 // Check if dueDate has passed for uplineRewards collection
-                const dueDate = o.dueDate
-                  ? (typeof o.dueDate === "object" && o.dueDate.seconds
-                      ? new Date(o.dueDate.seconds * 1000)
-                      : new Date(o.dueDate))
-                  : null;
+                let dueDate = o.dueDate || o.releaseDate;
+                if (dueDate) {
+                  if (typeof dueDate === "object" && dueDate.seconds) {
+                    dueDate = new Date(dueDate.seconds * 1000);
+                  } else if (typeof dueDate === "string" || typeof dueDate === "number") {
+                    dueDate = new Date(dueDate);
+                  }
+                }
                 
                 const isClaimed = o.claimed || o.status === "Credited";
                 const isClaimable = dueDate && new Date() >= dueDate && !isClaimed;
