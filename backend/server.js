@@ -1069,6 +1069,176 @@ app.post("/api/transfer-passive-income", async (req, res) => {
   }
 });
 
+// 💰 Add Capital Share Entry Endpoint
+app.post("/api/add-capital-share", async (req, res) => {
+  console.log("[capital-share] 🔄 Request received");
+  try {
+    const { idToken, amount, entryDate, referredBy } = req.body;
+    console.log("[capital-share] Validating input:", { amount, entryDate, referredBy });
+
+    // Validate input
+    if (!idToken || !amount || !entryDate) {
+      console.error("[capital-share] ❌ Missing required fields");
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      console.error("[capital-share] ❌ Invalid amount");
+      return res.status(400).json({ error: "Amount must be greater than zero" });
+    }
+
+    if (numAmount < 1000) {
+      console.error("[capital-share] ❌ Amount below minimum (₱1000)");
+      return res.status(400).json({ error: "Minimum capital share amount is ₱1,000" });
+    }
+
+    // Verify user authentication
+    let decodedToken;
+    try {
+      decodedToken = await auth.verifyIdToken(idToken);
+      console.log("[capital-share] ✅ User authenticated:", decodedToken.uid);
+    } catch (error) {
+      console.error("[capital-share] ❌ Token verification failed:", error);
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const userId = decodedToken.uid;
+    const LOCK_IN = 5000;
+
+    // Run transaction
+    try {
+      const result = await db.runTransaction(async (transaction) => {
+        // Get user document
+        const userRef = db.collection("users").doc(userId);
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists) {
+          throw new Error("User not found");
+        }
+
+        const userData = userDoc.data();
+        const walletBalance = Number(userData.eWallet || 0);
+
+        // Check wallet balance
+        if (walletBalance < numAmount) {
+          throw new Error("Insufficient wallet balance");
+        }
+
+        // Get existing entries to calculate cumulative lock-in
+        const existingEntriesSnap = await db
+          .collection("capitalShareEntries")
+          .where("userId", "==", userId)
+          .get();
+
+        let cumulativeLockIn = 0;
+        existingEntriesSnap.docs.forEach((doc) => {
+          const data = doc.data();
+          cumulativeLockIn += data.lockInPortion || 0;
+        });
+
+        // Calculate lock-in and transferable portions for NEW entry
+        let lockInPortion = 0;
+        let transferablePortion = 0;
+
+        const remainingLockInNeeded = Math.max(0, LOCK_IN - cumulativeLockIn);
+
+        if (remainingLockInNeeded > 0) {
+          lockInPortion = Math.min(numAmount, remainingLockInNeeded);
+          transferablePortion = numAmount - lockInPortion;
+        } else {
+          transferablePortion = numAmount;
+        }
+
+        // Calculate when the entry becomes transferable
+        const now = new Date();
+        const transferableAfterDate = new Date(now);
+        transferableAfterDate.setMonth(transferableAfterDate.getMonth() + 1);
+
+        // Create capital share entry
+        const entryRef = db.collection("capitalShareEntries").doc();
+        transaction.set(entryRef, {
+          userId,
+          amount: numAmount,
+          date: new Date(entryDate),
+          profit: 0,
+          profitStatus: "Pending",
+          lockInPortion,
+          transferablePortion,
+          status: "Approved",
+          createdAt: new Date(),
+          transferableAfterDate,
+          nextProfitDate: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+        });
+
+        // Deduct from user wallet
+        transaction.update(userRef, {
+          eWallet: walletBalance - numAmount,
+          updatedAt: new Date(),
+        });
+
+        // Create deposit record for eWallet history
+        const depositRef = db.collection("deposits").doc();
+        transaction.set(depositRef, {
+          userId,
+          amount: numAmount,
+          status: "Approved",
+          type: "Capital Share Added",
+          sourceEntryId: entryRef.id,
+          createdAt: new Date(),
+        });
+
+        // Store 5% upline bonus in override collection (if referredBy exists)
+        if (referredBy) {
+          const uplineQuery = await db
+            .collection("users")
+            .where("username", "==", referredBy)
+            .limit(1)
+            .get();
+
+          if (!uplineQuery.empty) {
+            const uplineId = uplineQuery.docs[0].id;
+            const uplineBonus = numAmount * 0.05;
+            const releaseDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+            const overrideRef = db.collection("override").doc();
+            transaction.set(overrideRef, {
+              uplineId,
+              fromUserId: userId,
+              fromUsername: userData.username || "",
+              uplineUsername: referredBy,
+              amount: uplineBonus,
+              type: "Upline Capital Share Bonus",
+              status: "Pending",
+              createdAt: new Date(),
+              releaseDate,
+            });
+          }
+        }
+
+        return {
+          success: true,
+          entryId: entryRef.id,
+          newBalance: walletBalance - numAmount,
+          lockInPortion,
+          transferablePortion,
+        };
+      });
+
+      console.info(
+        `[capital-share] ✅ ENTRY CREATED - user=${userId} amount=₱${numAmount} lockIn=₱${result.lockInPortion} transferable=₱${result.transferablePortion} entryId=${result.entryId}`
+      );
+
+      res.json(result);
+    } catch (transactionError) {
+      console.error("[capital-share] ❌ Transaction failed:", transactionError);
+      res.status(400).json({ error: transactionError.message });
+    }
+  } catch (error) {
+    console.error("[capital-share] ❌ Error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // Simple health check for deployment platforms
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });

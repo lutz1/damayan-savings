@@ -85,6 +85,8 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
             displayType = "📈 Monthly Profit Earn";
           } else if (d.type === "Capital Share Transfer") {
             displayType = "💰 Capital Share Transfer";
+          } else if (d.type === "Capital Share Added") {
+            displayType = "💰 Capital Share Added";
           } else if (d.type === "PayMongo") {
             displayType = "💳 PayMongo Deposit";
           }

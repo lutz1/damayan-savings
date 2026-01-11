@@ -335,156 +335,46 @@ const MemberCapitalShare = () => {
   };
 
   const handleAddEntry = async () => {
-  const entryAmount = Number(amount);
-  const walletBalance = Number(userData?.eWallet || 0);
-  if (!entryAmount || entryAmount < MIN_AMOUNT)
-    return alert(`Minimum amount is ₱${MIN_AMOUNT}`);
-  if (entryAmount > walletBalance)
-    return alert("Insufficient wallet balance.");
+    const entryAmount = Number(amount);
+    const walletBalance = Number(userData?.eWallet || 0);
+    if (!entryAmount || entryAmount < MIN_AMOUNT)
+      return alert(`Minimum amount is ₱${MIN_AMOUNT}`);
+    if (entryAmount > walletBalance)
+      return alert("Insufficient wallet balance.");
 
-  try {
-    // 🔹 Fetch existing entries to calculate cumulative lock-in
-    const entriesRef = collection(db, "capitalShareEntries");
-    const q = query(
-      entriesRef,
-      where("userId", "==", user.uid)
-    );
-    const existingSnap = await getDocs(q);
-    
-    // 🔹 Sort entries by createdAt in JavaScript
-    const sortedDocs = existingSnap.docs.sort((a, b) => {
-      const dateA = a.data().createdAt?.toDate?.() || new Date(0);
-      const dateB = b.data().createdAt?.toDate?.() || new Date(0);
-      return dateA.getTime() - dateB.getTime();
-    });
-    // 🔹 Retroactively calculate lock-in for entries that don't have lockInPortion
-    let cumulativeLockIn = 0;
-    const entriesToUpdate = [];
+    try {
+      // 🔹 Get ID token
+      const idToken = await user.getIdToken();
+      const API_BASE = process.env.REACT_APP_API_BASE_URL || "https://damayan-savings-backend.onrender.com";
 
-    for (const doc of sortedDocs) {
-      const data = doc.data();
-      
-      // If entry doesn't have lockInPortion, it's an old entry - calculate it retroactively
-      if (!data.lockInPortion) {
-        const remainingLockInNeeded = Math.max(0, LOCK_IN - cumulativeLockIn);
-        const lockInPortion = remainingLockInNeeded > 0 
-          ? Math.min(data.amount || 0, remainingLockInNeeded)
-          : 0;
-        const transferablePortion = (data.amount || 0) - lockInPortion;
-
-        // Queue this entry for update with retroactive lock-in
-        entriesToUpdate.push({
-          docRef: doc.ref,
-          lockInPortion,
-          transferablePortion,
-          transferableAfterDate: data.transferableAfterDate || new Date(data.createdAt.toDate().getTime() + 30 * 24 * 60 * 60 * 1000),
-        });
-
-        cumulativeLockIn += lockInPortion;
-      } else {
-        // Entry already has lockInPortion, use it
-        cumulativeLockIn += data.lockInPortion || 0;
-      }
-    }
-
-    // 🔹 Update old entries with retroactive lock-in
-    for (const update of entriesToUpdate) {
-      await updateDoc(update.docRef, {
-        lockInPortion: update.lockInPortion,
-        transferablePortion: update.transferablePortion,
-        transferableAfterDate: update.transferableAfterDate,
+      // 🔹 Call backend to create capital share entry
+      const response = await fetch(`${API_BASE}/api/add-capital-share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idToken,
+          amount: entryAmount,
+          entryDate: selectedDate.toISOString(),
+          referredBy: userData?.referredBy || null,
+        }),
       });
-    }
 
-    // 🔹 Calculate lock-in and transferable portions for NEW entry
-    let lockInPortion = 0;
-    let transferablePortion = 0;
-    
-    const remainingLockInNeeded = Math.max(0, LOCK_IN - cumulativeLockIn);
-    
-    if (remainingLockInNeeded > 0) {
-      // Entry contributes to lock-in
-      lockInPortion = Math.min(entryAmount, remainingLockInNeeded);
-      transferablePortion = entryAmount - lockInPortion;
-    } else {
-      // All entries from this point are fully transferable
-      transferablePortion = entryAmount;
-    }
+      const result = await response.json();
 
-    // 🔹 Calculate when the entry becomes transferable
-    const now = new Date();
-    const transferableAfterDate = new Date(now);
-    transferableAfterDate.setMonth(transferableAfterDate.getMonth() + 1);
-
-    // 🔹 Add capital share entry
-    await addDoc(entriesRef, {
-      userId: user.uid,
-      amount: entryAmount,
-      date: selectedDate,
-      profit: 0,
-      profitStatus: "Pending",
-      lockInPortion: lockInPortion,
-      transferablePortion: transferablePortion,
-      status: "Approved",
-      createdAt: serverTimestamp(),
-      transferableAfterDate: transferableAfterDate,
-      nextProfitDate: new Date(
-        new Date().setMonth(new Date().getMonth() + 1)
-      ),
-    });
-
-    // 🔹 Deduct from user wallet
-    const userRef = doc(db, "users", user.uid);
-    await updateDoc(userRef, { eWallet: walletBalance - entryAmount });
-
-    // 🔹 Store 5% upline bonus in override collection (using referredBy)
-    if (userData?.referredBy) {
-      const uplineQuery = query(
-        collection(db, "users"),
-        where("username", "==", userData.referredBy)
-      );
-      const snap = await getDocs(uplineQuery);
-      if (!snap.empty) {
-        const upline = snap.docs[0];
-        const uplineBonus = entryAmount * 0.05;
-        const releaseDate = new Date(
-          new Date().setMonth(new Date().getMonth() + 1)
-        );
-
-        await addDoc(collection(db, "override"), {
-          uplineId: upline.id,
-          fromUserId: user.uid,
-          fromUsername: userData.username || "",
-          uplineUsername: userData.referredBy,
-          amount: uplineBonus,
-          type: "Upline Capital Share Bonus",
-          status: "Pending",
-          createdAt: serverTimestamp(),
-          releaseDate,
-        });
-
-        // 🧾 Debug logs
-        console.log("✅ Upline Bonus Recorded!");
-        console.log(`Upline Username: ${userData.referredBy}`);
-        console.log(`Bonus Amount: ₱${uplineBonus.toFixed(2)}`);
-        console.log(`Release Date (after 1 month):`, releaseDate);
-      } else {
-        console.warn("⚠️ No upline found for referredBy:", userData.referredBy);
+      if (!response.ok) {
+        return alert(`❌ ${result.error || "Failed to add entry"}`);
       }
-    } else {
-      console.log("ℹ️ No referredBy/upline, skipping upline bonus.");
-    }
 
-    alert("✅ Capital Share entry added successfully!");
-    setAmount("");
-    setOpenAddDialog(false);
-    await fetchUserData(user);
-    await fetchTransactionHistory();
-  } catch (err) {
-    console.error("Error adding capital share entry:", err);
-    alert("❌ Failed to add entry.");
-  }
-};
+      alert("✅ Capital Share entry added successfully!");
+      setAmount("");
+      setOpenAddDialog(false);
+      await fetchUserData(user);
+      await fetchTransactionHistory();
+    } catch (err) {
+      console.error("Error adding capital share entry:", err);
+      alert("❌ Failed to add entry.");
+    }
+  };
 
   const handleTransferProfitEntry = async (entry) => {
     if (!entry?.profit || entry.profit <= 0) return alert("No profit available for this entry.");

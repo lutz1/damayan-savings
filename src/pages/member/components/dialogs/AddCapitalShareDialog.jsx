@@ -7,6 +7,7 @@ import {
   Button,
   TextField,
   Typography,
+  CircularProgress,
 } from "@mui/material";
 
 const AddCapitalShareDialog = ({
@@ -21,14 +22,20 @@ const AddCapitalShareDialog = ({
   onConfirm,
 }) => {
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = () => {
     setConfirmDialogOpen(true);
   };
 
   const handleConfirm = async () => {
-    setConfirmDialogOpen(false);
-    await onConfirm();
+    setIsLoading(true);
+    try {
+      await onConfirm();
+      setConfirmDialogOpen(false);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -162,6 +169,7 @@ const AddCapitalShareDialog = ({
         <DialogActions sx={{ borderTop: "1px solid rgba(79, 195, 247, 0.15)", pt: 2 }}>
           <Button
             onClick={() => setConfirmDialogOpen(false)}
+            disabled={isLoading}
             sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: "none", color: "#4FC3F7" }}
           >
             Cancel
@@ -169,9 +177,10 @@ const AddCapitalShareDialog = ({
           <Button
             variant="contained"
             onClick={handleConfirm}
+            disabled={isLoading}
             sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: "none", bgcolor: "#1976d2" }}
           >
-            Confirm
+            {isLoading ? <CircularProgress size={20} color="inherit" /> : "Confirm"}
           </Button>
         </DialogActions>
       </Dialog>
