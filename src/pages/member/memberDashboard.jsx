@@ -180,73 +180,64 @@ const handleTransferToWallet = async ({ amount, type, rewardId = null }) => {
   try {
     setLoadingTransfer(true);
 
-    const userRef = doc(db, "users", user.uid);
-
     if (type === "referral") {
       if (rewardId) {
-        // Single reward transfer
-        const rewardRef = doc(db, "referralReward", rewardId);
-
-        await runTransaction(db, async (transaction) => {
-          const userSnap = await transaction.get(userRef);
-          const rewardSnap = await transaction.get(rewardRef);
-
-          if (!userSnap.exists()) throw new Error("User not found.");
-          if (!rewardSnap.exists()) throw new Error("Reward not found.");
-
-          if (rewardSnap.data().transferredAmount)
-            throw new Error("Reward already transferred.");
-
-          const newBalance = (userSnap.data().eWallet || 0) + rewardSnap.data().amount;
-
-          transaction.update(userRef, { eWallet: newBalance, updatedAt: Date.now() });
-          transaction.update(rewardRef, {
-            transferredAmount: rewardSnap.data().amount,
-            dateTransferred: Date.now(),
-          });
+        // Single reward transfer via backend
+        const idToken = await user.getIdToken();
+        const API_BASE = process.env.REACT_APP_API_BASE_URL || "https://damayan-savings-backend.onrender.com";
+        
+        const response = await fetch(`${API_BASE}/api/transfer-referral-reward`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            idToken,
+            rewardId,
+            amount: rewardHistory.find(r => r.id === rewardId)?.amount || amount,
+          }),
         });
+
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Transfer failed");
       } else {
         // Bulk transfer for all approved rewards
-        await runTransaction(db, async (transaction) => {
-          const userSnap = await transaction.get(userRef);
-          if (!userSnap.exists()) throw new Error("User not found.");
+        const userRef = doc(db, "users", user.uid);
+        const idToken = await user.getIdToken();
+        const API_BASE = process.env.REACT_APP_API_BASE_URL || "https://damayan-savings-backend.onrender.com";
 
-          let totalAmount = 0;
+        let totalAmount = 0;
+        const approvedRewards = rewardHistory.filter(r => r.payoutReleased && !r.transferredAmount);
 
-          const rewardRefs = rewardHistory.filter(r => r.payoutReleased && !r.transferredAmount)
-            .map(r => {
-              totalAmount += r.amount;
-              return doc(db, "referralReward", r.id);
-            });
-
-          if (totalAmount === 0) throw new Error("No rewards to transfer.");
-
-          const newBalance = (userSnap.data().eWallet || 0) + totalAmount;
-          transaction.update(userRef, { eWallet: newBalance, updatedAt: Date.now() });
-
-          rewardRefs.forEach((ref) => {
-            const reward = rewardHistory.find(r => r.id === ref.id);
-            transaction.update(ref, {
-              transferredAmount: reward.amount,
-              dateTransferred: Date.now(),
-            });
+        for (const reward of approvedRewards) {
+          const response = await fetch(`${API_BASE}/api/transfer-referral-reward`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              idToken,
+              rewardId: reward.id,
+              amount: reward.amount,
+            }),
           });
-        });
+
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || "Transfer failed");
+          totalAmount += reward.amount;
+        }
+
+        if (totalAmount === 0) throw new Error("No rewards to transfer.");
       }
     } else if (type === "override") {
       if (rewardId) {
-        const overrideRef = doc(db, "override", rewardId);
-        await runTransaction(db, async (transaction) => {
-          const overrideSnap = await transaction.get(overrideRef);
-          if (!overrideSnap.exists()) throw new Error("Override not found.");
-          if (overrideSnap.data().status === "Credited") throw new Error("Already credited.");
-
-          transaction.update(overrideRef, { status: "Credited" });
-
-          const userSnap = await transaction.get(userRef);
-          const newBalance = (userSnap.data().eWallet || 0) + overrideSnap.data().amount;
-          transaction.update(userRef, { eWallet: newBalance, updatedAt: Date.now() });
+        const idToken = await user.getIdToken();
+        const API_BASE = process.env.REACT_APP_API_BASE_URL || "https://damayan-savings-backend.onrender.com";
+        
+        const response = await fetch(`${API_BASE}/api/transfer-override-reward`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken, overrideId: rewardId, amount: amount || overrideList.find(o => o.id === rewardId)?.amount }),
         });
+
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Transfer failed");
       } 
     }
 

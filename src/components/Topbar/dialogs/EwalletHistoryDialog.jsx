@@ -75,7 +75,7 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
         (d) => ({ ...d, source: "withdrawal", displayType: "Withdrawal", isCredit: false })
       );
 
-      // Deposits (including Monthly Profit Transfers & Capital Share Transfers)
+      // Deposits (including Monthly Profit Transfers & Capital Share Transfers & Referral Rewards)
       setupListener(
         query(collection(db, "deposits"), where("userId", "==", uid)),
         "deposit",
@@ -87,6 +87,8 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
             displayType = "💰 Capital Share Transfer";
           } else if (d.type === "Capital Share Added") {
             displayType = "💰 Capital Share Added";
+          } else if (d.type === "Referral Reward Transfer") {
+            displayType = `🎁 Referral Reward from ${d.source || "System"}`;
           } else if (d.type === "PayMongo") {
             displayType = "💳 PayMongo Deposit";
           }

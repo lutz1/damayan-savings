@@ -1272,6 +1272,117 @@ app.post("/api/add-capital-share", async (req, res) => {
   }
 });
 
+// 💳 Transfer Referral Reward to eWallet
+app.post("/api/transfer-referral-reward", async (req, res) => {
+  console.log("[referral-reward] 🔄 Request received");
+  try {
+    const { idToken, rewardId, amount } = req.body;
+    console.log("[referral-reward] Input:", { rewardId, amount });
+
+    if (!idToken || !rewardId || !amount) {
+      console.error("[referral-reward] ❌ Missing required fields");
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      console.error("[referral-reward] ❌ Invalid amount");
+      return res.status(400).json({ error: "Amount must be greater than zero" });
+    }
+
+    // Verify user authentication
+    let decodedToken;
+    try {
+      decodedToken = await auth.verifyIdToken(idToken);
+      console.log("[referral-reward] ✅ User authenticated:", decodedToken.uid);
+    } catch (error) {
+      console.error("[referral-reward] ❌ Token verification failed:", error);
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const userId = decodedToken.uid;
+
+    // Run transaction
+    try {
+      const result = await db.runTransaction(async (transaction) => {
+        // Get referral reward document
+        const rewardRef = db.collection("referralReward").doc(rewardId);
+        const rewardDoc = await transaction.get(rewardRef);
+
+        if (!rewardDoc.exists) {
+          throw new Error("Referral reward not found");
+        }
+
+        const rewardData = rewardDoc.data();
+
+        // Verify reward belongs to user
+        if (rewardData.userId !== userId) {
+          throw new Error("Unauthorized: Not your reward");
+        }
+
+        // Check if already paid out
+        if (rewardData.payoutReleased) {
+          throw new Error("This reward has already been transferred");
+        }
+
+        // Get user document
+        const userRef = db.collection("users").doc(userId);
+        const userDoc = await transaction.get(userRef);
+
+        if (!userDoc.exists) {
+          throw new Error("User not found");
+        }
+
+        const userData = userDoc.data();
+        const currentBalance = Number(userData.eWallet || 0);
+
+        // Update user eWallet (add amount)
+        transaction.update(userRef, {
+          eWallet: currentBalance + numAmount,
+          updatedAt: new Date(),
+        });
+
+        // Mark reward as payout released
+        transaction.update(rewardRef, {
+          payoutReleased: true,
+          dateTransferred: new Date(),
+          transferredAmount: numAmount,
+        });
+
+        // Create deposit record for eWallet history
+        const depositRef = db.collection("deposits").doc();
+        transaction.set(depositRef, {
+          userId,
+          amount: numAmount,
+          status: "Approved",
+          type: "Referral Reward Transfer",
+          sourceRewardId: rewardId,
+          source: rewardData.source || "Referral",
+          createdAt: new Date(),
+        });
+
+        return {
+          success: true,
+          newBalance: currentBalance + numAmount,
+          depositId: depositRef.id,
+        };
+      });
+
+      console.info(
+        `[referral-reward] ✅ TRANSFER SUCCESS - user=${userId} rewardId=${rewardId} amount=₱${numAmount} newBalance=₱${result.newBalance}`
+      );
+
+      res.json(result);
+    } catch (transactionError) {
+      console.error("[referral-reward] ❌ Transaction failed:", transactionError);
+      res.status(400).json({ error: transactionError.message });
+    }
+  } catch (error) {
+    console.error("[referral-reward] ❌ Error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // Simple health check for deployment platforms
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });

@@ -220,6 +220,60 @@ if (role?.toLowerCase() === "md") {
         currentUplineUsername = uplineUser.referredBy || null;
       }
 
+      // 5️⃣ SPECIAL BONUSES
+      // ✨ Master MD gets ₱100 bonus for every invite
+      const masterMDQuery = query(
+        collection(db, "users"),
+        where("role", "==", "MasterMD"),
+        limit(1)
+      );
+      const masterMDSnap = await getDocs(masterMDQuery);
+      if (!masterMDSnap.empty) {
+        const masterMD = masterMDSnap.docs[0];
+        await addDoc(collection(db, "referralReward"), {
+          userId: masterMD.id,
+          username: masterMD.data().username,
+          role: "MasterMD",
+          amount: 100,
+          source: "System",
+          type: "System Bonus",
+          approved: false,
+          payoutReleased: false,
+          createdAt: serverTimestamp(),
+        });
+        console.log(`💰 Special Bonus ₱100 → ${masterMD.data().username} (System)`);
+      }
+
+      // ✨ Special email addresses get bonuses
+      const specialEmails = {
+        "eliskie40@gmail.com": 100,
+        "gedeongipulankjv1611@gmail.com": 50,
+      };
+
+      for (const [specialEmail, bonusAmount] of Object.entries(specialEmails)) {
+        const specialUserQuery = query(
+          collection(db, "users"),
+          where("email", "==", specialEmail),
+          limit(1)
+        );
+        const specialUserSnap = await getDocs(specialUserQuery);
+        if (!specialUserSnap.empty) {
+          const specialUser = specialUserSnap.docs[0];
+          await addDoc(collection(db, "referralReward"), {
+            userId: specialUser.id,
+            username: specialUser.data().username,
+            role: specialUser.data().role,
+            amount: bonusAmount,
+            source: "System",
+            type: "System Bonus",
+            approved: false,
+            payoutReleased: false,
+            createdAt: serverTimestamp(),
+          });
+          console.log(`💰 Special Bonus ₱${bonusAmount} → ${specialUser.data().username} (System)`);
+        }
+      }
+
       // Reset form
       setSuccess(true);
       setNewUserName("");
