@@ -351,18 +351,22 @@ useEffect(() => {
     );
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
-      const rewards = snapshot.docs
+      const allRewards = snapshot.docs
         .map((doc) => ({
           id: doc.id,
           ...doc.data(),
-        }))
-        .filter(r => !r.transferredAmount);  // Exclude already transferred rewards
-      setRewardHistory(rewards);
-      const total = rewards.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+        }));
+      
+      // Filter out transferred rewards for the dialog (show only pending transfers)
+      const pendingRewards = allRewards.filter(r => !r.transferredAmount);
+      setRewardHistory(pendingRewards);
+      
+      // Calculate total from ALL released rewards (including transferred ones)
+      const total = allRewards.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
       setTotalEarnings(total);
 
       // Notify if there are available rewards to transfer and not already notified in this session
-      const hasAvailable = rewards.some(r => r.payoutReleased && !r.transferredAmount);
+      const hasAvailable = pendingRewards.some(r => r.payoutReleased && !r.transferredAmount);
       if (hasAvailable && !notifiedRef.current) {
         await sendReferralTransferAvailableNotification(user.uid);
         notifiedRef.current = true;
