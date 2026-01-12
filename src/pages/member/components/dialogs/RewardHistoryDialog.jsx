@@ -104,6 +104,7 @@ const RewardHistoryDialog = ({
                     
                     // Call backend API to transfer reward
                     const API_BASE = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
+                    console.log("[RewardHistory] Calling transfer endpoint:", `${API_BASE}/api/transfer-referral-reward`);
                     const response = await fetch(`${API_BASE}/api/transfer-referral-reward`, {
                       method: "POST",
                       headers: {
@@ -117,15 +118,21 @@ const RewardHistoryDialog = ({
                     });
 
                     if (!response.ok) {
-                      const errorData = await response.json();
-                      throw new Error(errorData.error || "Failed to transfer reward");
+                      let errorMessage = "Failed to transfer reward";
+                      try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.error || errorMessage;
+                      } catch (e) {
+                        errorMessage = `Server error (${response.status}): ${response.statusText}`;
+                      }
+                      throw new Error(errorMessage);
                     }
 
                     await response.json();
                     alert(`₱${reward.amount.toLocaleString()} transferred to eWallet!`);
                   } catch (err) {
                     console.error("Error transferring reward:", err);
-                    alert(`Failed to transfer reward: ${err.message}`);
+                    alert(`Failed to transfer reward: ${err.message || "Unknown error"}`);
                   } finally {
                     setLoadingTransfer((prev) => ({ ...prev, [reward.id]: false }));
                   }
