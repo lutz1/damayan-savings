@@ -351,10 +351,12 @@ useEffect(() => {
     );
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
-      const rewards = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      const rewards = snapshot.docs
+        .map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }))
+        .filter(r => !r.transferredAmount);  // Exclude already transferred rewards
       setRewardHistory(rewards);
       const total = rewards.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
       setTotalEarnings(total);

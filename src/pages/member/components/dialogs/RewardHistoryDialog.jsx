@@ -84,8 +84,15 @@ const RewardHistoryDialog = ({
             {[...rewardHistory]
               .sort((a, b) => (b.releasedAt?.seconds || b.dateTransferred?.seconds || 0) - (a.releasedAt?.seconds || a.dateTransferred?.seconds || 0))
               .map((reward) => {
-                // Reward is transferred if it has transferredAmount (set by user transfer)
-                const transferred = reward.transferredAmount && reward.dateTransferred;
+                // Reward is transferred ONLY if both transferredAmount AND dateTransferred exist
+                const transferred = !!(reward.transferredAmount && reward.dateTransferred);
+                console.log("[RewardHistory] Reward check:", {
+                  id: reward.id,
+                  amount: reward.amount,
+                  transferredAmount: reward.transferredAmount,
+                  dateTransferred: reward.dateTransferred,
+                  transferred,
+                });
                 const profitStatus = transferred ? "Transferred" : "Pending";
                 const profitIcon = transferred ? "✅" : "⏳";
                 const borderColor = transferred ? "#4caf50" : "#1976d2";
