@@ -420,7 +420,7 @@ const AdminDeposits = () => {
                   <Table size={isMobile ? "small" : "medium"}>
                     <TableHead>
                       <TableRow>
-                        {["Name", "Amount", "Charge", "Net Amount", "Status", "Date", "Actions"].map(
+                        {["Name", "Amount", "Type", "Charge", "Net Amount", "Status", "Date", "Actions"].map(
                           (head) => (
                             <TableCell
                               key={head}
@@ -449,6 +449,9 @@ const AdminDeposits = () => {
                             >
                               <TableCell sx={{ color: "white" }}>{d.name || "Unknown"}</TableCell>
                               <TableCell sx={{ color: "white" }}>₱{d.amount}</TableCell>
+                              <TableCell sx={{ color: "white", fontSize: "0.85rem" }}>
+                                {d.type || "—"}
+                              </TableCell>
                               <TableCell sx={{ color: "white" }}>₱{d.charge || 0}</TableCell>
                               <TableCell sx={{ color: "white" }}>
                                 ₱{d.netAmount || d.amount}
