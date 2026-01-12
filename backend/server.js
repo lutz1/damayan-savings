@@ -1366,8 +1366,8 @@ app.post("/api/transfer-referral-reward", async (req, res) => {
           throw new Error("Unauthorized: Not your reward");
         }
 
-        // Check if already paid out
-        if (rewardData.payoutReleased) {
+        // Check if already transferred (has transferredAmount)
+        if (rewardData.transferredAmount) {
           throw new Error("This reward has already been transferred");
         }
 
