@@ -82,6 +82,8 @@ const RewardHistoryDialog = ({
             component="ul"
           >
             {[...rewardHistory]
+              // Double-check: exclude transferred rewards from display
+              .filter(r => !r.transferredAmount && !r.dateTransferred)
               .sort((a, b) => (b.releasedAt?.seconds || b.dateTransferred?.seconds || 0) - (a.releasedAt?.seconds || a.dateTransferred?.seconds || 0))
               .map((reward) => {
                 // Reward is transferred ONLY if both transferredAmount AND dateTransferred exist
