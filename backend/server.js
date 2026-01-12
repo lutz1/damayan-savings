@@ -1407,18 +1407,6 @@ app.post("/api/transfer-referral-reward", async (req, res) => {
           createdAt: new Date(),
         });
 
-        // Create deposit record for eWallet history
-        const depositRef = db.collection("deposits").doc();
-        transaction.set(depositRef, {
-          userId,
-          amount: numAmount,
-          status: "Approved",
-          type: "Referral Reward Transfer",
-          sourceRewardId: rewardId,
-          source: rewardData.source || "Referral",
-          createdAt: new Date(),
-        });
-
         return {
           success: true,
           newBalance: currentBalance + numAmount,

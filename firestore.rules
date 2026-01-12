@@ -290,8 +290,12 @@ service cloud.firestore {
       allow read: if request.auth != null &&
         (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo"]);
 
-      allow create: if request.auth != null &&
-        request.resource.data.userId == request.auth.uid;
+      allow create: if (
+        // Allow Admin SDK (server-side) to create deposit records
+        request.auth == null ||
+        // Allow users to create their own deposits
+        (request.auth != null && request.resource.data.userId == request.auth.uid)
+      );
 
       allow update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
     }
