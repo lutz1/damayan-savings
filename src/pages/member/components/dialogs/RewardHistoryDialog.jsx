@@ -103,7 +103,7 @@ const RewardHistoryDialog = ({
                     const idToken = await user.getIdToken();
                     
                     // Call backend API to transfer reward
-                    const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
+                    const API_BASE = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
                     const response = await fetch(`${API_BASE}/api/transfer-referral-reward`, {
                       method: "POST",
                       headers: {
