@@ -81,9 +81,14 @@ service cloud.firestore {
           "payoutReleased", "createdAt"
         ]);
 
-      allow update: if request.auth != null && (
-        userRole() in ["admin", "ceo"] ||
+      allow update: if (
+        // Allow server-side (Admin SDK with no auth context) to update transferred status
+        request.auth == null ||
+        // Allow admin/ceo to update anything
+        (request.auth != null && userRole() in ["admin", "ceo"]) ||
+        // Allow user to update their own reward's transfer status
         (
+          request.auth != null &&
           resource.data.userId == request.auth.uid &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             "approved",

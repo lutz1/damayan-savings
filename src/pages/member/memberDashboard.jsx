@@ -351,12 +351,20 @@ useEffect(() => {
     );
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
-      const rewards = snapshot.docs
-        .map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }))
-        .filter(r => !r.transferredAmount);  // Exclude already transferred rewards
+      const allRewards = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      
+      // DEBUG: Log ALL rewards from Firestore, including transferred ones
+      console.log("[memberDashboard] Raw Firestore rewards (BEFORE filter):", allRewards);
+      
+      const rewards = allRewards.filter(r => !r.transferredAmount);  // Exclude already transferred rewards
+      
+      // DEBUG: Log after filter
+      console.log("[memberDashboard] Filtered rewards (AFTER filter):", rewards);
+      console.log("[memberDashboard] Rewards excluded by filter:", allRewards.filter(r => r.transferredAmount));
+      
       setRewardHistory(rewards);
       const total = rewards.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
       setTotalEarnings(total);
