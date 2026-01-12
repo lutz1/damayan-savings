@@ -186,7 +186,6 @@ app.post("/api/transfer-override-reward", async (req, res) => {
         // Try both collections: uplineRewards and override
         let rewardData;
         let rewardRef;
-        let collection_type;
 
         // First try uplineRewards collection
         const uplineRewardRef = db.collection("uplineRewards").doc(overrideId);
@@ -195,7 +194,6 @@ app.post("/api/transfer-override-reward", async (req, res) => {
         if (uplineRewardDoc.exists) {
           rewardData = uplineRewardDoc.data();
           rewardRef = uplineRewardRef;
-          collection_type = "uplineRewards";
         } else {
           // Try override collection
           const overrideRef = db.collection("override").doc(overrideId);
@@ -204,7 +202,6 @@ app.post("/api/transfer-override-reward", async (req, res) => {
           if (overrideDoc.exists) {
             rewardData = overrideDoc.data();
             rewardRef = overrideRef;
-            collection_type = "override";
           } else {
             throw new Error("Override reward not found");
           }
