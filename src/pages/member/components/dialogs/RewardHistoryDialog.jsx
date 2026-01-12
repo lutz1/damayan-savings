@@ -82,9 +82,9 @@ const RewardHistoryDialog = ({
             component="ul"
           >
             {[...rewardHistory]
-              .sort((a, b) => (b.releasedAt?.seconds || 0) - (a.releasedAt?.seconds || 0))
+              .sort((a, b) => (b.releasedAt?.seconds || b.dateTransferred?.seconds || 0) - (a.releasedAt?.seconds || a.dateTransferred?.seconds || 0))
               .map((reward) => {
-                const transferred = reward.transferredAmount && reward.dateTransferred;
+                const transferred = reward.payoutReleased || (reward.transferredAmount && reward.dateTransferred);
                 const profitStatus = transferred ? "Transferred" : "Pending";
                 const profitIcon = transferred ? "✅" : "⏳";
                 const borderColor = transferred ? "#4caf50" : "#1976d2";
