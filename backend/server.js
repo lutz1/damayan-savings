@@ -1410,7 +1410,7 @@ app.post("/api/transfer-referral-reward", async (req, res) => {
         return {
           success: true,
           newBalance: currentBalance + numAmount,
-          depositId: depositRef.id,
+          transferLogId: logRef.id,
         };
       });
 
