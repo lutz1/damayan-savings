@@ -104,6 +104,23 @@ service cloud.firestore {
     }
 
     // ==========================================
+    // 📋 REFERRAL REWARD TRANSFER LOGS
+    match /referralRewardTransferlogs/{logId} {
+      allow read: if request.auth != null &&
+        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo"]);
+
+      allow list: if request.auth != null && (
+        userRole() in ["admin", "ceo"] ||
+        request.query.where("userId", "==", request.auth.uid)
+      );
+
+      // Only server-side (Admin SDK) can create transfer logs
+      allow create: if request.auth == null;
+
+      allow delete: if request.auth != null && userRole() in ["admin", "ceo"];
+    }
+
+    // ==========================================
     // � UPLINE REWARDS
     match /uplineRewards/{rewardId} {
       // Allow upline to read their own rewards

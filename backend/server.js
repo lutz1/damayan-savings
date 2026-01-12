@@ -1395,6 +1395,18 @@ app.post("/api/transfer-referral-reward", async (req, res) => {
           transferredAmount: numAmount,
         });
 
+        // Create referral reward transfer log
+        const logRef = db.collection("referralRewardTransferlogs").doc();
+        transaction.set(logRef, {
+          userId,
+          rewardId,
+          amount: rewardData.amount,
+          transferredAmount: numAmount,
+          source: rewardData.source || "Referral",
+          status: "Transferred",
+          createdAt: new Date(),
+        });
+
         // Create deposit record for eWallet history
         const depositRef = db.collection("deposits").doc();
         transaction.set(depositRef, {
