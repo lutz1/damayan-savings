@@ -859,6 +859,13 @@ const fetchPaybackAndCapital = async (uid) => {
       user={user}
       loadingTransfer={loadingTransfer}
       setLoadingTransfer={setLoadingTransfer}
+      onTransferSuccess={() => {
+        // Reward data will auto-refresh via the Firestore listener
+        // Optionally add a small delay to ensure Firestore update completes
+        setTimeout(() => {
+          console.log("[Dashboard] Reward transfer successful, data will refresh from Firestore");
+        }, 500);
+      }}
     />
 
 

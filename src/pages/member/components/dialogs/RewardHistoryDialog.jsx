@@ -13,6 +13,7 @@ const RewardHistoryDialog = ({
   user,
   loadingTransfer = {},
   setLoadingTransfer = () => {},
+  onTransferSuccess = () => {},
 }) => {
   return (
     <Dialog
@@ -130,6 +131,7 @@ const RewardHistoryDialog = ({
 
                     await response.json();
                     alert(`₱${reward.amount.toLocaleString()} transferred to eWallet!`);
+                    onTransferSuccess();
                   } catch (err) {
                     console.error("Error transferring reward:", err);
                     alert(`Failed to transfer reward: ${err.message || "Unknown error"}`);
