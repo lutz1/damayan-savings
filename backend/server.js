@@ -1361,17 +1361,6 @@ app.post("/api/transfer-referral-reward", async (req, res) => {
 
         const rewardData = rewardDoc.data();
 
-        // DEBUG: Log the raw reward data from Firestore
-        console.log("[referral-reward] 📋 Raw reward data from Firestore:", {
-          id: rewardId,
-          userId: rewardData.userId,
-          amount: rewardData.amount,
-          payoutReleased: rewardData.payoutReleased,
-          transferredAmount: rewardData.transferredAmount,
-          dateTransferred: rewardData.dateTransferred,
-          allKeys: Object.keys(rewardData),
-        });
-
         // Verify reward belongs to user
         if (rewardData.userId !== userId) {
           throw new Error("Unauthorized: Not your reward");
@@ -1379,7 +1368,6 @@ app.post("/api/transfer-referral-reward", async (req, res) => {
 
         // Check if already transferred (has transferredAmount)
         if (rewardData.transferredAmount) {
-          console.log("[referral-reward] ❌ REJECTED: Reward already has transferredAmount:", rewardData.transferredAmount);
           throw new Error("This reward has already been transferred");
         }
 

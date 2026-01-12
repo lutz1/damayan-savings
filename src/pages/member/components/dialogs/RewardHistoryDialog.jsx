@@ -86,13 +86,6 @@ const RewardHistoryDialog = ({
               .map((reward) => {
                 // Reward is transferred ONLY if both transferredAmount AND dateTransferred exist
                 const transferred = !!(reward.transferredAmount && reward.dateTransferred);
-                console.log("[RewardHistory] Reward check:", {
-                  id: reward.id,
-                  amount: reward.amount,
-                  transferredAmount: reward.transferredAmount,
-                  dateTransferred: reward.dateTransferred,
-                  transferred,
-                });
                 const profitStatus = transferred ? "Transferred" : "Pending";
                 const profitIcon = transferred ? "✅" : "⏳";
                 const borderColor = transferred ? "#4caf50" : "#1976d2";
@@ -113,7 +106,6 @@ const RewardHistoryDialog = ({
                     
                     // Call backend API to transfer reward
                     const API_BASE = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
-                    console.log("[RewardHistory] Calling transfer endpoint:", `${API_BASE}/api/transfer-referral-reward`);
                     const response = await fetch(`${API_BASE}/api/transfer-referral-reward`, {
                       method: "POST",
                       headers: {
