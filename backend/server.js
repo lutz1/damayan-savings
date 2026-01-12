@@ -1407,10 +1407,33 @@ app.post("/api/transfer-referral-reward", async (req, res) => {
           createdAt: new Date(),
         });
 
+        // Create deposit record for eWallet history
+        const depositRef = db.collection("deposits").doc();
+        let depositType = "Referral Reward Transfer";
+        
+        // Determine the type based on the source/amount
+        if (rewardData.source === "System Network Bonus" || numAmount === 15) {
+          depositType = "System Network Bonus";
+        } else if (rewardData.source === "Direct Invite Reward") {
+          depositType = "Direct Invite Reward";
+        } else if (rewardData.source === "Network Bonus") {
+          depositType = "Network Bonus";
+        }
+        
+        transaction.set(depositRef, {
+          userId,
+          amount: numAmount,
+          status: "Approved",
+          type: depositType,
+          source: rewardData.source || "Referral",
+          sourceRewardId: rewardId,
+          createdAt: new Date(),
+        });
+
         return {
           success: true,
           newBalance: currentBalance + numAmount,
-          transferLogId: logRef.id,
+          depositId: depositRef.id,
         };
       });
 
