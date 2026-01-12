@@ -50,6 +50,9 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
     setAmount("");
     onClose();
   };
+
+  // Handle PayMongo payment
+  const handlePayMongoPayment = async () => {
     try {
       if (!amount || parseFloat(amount) <= 0) {
         setError("Please enter a valid deposit amount.");
@@ -221,6 +224,8 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
               <Typography variant="caption" sx={{ display: "block", textAlign: "center", color: "rgba(255,255,255,0.6)", mt: 1 }}>
                 You will be redirected to secure PayMongo checkout
               </Typography>
+            </>
+          )}
 
           {depositLogs.length > 0 && (
             <>
