@@ -98,24 +98,34 @@ const RewardHistoryDialog = ({
                   if (!confirmed) return;
                   try {
                     setLoadingTransfer((prev) => ({ ...prev, [reward.id]: true }));
-                    const userRef = window.firebaseUserRef
-                      ? window.firebaseUserRef(user.uid)
-                      : null;
-                    const userSnap = userRef ? await userRef.get() : null;
-                    if (!userSnap || !userSnap.exists()) return alert("User not found.");
-                    const currentBalance = userSnap.data().eWallet || 0;
-                    await userRef.update({
-                      eWallet: currentBalance + reward.amount,
-                      updatedAt: Date.now(),
+                    
+                    // Get user's ID token
+                    const idToken = await user.getIdToken();
+                    
+                    // Call backend API to transfer reward
+                    const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
+                    const response = await fetch(`${API_BASE}/api/transfer-referral-reward`, {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify({
+                        idToken,
+                        rewardId: reward.id,
+                        amount: reward.amount,
+                      }),
                     });
-                    await window.firebaseRewardRef(reward.id).update({
-                      transferredAmount: reward.amount,
-                      dateTransferred: Date.now(),
-                    });
+
+                    if (!response.ok) {
+                      const errorData = await response.json();
+                      throw new Error(errorData.error || "Failed to transfer reward");
+                    }
+
+                    await response.json();
                     alert(`₱${reward.amount.toLocaleString()} transferred to eWallet!`);
                   } catch (err) {
                     console.error("Error transferring reward:", err);
-                    alert("Failed to transfer reward.");
+                    alert(`Failed to transfer reward: ${err.message}`);
                   } finally {
                     setLoadingTransfer((prev) => ({ ...prev, [reward.id]: false }));
                   }
