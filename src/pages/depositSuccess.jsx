@@ -74,7 +74,7 @@ const DepositSuccess = () => {
 
         if (response.ok) {
           setStatus("success");
-          setMessage("Deposit successful! Your eWallet has been credited.");
+          setMessage("Payment received! Your deposit is awaiting admin approval. You will be notified once it's confirmed.");
           console.log("[depositSuccess] ✅ Payment verified successfully");
           // Redirect to member dashboard after 3 seconds
           setTimeout(() => navigate("/member/dashboard"), 3000);

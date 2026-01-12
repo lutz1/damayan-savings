@@ -393,49 +393,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// 💰 Secure Deposit Funds Endpoint
-app.post("/api/deposit-funds", async (req, res) => {
-  try {
-    const { idToken, amount, reference, receiptUrl, name } = req.body;
-    // Validate input
-    if (!idToken || !amount || !receiptUrl || !name) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
-    const numAmount = parseFloat(amount);
-    if (isNaN(numAmount) || numAmount <= 0) {
-      return res.status(400).json({ error: "Amount must be greater than zero" });
-    }
-
-    // Verify user authentication
-    let decodedToken;
-    try {
-      decodedToken = await auth.verifyIdToken(idToken);
-    } catch (error) {
-      console.error("Token verification failed:", error);
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-    const userId = decodedToken.uid;
-
-    // Create deposit document (status: Pending)
-    const depositRef = db.collection("deposits").doc();
-    await depositRef.set({
-      userId,
-      name,
-      amount: numAmount,
-      reference: reference || "",
-      receiptUrl,
-      status: "Pending",
-      createdAt: new Date(),
-    });
-
-    res.json({ success: true, depositId: depositRef.id });
-  } catch (error) {
-    console.error("Deposit funds error:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-// 💳 PayMongo Checkout Endpoint
+// � PayMongo Checkout Endpoint
 app.post("/api/create-payment-link", async (req, res) => {
   try {
     const { idToken, amount, name, email } = req.body;
@@ -474,6 +432,9 @@ app.post("/api/create-payment-link", async (req, res) => {
     }
     
     const paymongoAuth = Buffer.from(`${process.env.PAYMONGO_SECRET_KEY}:`).toString("base64");
+    
+    // Get frontend URL from environment - use FRONTEND_URL or REACT_APP_FRONTEND_URL
+    const frontendUrl = process.env.FRONTEND_URL || process.env.REACT_APP_FRONTEND_URL || "http://localhost:3000";
 
     const checkoutData = {
       data: {
@@ -482,8 +443,8 @@ app.post("/api/create-payment-link", async (req, res) => {
           currency: "PHP",
           description: "Damayan Savings Deposit",
           statement_descriptor: "Damayan Savings",
-          success_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/deposit-success`,
-          cancel_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/deposit-cancel`,
+          success_url: `${frontendUrl}/deposit-success`,
+          cancel_url: `${frontendUrl}/deposit-cancel`,
           payment_method_types: ["qrph"], // or ["card", "paymaya"] depending on what's available
           customer: {
             email: email,
@@ -502,6 +463,7 @@ app.post("/api/create-payment-link", async (req, res) => {
     };
 
     console.log("Creating PayMongo checkout for user:", userId, "amount:", numAmount);
+    console.log("Success URL:", `${frontendUrl}/deposit-success`);
     console.log("PayMongo Secret Key loaded:", !!process.env.PAYMONGO_SECRET_KEY);
     
     const response = await axios.post(paymongoUrl, checkoutData, {
@@ -568,34 +530,23 @@ app.post("/api/paymongo-webhook", async (req, res) => {
       const metadataData = metadataDoc.data();
       const { userId, amount, name } = metadataData;
 
-      // Create deposit record ONLY on successful payment
+      // Create deposit record with PENDING status (requires admin approval)
       const depositRef = db.collection("deposits").doc();
       await db.runTransaction(async (transaction) => {
-        // Create deposit record with Approved status for PayMongo payments
+        // Create deposit record with Pending status - requires admin approval
         transaction.set(depositRef, {
           userId,
           name,
           amount,
           reference: checkoutId,
-          receiptUrl: "", // PayMongo handles receipt
-          status: "Approved",
+          receiptUrl: "",
+          status: "Pending",
           paymentMethod: "PayMongo",
           createdAt: new Date(),
         });
 
-        // Update user eWallet immediately (no admin approval needed for PayMongo)
-        const userRef = db.collection("users").doc(userId);
-        const userDoc = await transaction.get(userRef);
-        if (userDoc.exists) {
-          const currentBalance = Number(userDoc.data().eWallet || 0);
-          const safeBalance = isNaN(currentBalance) ? 0 : currentBalance;
-          const safeAmount = isNaN(Number(amount)) ? 0 : Number(amount);
-          transaction.update(userRef, {
-            eWallet: safeBalance + safeAmount,
-            updatedAt: new Date(),
-          });
-        }
-
+        // DO NOT update user eWallet - wait for admin approval
+        
         // Update metadata to link deposit
         transaction.update(db.collection("paymentMetadata").doc(checkoutId), {
           depositId: depositRef.id,
@@ -603,7 +554,7 @@ app.post("/api/paymongo-webhook", async (req, res) => {
         });
       });
 
-      console.info(`[paymongo-webhook] ✅ user=${userId} amount=₱${amount} checkoutId=${checkoutId} depositId=${depositRef.id}`);
+      console.info(`[paymongo-webhook] ✅ Payment received - user=${userId} amount=₱${amount} checkoutId=${checkoutId} depositId=${depositRef.id} status=Pending (awaiting admin approval)`);
       return res.json({ success: true });
     }
 
@@ -656,7 +607,7 @@ app.post("/api/verify-paymongo-payment", async (req, res) => {
       return res.json({
         success: true,
         depositId: metadataData.depositId,
-        message: "Payment verified and deposit created",
+        message: "Payment received and awaiting admin approval",
       });
     }
 
@@ -665,31 +616,20 @@ app.post("/api/verify-paymongo-payment", async (req, res) => {
     const depositRef = db.collection("deposits").doc();
 
     await db.runTransaction(async (transaction) => {
-      // Create deposit record
+      // Create deposit record with Pending status - requires admin approval
       transaction.set(depositRef, {
         userId,
         name: metadataData.name,
         amount: metadataData.amount,
         reference: sessionId,
         receiptUrl: "",
-        status: "Approved",
+        status: "Pending",
         paymentMethod: "PayMongo",
         createdAt: new Date(),
       });
 
-      // Update user eWallet
-      const userRef = db.collection("users").doc(userId);
-      const userDoc = await transaction.get(userRef);
-      if (userDoc.exists) {
-        const currentBalance = Number(userDoc.data().eWallet || 0);
-        const safeBalance = isNaN(currentBalance) ? 0 : currentBalance;
-        const safeAmount = isNaN(Number(metadataData.amount)) ? 0 : Number(metadataData.amount);
-        transaction.update(userRef, {
-          eWallet: safeBalance + safeAmount,
-          updatedAt: new Date(),
-        });
-      }
-
+      // DO NOT update user eWallet - wait for admin approval
+      
       // Update metadata
       transaction.update(db.collection("paymentMetadata").doc(sessionId), {
         depositId: depositRef.id,
@@ -697,12 +637,12 @@ app.post("/api/verify-paymongo-payment", async (req, res) => {
       });
     });
 
-    console.info(`[verify-payment] ✅ user=${userId} amount=₱${metadataData.amount} sessionId=${sessionId} depositId=${depositRef.id}`);
+    console.info(`[verify-payment] ✅ user=${userId} amount=₱${metadataData.amount} sessionId=${sessionId} depositId=${depositRef.id} status=Pending (awaiting admin approval)`);
 
     res.json({
       success: true,
       depositId: depositRef.id,
-      message: "Payment verified and deposit created",
+      message: "Payment received and awaiting admin approval",
     });
   } catch (error) {
     console.error("[verify-payment] ❌ Error:", error);
