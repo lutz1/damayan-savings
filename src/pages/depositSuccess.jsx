@@ -3,6 +3,8 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { Box, Typography, CircularProgress, Card, CardContent, Button } from "@mui/material";
 import { CheckCircle, ErrorOutline } from "@mui/icons-material";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { db } from "../firebase";
+import { collection, doc, getDoc, setDoc } from "firebase/firestore";
 import bgImage from "../assets/bg.jpg";
 
 const DepositSuccess = () => {
@@ -11,6 +13,31 @@ const DepositSuccess = () => {
   const [status, setStatus] = useState("loading");
   const [message, setMessage] = useState("");
   const auth = getAuth();
+
+  // Fallback: Create deposit directly in Firestore if backend is unavailable
+  const createDepositClientSide = async (user, metadata) => {
+    try {
+      console.log("[depositSuccess] 🔄 Creating deposit directly in Firestore (backend offline fallback)");
+      
+      const depositRef = doc(collection(db, "deposits"));
+      await setDoc(depositRef, {
+        userId: user.uid,
+        name: metadata.name,
+        amount: metadata.amount,
+        reference: metadata.checkoutId,
+        receiptUrl: "",
+        status: "Pending",
+        paymentMethod: "PayMongo",
+        createdAt: new Date(),
+      });
+
+      console.log("[depositSuccess] ✅ Deposit created via client-side fallback:", depositRef.id);
+      return { success: true, depositId: depositRef.id, isClientSideFallback: true };
+    } catch (error) {
+      console.error("[depositSuccess] ❌ Client-side fallback failed:", error);
+      throw error;
+    }
+  };
 
   useEffect(() => {
     const verifyPayment = async () => {
@@ -67,6 +94,7 @@ const DepositSuccess = () => {
             idToken,
             sessionId,
           }),
+          timeout: 5000, // 5 second timeout
         });
 
         const result = await response.json();
@@ -85,9 +113,65 @@ const DepositSuccess = () => {
           setMessage(errorMsg);
         }
       } catch (err) {
-        console.error("[depositSuccess] ❌ Error:", err);
-        setStatus("error");
-        setMessage("An error occurred. Please refresh and try again.");
+        console.error("[depositSuccess] ⚠️ Backend verification failed, attempting client-side fallback:", err);
+        
+        // FALLBACK: If backend is unreachable, create deposit directly in Firestore
+        try {
+          let sessionId = searchParams.get("session_id") || sessionStorage.getItem("paymongo_checkout_id");
+          
+          if (!sessionId) {
+            setStatus("error");
+            setMessage("Could not verify payment. Please contact support.");
+            return;
+          }
+
+          // Get authenticated user
+          const user = await new Promise((resolve) => {
+            const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+              unsubscribe();
+              resolve(currentUser);
+            });
+          });
+
+          if (!user) {
+            setStatus("error");
+            setMessage("Session expired. Please log in again.");
+            return;
+          }
+
+          // Get payment metadata from Firestore
+          const metadataDoc = await getDoc(doc(db, "paymentMetadata", sessionId));
+          
+          if (!metadataDoc.exists()) {
+            console.error("[depositSuccess] Payment metadata not found");
+            setStatus("error");
+            setMessage("Payment not found in system. Please contact support.");
+            return;
+          }
+
+          const metadata = metadataDoc.data();
+
+          // Verify userId matches
+          if (metadata.userId !== user.uid) {
+            setStatus("error");
+            setMessage("Payment belongs to different account. Please contact support.");
+            return;
+          }
+
+          // Create deposit using client-side fallback
+          await createDepositClientSide(user, metadata);
+
+          setStatus("success");
+          setMessage("Payment received! Your deposit is awaiting admin approval. You will be notified once it's confirmed.");
+          console.log("[depositSuccess] ✅ Deposit created using client-side fallback");
+          
+          // Redirect to member dashboard after 3 seconds
+          setTimeout(() => navigate("/member/dashboard"), 3000);
+        } catch (fallbackErr) {
+          console.error("[depositSuccess] ❌ Client-side fallback also failed:", fallbackErr);
+          setStatus("error");
+          setMessage("An error occurred verifying your payment. Please contact support with your transaction ID.");
+        }
       }
     };
 

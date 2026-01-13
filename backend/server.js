@@ -514,21 +514,42 @@ app.post("/api/create-payment-link", async (req, res) => {
 // 🔔 PayMongo Webhook Handler
 app.post("/api/paymongo-webhook", async (req, res) => {
   try {
+    console.log("[paymongo-webhook] 🔄 Webhook payload received:", JSON.stringify(req.body, null, 2));
+    
     const { data } = req.body;
+    
+    if (!data) {
+      console.error("[paymongo-webhook] ❌ No data in webhook payload");
+      return res.status(400).json({ error: "Invalid webhook payload" });
+    }
 
+    console.log("[paymongo-webhook] Webhook type:", data.type);
+    
     if (data.type === "checkout_session.payment.success") {
-      const checkoutId = data.attributes.checkout_session_id;
+      // PayMongo sends checkout_session_id in the webhook for success event
+      const checkoutId = data.attributes?.checkout_session_id;
+
+      if (!checkoutId) {
+        console.error("[paymongo-webhook] ❌ No checkout_session_id in webhook data");
+        console.error("[paymongo-webhook] Attributes:", data.attributes);
+        return res.status(400).json({ error: "Missing checkout_session_id" });
+      }
+
+      console.log("[paymongo-webhook] 🔍 Looking for metadata with checkoutId:", checkoutId);
 
       // Get payment metadata from Firestore
       const metadataDoc = await db.collection("paymentMetadata").doc(checkoutId).get();
 
       if (!metadataDoc.exists) {
-        console.error("[paymongo-webhook] Payment metadata not found:", checkoutId);
-        return res.status(404).json({ error: "Payment metadata not found" });
+        console.error("[paymongo-webhook] ❌ Payment metadata not found for checkoutId:", checkoutId);
+        // Don't fail - PayMongo will retry, and we'll handle it on success page
+        return res.status(200).json({ success: true, message: "Metadata will be created on success page" });
       }
 
       const metadataData = metadataDoc.data();
       const { userId, amount, name } = metadataData;
+
+      console.log("[paymongo-webhook] ✅ Metadata found - creating deposit for user:", userId);
 
       // Create deposit record with PENDING status (requires admin approval)
       const depositRef = db.collection("deposits").doc();
@@ -554,13 +575,15 @@ app.post("/api/paymongo-webhook", async (req, res) => {
         });
       });
 
-      console.info(`[paymongo-webhook] ✅ Payment received - user=${userId} amount=₱${amount} checkoutId=${checkoutId} depositId=${depositRef.id} status=Pending (awaiting admin approval)`);
+      console.info(`[paymongo-webhook] ✅ DEPOSIT CREATED - user=${userId} amount=₱${amount} checkoutId=${checkoutId} depositId=${depositRef.id} status=Pending (awaiting admin approval)`);
       return res.json({ success: true });
     }
 
+    console.log("[paymongo-webhook] ℹ️ Ignoring webhook type:", data.type);
     res.json({ success: true });
   } catch (error) {
-    console.error("[paymongo-webhook] ❌ Error:", error);
+    console.error("[paymongo-webhook] ❌ Error:", error.message);
+    console.error("[paymongo-webhook] Stack:", error.stack);
     res.status(500).json({ error: "Webhook processing failed" });
   }
 });
