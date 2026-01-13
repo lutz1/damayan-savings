@@ -344,10 +344,11 @@ useEffect(() => {
   useEffect(() => {
     if (!user) return;
 
+    // Query ALL rewards (both approved and pending approval)
+    // to include System Bonus and other pending reward types
     const q = query(
       collection(db, "referralReward"),
-      where("userId", "==", user.uid),
-      where("payoutReleased", "==", true)
+      where("userId", "==", user.uid)
     );
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
@@ -357,8 +358,18 @@ useEffect(() => {
           ...doc.data(),
         }));
       
+      // Filter to show:
+      // 1. All payoutReleased=true rewards (regardless of transferred status)
+      // 2. All approved=true rewards (including pending payoutReleased)
+      // 3. All System Bonus type rewards (even if not approved yet)
+      const displayRewards = allRewards.filter(r => 
+        r.payoutReleased === true || 
+        r.approved === true || 
+        r.type === "System Bonus"
+      );
+      
       // Filter out transferred rewards for the dialog (show only pending transfers)
-      const pendingRewards = allRewards.filter(r => !r.transferredAmount);
+      const pendingRewards = displayRewards.filter(r => !r.transferredAmount);
       setRewardHistory(pendingRewards);
       
       // Calculate total from ALL released rewards (including transferred ones)

@@ -237,8 +237,8 @@ if (role?.toLowerCase() === "md") {
           amount: 100,
           source: "System",
           type: "System Bonus",
-          approved: false,
-          payoutReleased: false,
+          approved: true,
+          payoutReleased: true,
           createdAt: serverTimestamp(),
         });
         console.log(`💰 Special Bonus ₱100 → ${masterMD.data().username} (System)`);
@@ -266,8 +266,8 @@ if (role?.toLowerCase() === "md") {
             amount: bonusAmount,
             source: "System",
             type: "System Bonus",
-            approved: false,
-            payoutReleased: false,
+            approved: true,
+            payoutReleased: true,
             createdAt: serverTimestamp(),
           });
           console.log(`💰 Special Bonus ₱${bonusAmount} → ${specialUser.data().username} (System)`);
