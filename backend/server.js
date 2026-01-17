@@ -514,24 +514,33 @@ app.post("/api/create-payment-link", async (req, res) => {
 // 🔔 PayMongo Webhook Handler
 app.post("/api/paymongo-webhook", async (req, res) => {
   try {
+    // Log the full webhook payload for debugging
     console.log("[paymongo-webhook] 🔄 Webhook payload received:", JSON.stringify(req.body, null, 2));
-    
+
     const { data } = req.body;
-    
+
     if (!data) {
       console.error("[paymongo-webhook] ❌ No data in webhook payload");
       return res.status(400).json({ error: "Invalid webhook payload" });
     }
 
+    // Log the event type
     console.log("[paymongo-webhook] Webhook type:", data.type);
-    
-    if (data.type === "checkout_session.payment.success") {
-      // PayMongo sends checkout_session_id in the webhook for success event
-      const checkoutId = data.attributes?.checkout_session_id;
 
+    // Log all attributes for inspection
+    if (data.attributes) {
+      console.log("[paymongo-webhook] Attributes:", JSON.stringify(data.attributes, null, 2));
+    } else {
+      console.log("[paymongo-webhook] No attributes in data");
+    }
+
+    // Log the checkout_session_id if present
+    const checkoutId = data.attributes?.checkout_session_id;
+    console.log("[paymongo-webhook] checkout_session_id:", checkoutId);
+
+    if (data.type === "checkout_session.payment.success") {
       if (!checkoutId) {
         console.error("[paymongo-webhook] ❌ No checkout_session_id in webhook data");
-        console.error("[paymongo-webhook] Attributes:", data.attributes);
         return res.status(400).json({ error: "Missing checkout_session_id" });
       }
 
@@ -567,7 +576,7 @@ app.post("/api/paymongo-webhook", async (req, res) => {
         });
 
         // DO NOT update user eWallet - wait for admin approval
-        
+
         // Update metadata to link deposit
         transaction.update(db.collection("paymentMetadata").doc(checkoutId), {
           depositId: depositRef.id,
