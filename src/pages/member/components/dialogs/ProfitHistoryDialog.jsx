@@ -102,7 +102,7 @@ const ProfitHistoryDialog = ({
                     : "⏳ " + (t.profitStatus || "Pending")}
                 </Box>
 
-                {t.nextProfitDate && (
+                {t.profitClaimedAt && (
                   <Box
                     sx={{
                       px: 1.5,
@@ -115,7 +115,11 @@ const ProfitHistoryDialog = ({
                       fontSize: 11,
                     }}
                   >
-                    📅 {t.nextProfitDate.toDateString()}
+                    {`📅 Credited: ${
+                      t.profitClaimedAt instanceof Date
+                        ? t.profitClaimedAt.toDateString()
+                        : new Date(t.profitClaimedAt.seconds ? t.profitClaimedAt.seconds * 1000 : t.profitClaimedAt).toDateString()
+                    }`}
                   </Box>
                 )}
               </Box>
