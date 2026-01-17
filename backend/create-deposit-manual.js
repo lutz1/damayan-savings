@@ -1,13 +1,14 @@
 // Manual Deposit Creation Script
 // Usage: node create-deposit-manual.js
-
+require('dotenv').config({ path: __dirname + '/.env' });
 const { db } = require("./firebaseAdmin.js");
 
 const createManualDeposit = async () => {
   try {
-    const userId = "nCnT38kqijguRWUYCUsVCgTx08D2";
-    const amount = 600;
-    const checkoutId = "cs_nUr9zze9zmNRAqo4yc3jwonB";
+    // Update these values for the manual deposit you want to create
+    const userId = "U7J49uMa70dkAzx2C1iklyyZPEJ2"; // From your PayMongo checkout log
+    const amount = 500; // From your PayMongo checkout log
+    const checkoutId = "cs_svq1CXpawqbiqAhH28EwKaAT"; // From your PayMongo checkout log
 
     console.log("🔄 Fetching user details...");
     
