@@ -13,6 +13,12 @@ service firebase.storage {
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Allow withdrawal QR uploads
+    match /withdrawals_qr/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
     // Default: deny all
     match /{allPaths=**} {
       allow read, write: if false;
