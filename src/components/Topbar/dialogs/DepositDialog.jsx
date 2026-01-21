@@ -27,6 +27,7 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
   const [error, setError] = useState("");
   const [depositLogs, setDepositLogs] = useState([]);
   const [processingPayment, setProcessingPayment] = useState(false);
+  const [serverWaking, setServerWaking] = useState(false);
 
   const auth = getAuth();
   const currentUser = auth.currentUser;
@@ -60,13 +61,23 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
       }
 
       setProcessingPayment(true);
+      setServerWaking(false);
       setError("");
+
+      // Show "waking server" message after 3 seconds
+      const wakeTimer = setTimeout(() => {
+        setServerWaking(true);
+      }, 3000);
 
       const idToken = await auth.currentUser.getIdToken();
       const API_BASE = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
       const depositName = userData?.name && userData?.name.trim() 
         ? userData.name 
         : (currentUser.displayName || currentUser.email || "Unknown User");
+
+      // Add timeout to the fetch request (30 seconds for Render cold start)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
 
       const response = await fetch(`${API_BASE}/api/create-payment-link`, {
         method: "POST",
@@ -77,7 +88,11 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
           name: depositName,
           email: currentUser.email,
         }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
+      clearTimeout(wakeTimer);
 
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Failed to create payment");
@@ -92,7 +107,14 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
       window.location.href = result.checkoutUrl;
     } catch (err) {
       console.error("PayMongo error:", err);
-      setError("Payment creation failed. Please try again.");
+      
+      if (err.name === 'AbortError') {
+        setError("Request timeout. The server might be waking up. Please try again in a moment.");
+      } else {
+        setError(err.message || "Payment creation failed. Please try again.");
+      }
+      
+      setServerWaking(false);
     } finally {
       setProcessingPayment(false);
     }
@@ -214,12 +236,26 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
                 {processingPayment ? (
                   <>
                     <CircularProgress size={20} sx={{ color: "#000", mr: 1 }} />
-                    Processing...
+                    {serverWaking ? "Waking server..." : "Processing..."}
                   </>
                 ) : (
                   "Proceed to Payment"
                 )}
               </Button>
+
+              {serverWaking && (
+                <Alert
+                  severity="info"
+                  sx={{
+                    mb: 1,
+                    background: "rgba(33,150,243,0.15)",
+                    color: "#90CAF9",
+                    fontSize: 12,
+                  }}
+                >
+                  ⏳ Server is waking up (Render free tier). This may take 30-50 seconds. Please wait...
+                </Alert>
+              )}
 
               <Typography variant="caption" sx={{ display: "block", textAlign: "center", color: "rgba(255,255,255,0.6)", mt: 1 }}>
                 You will be redirected to secure PayMongo checkout
