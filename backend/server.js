@@ -514,13 +514,20 @@ app.post("/api/create-payment-link", async (req, res) => {
 // 🔔 PayMongo Webhook Handler
 app.post("/api/paymongo-webhook", async (req, res) => {
   try {
-    // Log the full webhook payload for debugging
-    console.log("[paymongo-webhook] 🔄 Webhook payload received:", JSON.stringify(req.body, null, 2));
+    // Log the raw request body and check for parsing issues
+    if (!req.body) {
+      console.error("[paymongo-webhook] ❌ req.body is undefined or empty!");
+    } else {
+      console.log("[paymongo-webhook] 🔄 Webhook payload received:", JSON.stringify(req.body, null, 2));
+    }
 
-    const { data } = req.body;
+    // For extra debugging, log the headers
+    console.log("[paymongo-webhook] Headers:", JSON.stringify(req.headers, null, 2));
+
+    const { data } = req.body || {};
 
     if (!data) {
-      console.error("[paymongo-webhook] ❌ No data in webhook payload");
+      console.error("[paymongo-webhook] ❌ No data in webhook payload (after parsing req.body)");
       return res.status(400).json({ error: "Invalid webhook payload" });
     }
 
