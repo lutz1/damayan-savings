@@ -1,14 +1,27 @@
 import React, { useState, useEffect } from "react";
+import usePwaInstall from "../hooks/usePwaInstall";
+import "./login.css";
+import {
+  Box,
+  Typography,
+  TextField,
+  Button,
+  Paper,
+  CircularProgress,
+  Alert,
+} from "@mui/material";
 import { motion } from "framer-motion";
 import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
-import { Visibility, VisibilityOff, Email, Lock, Info } from "@mui/icons-material";
-import newLogo from "../assets/newlogo.png";
+import { Visibility, VisibilityOff, Email, Lock} from "@mui/icons-material";
+import { InputAdornment, IconButton } from "@mui/material";
+import bgImage from "../assets/newlogo.png";
+import tclcLogo from "../assets/tclc-logo1.png";
+import damayanLogo from "../assets/damayan.png";
 import merchantLogo from "../assets/merchantlogo.png";
 import Splashscreen from "../components/splashscreen";
 import TermsAndConditions from "../components/TermsAndConditions";
-import "./login.css";
 
 const Login = () => {
   const [loading, setLoading] = useState(false);
@@ -19,9 +32,25 @@ const Login = () => {
   const [openTerms, setOpenTerms] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
+  const [splashLogo, setSplashLogo] = useState(damayanLogo);
   const [postSplashTarget, setPostSplashTarget] = useState(null);
   const [redirecting, setRedirecting] = useState(false);
+  const { isInstallable, promptInstall } = usePwaInstall();
 
+  // iOS detection and standalone check (for Add to Home Screen guidance)
+  const isIos = typeof window !== "undefined" && /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
+  const isInStandaloneMode =
+    typeof window !== "undefined" && (window.navigator.standalone === true || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches));
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+    } catch (err) {
+      console.error("Copy failed", err);
+    }
+  };
+
+  
   // ✅ Redirect users based on role
   const handleRedirect = (role) => { 
     const base = "/damayan-savings";
@@ -34,6 +63,7 @@ const Login = () => {
 
     // Show splash for merchants before redirecting
     if (upper === "MERCHANT") {
+      setSplashLogo(merchantLogo);
       setPostSplashTarget("/location-access");
       setShowSplash(true);
       return;
@@ -124,161 +154,245 @@ const Login = () => {
 
 
   return (
-    <div className="login-container">
+  <Box
+    className="login-container"
+    sx={{
+        backgroundImage: `url(${bgImage})`,
+    }}
+  >
       <motion.div
         initial={{ opacity: 0, y: 25 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
-        style={{ width: "100%", maxWidth: 420, zIndex: 10, padding: "1rem" }}
+        className="login-form-wrapper"
       >
-        {/* Glass Panel */}
-        <div className="glass-panel">
-          {/* Logo Section */}
-          <div className="logo-section">
-            <img src={newLogo} alt="Damayan Logo" className="logo-image" />
-            <div className="logo-divider" />
-            <div className="logo-text">
-              <h1 className="logo-title">Damayan</h1>
-              <p className="logo-subtitle">Lingap. Malasakit. Kalinga.</p>
-            </div>
-          </div>
-
-          {/* Info Alert */}
-          <div className="info-alert">
-            <Info className="info-icon" />
-            <p className="info-text">
-              Please use your <strong>official company email</strong> to log in to the employee portal.
-            </p>
-          </div>
-
-          {/* Error Alert */}
-          {error && <div className="error-alert">{error}</div>}
-
-          {/* Login Form */}
-          <form onSubmit={handleLogin} className="login-form">
-            {/* Email Field */}
-            <div className="form-field">
-              <Email className="input-icon" />
-              <input
-                type="email"
-                placeholder=" "
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-              <label htmlFor="email">Email Address</label>
-            </div>
-
-            {/* Password Field */}
-            <div className="form-field">
-              <Lock className="input-icon" />
-              <input
-                type={showPassword ? "text" : "password"}
-                placeholder=" "
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-              <label htmlFor="password">Password</label>
-              <button
-                type="button"
-                className="visibility-toggle"
-                onClick={() => setShowPassword(!showPassword)}
+        <Paper
+          elevation={10}
+          className="login-card"
+        >
+          {/* LOGOS */}
+          <Box className="login-logos">
+            <Box
+              component="img"
+              src={tclcLogo}
+              alt="TCLC"
+              className="login-tclc-logo"
+            />
+            <Box
+              component="img"
+              src={damayanLogo}
+              alt="Damayan"
+              className="login-damayan-logo"
+            />
+          </Box>
+          {isIos && !isInStandaloneMode ? (
+            <>
+              <Typography sx={{ mb: 1 }}>
+                On iPhone/iPad the browser must be Safari to add the app to your Home Screen.
+              </Typography>
+              <Typography variant="body2" sx={{ textAlign: "left", mb: 1.5 }}>
+                Steps: 1) Open this page in Safari. 2) Tap the Share button (box with up-arrow). 3) Choose "Add to Home Screen".
+              </Typography>
+              <Button
+                variant="outlined"
+                sx={{ mb: 0.5, color: "#fff", borderColor: "rgba(255,255,255,0.3)" }}
+                onClick={copyLink}
               >
-                {showPassword ? <VisibilityOff /> : <Visibility />}
-              </button>
-            </div>
-
-            {/* Form Actions */}
-            <div className="form-actions">
-              <div className="remember-me">
-                <input type="checkbox" id="remember" />
-                <label htmlFor="remember">Remember me</label>
-              </div>
-              <button type="button" className="forgot-password" onClick={() => {}}>Forgot Password?</button>
-            </div>
-
-            {/* Terms & Conditions */}
-            <label className={`terms-box ${acceptedTerms ? "checked" : ""}`}>
-              <input
-                type="checkbox"
-                checked={acceptedTerms}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    setOpenTerms(true);
-                  } else {
-                    setAcceptedTerms(false);
+                Copy Link (Open in Safari)
+              </Button>
+            </>
+          ) : isInstallable ? (
+            <>
+              <Button
+                variant="outlined"
+                sx={{ mb: 0.5, color: "#fff", borderColor: "rgba(255,255,255,0.3)" }}
+                onClick={async () => {
+                  try {
+                    await promptInstall();
+                  } catch (err) {
+                    console.error("PWA install failed:", err);
                   }
                 }}
-              />
-              <p className="terms-text">
-                I agree to the <strong>Standard Terms & Conditions</strong> and{" "}
-                <strong>Privacy Policy</strong> of the institution.
-              </p>
-            </label>
+              >
+                Install App
+              </Button>
+              <Typography
+                variant="caption"
+                sx={{ display: "block", color: "rgba(255,255,255,0.8)", mb: 1 }}
+              >
+                Install for faster access and a home-screen shortcut.
+              </Typography>
+            </>
+          ) : null}
 
-            {/* Login Button */}
-            <button
-              type="submit"
-              className="login-button"
-              disabled={loading || !acceptedTerms}
+          {error && (
+            <Alert severity="error" className="login-info-alert">
+              {error}
+            </Alert>
+          )}
+
+            <Alert
+              severity="info"
+              className="login-company-email-alert"
             >
-              {loading ? <div className="spinner" /> : "Login"}
-            </button>
+              Please use your <strong>official company email</strong> to log in.
+            </Alert>
+
+
+          <form onSubmit={handleLogin} className="login-form">
+            <TextField
+                label="Email Address"
+                type="email"
+                fullWidth
+                required
+                margin="normal"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="login-textfield"
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Email className="login-textfield-icon" />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            <TextField
+                label="Password"
+                type={showPassword ? "text" : "password"}
+                fullWidth
+                required
+                margin="normal"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="login-textfield"
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Lock className="login-textfield-icon" />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => setShowPassword((prev) => !prev)}
+                        edge="end"
+                        sx={{ color: "#fff" }}
+                      >
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+
+            {/* Terms & Conditions */}
+            <motion.div
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.97 }}
+              style={{ width: "100%" }}
+            >
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  mt: 1.5,
+                  cursor: "pointer",
+                  color: acceptedTerms ? "#f8f8faff" : "#fff", // turns green when accepted
+                  fontSize: "0.85rem",
+                  backgroundColor: "rgba(255,255,255,0.08)",
+                  px: 1.5,
+                  py: 1,
+                  borderRadius: 2,
+                  transition: "0.25s ease",
+                  border: acceptedTerms
+                    ? "1px solid #2aa2f3ff"
+                    : "1px solid rgba(255,255,255,0.2)",
+                  "&:hover": {
+                    backgroundColor: "rgba(255,255,255,0.15)",
+                  },
+                }}
+              >
+                <motion.input
+                  type="checkbox"
+                  checked={acceptedTerms}
+                  onChange={(e) => {
+                    e.stopPropagation(); // Prevent row click
+                    const checked = e.target.checked;
+
+                    if (checked) {
+                      // Only open dialog when CHECKING
+                      setOpenTerms(true);
+                    } else {
+                      // If unchecked, just remove acceptance without opening dialog
+                      setAcceptedTerms(false);
+                    }
+                  }}
+                  whileTap={{ scale: 0.7 }}
+                  style={{
+                    marginRight: "10px",
+                    width: 20,
+                    height: 20,
+                    cursor: "pointer",
+                    accentColor: acceptedTerms ? "#2aa2f3ff" : "#1976d2",
+                  }}
+                />
+                <Typography
+                  sx={{
+                    textDecoration: "underline",
+                    userSelect: "none",
+                    fontSize: "0.88rem",
+                  }}
+                >
+                  I agree to the Standard Terms & Conditions Policy
+                </Typography>
+              </Box>
+            </motion.div>
+
+           <Button
+            type="submit"
+            variant="contained"
+            fullWidth
+            disabled={loading || !acceptedTerms}
+            className="login-button"
+          >
+            {loading ? <CircularProgress size={24} color="inherit" /> : "Login"}
+          </Button>
           </form>
 
-          {/* Footer Links */}
-          <div className="footer-links">
-            <p>
-              Don't have an account?{" "}
-              <button type="button" className="footer-link" onClick={() => {}}>Request Access</button>
-            </p>
-            <p className="copyright">© 2025 Damayan Savings. All rights reserved.</p>
-          </div>
-        </div>
+          <Typography className="login-footer">
+            © 2025 Damayan Savings. All rights reserved.
+          </Typography>
+        </Paper>
 
-        {/* Language Selector */}
-        <div className="language-selector">
-          <button className="language-btn">🌐 English</button>
-          <div className="language-divider" />
-          <button className="language-btn">Filipino</button>
-        </div>
-
-        {/* Support Button */}
-        <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
-          className="support-button"
-          aria-label="Support"
-        >
-          💬
-        </motion.button>
+        {/* Terms & Conditions Dialog */}
+        <TermsAndConditions
+          open={openTerms}
+          onClose={() => setOpenTerms(false)}
+          onAccept={() => {
+            setAcceptedTerms(true);
+            setOpenTerms(false);
+          }}
+        />
+        <Splashscreen
+          open={showSplash}
+          logo={splashLogo}
+          duration={1400}
+          overlayColor={splashLogo === merchantLogo ? "#f1f3c7" : undefined}
+          onClose={() => {
+            setShowSplash(false);
+            (function () {
+              const base = "/damayan-savings";
+              if (postSplashTarget) {
+                window.location.replace(`${base}${postSplashTarget}`);
+              } else {
+                window.location.replace(`${base}/merchant/dashboard`);
+              }
+            })();
+          }}
+        />
       </motion.div>
-
-      {/* Terms & Conditions Dialog */}
-      <TermsAndConditions
-        open={openTerms}
-        onClose={() => setOpenTerms(false)}
-        onAccept={() => {
-          setAcceptedTerms(true);
-          setOpenTerms(false);
-        }}
-      />
-
-      {/* Splash Screen */}
-      <Splashscreen
-        open={showSplash}
-        logo={merchantLogo}
-        duration={1400}
-        overlayColor="#f1f3c7"
-        onClose={() => {
-          setShowSplash(false);
-          const base = "/damayan-savings";
-          const target = postSplashTarget || "/merchant/dashboard";
-          window.location.replace(`${base}${target}`);
-        }}
-      />
-    </div>
+    </Box>
   );
 };
 

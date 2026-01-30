@@ -6,9 +6,9 @@ const { db } = require("./firebaseAdmin.js");
 const createManualDeposit = async () => {
   try {
     // Update these values for the manual deposit you want to create
-    const userId = "ivr91kuQMeXsrk1t6WR7QDcj7av1"; // From PayMongo checkout log
-    const amount = 20000; // From PayMongo checkout log (₱200.00)
-    const checkoutId = "cs_o2eq9e1TzvCmLd8E9pqddWr5"; // From PayMongo checkout log
+    const userId = "K6IwgB9oUAZcdLjXwrHu0mWKIOu1"; // From PayMongo checkout log
+    const amount = 2000; // From PayMongo checkout log (₱20.00)
+    const checkoutId = "cs_r9pTd8q2KBCbgVbDmE3wWtnf"; // From PayMongo checkout log
 
     console.log("🔄 Fetching user details...");
     
