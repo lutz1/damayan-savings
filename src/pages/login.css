@@ -385,8 +385,37 @@
 }
 
 /* iOS Instructions */
-.login-ios-instructions {
+.login-ios-instructions-title {
   margin-bottom: 8px;
+  color: #fff;
+}
+
+.login-ios-instructions {
   text-align: left;
   margin-bottom: 12px;
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+/* PWA Install Button */
+.login-install-button {
+  margin-bottom: 8px !important;
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+.login-install-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.login-install-caption {
+  display: block;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 8px;
+  font-size: 0.75rem;
+}
+
+/* Visibility Button */
+.login-visibility-button {
+  color: #fff !important;
 }

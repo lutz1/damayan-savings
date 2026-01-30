@@ -187,15 +187,15 @@ const Login = () => {
           </Box>
           {isIos && !isInStandaloneMode ? (
             <>
-              <Typography sx={{ mb: 1 }}>
+              <Typography className="login-ios-instructions-title">
                 On iPhone/iPad the browser must be Safari to add the app to your Home Screen.
               </Typography>
-              <Typography variant="body2" sx={{ textAlign: "left", mb: 1.5 }}>
+              <Typography className="login-ios-instructions">
                 Steps: 1) Open this page in Safari. 2) Tap the Share button (box with up-arrow). 3) Choose "Add to Home Screen".
               </Typography>
               <Button
                 variant="outlined"
-                sx={{ mb: 0.5, color: "#fff", borderColor: "rgba(255,255,255,0.3)" }}
+                className="login-install-button"
                 onClick={copyLink}
               >
                 Copy Link (Open in Safari)
@@ -205,7 +205,7 @@ const Login = () => {
             <>
               <Button
                 variant="outlined"
-                sx={{ mb: 0.5, color: "#fff", borderColor: "rgba(255,255,255,0.3)" }}
+                className="login-install-button"
                 onClick={async () => {
                   try {
                     await promptInstall();
@@ -216,10 +216,7 @@ const Login = () => {
               >
                 Install App
               </Button>
-              <Typography
-                variant="caption"
-                sx={{ display: "block", color: "rgba(255,255,255,0.8)", mb: 1 }}
-              >
+              <Typography className="login-install-caption">
                 Install for faster access and a home-screen shortcut.
               </Typography>
             </>
@@ -277,7 +274,7 @@ const Login = () => {
                       <IconButton
                         onClick={() => setShowPassword((prev) => !prev)}
                         edge="end"
-                        sx={{ color: "#fff" }}
+                        className="login-visibility-button"
                       >
                         {showPassword ? <VisibilityOff /> : <Visibility />}
                       </IconButton>
