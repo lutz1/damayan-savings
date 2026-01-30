@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from "react";
-import usePwaInstall from "../hooks/usePwaInstall";
 import {
   Box,
   Typography,
   TextField,
   Button,
-  Paper,
   CircularProgress,
   Alert,
 } from "@mui/material";
@@ -13,10 +11,9 @@ import { motion } from "framer-motion";
 import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
-import { Visibility, VisibilityOff, Email, Lock} from "@mui/icons-material";
+import { Visibility, VisibilityOff, Email, Lock, Info } from "@mui/icons-material";
 import { InputAdornment, IconButton } from "@mui/material";
-import bgImage from "../assets/bg.jpg";
-import tclcLogo from "../assets/tclc-logo1.png";
+import newLogo from "../assets/newlogo.png";
 import damayanLogo from "../assets/damayan.png";
 import merchantLogo from "../assets/merchantlogo.png";
 import Splashscreen from "../components/splashscreen";
@@ -34,22 +31,7 @@ const Login = () => {
   const [splashLogo, setSplashLogo] = useState(damayanLogo);
   const [postSplashTarget, setPostSplashTarget] = useState(null);
   const [redirecting, setRedirecting] = useState(false);
-  const { isInstallable, promptInstall } = usePwaInstall();
 
-  // iOS detection and standalone check (for Add to Home Screen guidance)
-  const isIos = typeof window !== "undefined" && /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
-  const isInStandaloneMode =
-    typeof window !== "undefined" && (window.navigator.standalone === true || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches));
-
-  const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-    } catch (err) {
-      console.error("Copy failed", err);
-    }
-  };
-
-  
   // ✅ Redirect users based on role
   const handleRedirect = (role) => { 
     const base = "/damayan-savings";
@@ -153,18 +135,19 @@ const Login = () => {
 
 
   return (
-  <Box
-    sx={{
-     minHeight: "100vh",
-      overflow: "auto",
-        backgroundImage: `url(${bgImage})`,
+    <Box
+      sx={{
+        minHeight: "100vh",
+        overflow: "auto",
+        backgroundImage: `url(${newLogo})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundAttachment: { xs: "scroll", md: "fixed" },
+        backgroundRepeat: "no-repeat",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        p: { xs: 2, sm: 3, md: 0 },
+        p: { xs: 2, sm: 3, md: 4 },
         position: "relative",
 
         "&::before": {
@@ -172,148 +155,209 @@ const Login = () => {
           position: "absolute",
           inset: 0,
           zIndex: 0,
-          background: {
-            xs: "rgba(13,135,184,0.45)",
-            sm: "rgba(13,135,184,0.35)",
-            md: "rgba(13,135,184,0.28)",
-          },
-          backdropFilter: { xs: "blur(0px)", md: "blur(2px)" },
+          // Enhanced blue mesh gradient background
+          background: `
+            radial-gradient(at 0% 0%, rgba(30, 77, 146, 0.8) 0%, transparent 50%),
+            radial-gradient(at 50% 0%, rgba(14, 77, 146, 0.7) 0%, transparent 50%),
+            radial-gradient(at 100% 0%, rgba(32, 87, 160, 0.75) 0%, transparent 50%),
+            linear-gradient(135deg, #0c4a6e 0%, #0e4d92 50%, #1e5492 100%)
+          `,
+          backdropFilter: "blur(8px)",
         },
       }}
     >
+      {/* Animated mesh overlay */}
+      <Box
+        sx={{
+          position: "fixed",
+          inset: 0,
+          opacity: 0.15,
+          pointerEvents: "none",
+          background: `
+            linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%),
+            linear-gradient(-45deg, transparent 30%, rgba(0,0,0,0.1) 50%, transparent 70%)
+          `,
+          backgroundSize: "60px 60px",
+          zIndex: 0,
+        }}
+      />
+
       <motion.div
         initial={{ opacity: 0, y: 25 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
-        style={{ width: "100%", maxWidth: 430, zIndex: 1 }}
+        style={{ width: "100%", maxWidth: 420, zIndex: 10 }}
       >
-        <Paper
-          elevation={10}
+        {/* Glass Panel */}
+        <Box
           sx={{
-            p: { xs: "18px 20px", sm: 4, md: 3.5 },  // 🔥 reduced mobile top/bottom padding
-            maxHeight: { md: 650 },
-            borderRadius: 4,
-            textAlign: "center",
-            backdropFilter: "blur(18px)",
-            background: "rgba(255,255,255,0.15)",
-            border: "1px solid rgba(255,255,255,0.3)",
-            color: "#fff",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
-            overflowY: "auto",
+            backdropFilter: "blur(20px)",
+            background: "rgba(15, 23, 42, 0.6)",
+            border: "1px solid rgba(255, 255, 255, 0.1)",
+            borderRadius: { xs: "20px", sm: "24px" },
+            p: { xs: 3, sm: 4, md: 4 },
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
+            position: "relative",
           }}
         >
-          {/* LOGOS */}
-          <Box sx={{ mb: 3 }}>
+          {/* Logo and Branding */}
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2, mb: 3 }}>
+            {/* New Logo */}
             <Box
               component="img"
-              src={tclcLogo}
-              alt="TCLC"
-              sx={{ width: { xs: 80, sm: 100, md: 110 }, height: "auto" }}
-            />
-            <Box
-              component="img"
-              src={damayanLogo}
-              alt="Damayan"
+              src={newLogo}
+              alt="Damayan Logo"
               sx={{
-                width: { xs: 190, sm: 230, md: 260 },
+                width: { xs: 48, sm: 56, md: 64 },
                 height: "auto",
-                mt: -2,
+                filter: "brightness(1.1)",
               }}
             />
-          </Box>
-          {isIos && !isInStandaloneMode ? (
-            <>
-              <Typography sx={{ mb: 1 }}>
-                On iPhone/iPad the browser must be Safari to add the app to your Home Screen.
-              </Typography>
-              <Typography variant="body2" sx={{ textAlign: "left", mb: 1.5 }}>
-                Steps: 1) Open this page in Safari. 2) Tap the Share button (box with up-arrow). 3) Choose "Add to Home Screen".
-              </Typography>
-              <Button
-                variant="outlined"
-                sx={{ mb: 0.5, color: "#fff", borderColor: "rgba(255,255,255,0.3)" }}
-                onClick={copyLink}
-              >
-                Copy Link (Open in Safari)
-              </Button>
-            </>
-          ) : isInstallable ? (
-            <>
-              <Button
-                variant="outlined"
-                sx={{ mb: 0.5, color: "#fff", borderColor: "rgba(255,255,255,0.3)" }}
-                onClick={async () => {
-                  try {
-                    await promptInstall();
-                  } catch (err) {
-                    console.error("PWA install failed:", err);
-                  }
+            {/* Divider */}
+            <Box sx={{ width: 1, height: 36, background: "rgba(255,255,255,0.15)" }} />
+            {/* Branding Text */}
+            <Box>
+              <Typography
+                sx={{
+                  fontFamily: '"Outfit", sans-serif',
+                  fontWeight: 700,
+                  fontSize: { xs: "1.4rem", sm: "1.6rem" },
+                  color: "#fff",
+                  letterSpacing: "-0.5px",
                 }}
               >
-                Install App
-              </Button>
-              <Typography
-                variant="caption"
-                sx={{ display: "block", color: "rgba(255,255,255,0.8)", mb: 1 }}
-              >
-                Install for faster access and a home-screen shortcut.
+                Damayan
               </Typography>
-            </>
-          ) : null}
+              <Typography
+                sx={{
+                  fontSize: "0.65rem",
+                  color: "rgba(255,255,255,0.5)",
+                  textTransform: "uppercase",
+                  letterSpacing: "1px",
+                  fontWeight: 600,
+                  lineHeight: 1,
+                  mt: 0.25,
+                }}
+              >
+                Lingap. Malasakit.
+              </Typography>
+            </Box>
+          </Box>
 
+          {/* Info Alert */}
+          <Box
+            sx={{
+              background: "rgba(59, 130, 246, 0.1)",
+              border: "1px solid rgba(96, 165, 250, 0.3)",
+              borderRadius: "12px",
+              p: 2,
+              display: "flex",
+              gap: 1.5,
+              mb: 3,
+              alignItems: "flex-start",
+            }}
+          >
+            <Info
+              sx={{
+                color: "rgba(147, 197, 253, 0.8)",
+                fontSize: "1.2rem",
+                flexShrink: 0,
+                mt: 0.25,
+              }}
+            />
+            <Typography
+              sx={{
+                fontSize: { xs: "0.75rem", sm: "0.85rem" },
+                color: "rgba(229, 231, 235, 0.9)",
+                lineHeight: 1.5,
+              }}
+            >
+              Please use your <strong>official company email</strong> to log in to the employee portal.
+            </Typography>
+          </Box>
+
+          {/* Error Alert */}
           {error && (
-            <Alert severity="error" sx={{ mb: 2, fontSize: { xs: "0.8rem", sm: "0.9rem" } }}>
+            <Alert
+              severity="error"
+              sx={{
+                mb: 2.5,
+                fontSize: { xs: "0.8rem", sm: "0.9rem" },
+                background: "rgba(239, 68, 68, 0.1)",
+                border: "1px solid rgba(239, 68, 68, 0.3)",
+                color: "#fca5a5",
+              }}
+            >
               {error}
             </Alert>
           )}
 
-            <Alert
-              severity="info"
-              sx={{
-                mb: 1.5,
-                fontSize: { xs: "0.75rem", sm: "0.85rem" },
-                background: "rgba(255,255,255,0.2)",
-                color: "#fff",
-                border: "1px solid rgba(255,255,255,0.3)",
-                backdropFilter: "blur(4px)",
-                "& .MuiAlert-icon": { color: "#fff" }
-              }}
-            >
-              Please use your <strong>official company email</strong> to log in.
-            </Alert>
-
-
           <form onSubmit={handleLogin}>
-            <TextField
+            {/* Email Field */}
+            <Box sx={{ position: "relative", mb: 3 }}>
+              <TextField
                 label="Email Address"
                 type="email"
                 fullWidth
                 required
-                margin="normal"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                sx={textFieldStyle}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <Email sx={{ color: "#fff" }} />
+                      <Email sx={{ color: "rgba(255,255,255,0.5)", fontSize: "1.3rem" }} />
                     </InputAdornment>
                   ),
                 }}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: "12px",
+                    transition: "all 0.3s ease",
+                    paddingLeft: 0,
+                    "& fieldset": { border: "none" },
+                    "&:hover": {
+                      background: "rgba(255,255,255,0.08)",
+                      borderColor: "rgba(255,255,255,0.15)",
+                    },
+                    "&.Mui-focused": {
+                      background: "rgba(255,255,255,0.08)",
+                      borderColor: "rgba(250, 204, 21, 0.4)",
+                      boxShadow: "0 0 15px rgba(250, 204, 21, 0.15)",
+                    },
+                  },
+                  "& .MuiInputLabel-root": {
+                    color: "rgba(255,255,255,0.5)",
+                    fontSize: "0.95rem",
+                    transform: "translate(48px, 16px) scale(1)",
+                    "&.Mui-focused, &.MuiFormLabel-filled": {
+                      transform: "translate(48px, -9px) scale(0.85)",
+                      color: "rgba(250, 204, 21, 0.8)",
+                    },
+                  },
+                  "& input": {
+                    color: "#fff",
+                    fontSize: { xs: "0.9rem", sm: "1rem" },
+                    padding: "14px 12px 14px 4px",
+                  },
+                }}
               />
-            <TextField
+            </Box>
+
+            {/* Password Field */}
+            <Box sx={{ position: "relative", mb: 2.5 }}>
+              <TextField
                 label="Password"
                 type={showPassword ? "text" : "password"}
                 fullWidth
                 required
-                margin="normal"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                sx={textFieldStyle}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <Lock sx={{ color: "#fff" }} /> {/* optional default icon */}
+                      <Lock sx={{ color: "rgba(255,255,255,0.5)", fontSize: "1.3rem" }} />
                     </InputAdornment>
                   ),
                   endAdornment: (
@@ -321,153 +365,325 @@ const Login = () => {
                       <IconButton
                         onClick={() => setShowPassword((prev) => !prev)}
                         edge="end"
-                        sx={{ color: "#fff" }}
+                        sx={{
+                          color: "rgba(255,255,255,0.5)",
+                          "&:hover": { color: "rgba(255,255,255,0.8)" },
+                        }}
                       >
-                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                        {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
                       </IconButton>
                     </InputAdornment>
                   ),
                 }}
-              />
-
-            {/* Terms & Conditions */}
-            <motion.div
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.97 }}
-              style={{ width: "100%" }}
-            >
-              <Box
                 sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  mt: 1.5,
-                  cursor: "pointer",
-                  color: acceptedTerms ? "#f8f8faff" : "#fff", // turns green when accepted
-                  fontSize: "0.85rem",
-                  backgroundColor: "rgba(255,255,255,0.08)",
-                  px: 1.5,
-                  py: 1,
-                  borderRadius: 2,
-                  transition: "0.25s ease",
-                  border: acceptedTerms
-                    ? "1px solid #2aa2f3ff"
-                    : "1px solid rgba(255,255,255,0.2)",
-                  "&:hover": {
-                    backgroundColor: "rgba(255,255,255,0.15)",
+                  "& .MuiOutlinedInput-root": {
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: "12px",
+                    transition: "all 0.3s ease",
+                    paddingLeft: 0,
+                    paddingRight: 1,
+                    "& fieldset": { border: "none" },
+                    "&:hover": {
+                      background: "rgba(255,255,255,0.08)",
+                      borderColor: "rgba(255,255,255,0.15)",
+                    },
+                    "&.Mui-focused": {
+                      background: "rgba(255,255,255,0.08)",
+                      borderColor: "rgba(250, 204, 21, 0.4)",
+                      boxShadow: "0 0 15px rgba(250, 204, 21, 0.15)",
+                    },
+                  },
+                  "& .MuiInputLabel-root": {
+                    color: "rgba(255,255,255,0.5)",
+                    fontSize: "0.95rem",
+                    transform: "translate(48px, 16px) scale(1)",
+                    "&.Mui-focused, &.MuiFormLabel-filled": {
+                      transform: "translate(48px, -9px) scale(0.85)",
+                      color: "rgba(250, 204, 21, 0.8)",
+                    },
+                  },
+                  "& input": {
+                    color: "#fff",
+                    fontSize: { xs: "0.9rem", sm: "1rem" },
+                    padding: "14px 4px",
                   },
                 }}
-              >
+              />
+            </Box>
+
+            {/* Remember Me & Forgot Password */}
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                mb: 3,
+                px: 1,
+              }}
+            >
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                 <motion.input
                   type="checkbox"
-                  checked={acceptedTerms}
-                  onChange={(e) => {
-                    e.stopPropagation(); // Prevent row click
-                    const checked = e.target.checked;
-
-                    if (checked) {
-                      // Only open dialog when CHECKING
-                      setOpenTerms(true);
-                    } else {
-                      // If unchecked, just remove acceptance without opening dialog
-                      setAcceptedTerms(false);
-                    }
-                  }}
-                  whileTap={{ scale: 0.7 }}
+                  whileTap={{ scale: 0.8 }}
                   style={{
-                    marginRight: "10px",
-                    width: 20,
-                    height: 20,
+                    width: 18,
+                    height: 18,
                     cursor: "pointer",
-                    accentColor: acceptedTerms ? "#2aa2f3ff" : "#1976d2",
+                    accentColor: "#FACC15",
                   }}
                 />
-                <Typography
-                  sx={{
-                    textDecoration: "underline",
-                    userSelect: "none",
-                    fontSize: "0.88rem",
-                  }}
-                >
-                  I agree to the Standard Terms & Conditions Policy
+                <Typography sx={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.7)" }}>
+                  Remember me
                 </Typography>
               </Box>
-            </motion.div>
+              <Typography
+                component="a"
+                href="#"
+                sx={{
+                  fontSize: "0.85rem",
+                  color: "rgba(250, 204, 21, 0.8)",
+                  textDecoration: "none",
+                  fontWeight: 600,
+                  "&:hover": { color: "#FACC15" },
+                }}
+              >
+                Forgot Password?
+              </Typography>
+            </Box>
 
-           <Button
-            type="submit"
-            variant="contained"
-            fullWidth
-            disabled={loading || !acceptedTerms}
-            sx={buttonStyle}
-          >
-            {loading ? <CircularProgress size={24} color="inherit" /> : "Login"}
-          </Button>
+            {/* Terms & Conditions Checkbox */}
+            <Box
+              sx={{
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                borderRadius: "12px",
+                p: 2,
+                mb: 3,
+                display: "flex",
+                gap: 1.5,
+                alignItems: "flex-start",
+                cursor: "pointer",
+                transition: "all 0.3s ease",
+                "&:hover": {
+                  background: "rgba(255,255,255,0.08)",
+                  borderColor: acceptedTerms ? "rgba(76, 175, 80, 0.4)" : "rgba(255,255,255,0.15)",
+                },
+              }}
+            >
+              <motion.input
+                type="checkbox"
+                checked={acceptedTerms}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  const checked = e.target.checked;
+                  if (checked) {
+                    setOpenTerms(true);
+                  } else {
+                    setAcceptedTerms(false);
+                  }
+                }}
+                whileTap={{ scale: 0.7 }}
+                style={{
+                  width: 18,
+                  height: 18,
+                  cursor: "pointer",
+                  accentColor: acceptedTerms ? "#4CAF50" : "#FACC15",
+                  marginTop: 2,
+                  flexShrink: 0,
+                }}
+              />
+              <Typography
+                sx={{
+                  fontSize: "0.8rem",
+                  color: "rgba(229, 231, 235, 0.8)",
+                  lineHeight: 1.5,
+                }}
+              >
+                I agree to the{" "}
+                <Box
+                  component="span"
+                  sx={{
+                    color: "#fff",
+                    fontWeight: 600,
+                    textDecoration: "underline",
+                    textDecorationColor: "rgba(250, 204, 21, 0.5)",
+                  }}
+                >
+                  Standard Terms & Conditions
+                </Box>{" "}
+                and{" "}
+                <Box
+                  component="span"
+                  sx={{
+                    color: "#fff",
+                    fontWeight: 600,
+                    textDecoration: "underline",
+                    textDecorationColor: "rgba(250, 204, 21, 0.5)",
+                  }}
+                >
+                  Privacy Policy
+                </Box>{" "}
+                of the institution.
+              </Typography>
+            </Box>
+
+            {/* Login Button */}
+            <Button
+              type="submit"
+              variant="contained"
+              fullWidth
+              disabled={loading || !acceptedTerms}
+              sx={{
+                background: acceptedTerms
+                  ? "linear-gradient(135deg, #FACC15 0%, #F0AF00 100%)"
+                  : "rgba(250, 204, 21, 0.3)",
+                color: "#0E4D92",
+                fontWeight: 700,
+                fontSize: { xs: "0.95rem", sm: "1.05rem" },
+                py: { xs: 1.6, sm: 1.8 },
+                borderRadius: "12px",
+                textTransform: "uppercase",
+                letterSpacing: "1px",
+                boxShadow: acceptedTerms ? "0 8px 24px rgba(250, 204, 21, 0.3)" : "none",
+                transition: "all 0.3s ease",
+                "&:hover": {
+                  background: acceptedTerms
+                    ? "linear-gradient(135deg, #FACC15 0%, #D4A100 100%)"
+                    : "rgba(250, 204, 21, 0.3)",
+                  transform: acceptedTerms ? "translateY(-2px)" : "none",
+                },
+                "&:active": {
+                  transform: "scale(0.98)",
+                },
+                "&:disabled": {
+                  color: "rgba(14, 77, 146, 0.5)",
+                },
+              }}
+            >
+              {loading ? <CircularProgress size={24} color="inherit" /> : "Login"}
+            </Button>
           </form>
 
+          {/* Footer Links */}
+          <Box sx={{ mt: 3, textAlign: "center", space: 2 }}>
+            <Typography sx={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", mb: 2 }}>
+              Don't have an account?{" "}
+              <Box
+                component="a"
+                href="#"
+                sx={{
+                  color: "#FACC15",
+                  fontWeight: 600,
+                  textDecoration: "none",
+                  "&:hover": { textDecoration: "underline" },
+                }}
+              >
+                Request Access
+              </Box>
+            </Typography>
+            <Typography sx={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>
+              © 2025 Damayan Savings. All rights reserved.
+            </Typography>
+          </Box>
+        </Box>
+
+        {/* Language Selector Footer */}
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            gap: 2,
+            mt: 3,
+            zIndex: 10,
+          }}
+        >
           <Typography
-            variant="body2"
             sx={{
-              mt: 4,
-              color: "rgba(255,255,255,0.8)",
-              fontSize: { xs: "0.7rem", sm: "0.8rem" },
+              fontSize: "0.8rem",
+              color: "rgba(255,255,255,0.5)",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 0.5,
+              "&:hover": { color: "rgba(255,255,255,0.8)" },
             }}
           >
-            © 2025 Damayan Savings. All rights reserved.
+            <span style={{ fontSize: "1rem" }}>🌐</span> English
           </Typography>
-        </Paper>
+          <Box sx={{ width: 1, height: 3, background: "rgba(255,255,255,0.2)" }} />
+          <Typography
+            sx={{
+              fontSize: "0.8rem",
+              color: "rgba(255,255,255,0.5)",
+              cursor: "pointer",
+              "&:hover": { color: "rgba(255,255,255,0.8)" },
+            }}
+          >
+            Filipino
+          </Typography>
+        </Box>
 
-        {/* Terms & Conditions Dialog */}
-        <TermsAndConditions
-          open={openTerms}
-          onClose={() => setOpenTerms(false)}
-          onAccept={() => {
-            setAcceptedTerms(true);
-            setOpenTerms(false);
+        {/* Support Button */}
+        <motion.div
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
+          style={{
+            position: "fixed",
+            bottom: 24,
+            right: 24,
+            zIndex: 100,
           }}
-        />
-        <Splashscreen
-          open={showSplash}
-          logo={splashLogo}
-          duration={1400}
-          overlayColor={splashLogo === merchantLogo ? "#f1f3c7" : undefined}
-          onClose={() => {
-            setShowSplash(false);
-            (function () {
-              const base = "/damayan-savings";
-              if (postSplashTarget) {
-                window.location.replace(`${base}${postSplashTarget}`);
-              } else {
-                window.location.replace(`${base}/merchant/dashboard`);
-              }
-            })();
-          }}
-        />
+        >
+          <Box
+            sx={{
+              width: 48,
+              height: 48,
+              background: "linear-gradient(135deg, #FACC15 0%, #F0AF00 100%)",
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#0E4D92",
+              cursor: "pointer",
+              boxShadow: "0 8px 24px rgba(250, 204, 21, 0.4)",
+              fontWeight: 700,
+              fontSize: "1.4rem",
+            }}
+          >
+            💬
+          </Box>
+        </motion.div>
       </motion.div>
+
+      {/* Terms & Conditions Dialog */}
+      <TermsAndConditions
+        open={openTerms}
+        onClose={() => setOpenTerms(false)}
+        onAccept={() => {
+          setAcceptedTerms(true);
+          setOpenTerms(false);
+        }}
+      />
+      <Splashscreen
+        open={showSplash}
+        logo={splashLogo}
+        duration={1400}
+        overlayColor={splashLogo === merchantLogo ? "#f1f3c7" : undefined}
+        onClose={() => {
+          setShowSplash(false);
+          (function () {
+            const base = "/damayan-savings";
+            if (postSplashTarget) {
+              window.location.replace(`${base}${postSplashTarget}`);
+            } else {
+              window.location.replace(`${base}/merchant/dashboard`);
+            }
+          })();
+        }}
+      />
     </Box>
   );
-};
-
-// Styles
-const textFieldStyle = {
-  "& .MuiOutlinedInput-root": {
-    "& fieldset": { borderColor: "rgba(255,255,255,0.3)" },
-    "&:hover fieldset": { borderColor: "#fff" },
-    "&.Mui-focused fieldset": { borderColor: "#fff" },
-  },
-  "& .MuiInputLabel-root": {
-    color: "rgba(255,255,255,0.7)",
-    "&.Mui-focused": { color: "#fff" },
-  },
-  input: { color: "#fff", fontSize: { xs: "0.8rem", sm: "1rem" } },
-};
-
-const buttonStyle = {
-  mt: 3,
-  py: { xs: 1.1, sm: 1.3 },
-  fontWeight: "bold",
-  borderRadius: 2,
-  fontSize: { xs: "0.85rem", sm: "1rem" },
-  background: "linear-gradient(90deg, #1976d2, #42a5f5)",
 };
 
 export default Login;
