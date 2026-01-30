@@ -148,7 +148,8 @@ const MemberCapitalShare = () => {
           let profitBase = 0;
           if (data.transferredAmount && data.transferredAmount > 0) {
             // After transfer: profit only on remaining lock-in amount
-            profitBase = Math.max(0, (data.lockInPortion || 0) - (data.transferredAmount || 0));
+            // Lock-in is never transferred, so remaining lock-in = lockInPortion
+            profitBase = data.lockInPortion || 0;
           } else {
             // Before transfer: profit on full amount
             profitBase = data.amount || 0;
