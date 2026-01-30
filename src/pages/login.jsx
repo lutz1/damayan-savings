@@ -17,8 +17,7 @@ import { auth, db } from "../firebase";
 import { Visibility, VisibilityOff, Email, Lock} from "@mui/icons-material";
 import { InputAdornment, IconButton } from "@mui/material";
 import bgImage from "../assets/newlogo.png";
-import tclcLogo from "../assets/tclc-logo1.png";
-import damayanLogo from "../assets/damayan.png";
+import newlogo from "../assets/newlogo.png";
 import merchantLogo from "../assets/merchantlogo.png";
 import Splashscreen from "../components/splashscreen";
 import TermsAndConditions from "../components/TermsAndConditions";
@@ -32,7 +31,7 @@ const Login = () => {
   const [openTerms, setOpenTerms] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
-  const [splashLogo, setSplashLogo] = useState(damayanLogo);
+  const [splashLogo, setSplashLogo] = useState(newlogo);
   const [postSplashTarget, setPostSplashTarget] = useState(null);
   const [redirecting, setRedirecting] = useState(false);
   const { isInstallable, promptInstall } = usePwaInstall();
@@ -170,20 +169,17 @@ const Login = () => {
           elevation={10}
           className="login-card"
         >
-          {/* LOGOS */}
-          <Box className="login-logos">
+          {/* LOGO */}
+          <Box className="login-logo-container">
             <Box
               component="img"
-              src={tclcLogo}
-              alt="TCLC"
-              className="login-tclc-logo"
+              src={newlogo}
+              alt="Damayan Savings"
+              className="login-main-logo"
             />
-            <Box
-              component="img"
-              src={damayanLogo}
-              alt="Damayan"
-              className="login-damayan-logo"
-            />
+            <Typography className="login-logo-subtitle">
+              Savings & Credit
+            </Typography>
           </Box>
           {isIos && !isInStandaloneMode ? (
             <>

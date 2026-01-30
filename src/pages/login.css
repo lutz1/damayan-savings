@@ -121,6 +121,50 @@
 }
 
 /* Logo Container */
+.login-logo-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 28px;
+  gap: 8px;
+}
+
+/* Main Logo */
+.login-main-logo {
+  height: auto;
+  display: block;
+}
+
+@media (max-width: 599px) {
+  .login-main-logo {
+    width: 220px;
+  }
+}
+
+@media (min-width: 600px) and (max-width: 899px) {
+  .login-main-logo {
+    width: 280px;
+  }
+}
+
+@media (min-width: 900px) {
+  .login-main-logo {
+    width: 320px;
+  }
+}
+
+/* Logo Subtitle */
+.login-logo-subtitle {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.8);
+  margin-top: 4px;
+}
+
+/* Old Logo Styles - Kept for backward compatibility */
 .login-logos {
   margin-bottom: 16px;
 }
@@ -131,7 +175,6 @@
   }
 }
 
-/* TCLC Logo */
 .login-tclc-logo {
   height: auto;
 }
@@ -154,7 +197,6 @@
   }
 }
 
-/* Damayan Logo */
 .login-damayan-logo {
   height: auto;
 }
