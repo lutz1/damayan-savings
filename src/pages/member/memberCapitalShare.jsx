@@ -143,8 +143,18 @@ const MemberCapitalShare = () => {
         expireDate.setFullYear(expireDate.getFullYear() + 1);
 
         if (now >= nextProfitDate && now <= expireDate) {
-          // Profit is calculated only on lock-in amount (5% per month)
-          const profitAmount = (data.lockInPortion || 0) * 0.05;
+          // Profit calculation: 5% of capital share amount
+          // If already transferred, use remaining lock-in; otherwise use full amount
+          let profitBase = 0;
+          if (data.transferredAmount && data.transferredAmount > 0) {
+            // After transfer: profit only on remaining lock-in amount
+            profitBase = Math.max(0, (data.lockInPortion || 0) - (data.transferredAmount || 0));
+          } else {
+            // Before transfer: profit on full amount
+            profitBase = data.amount || 0;
+          }
+          
+          const profitAmount = profitBase * 0.05;
           updates.push({
             id: docEntry.id,
             newProfit: (data.profit || 0) + profitAmount,
