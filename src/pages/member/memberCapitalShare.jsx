@@ -41,8 +41,6 @@ import CapitalShareTransactions from "./components/CapitalShareTransactions";
 
 
 const MIN_AMOUNT = 1000;
-const LOCK_IN = 5000;
-const MONTHLY_RATE = 0.05;
 
 
 const MemberCapitalShare = () => {
@@ -145,7 +143,8 @@ const MemberCapitalShare = () => {
         expireDate.setFullYear(expireDate.getFullYear() + 1);
 
         if (now >= nextProfitDate && now <= expireDate) {
-          const profitAmount = (data.amount || 0) * MONTHLY_RATE;
+          // Profit is calculated only on lock-in amount (5% per month)
+          const profitAmount = (data.lockInPortion || 0) * 0.05;
           updates.push({
             id: docEntry.id,
             newProfit: (data.profit || 0) + profitAmount,
@@ -190,17 +189,14 @@ const MemberCapitalShare = () => {
     const calendarData = [];
     
     // 🔹 Retroactively assign lock-in to old entries if missing
-    let cumulativeLockIn = 0;
     const entriesToUpdate = [];
     
     sortedDocs.forEach((docSnap) => {
       const data = docSnap.data();
       
       if (!data.lockInPortion) {
-        const remainingLockInNeeded = Math.max(0, LOCK_IN - cumulativeLockIn);
-        const lockInPortion = remainingLockInNeeded > 0 
-          ? Math.min(data.amount || 0, remainingLockInNeeded)
-          : 0;
+        // Calculate lock-in: 25% of the added amount
+        const lockInPortion = (data.amount || 0) * 0.25;
         const transferablePortion = (data.amount || 0) - lockInPortion;
         
         entriesToUpdate.push({
@@ -209,10 +205,6 @@ const MemberCapitalShare = () => {
           transferablePortion,
           transferableAfterDate: data.transferableAfterDate || new Date(data.createdAt.toDate().getTime() + 30 * 24 * 60 * 60 * 1000),
         });
-        
-        cumulativeLockIn += lockInPortion;
-      } else {
-        cumulativeLockIn += data.lockInPortion || 0;
       }
     });
     
@@ -576,12 +568,19 @@ const MemberCapitalShare = () => {
                 </Typography>
                 {capitalAmount > 0 && (
                   <Box sx={{ mt: 1.5 }}>
-                    <Typography variant="body2" sx={{ color: '#b0bec5', fontWeight: 600, fontSize: 13 }}>
-                      🔒 Lock-in (5,000 target): ₱{Math.min(
-                        transactionHistory.reduce((sum, t) => sum + (t.lockInPortion || 0), 0),
-                        LOCK_IN
-                      ).toLocaleString()}
-                    </Typography>
+                    {(() => {
+                      const totalLockIn = transactionHistory.reduce((sum, t) => sum + (t.lockInPortion || 0), 0);
+                      return (
+                        <>
+                          <Typography variant="body2" sx={{ color: '#b0bec5', fontWeight: 600, fontSize: 13, mb: 0.5 }}>
+                            🔒 Total Lock-in: ₱{totalLockIn.toLocaleString()}
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: '#81C784', fontWeight: 600, fontSize: 13 }}>
+                            📦 Net Transferable: ₱{(capitalAmount - totalLockIn).toLocaleString()}
+                          </Typography>
+                        </>
+                      );
+                    })()}
                   </Box>
                 )}
               </Box>
@@ -805,6 +804,7 @@ const MemberCapitalShare = () => {
             setSelectedEntry(entry);
           }}
           onTransferCapital={handleTransferCapitalToWallet}
+          totalLockIn={transactionHistory.reduce((sum, t) => sum + (t.lockInPortion || 0), 0)}
         />
 
         {/* Monthly Profit History Dialog */}

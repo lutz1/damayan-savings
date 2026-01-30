@@ -5,6 +5,7 @@ const CapitalShareTransactions = ({
   transactionHistory,
   onViewDetails,
   onTransferCapital,
+  totalLockIn,
 }) => {
   return (
     <Card
@@ -185,8 +186,10 @@ const CapitalShareTransactions = ({
                         disabled={
                           !canTransferByTime ||
                           (t.transferredAmount &&
-                            t.transferredAmount >= t.transferablePortion)
+                            t.transferredAmount >= t.transferablePortion) ||
+                          (totalLockIn < 5000)
                         }
+                        title={totalLockIn < 5000 ? "Minimum 5k lock-in required" : ""}
                         onClick={() => onTransferCapital(t)}
                       >
                         Transfer

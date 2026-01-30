@@ -1228,7 +1228,6 @@ app.post("/api/add-capital-share", async (req, res) => {
     }
 
     const userId = decodedToken.uid;
-    const LOCK_IN = 5000;
 
     // Run transaction
     try {
@@ -1260,18 +1259,9 @@ app.post("/api/add-capital-share", async (req, res) => {
           cumulativeLockIn += data.lockInPortion || 0;
         });
 
-        // Calculate lock-in and transferable portions for NEW entry
-        let lockInPortion = 0;
-        let transferablePortion = 0;
-
-        const remainingLockInNeeded = Math.max(0, LOCK_IN - cumulativeLockIn);
-
-        if (remainingLockInNeeded > 0) {
-          lockInPortion = Math.min(numAmount, remainingLockInNeeded);
-          transferablePortion = numAmount - lockInPortion;
-        } else {
-          transferablePortion = numAmount;
-        }
+        // Calculate lock-in: 25% of the added amount
+        const lockInPortion = numAmount * 0.25;
+        const transferablePortion = numAmount - lockInPortion;
 
         // Calculate when the entry becomes transferable
         const now = new Date();
