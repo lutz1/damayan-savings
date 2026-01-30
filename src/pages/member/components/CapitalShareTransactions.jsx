@@ -31,6 +31,46 @@ const CapitalShareTransactions = ({
       >
         Capital Share Transactions
       </Typography>
+      
+      {/* 5k Lock-in Requirement Display */}
+      <Box sx={{ mb: 2, p: 1.5, bgcolor: "rgba(79, 195, 247, 0.1)", borderRadius: 2, border: "1px solid rgba(79, 195, 247, 0.3)" }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+          <Typography variant="body2" sx={{ fontWeight: 700, color: "#4FC3F7" }}>
+            📌 Transfer Requirements:
+          </Typography>
+        </Box>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="body2" sx={{ color: "#b0bec5", mb: 0.5 }}>
+              Minimum Lock-in: ₱5,000
+            </Typography>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Box sx={{ flex: 1, height: 8, bgcolor: "rgba(79, 195, 247, 0.2)", borderRadius: 4, overflow: "hidden" }}>
+                <Box 
+                  sx={{ 
+                    height: "100%", 
+                    bgcolor: totalLockIn >= 5000 ? "#4caf50" : "#ff9800",
+                    width: `${Math.min((totalLockIn / 5000) * 100, 100)}%`,
+                    transition: "all 0.3s ease"
+                  }} 
+                />
+              </Box>
+              <Typography variant="caption" sx={{ fontWeight: 700, color: totalLockIn >= 5000 ? "#4caf50" : "#ff9800", minWidth: 60 }}>
+                ₱{totalLockIn.toLocaleString()}
+              </Typography>
+            </Box>
+          </Box>
+          {totalLockIn >= 5000 ? (
+            <Typography variant="caption" sx={{ color: "#4caf50", fontWeight: 700, fontSize: 12 }}>
+              ✅ Enabled
+            </Typography>
+          ) : (
+            <Typography variant="caption" sx={{ color: "#ff9800", fontWeight: 700, fontSize: 12 }}>
+              🔒 Disabled
+            </Typography>
+          )}
+        </Box>
+      </Box>
       {transactionHistory.length > 0 ? (
         <Box sx={{ width: "100%", flex: 1, overflowY: "auto", height: "100%" }}>
           {transactionHistory.map((t, idx) => {
