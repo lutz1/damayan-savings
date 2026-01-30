@@ -8,6 +8,7 @@
   overflow: auto;
   background-size: cover;
   background-position: center;
+  background-repeat: no-repeat;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -95,7 +96,7 @@
 /* Mobile card */
 @media (max-width: 599px) {
   .login-card {
-    padding: 20px 18px;
+    padding: 16px 14px;
     max-height: none;
     border-radius: 12px;
   }
@@ -121,12 +122,12 @@
 
 /* Logo Container */
 .login-logos {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 @media (min-width: 600px) {
   .login-logos {
-    margin-bottom: 32px;
+    margin-bottom: 20px;
   }
 }
 
@@ -137,7 +138,7 @@
 
 @media (max-width: 599px) {
   .login-tclc-logo {
-    width: 70px;
+    width: 55px;
   }
 }
 
@@ -160,8 +161,8 @@
 
 @media (max-width: 599px) {
   .login-damayan-logo {
-    width: 170px;
-    margin-top: -8px;
+    width: 140px;
+    margin-top: -4px;
   }
 }
 
@@ -192,7 +193,7 @@
 }
 
 .login-company-email-alert {
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   font-size: 0.75rem;
   background: rgba(255, 255, 255, 0.2);
   color: #fff;
@@ -212,12 +213,12 @@
 
 /* Text Field Styles */
 .login-textfield {
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 @media (min-width: 600px) {
   .login-textfield {
-    margin-bottom: 16px;
+    margin-bottom: 12px;
   }
 }
 
@@ -281,7 +282,7 @@
 .login-terms-container {
   display: flex;
   align-items: center;
-  margin-top: 12px;
+  margin-top: 8px;
   cursor: pointer;
   color: #fff;
   font-size: 0.85rem;
@@ -331,7 +332,7 @@
 
 /* Login Button */
 .login-button {
-  margin-top: 20px;
+  margin-top: 14px;
   padding-top: 10.4px;
   padding-bottom: 10.4px;
   font-weight: bold;
@@ -342,7 +343,7 @@
 
 @media (min-width: 600px) {
   .login-button {
-    margin-top: 24px;
+    margin-top: 18px;
     padding-top: 12px;
     padding-bottom: 12px;
     font-size: 1rem;
@@ -355,7 +356,7 @@
 
 /* Footer Text */
 .login-footer {
-  margin-top: 32px;
+  margin-top: 16px;
   color: rgba(255, 255, 255, 0.8);
   font-size: 0.7rem;
 }
