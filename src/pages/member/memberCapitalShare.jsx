@@ -40,7 +40,7 @@ import EntryDetailsDialog from "./components/dialogs/EntryDetailsDialog";
 import CapitalShareTransactions from "./components/CapitalShareTransactions";
 
 
-const MIN_AMOUNT = 2400;
+const MIN_AMOUNT = 1000;
 const LOCK_IN = 5000;
 const MONTHLY_RATE = 0.05;
 

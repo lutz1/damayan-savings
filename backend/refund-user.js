@@ -1,0 +1,80 @@
+// System Refund Script
+// Usage: node refund-user.js
+require('dotenv').config({ path: __dirname + '/.env' });
+const { db } = require("./firebaseAdmin.js");
+
+const refundUser = async () => {
+  try {
+    // Refund configuration
+    const userEmail = "almirex.jkc@gmail.com";
+    const refundAmount = 1000;
+    const refundReason = "System Refund";
+
+    console.log("🔄 Processing refund...");
+    console.log(`📧 User Email: ${userEmail}`);
+    console.log(`💰 Refund Amount: ₱${refundAmount}\n`);
+
+    // Find user by email
+    console.log("🔍 Searching for user...");
+    const usersSnapshot = await db.collection("users")
+      .where("email", "==", userEmail)
+      .limit(1)
+      .get();
+
+    if (usersSnapshot.empty) {
+      console.error("❌ User not found with email:", userEmail);
+      return;
+    }
+
+    const userDoc = usersSnapshot.docs[0];
+    const userId = userDoc.id;
+    const userData = userDoc.data();
+    const currentBalance = Number(userData.eWallet || 0);
+
+    console.log(`✅ User found: ${userData.name} (${userId})`);
+    console.log(`💳 Current eWallet Balance: ₱${currentBalance.toFixed(2)}`);
+
+    // Run transaction to ensure atomic operation
+    await db.runTransaction(async (transaction) => {
+      // Update user eWallet
+      const userRef = db.collection("users").doc(userId);
+      const newBalance = currentBalance + refundAmount;
+      
+      transaction.update(userRef, {
+        eWallet: newBalance,
+        lastUpdated: new Date(),
+      });
+
+      // Create deposit record for eWallet history
+      const depositRef = db.collection("deposits").doc();
+      transaction.set(depositRef, {
+        userId,
+        name: userData.name || userData.username || "User",
+        amount: refundAmount,
+        reference: `REFUND-${Date.now()}`,
+        receiptUrl: "",
+        status: "Approved",
+        type: "System Refund",
+        paymentMethod: "System",
+        remarks: refundReason,
+        createdAt: new Date(),
+        reviewedAt: new Date(),
+      });
+
+      console.log(`\n✅ REFUND TRANSACTION COMPLETED!`);
+      console.log(`📊 Deposit ID: ${depositRef.id}`);
+      console.log(`👤 User: ${userData.name}`);
+      console.log(`💰 Refund Amount: ₱${refundAmount}`);
+      console.log(`💳 Old Balance: ₱${currentBalance.toFixed(2)}`);
+      console.log(`💳 New Balance: ₱${newBalance.toFixed(2)}`);
+      console.log(`📝 Type: ${refundReason}`);
+      console.log(`\n✨ The refund is now visible in the user's eWallet history!`);
+    });
+
+  } catch (error) {
+    console.error("❌ Error processing refund:", error);
+    process.exit(1);
+  }
+};
+
+refundUser();

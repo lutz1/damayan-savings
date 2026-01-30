@@ -1212,9 +1212,9 @@ app.post("/api/add-capital-share", async (req, res) => {
       return res.status(400).json({ error: "Amount must be greater than zero" });
     }
 
-    if (numAmount < 2400) {
-      console.error("[capital-share] ❌ Amount below minimum (₱2400)");
-      return res.status(400).json({ error: "Minimum capital share amount is ₱2,400" });
+    if (numAmount < 1000) {
+      console.error("[capital-share] ❌ Amount below minimum (₱1000)");
+      return res.status(400).json({ error: "Minimum capital share amount is ₱1,000" });
     }
 
     // Verify user authentication
