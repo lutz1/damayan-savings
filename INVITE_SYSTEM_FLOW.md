@@ -233,7 +233,7 @@ Member logs in
        │       └─ MI: ₱20
        │
        └─ 5️⃣ INSERT referralReward (System Bonuses)
-           └─ Master MD: ₱100
+           └─ Master MD: ₱200
            └─ Special emails: ₱50-₱100
 
 
@@ -396,10 +396,17 @@ CEO         (Stops)   Chain ends here
 
 ### System Special Bonuses
 ```
-Master MD:                   ₱100 per every invite
-Special emails:
-  - eliskie40@gmail.com:     ₱100 per invite
-  - gedeongipulankjv1611@gmail.com: ₱50 per invite
+For Invite:
+  Master MD:                   ₱100 per every invite
+  Special emails:
+    - eliskie40@gmail.com:     ₱100 per invite
+    - gedeongipulankjv1611@gmail.com: ₱50 per invite
+
+For Capital Share Entry:
+  Master MD:                   ₱100 per entry
+  Special emails:
+    - eliskie40@gmail.com:     ₱100 per entry
+    - gedeongipulankjv1611@gmail.com: ₱20 per entry
 ```
 
 ---

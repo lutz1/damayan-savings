@@ -221,7 +221,7 @@ if (role?.toLowerCase() === "md") {
       }
 
       // 5️⃣ SPECIAL BONUSES
-      // ✨ Master MD gets ₱100 bonus for every invite
+      // ✨ Master MD gets ₱200 bonus for every invite
       const masterMDQuery = query(
         collection(db, "users"),
         where("role", "==", "MasterMD"),

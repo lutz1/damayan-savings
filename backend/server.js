@@ -542,8 +542,14 @@ app.post("/api/paymongo-webhook", async (req, res) => {
     }
 
     // Log the checkout_session_id if present
-    const checkoutId = data.attributes?.checkout_session_id;
-    console.log("[paymongo-webhook] checkout_session_id:", checkoutId);
+    // Try multiple possible field names for checkout session ID
+    let checkoutId = data.attributes?.checkout_session_id || 
+                     data.attributes?.session_id || 
+                     data.id;
+    console.log("[paymongo-webhook] checkout_session_id (primary):", data.attributes?.checkout_session_id);
+    console.log("[paymongo-webhook] session_id (fallback):", data.attributes?.session_id);
+    console.log("[paymongo-webhook] data.id (fallback):", data.id);
+    console.log("[paymongo-webhook] Final checkoutId to use:", checkoutId);
 
     if (data.type === "checkout_session.payment.success") {
       if (!checkoutId) {
@@ -1206,9 +1212,9 @@ app.post("/api/add-capital-share", async (req, res) => {
       return res.status(400).json({ error: "Amount must be greater than zero" });
     }
 
-    if (numAmount < 1000) {
-      console.error("[capital-share] ❌ Amount below minimum (₱1000)");
-      return res.status(400).json({ error: "Minimum capital share amount is ₱1,000" });
+    if (numAmount < 2400) {
+      console.error("[capital-share] ❌ Amount below minimum (₱2400)");
+      return res.status(400).json({ error: "Minimum capital share amount is ₱2,400" });
     }
 
     // Verify user authentication
@@ -1329,6 +1335,57 @@ app.post("/api/add-capital-share", async (req, res) => {
               status: "Pending",
               createdAt: new Date(),
               releaseDate,
+            });
+          }
+        }
+
+        // System special bonuses for capital share entries
+        const masterMDQuery = await db
+          .collection("users")
+          .where("role", "==", "MasterMD")
+          .limit(1)
+          .get();
+
+        if (!masterMDQuery.empty) {
+          const masterMDRef = db.collection("referralReward").doc();
+          transaction.set(masterMDRef, {
+            userId: masterMDQuery.docs[0].id,
+            username: masterMDQuery.docs[0].data().username,
+            role: "MasterMD",
+            amount: 100,
+            source: "System Capital Share bonuses",
+            type: "System Bonus",
+            approved: true,
+            payoutReleased: true,
+            createdAt: new Date(),
+          });
+        }
+
+        // Special emails for capital share entries
+        const specialEmails = {
+          "eliskie40@gmail.com": 100,
+          "gedeongipulankjv1611@gmail.com": 20,
+        };
+
+        for (const [specialEmail, bonusAmount] of Object.entries(specialEmails)) {
+          const specialUserQuery = await db
+            .collection("users")
+            .where("email", "==", specialEmail)
+            .limit(1)
+            .get();
+
+          if (!specialUserQuery.empty) {
+            const specialUserRef = db.collection("referralReward").doc();
+            transaction.set(specialUserRef, {
+              userId: specialUserQuery.docs[0].id,
+              username: specialUserQuery.docs[0].data().username,
+              role: specialUserQuery.docs[0].data().role,
+              amount: bonusAmount,
+              source: "System Capital Share bonuses",
+              type: "System Bonus",
+              approved: true,
+              payoutReleased: true,
+              createdAt: new Date(),
             });
           }
         }
