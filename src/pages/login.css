@@ -445,9 +445,6 @@
   color: rgba(255, 255, 255, 0.35);
   margin: 0;
 }
-  text-decoration: none;
-  transition: text-decoration 0.2s ease;
-}
 
 .footer-link:hover {
   text-decoration: underline;
@@ -460,12 +457,6 @@
   font-size: inherit;
   font-family: inherit;
   cursor: pointer;
-}
-
-.copyright {
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.4);
-  margin: 0;
 }
 
 /* Language Selector */
