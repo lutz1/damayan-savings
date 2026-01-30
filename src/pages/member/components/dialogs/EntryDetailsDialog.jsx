@@ -151,6 +151,31 @@ const EntryDetailsDialog = ({
               </>
             )}
 
+            {selectedEntry.transferredAmount && selectedEntry.transferredAmount > 0 && (
+              <>
+                <Typography
+                  variant="subtitle2"
+                  sx={{
+                    color: "#90CAF9",
+                    fontWeight: 700,
+                    fontSize: 12,
+                    textTransform: "uppercase",
+                    letterSpacing: 0.5,
+                    mt: 2,
+                    mb: 0.5,
+                  }}
+                >
+                  ✅ Already Transferred
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{ mb: 2, color: "#4CAF50", fontWeight: 700 }}
+                >
+                  ₱{Number(selectedEntry.transferredAmount || 0).toLocaleString()}
+                </Typography>
+              </>
+            )}
+
             <Typography
               variant="subtitle2"
               sx={{
@@ -168,10 +193,17 @@ const EntryDetailsDialog = ({
             <Typography variant="body2" sx={{ color: "#b0bec5", mb: 0.5 }}>
               Rate: <strong style={{ color: "#4CAF50" }}>5%</strong> monthly
             </Typography>
-            <Typography variant="body2" sx={{ color: "#b0bec5", mb: 1 }}>
-              Accrues: <strong style={{ color: "#4CAF50" }}>Every month</strong>{" "}
-              automatically
-            </Typography>
+            {selectedEntry.transferredAmount && selectedEntry.transferredAmount > 0 ? (
+              <Typography variant="body2" sx={{ color: "#FFB74D", mb: 1 }}>
+                Accrues on: <strong style={{ color: "#4CAF50" }}>Remaining lock-in</strong> (₱
+                {Number(selectedEntry.lockInPortion || 0).toLocaleString()})
+              </Typography>
+            ) : (
+              <Typography variant="body2" sx={{ color: "#b0bec5", mb: 1 }}>
+                Accrues: <strong style={{ color: "#4CAF50" }}>Every month</strong>{" "}
+                automatically
+              </Typography>
+            )}
 
             <Typography
               variant="subtitle2"
@@ -241,12 +273,36 @@ const EntryDetailsDialog = ({
             >
               Next Profit Date
             </Typography>
-            <Typography variant="body2" sx={{ color: "#b0bec5" }}>
+            <Typography variant="body2" sx={{ color: "#b0bec5", mb: 1 }}>
               {selectedEntry.nextProfitDate instanceof Date
                 ? selectedEntry.nextProfitDate.toDateString()
                 : selectedEntry.nextProfitDate?.toDate?.().toDateString() ||
                   "N/A"}
             </Typography>
+            {selectedEntry.transferredAmount && selectedEntry.transferredAmount > 0 ? (
+              <Box
+                sx={{
+                  px: 1.5,
+                  py: 0.75,
+                  borderRadius: 1.5,
+                  bgcolor: "rgba(76, 175, 80, 0.15)",
+                  border: "1.5px solid rgba(76, 175, 80, 0.3)",
+                  color: "#81C784",
+                  fontWeight: 600,
+                  fontSize: 11,
+                  lineHeight: 1.4,
+                }}
+              >
+                ✓ Recalculated on next profit date:
+                <br />
+                5% × ₱{Number(selectedEntry.lockInPortion || 0).toLocaleString()} (lock-in) = ₱
+                {Number((selectedEntry.lockInPortion || 0) * 0.05).toLocaleString("en-US", {
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 0,
+                })}
+                /month
+              </Box>
+            ) : null}
           </Box>
         )}
       </DialogContent>
