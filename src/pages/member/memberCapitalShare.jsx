@@ -132,11 +132,6 @@ const MemberCapitalShare = () => {
       snap.docs.forEach((docEntry) => {
         const data = docEntry.data();
         
-        // 🔹 Skip profit calculation if entry has been transferred
-        if (data.profitEnabled === false) {
-          return;
-        }
-        
         let nextProfitDate = data.nextProfitDate?.toDate ? data.nextProfitDate.toDate() : data.nextProfitDate;
         const createdAt = data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt;
         const expireDate = new Date(createdAt);
@@ -452,7 +447,7 @@ const MemberCapitalShare = () => {
         return alert(`❌ ${result.error || "Transfer failed."}`);
       }
 
-      alert(`✅ Transferred ₱${transferAmount.toLocaleString()} to wallet.\n\n⚠️ Monthly profit generation for this entry has been stopped.`);
+      alert(`✅ Transferred ₱${transferAmount.toLocaleString()} to wallet.\n\n💰 Monthly profit continues on remaining lock-in.`);
       await fetchUserData(user);
       await fetchTransactionHistory();
     } catch (err) {

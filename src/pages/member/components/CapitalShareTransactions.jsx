@@ -105,7 +105,7 @@ const CapitalShareTransactions = ({
                       boxShadow: "0 1px 4px #0002",
                     }}
                   >
-                    {t.profitEnabled === false ? "🛑" : "💰"}
+                    {t.lockInPortion > 0 ? "🔒" : "✅"}
                   </Box>
                 </Box>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -120,9 +120,7 @@ const CapitalShareTransactions = ({
                       variant="caption"
                       sx={{ color: iconColor, fontWeight: 700, fontSize: 11 }}
                     >
-                      {t.profitEnabled === false
-                        ? "Stopped"
-                        : transferStatus}
+                      {transferStatus}
                     </Typography>
                   </Box>
                   <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 0.5 }}>

@@ -1058,12 +1058,11 @@ app.post("/api/transfer-capital-share", async (req, res) => {
           createdAt: new Date(),
         });
 
-        // Update entry to mark as transferred and STOP profit generation
+        // Update entry to mark as transferred
+        // Note: profitEnabled remains true - profit continues on remaining lock-in
         transaction.update(entryRef, {
           transferredAmount: (entryData.transferredAmount || 0) + numAmount,
           transferredAt: new Date(),
-          profitEnabled: false, // Stop monthly profit generation
-          profitStatus: "Stopped",
         });
 
         return {
