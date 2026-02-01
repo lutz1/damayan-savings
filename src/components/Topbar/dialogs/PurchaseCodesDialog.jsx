@@ -54,7 +54,7 @@ const PurchaseCodesDialog = ({
   const [purchaseConfirmOpen, setPurchaseConfirmOpen] = useState(false);
 
   const codePrices = {
-    capital: 1000,
+    capital: 2400,
     downline: 600,
   };
 
@@ -225,7 +225,7 @@ const PurchaseCodesDialog = ({
               }}
             >
               <MenuItem value="capital">
-                Capital Share Activation Code — ₱1000
+                Capital Share Activation Code — ₱2400
               </MenuItem>
               <MenuItem value="downline">
                 Downline Code — ₱600
