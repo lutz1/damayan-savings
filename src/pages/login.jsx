@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import usePwaInstall from "../hooks/usePwaInstall";
 import "./login.css";
 import {
   Box,
@@ -9,14 +8,23 @@ import {
   Paper,
   CircularProgress,
   Alert,
+  Checkbox,
+  FormControlLabel,
+  Container,
 } from "@mui/material";
 import { motion } from "framer-motion";
 import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
-import { Visibility, VisibilityOff, Email, Lock} from "@mui/icons-material";
-import { InputAdornment, IconButton } from "@mui/material";
-import bgImage from "../assets/newlogo.png";
+import { 
+  Visibility, 
+  VisibilityOff, 
+  Mail, 
+  Lock,
+  ArrowForward,
+  VerifiedUser,
+  Shield,
+} from "@mui/icons-material";
 import newlogo from "../assets/newlogo.png";
 import merchantLogo from "../assets/merchantlogo.png";
 import Splashscreen from "../components/splashscreen";
@@ -34,22 +42,7 @@ const Login = () => {
   const [splashLogo, setSplashLogo] = useState(newlogo);
   const [postSplashTarget, setPostSplashTarget] = useState(null);
   const [redirecting, setRedirecting] = useState(false);
-  const { isInstallable, promptInstall } = usePwaInstall();
 
-  // iOS detection and standalone check (for Add to Home Screen guidance)
-  const isIos = typeof window !== "undefined" && /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
-  const isInStandaloneMode =
-    typeof window !== "undefined" && (window.navigator.standalone === true || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches));
-
-  const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-    } catch (err) {
-      console.error("Copy failed", err);
-    }
-  };
-
-  
   // ✅ Redirect users based on role
   const handleRedirect = (role) => { 
     const base = "/damayan-savings";
@@ -153,238 +146,290 @@ const Login = () => {
 
 
   return (
-  <Box
-    className="login-container"
-    sx={{
-        backgroundImage: `url(${bgImage})`,
-    }}
-  >
-      <motion.div
-        initial={{ opacity: 0, y: 25 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="login-form-wrapper"
-      >
-        <Paper
-          elevation={10}
-          className="login-card"
+    <Box className="login-page-container">
+      <Container maxWidth="sm" sx={{ py: { xs: 2, md: 2 }, px: { xs: 2, md: 3 } }}>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
         >
-          {/* LOGO */}
-          <Box className="login-logo-container">
-            <Box
-              component="img"
-              src={newlogo}
-              alt="Damayan Savings"
-              className="login-main-logo"
-            />
-            <Typography className="login-logo-subtitle">
-              Savings & Credit
-            </Typography>
-          </Box>
-          {isIos && !isInStandaloneMode ? (
-            <>
-              <Typography className="login-ios-instructions-title">
-                On iPhone/iPad the browser must be Safari to add the app to your Home Screen.
-              </Typography>
-              <Typography className="login-ios-instructions">
-                Steps: 1) Open this page in Safari. 2) Tap the Share button (box with up-arrow). 3) Choose "Add to Home Screen".
-              </Typography>
-              <Button
-                variant="outlined"
-                className="login-install-button"
-                onClick={copyLink}
-              >
-                Copy Link (Open in Safari)
-              </Button>
-            </>
-          ) : isInstallable ? (
-            <>
-              <Button
-                variant="outlined"
-                className="login-install-button"
-                onClick={async () => {
-                  try {
-                    await promptInstall();
-                  } catch (err) {
-                    console.error("PWA install failed:", err);
-                  }
-                }}
-              >
-                Install App
-              </Button>
-              <Typography className="login-install-caption">
-                Install for faster access and a home-screen shortcut.
-              </Typography>
-            </>
-          ) : null}
-
-          {error && (
-            <Alert severity="error" className="login-info-alert">
-              {error}
-            </Alert>
-          )}
-
-            <Alert
-              severity="info"
-              className="login-company-email-alert"
-            >
-              Please use your <strong>official company email</strong> to log in.
-            </Alert>
-
-
-          <form onSubmit={handleLogin} className="login-form">
-            <TextField
-                label="Email Address"
-                type="email"
-                fullWidth
-                required
-                margin="normal"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="login-textfield"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Email className="login-textfield-icon" />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-            <TextField
-                label="Password"
-                type={showPassword ? "text" : "password"}
-                fullWidth
-                required
-                margin="normal"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="login-textfield"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Lock className="login-textfield-icon" />
-                    </InputAdornment>
-                  ),
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        onClick={() => setShowPassword((prev) => !prev)}
-                        edge="end"
-                        className="login-visibility-button"
-                      >
-                        {showPassword ? <VisibilityOff /> : <Visibility />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                }}
-              />
-
-            {/* Terms & Conditions */}
-            <motion.div
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.97 }}
-              style={{ width: "100%" }}
-            >
+          {/* Main Card */}
+          <Paper elevation={8} className="login-card-new">
+            {/* Logo Header */}
+            <Box sx={{ display: "flex", justifyContent: "center", mb: { xs: 1, sm: 3, md: 4 } }}>
               <Box
+                component="img"
+                src={newlogo}
+                alt="Damayan Logo"
                 sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  mt: 1.5,
-                  cursor: "pointer",
-                  color: acceptedTerms ? "#f8f8faff" : "#fff", // turns green when accepted
-                  fontSize: "0.85rem",
-                  backgroundColor: "rgba(255,255,255,0.08)",
-                  px: 1.5,
-                  py: 1,
-                  borderRadius: 2,
-                  transition: "0.25s ease",
-                  border: acceptedTerms
-                    ? "1px solid #2aa2f3ff"
-                    : "1px solid rgba(255,255,255,0.2)",
-                  "&:hover": {
-                    backgroundColor: "rgba(255,255,255,0.15)",
-                  },
+                  height: { xs: 150, sm: 100, md: 140 },
+                  width: "auto",
+                  objectFit: "contain",
                 }}
-              >
-                <motion.input
-                  type="checkbox"
-                  checked={acceptedTerms}
-                  onChange={(e) => {
-                    e.stopPropagation(); // Prevent row click
-                    const checked = e.target.checked;
+              />
+            </Box>
 
-                    if (checked) {
-                      // Only open dialog when CHECKING
-                      setOpenTerms(true);
-                    } else {
-                      // If unchecked, just remove acceptance without opening dialog
-                      setAcceptedTerms(false);
-                    }
-                  }}
-                  whileTap={{ scale: 0.7 }}
-                  style={{
-                    marginRight: "10px",
-                    width: 20,
-                    height: 20,
-                    cursor: "pointer",
-                    accentColor: acceptedTerms ? "#2aa2f3ff" : "#1976d2",
-                  }}
-                />
-                <Typography
-                  sx={{
-                    textDecoration: "underline",
-                    userSelect: "none",
-                    fontSize: "0.88rem",
-                  }}
-                >
-                  I agree to the Standard Terms & Conditions Policy
+            {/* Info Alert */}
+            <Alert 
+              icon={false}
+              className="login-info-box"
+              sx={{
+                mb: { xs: 2, sm: 2.5, md: 3 },
+                backgroundColor: "rgba(59, 130, 246, 0.15)",
+                border: "1px solid rgba(59, 130, 246, 0.3)",
+                borderRadius: 2,
+                px: { xs: 1.5, sm: 2 },
+                py: { xs: 1.5, sm: 2 },
+              }}
+            >
+              <Box sx={{ display: "flex", gap: { xs: 1, sm: 1.5 } }}>
+                <Box sx={{ flexShrink: 0 }}>
+                  <Mail sx={{ color: "#3B82F6", fontSize: { xs: 18, sm: 20 }, mt: 0.25 }} />
+                </Box>
+                <Typography sx={{ color: "#3B82F6", fontSize: { xs: "0.8rem", sm: "0.9rem" }, fontWeight: 500 }}>
+                  Please use your <strong>official company email</strong> to log in.
                 </Typography>
               </Box>
-            </motion.div>
+            </Alert>
 
-           <Button
-            type="submit"
-            variant="contained"
-            fullWidth
-            disabled={loading || !acceptedTerms}
-            className="login-button"
-          >
-            {loading ? <CircularProgress size={24} color="inherit" /> : "Login"}
-          </Button>
-          </form>
+            {error && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {error}
+              </Alert>
+            )}
 
-          <Typography className="login-footer">
-            © 2025 Damayan Savings. All rights reserved.
-          </Typography>
-        </Paper>
+            {/* Form */}
+            <Box component="form" onSubmit={handleLogin} sx={{ mt: 2 }}>
+              {/* Email Field */}
+              <Box sx={{ mb: { xs: 1.5, sm: 2, md: 2.5 } }}>
+                <Typography sx={{ fontSize: { xs: "0.75rem", sm: "0.85rem" }, fontWeight: 600, color: "#E5E7EB", mb: 0.75 }}>
+                  Email Address
+                </Typography>
+                <TextField
+                  fullWidth
+                  type="email"
+                  required
+                  placeholder="name@company.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  InputProps={{
+                    startAdornment: <Mail sx={{ color: "#9CA3AF", mr: 1, fontSize: { xs: 18, sm: 20 } }} />,
+                  }}
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      backgroundColor: "rgba(255, 255, 255, 0.08)",
+                      borderRadius: 1.5,
+                      border: "1px solid rgba(255, 255, 255, 0.15)",
+                      "& fieldset": { border: "none" },
+                      "&:hover": { backgroundColor: "rgba(255, 255, 255, 0.12)" },
+                      "&.Mui-focused": { 
+                        backgroundColor: "rgba(255, 255, 255, 0.12)",
+                        "& fieldset": { border: "1px solid #3B82F6" },
+                      },
+                    },
+                    "& .MuiInputBase-input": {
+                      fontSize: { xs: "0.8rem", sm: "0.9rem" },
+                      color: "#E5E7EB",
+                      "&::placeholder": {
+                        color: "#9CA3AF",
+                        opacity: 1,
+                      },
+                    },
+                  }}
+                />
+              </Box>
 
-        {/* Terms & Conditions Dialog */}
-        <TermsAndConditions
-          open={openTerms}
-          onClose={() => setOpenTerms(false)}
-          onAccept={() => {
-            setAcceptedTerms(true);
-            setOpenTerms(false);
-          }}
-        />
-        <Splashscreen
-          open={showSplash}
-          logo={splashLogo}
-          duration={1400}
-          overlayColor={splashLogo === merchantLogo ? "#f1f3c7" : undefined}
-          onClose={() => {
-            setShowSplash(false);
-            (function () {
-              const base = "/damayan-savings";
-              if (postSplashTarget) {
-                window.location.replace(`${base}${postSplashTarget}`);
-              } else {
-                window.location.replace(`${base}/merchant/dashboard`);
-              }
-            })();
-          }}
-        />
-      </motion.div>
+              {/* Password Field */}
+              <Box sx={{ mb: { xs: 1.5, sm: 2, md: 2.5 } }}>
+                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.75 }}>
+                  <Typography sx={{ fontSize: { xs: "0.75rem", sm: "0.85rem" }, fontWeight: 600, color: "#E5E7EB" }}>
+                    Password
+                  </Typography>
+                  <Typography
+                    component="a"
+                    href="#"
+                    sx={{
+                      fontSize: { xs: "0.65rem", sm: "0.75rem" },
+                      fontWeight: 700,
+                      color: "#3B82F6",
+                      textDecoration: "none",
+                      "&:hover": { textDecoration: "underline" },
+                    }}
+                  >
+                    Forgot Password?
+                  </Typography>
+                </Box>
+                <TextField
+                  fullWidth
+                  type={showPassword ? "text" : "password"}
+                  required
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  InputProps={{
+                    startAdornment: <Lock sx={{ color: "#9CA3AF", mr: 1, fontSize: { xs: 18, sm: 20 } }} />,
+                    endAdornment: (
+                      <Button
+                        onClick={() => setShowPassword(!showPassword)}
+                        sx={{ minWidth: 0, p: 0.5, color: "#9CA3AF" }}
+                      >
+                        {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                      </Button>
+                    ),
+                  }}
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      backgroundColor: "rgba(255, 255, 255, 0.08)",
+                      borderRadius: 1.5,
+                      border: "1px solid rgba(255, 255, 255, 0.15)",
+                      "& fieldset": { border: "none" },
+                      "&:hover": { backgroundColor: "rgba(255, 255, 255, 0.12)" },
+                      "&.Mui-focused": { 
+                        backgroundColor: "rgba(255, 255, 255, 0.12)",
+                        "& fieldset": { border: "1px solid #3B82F6" },
+                      },
+                    },
+                    "& .MuiInputBase-input": {
+                      fontSize: { xs: "0.8rem", sm: "0.9rem" },
+                      color: "#E5E7EB",
+                      "&::placeholder": {
+                        color: "#9CA3AF",
+                        opacity: 1,
+                      },
+                    },
+                  }}
+                />
+              </Box>
+
+              {/* Terms Checkbox */}
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={acceptedTerms}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setOpenTerms(true);
+                      } else {
+                        setAcceptedTerms(false);
+                      }
+                    }}
+                    sx={{
+                      color: "#6B7280",
+                      "&.Mui-checked": { color: "#3B82F6" },
+                      scale: { xs: 0.9, sm: 1 },
+                    }}
+                  />
+                }
+                label={
+                  <Typography sx={{ fontSize: { xs: "0.65rem", sm: "0.75rem" }, color: "#B0B8D4" }}>
+                    I agree to the{" "}
+                    <Box
+                      component="a"
+                      href="#"
+                      onClick={() => setOpenTerms(true)}
+                      sx={{
+                        color: "#3B82F6",
+                        textDecoration: "none",
+                        fontWeight: 600,
+                        "&:hover": { textDecoration: "underline" },
+                      }}
+                    >
+                      Standard Terms & Conditions Policy
+                    </Box>
+                  </Typography>
+                }
+                sx={{ mb: { xs: 2, sm: 2.5, md: 3 } }}
+              />
+
+              {/* Login Button */}
+              <Button
+                fullWidth
+                type="submit"
+                disabled={loading || !acceptedTerms}
+                sx={{
+                  backgroundColor: "#3B82F6",
+                  color: "white",
+                  fontWeight: 700,
+                  py: { xs: 1.4, sm: 1.6, md: 1.8 },
+                  borderRadius: 1.5,
+                  fontSize: { xs: "0.8rem", sm: "0.9rem", md: "0.95rem" },
+                  boxShadow: "0 4px 12px rgba(0, 102, 204, 0.25)",
+                  "&:hover": {
+                    backgroundColor: "#0052A3",
+                    boxShadow: "0 6px 16px rgba(0, 102, 204, 0.35)",
+                  },
+                  "&:active": { transform: "scale(0.98)" },
+                  transition: "all 0.2s ease",
+                  display: "flex",
+                  gap: { xs: 0.5, sm: 1 },
+                }}
+              >
+                {loading ? (
+                  <CircularProgress size={24} color="inherit" />
+                ) : (
+                  <>
+                    LOGIN
+                    <motion.div
+                      animate={{ x: [0, 4, 0] }}
+                      transition={{ duration: 1, repeat: Infinity, repeatDelay: 0.5 }}
+                    >
+                      <ArrowForward sx={{ fontSize: 18 }} />
+                    </motion.div>
+                  </>
+                )}
+              </Button>
+            </Box>
+
+            {/* Footer */}
+            <Typography sx={{ textAlign: "center", mt: { xs: 3, sm: 3.5, md: 4 }, fontSize: { xs: "0.6rem", sm: "0.7rem" }, color: "#6B7280", fontWeight: 500 }}>
+              © 2025 Damayan Savings. All rights reserved.
+            </Typography>
+          </Paper>
+
+          {/* Bottom Badges */}
+          <Box sx={{ display: "flex", justifyContent: "center", gap: { xs: 2, sm: 3, md: 4 }, mt: { xs: 2, sm: 3, md: 4 }, opacity: 0.6, "&:hover": { opacity: 1 }, transition: "opacity 0.3s", flexWrap: "wrap" }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 0.5, sm: 1 }, color: "#B0B8D4" }}>
+              <VerifiedUser sx={{ fontSize: { xs: 14, sm: 18 } }} />
+              <Typography sx={{ fontSize: { xs: "0.55rem", sm: "0.65rem" }, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Secure Banking
+              </Typography>
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 0.5, sm: 1 }, color: "#B0B8D4" }}>
+              <Shield sx={{ fontSize: { xs: 14, sm: 18 } }} />
+              <Typography sx={{ fontSize: { xs: "0.55rem", sm: "0.65rem" }, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                FDIC Insured
+              </Typography>
+            </Box>
+          </Box>
+        </motion.div>
+      </Container>
+
+      {/* Terms & Conditions Dialog */}
+      <TermsAndConditions
+        open={openTerms}
+        onClose={() => setOpenTerms(false)}
+        onAccept={() => {
+          setAcceptedTerms(true);
+          setOpenTerms(false);
+        }}
+      />
+      <Splashscreen
+        open={showSplash}
+        logo={splashLogo}
+        duration={1400}
+        overlayColor={splashLogo === merchantLogo ? "#f1f3c7" : undefined}
+        onClose={() => {
+          setShowSplash(false);
+          (function () {
+            const base = "/damayan-savings";
+            if (postSplashTarget) {
+              window.location.replace(`${base}${postSplashTarget}`);
+            } else {
+              window.location.replace(`${base}/merchant/dashboard`);
+            }
+          })();
+        }}
+      />
     </Box>
   );
 };
