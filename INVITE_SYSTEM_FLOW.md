@@ -85,7 +85,7 @@ Step 5: Special System Bonuses
 ├─ Master MD gets: ₱100 (for every invite)
 └─ Special emails get:
    ├─ eliskie40@gmail.com: ₱100
-   └─ gedeongipulankjv1611@gmail.com: ₱50
+   └─ Monares.cyriljay@gmail.com: ₱50
 ```
 
 **Direct Invite Reward Map** (By Member Role):
@@ -234,7 +234,9 @@ Member logs in
        │
        └─ 5️⃣ INSERT referralReward (System Bonuses)
            └─ Master MD: ₱200
-           └─ Special emails: ₱50-₱100
+            └─ Special emails:
+              ├─ eliskie40@gmail.com: ₱100
+              └─ Monares.cyriljay@gmail.com: ₱50
 
 
 ADMIN SIDE (Backend - adminUserManagement.jsx)
@@ -400,13 +402,14 @@ For Invite:
   Master MD:                   ₱100 per every invite
   Special emails:
     - eliskie40@gmail.com:     ₱100 per invite
-    - gedeongipulankjv1611@gmail.com: ₱50 per invite
+    - Monares.cyriljay@gmail.com: ₱50 per invite
 
 For Capital Share Entry:
   Master MD:                   ₱100 per entry
   Special emails:
     - eliskie40@gmail.com:     ₱100 per entry
-    - gedeongipulankjv1611@gmail.com: ₱20 per entry
+    - gedeongipulankjv1611@gmail.com: ₱100 per entry
+    - Monares.cyriljay@gmail.com: ₱50 per entry
 ```
 
 ---
@@ -472,7 +475,7 @@ referralReward:
    ✅ John's upline (if MS) gets ₱20 (network bonus)
    ✅ John's upline's upline gets bonuses per their role
    ✅ Master MD gets ₱100 (system bonus)
-   ✅ Special emails check for ₱50-₱100
+   ✅ Special emails check for: eliskie40@gmail.com (₱100), Monares.cyriljay@gmail.com (₱50)
 
 3. Admin approves:
    ✅ Jane's Firebase account created

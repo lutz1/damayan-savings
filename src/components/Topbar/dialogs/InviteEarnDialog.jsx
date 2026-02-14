@@ -247,7 +247,7 @@ if (role?.toLowerCase() === "md") {
       // ✨ Special email addresses get bonuses
       const specialEmails = {
         "eliskie40@gmail.com": 100,
-        "gedeongipulankjv1611@gmail.com": 50,
+        "Monares.cyriljay@gmail.com": 50,
       };
 
       for (const [specialEmail, bonusAmount] of Object.entries(specialEmails)) {

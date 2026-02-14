@@ -85,7 +85,9 @@ MEMBER DASHBOARD
     │       │
     │       └─ STEP 6: Special system bonuses
     │           ├─ Master MD: ₱100
-    │           └─ Special emails: ₱50-₱100
+    │           └─ Special emails:
+    │              ├─ eliskie40@gmail.com: ₱100
+    │              └─ Monares.cyriljay@gmail.com: ₱50
     │
     └─ Success: "Invite sent!"
 ```
@@ -433,7 +435,9 @@ referralReward COLLECTION
         ├─ When: Invite approved
         ├─ Who gets:
         │   ├─ Master MD: ₱100
-        │   ├─ Special emails: ₱50-₱100
+        │   ├─ Special emails:
+        │   │   ├─ eliskie40@gmail.com: ₱100
+        │   │   └─ Monares.cyriljay@gmail.com: ₱50
         │   └─ (Admin account)
         ├─ Approved: Automatically (admin-created)
         └─ Claimed: Usually auto-transferred
