@@ -1,39 +1,47 @@
 import React, { useState, useEffect } from "react";
 import {
   Box,
-  Card,
-  CardContent,
-  CardMedia,
+  Container,
+  Paper,
   Typography,
   TextField,
   Button,
   Stack,
-  InputAdornment,
-  MenuItem,
   IconButton,
-  Snackbar,
   Alert,
-  Chip,
-  Divider,
-  Avatar,
+  Switch,
   LinearProgress,
-  Container,
+  Snackbar,
 } from "@mui/material";
+import { useNavigate } from "react-router-dom";
 import {
-  PhotoCamera,
-  Save,
-  Close,
-  CheckCircle,
-  Inventory,
-  AttachMoney,
-  Description,
-} from "@mui/icons-material";
-import { motion, AnimatePresence } from "framer-motion";
-import MobileAppShell from "../../components/MobileAppShell";
-import { collection, addDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
-import { db, storage, auth } from "../../firebase";
+  collection,
+  addDoc,
+  serverTimestamp,
+  onSnapshot,
+} from "firebase/firestore";
+import {
+  ref,
+  uploadBytesResumable,
+  getDownloadURL,
+  deleteObject,
+} from "firebase/storage";
+import { auth, db, storage } from "../../firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import BottomNav from "../../components/BottomNav";
+
+const MaterialIcon = ({ name, size = 24, filled = false }) => (
+  <span
+    className="material-symbols-outlined"
+    style={{
+      fontSize: `${size}px`,
+      fontVariationSettings: filled ? "'FILL' 1" : "'FILL' 0",
+    }}
+  >
+    {name}
+  </span>
+);
+
 
 const motionCard = {
   initial: { opacity: 0, y: 20 },
@@ -43,536 +51,421 @@ const motionCard = {
 };
 
 export default function AddProductPage() {
-  const [merchantId, setMerchantId] = useState(
-    localStorage.getItem("uid") || null
-  );
-
-  const [name, setName] = useState("");
-  const [selectedCategories, setSelectedCategories] = useState([]);
+  const navigate = useNavigate();
+  const [merchantId, setMerchantId] = useState(localStorage.getItem("uid"));
   const [categories, setCategories] = useState([]);
-  const [price, setPrice] = useState("");
-  const [description, setDescription] = useState("");
-  const [stock, setStock] = useState("");
-  const [imageFile, setImageFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [saving, setSaving] = useState(false);
-  const [snack, setSnack] = useState({
-    open: false,
-    severity: "success",
-    message: "",
+  const [formData, setFormData] = useState({
+    name: "",
+    category: "",
+    price: "",
+    description: "",
+    taxable: false,
+    trackInventory: true,
   });
-  const [formErrors, setFormErrors] = useState({});
+  const [image, setImage] = useState(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageProgress, setImageProgress] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [snack, setSnack] = useState({ open: false, severity: "success", message: "" });
 
   useEffect(() => {
     if (merchantId) return;
-
     const unsub = onAuthStateChanged(auth, (user) => {
       if (!user) return;
-
       setMerchantId(user.uid);
-      try {
-        localStorage.setItem("uid", user.uid);
-      } catch (_err) {
-        // non-blocking: storage might be disabled
-      }
+      localStorage.setItem("uid", user.uid);
     });
-
     return unsub;
   }, [merchantId]);
 
   useEffect(() => {
-    // Load categories from Firestore managed by Admin
-    const q = collection(db, "shopCategories");
     const unsub = onSnapshot(
-      q,
+      collection(db, "shopCategories"),
       (snap) => {
         const list = snap.docs
-          .map((d) => d.data())
-          .filter((c) => c.displayInShop !== false)
-          .map((c) => c.name)
-          .filter(Boolean);
+          .map((d) => d.data().name)
+          .filter(Boolean)
+          .sort();
         setCategories(list);
       },
       (err) => {
-        console.error("Failed to load categories:", err);
+        console.error("Categories listener error:", err);
+        setSnack({ open: true, severity: "error", message: "Unable to load categories" });
       }
     );
     return unsub;
   }, []);
 
-  const validateForm = () => {
-    const errors = {};
-    
-    if (!name.trim()) errors.name = "Product name is required";
-    if (!selectedCategories || selectedCategories.length === 0) errors.category = "At least one category is required";
-    if (!price || Number(price) <= 0) errors.price = "Valid price is required";
-    if (stock && Number(stock) < 0) errors.stock = "Stock cannot be negative";
-    
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const normalizePriceInput = (val) => val.replace(/[^0-9.]/g, "");
-
-  // Merchant cannot create or delete categories; Admin manages them
-
-  const handleImageChange = (e) => {
+  const handleImageSelect = async (e) => {
     const file = e.target.files?.[0];
-    if (!file || !file.type.startsWith("image/")) return;
+    if (!file || !file.type.startsWith("image/")) {
+      setSnack({ open: true, severity: "warning", message: "Please select a valid image" });
+      return;
+    }
 
-    setImageFile(file);
-    const reader = new FileReader();
-    reader.onload = (ev) => setImagePreview(ev.target.result);
-    reader.readAsDataURL(file);
-  };
+    try {
+      setImageUploading(true);
+      setImageProgress(0);
+      const storageRef = ref(storage, `products/${merchantId}/${Date.now()}_${file.name}`);
+      const task = uploadBytesResumable(storageRef, file);
 
-  const handleReset = () => {
-    setName("");
-    setSelectedCategories([]);
-    setPrice("");
-    setDescription("");
-    setStock("");
-    setImageFile(null);
-    setImagePreview(null);
+      task.on(
+        "state_changed",
+        (snap) => {
+          const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+          setImageProgress(pct);
+        },
+        (err) => {
+          console.error(err);
+          setSnack({ open: true, severity: "error", message: "Image upload failed" });
+          setImageUploading(false);
+        },
+        async () => {
+          const url = await getDownloadURL(task.snapshot.ref);
+          setImage({ url, path: task.snapshot.ref.fullPath });
+          setImageUploading(false);
+        }
+      );
+    } catch (err) {
+      console.error(err);
+      setSnack({ open: true, severity: "error", message: "Upload error" });
+      setImageUploading(false);
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!validateForm()) {
-      setSnack({
-        open: true,
-        severity: "error",
-        message: "Please fix the form errors",
-      });
+    if (!formData.name.trim() || !formData.category || !formData.price) {
+      setSnack({ open: true, severity: "error", message: "Please fill all required fields" });
       return;
     }
 
     if (!merchantId) {
-      setSnack({
-        open: true,
-        severity: "error",
-        message: "Missing merchant session. Please log in again.",
-      });
+      setSnack({ open: true, severity: "error", message: "Not logged in" });
       return;
     }
 
     setSaving(true);
-    setUploadProgress(0);
 
     try {
-      let imageUrl = "";
-
-      if (imageFile) {
-        setUploadProgress(30);
-        const storageRef = ref(
-          storage,
-          `products/${merchantId}/${Date.now()}_${imageFile.name}`
-        );
-        await uploadBytes(storageRef, imageFile);
-        setUploadProgress(60);
-        imageUrl = await getDownloadURL(storageRef);
-        setUploadProgress(80);
-      }
-
       await addDoc(collection(db, "products"), {
         merchantId,
-        name: name.trim(),
-        category: selectedCategories[0] || "",
-        categories: selectedCategories,
-        description: description.trim(),
-        price: Number(price),
-        stock: stock ? Number(stock) : 0,
-        image: imageUrl,
+        name: formData.name.trim(),
+        category: formData.category,
+        description: formData.description.trim(),
+        price: Number(formData.price),
+        image: image?.url || "",
+        taxable: formData.taxable,
+        trackInventory: formData.trackInventory,
         status: "active",
+        approvalStatus: "PENDING",
         createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       });
 
-      setUploadProgress(100);
-      
-      setSnack({
-        open: true,
-        severity: "success",
-        message: "🎉 Product added successfully!",
-      });
-
-      setTimeout(() => {
-        handleReset();
-        setUploadProgress(0);
-      }, 1000);
+      setSnack({ open: true, severity: "success", message: "Product submitted for approval!" });
+      setTimeout(() => navigate("/merchant/products"), 1500);
     } catch (err) {
       console.error(err);
-      setSnack({
-        open: true,
-        severity: "error",
-        message: "Failed to add product. Please try again.",
-      });
-      setUploadProgress(0);
+      setSnack({ open: true, severity: "error", message: "Failed to create product" });
     }
 
     setSaving(false);
   };
 
+  const handleRemoveImage = async () => {
+    if (!image?.path) return;
+    try {
+      await deleteObject(ref(storage, image.path));
+      setImage(null);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   return (
-    <MobileAppShell title="Add New Product">
-      <Box sx={{ minHeight: "100vh", bgcolor: "#f5f5f5", pb: 2, pt: 2 }}>
-        <Container maxWidth="sm" sx={{ pb: 12 }}>
-          {/* Header */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <Box sx={{ mb: 3, textAlign: "center" }}>
-              <Avatar
-                sx={{
-                  width: 64,
-                  height: 64,
-                  bgcolor: "#1976d2",
-                  margin: "0 auto 16px",
-                  boxShadow: "0 4px 12px rgba(25, 118, 210, 0.2)",
-                }}
-              >
-                <Inventory sx={{ fontSize: 32 }} />
-              </Avatar>
-              <Typography variant="h5" fontWeight="bold" gutterBottom color="#263238">
-                Create Your Product
-              </Typography>
-              <Typography variant="body2" color="#546e7a">
-                Fill in the details to add a new product to your store
-              </Typography>
+    <Box sx={{ minHeight: "100vh", bgcolor: "white", pb: 28 }}>
+      {/* Header */}
+      <Paper
+        elevation={0}
+        sx={{
+          position: "sticky",
+          top: 0,
+          zIndex: 10,
+          bgcolor: "rgba(255, 255, 255, 0.8)",
+          backdropFilter: "blur(12px)",
+          borderBottom: "1px solid #e0e0e0",
+        }}
+      >
+        <Box sx={{ px: 2, py: 2, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+            <IconButton onClick={() => navigate(-1)} sx={{ width: 32, height: 32 }}>
+              <MaterialIcon name="close" size={20} />
+            </IconButton>
+            <Typography sx={{ fontSize: "1.25rem", fontWeight: 700, color: "#0f172a" }}>
+              Add New Product
+            </Typography>
+          </Box>
+          <Box sx={{ width: 32 }} />
+        </Box>
+      </Paper>
+
+      <Container maxWidth="sm">
+        <Stack spacing={6} sx={{ py: 5 }}>
+          {/* Image Upload */}
+          <Box>
+            <Box
+              component="label"
+              sx={{
+                width: "100%",
+                aspectRatio: "1",
+                borderRadius: 4,
+                border: "2px dashed #cbd5e0",
+                bgcolor: "#f8fafc",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                gap: 1.5,
+                position: "relative",
+                overflow: "hidden",
+                transition: "all 0.2s",
+                "&:hover": { borderColor: "#2b7cee", bgcolor: "#f0f7ff" },
+              }}
+            >
+              {image ? (
+                <>
+                  <Box
+                    component="img"
+                    src={image.url}
+                    alt="Product"
+                    sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
+                  <IconButton
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleRemoveImage();
+                    }}
+                    sx={{
+                      position: "absolute",
+                      bottom: 1,
+                      right: 1,
+                      width: 40,
+                      height: 40,
+                      bgcolor: "#2b7cee",
+                      color: "white",
+                      "&:hover": { bgcolor: "#2566c8" },
+                    }}
+                  >
+                    <MaterialIcon name="edit" size={20} />
+                  </IconButton>
+                </>
+              ) : (
+                <>
+                  <MaterialIcon name="add_a_photo" size={48} />
+                  <Box sx={{ textAlign: "center" }}>
+                    <Typography sx={{ fontSize: "0.875rem", fontWeight: 600, color: "#64748b" }}>
+                      Add Product Photo
+                    </Typography>
+                    <Typography sx={{ fontSize: "0.75rem", color: "#94a3b8", mt: 0.5 }}>
+                      Recommended size: 1080x1080px
+                    </Typography>
+                  </Box>
+                </>
+              )}
+              <input hidden type="file" accept="image/*" onChange={handleImageSelect} />
             </Box>
-          </motion.div>
-
-          {/* Progress Bar */}
-          {saving && (
-            <Box sx={{ mb: 2 }}>
-              <LinearProgress 
-                variant="determinate" 
-                value={uploadProgress}
-                sx={{
-                  bgcolor: "#e0e0e0",
-                  "& .MuiLinearProgress-bar": {
-                    bgcolor: "#1976d2",
-                  },
-                }}
-              />
-              <Typography variant="caption" color="#546e7a" sx={{ mt: 0.5 }}>
-                {uploadProgress < 30 && "Preparing..."}
-                {uploadProgress >= 30 && uploadProgress < 60 && "Uploading image..."}
-                {uploadProgress >= 60 && uploadProgress < 80 && "Processing..."}
-                {uploadProgress >= 80 && "Finalizing..."}
-              </Typography>
-            </Box>
-          )}
-
-          {/* Image Upload Section */}
-          <motion.div {...motionCard}>
-            <Card sx={{ mb: 2, overflow: "visible", boxShadow: "0 2px 8px rgba(0,0,0,0.08)", bgcolor: "white" }}>
-              <CardContent>
-                <Stack spacing={2}>
-                  <Typography variant="subtitle1" fontWeight={600} color="#263238">
-                    📸 Product Image
-                  </Typography>
-                  
-                  {imagePreview ? (
-                    <Box sx={{ position: "relative" }}>
-                      <CardMedia
-                        component="img"
-                        height="200"
-                        image={imagePreview}
-                        alt="Product preview"
-                        sx={{ borderRadius: 2, objectFit: "cover" }}
-                      />
-                      <IconButton
-                        sx={{
-                          position: "absolute",
-                          top: 8,
-                          right: 8,
-                          bgcolor: "#d32f2f",
-                          color: "white",
-                          "&:hover": { bgcolor: "#c62828" },
-                        }}
-                        onClick={() => {
-                          setImageFile(null);
-                          setImagePreview(null);
-                        }}
-                      >
-                        <Close />
-                      </IconButton>
-                    </Box>
-                  ) : (
-                    <Button
-                      component="label"
-                      variant="outlined"
-                      fullWidth
-                      startIcon={<PhotoCamera />}
-                      sx={{
-                        height: 120,
-                        borderStyle: "dashed",
-                        borderWidth: 2,
-                        borderColor: "#90caf9",
-                        color: "#1976d2",
-                        bgcolor: "#e3f2fd",
-                        "&:hover": {
-                          borderColor: "#1976d2",
-                          bgcolor: "#bbdefb",
-                        },
-                      }}
-                    >
-                      Upload Product Image
-                      <input
-                        hidden
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageChange}
-                      />
-                    </Button>
-                  )}
-                </Stack>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Product Details Form */}
-          <motion.div {...motionCard} transition={{ delay: 0.1 }}>
-            <Card sx={{ mb: 2, boxShadow: "0 2px 8px rgba(0,0,0,0.08)", bgcolor: "white" }}>
-              <CardContent>
-              <Stack spacing={2.5} component="form" onSubmit={handleSubmit}>
-                <Typography variant="subtitle1" fontWeight={600} color="#263238">
-                  📝 Product Details
+            {imageUploading && (
+              <Box sx={{ mt: 1.5 }}>
+                <LinearProgress variant="determinate" value={imageProgress} />
+                <Typography variant="caption" color="text.secondary">
+                  {imageProgress}%
                 </Typography>
+              </Box>
+            )}
+          </Box>
 
+          {/* Form Fields */}
+          <Stack spacing={4} component="form" onSubmit={handleSubmit}>
+            {/* Basic Info */}
+            <Stack spacing={3}>
+              <Box>
+                <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "#64748b", mb: 1 }}>
+                  Product Name
+                </Typography>
                 <TextField
-                  label="Product Name"
-                  value={name}
-                  onChange={(e) => {
-                    setName(e.target.value);
-                    if (formErrors.name) setFormErrors({ ...formErrors, name: null });
-                  }}
-                  required
                   fullWidth
-                  error={!!formErrors.name}
-                  helperText={formErrors.name}
-                  placeholder="e.g., Premium Coffee Beans"
+                  placeholder="e.g. Organic Gala Apples"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   sx={{
                     "& .MuiOutlinedInput-root": {
-                      bgcolor: "white",
+                      borderRadius: 2,
+                      bgcolor: "#f8fafc",
+                      "&:hover fieldset": { borderColor: "#2b7cee" },
                     },
                   }}
                 />
+              </Box>
 
+              {/* Category & Price Grid */}
+              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
                 <Box>
+                  <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "#64748b", mb: 1 }}>
+                    Category
+                  </Typography>
                   <TextField
                     select
-                    label="Categories"
                     fullWidth
-                    value={selectedCategories}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setSelectedCategories(typeof value === "string" ? value.split(",") : value);
-                      if (formErrors.category) setFormErrors({ ...formErrors, category: null });
-                    }}
-                    required
-                    error={!!formErrors.category}
-                    helperText={formErrors.category || "Select one or more categories"}
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                     SelectProps={{
-                      multiple: true,
-                      renderValue: (selected) => (selected || []).join(", "),
+                      native: true,
+                    }}
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                        bgcolor: "#f8fafc",
+                      },
                     }}
                   >
-                    {categories.length === 0 && (
-                      <MenuItem disabled>No categories available. Please contact admin.</MenuItem>
-                    )}
+                    <option value="">Select...</option>
                     {categories.map((cat) => (
-                      <MenuItem key={cat} value={cat}>
+                      <option key={cat} value={cat}>
                         {cat}
-                      </MenuItem>
+                      </option>
                     ))}
                   </TextField>
                 </Box>
+                <Box>
+                  <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "#64748b", mb: 1 }}>
+                    Price ($)
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    placeholder="0.00"
+                    step="0.01"
+                    value={formData.price}
+                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                        bgcolor: "#f8fafc",
+                      },
+                    }}
+                  />
+                </Box>
+              </Box>
 
-                <TextField
-                  label="Description"
-                  multiline
-                  rows={3}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Describe your product..."
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Description />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-
-                <Divider />
-
-                <Typography variant="subtitle1" fontWeight={600} color="#263238">
-                  💰 Pricing & Inventory
+              <Box>
+                <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "#64748b", mb: 1 }}>
+                  Product Description
                 </Typography>
-
                 <TextField
-                  label="Price"
-                  value={price}
-                  onChange={(e) => {
-                    setPrice(normalizePriceInput(e.target.value));
-                    if (formErrors.price) setFormErrors({ ...formErrors, price: null });
-                  }}
-                  required
                   fullWidth
-                  error={!!formErrors.price}
-                  helperText={formErrors.price}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <AttachMoney />₱
-                      </InputAdornment>
-                    ),
-                  }}
-                  placeholder="0.00"
+                  multiline
+                  rows={4}
+                  placeholder="Describe your product details, origin, and benefits..."
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   sx={{
                     "& .MuiOutlinedInput-root": {
-                      bgcolor: "white",
+                      borderRadius: 2,
+                      bgcolor: "#f8fafc",
                     },
                   }}
                 />
+              </Box>
+            </Stack>
 
-                <TextField
-                  label="Stock Quantity"
-                  type="number"
-                  value={stock}
-                  onChange={(e) => {
-                    setStock(e.target.value);
-                    if (formErrors.stock) setFormErrors({ ...formErrors, stock: null });
-                  }}
-                  fullWidth
-                  error={!!formErrors.stock}
-                  helperText={formErrors.stock || "Leave empty for unlimited stock"}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Inventory />
-                      </InputAdornment>
-                    ),
-                  }}
-                  placeholder="100"
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      bgcolor: "white",
-                    },
-                  }}
-                />
-
-                <Stack direction="row" spacing={2} sx={{ mt: 3 }}>
-                  <Button
-                    variant="outlined"
-                    fullWidth
-                    onClick={handleReset}
-                    disabled={saving}
-                    sx={{
-                      borderColor: "#78909c",
-                      color: "#546e7a",
-                      "&:hover": {
-                        borderColor: "#546e7a",
-                        bgcolor: "#eceff1",
-                      },
-                    }}
-                  >
-                    Reset
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    fullWidth
-                    startIcon={saving ? null : <Save />}
-                    disabled={saving}
-                    sx={{
-                      py: 1.5,
-                      fontWeight: 600,
-                      bgcolor: "#1976d2",
-                      "&:hover": {
-                        bgcolor: "#1565c0",
-                      },
-                      boxShadow: "0 4px 12px rgba(25, 118, 210, 0.3)",
-                    }}
-                  >
-                    {saving ? "Saving..." : "Save Product"}
-                  </Button>
-                </Stack>
-              </Stack>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Preview Card */}
-        <AnimatePresence>
-          {(name || price || imagePreview) && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-            >
-              <Card 
-                sx={{ 
-                  bgcolor: "#1976d2", 
-                  color: "white",
-                  boxShadow: "0 4px 16px rgba(25, 118, 210, 0.4)",
+            {/* Settings */}
+            <Box>
+              <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "#94a3b8", mb: 2 }}>
+                Inventory & Settings
+              </Typography>
+              <Paper
+                elevation={0}
+                sx={{
+                  bgcolor: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 3,
+                  overflow: "hidden",
                 }}
               >
-                <CardContent>
-                  <Stack spacing={1}>
-                    <Stack direction="row" alignItems="center" spacing={1}>
-                      <CheckCircle />
-                      <Typography variant="subtitle2">Preview</Typography>
-                    </Stack>
-                    <Typography variant="h6" fontWeight="bold">
-                      {name || "Your Product Name"}
-                    </Typography>
-                    {selectedCategories && selectedCategories.length > 0 && (
-                      <Chip
-                        label={selectedCategories.join(" • ")}
-                        size="small"
-                        sx={{ width: "fit-content", bgcolor: "rgba(255,255,255,0.2)" }}
-                      />
-                    )}
-                    <Typography variant="h5" fontWeight="bold">
-                      ₱{price ? Number(price).toLocaleString() : "0.00"}
-                    </Typography>
-                    {stock && (
-                      <Typography variant="caption">
-                        Stock: {stock} units
-                      </Typography>
-                    )}
-                  </Stack>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        </Container>
-      </Box>
+                <Box sx={{ p: 2, borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                    <MaterialIcon name="receipt_long" />
+                    <Typography sx={{ fontWeight: 600 }}>Taxable Item</Typography>
+                  </Box>
+                  <Switch
+                    checked={formData.taxable}
+                    onChange={(e) => setFormData({ ...formData, taxable: e.target.checked })}
+                    size="small"
+                  />
+                </Box>
+                <Box sx={{ p: 2, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                    <MaterialIcon name="inventory_2" />
+                    <Typography sx={{ fontWeight: 600 }}>Track Inventory</Typography>
+                  </Box>
+                  <Switch
+                    checked={formData.trackInventory}
+                    onChange={(e) => setFormData({ ...formData, trackInventory: e.target.checked })}
+                    size="small"
+                  />
+                </Box>
+              </Paper>
+            </Box>
 
-      {/* Category Dialog removed: Admin manages categories in Firestore */}
+            {/* Info Alert */}
+            <Alert
+              icon={<MaterialIcon name="info" />}
+              severity="warning"
+              sx={{ borderRadius: 2 }}
+            >
+              New products require admin approval before going live on your store. This usually takes 1-2 business days.
+            </Alert>
+
+            {/* Submit Button */}
+            <Button
+              type="submit"
+              fullWidth
+              disabled={saving || imageUploading}
+              sx={{
+                py: 2,
+                bgcolor: "#2b7cee",
+                color: "white",
+                fontWeight: 700,
+                fontSize: "1rem",
+                borderRadius: 2,
+                boxShadow: "0 4px 12px rgba(43, 124, 238, 0.3)",
+                "&:hover": { bgcolor: "#2566c8" },
+              }}
+            >
+              {saving ? "Submitting..." : "Submit for Approval"}
+            </Button>
+          </Stack>
+        </Stack>
+      </Container>
+
+      {/* Bottom Nav */}
+      <BottomNav />
 
       {/* Snackbar */}
       <Snackbar
         open={snack.open}
         autoHideDuration={3000}
         onClose={() => setSnack({ ...snack, open: false })}
-        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       >
-        <Alert
-          severity={snack.severity}
-          variant="filled"
-          sx={{ width: "100%" }}
-        >
+        <Alert severity={snack.severity} variant="filled">
           {snack.message}
         </Alert>
       </Snackbar>
-    </MobileAppShell>
+    </Box>
   );
 }

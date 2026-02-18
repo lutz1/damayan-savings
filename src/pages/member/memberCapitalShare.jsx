@@ -342,7 +342,7 @@ const MemberCapitalShare = () => {
     try {
       // 🔹 Get ID token
       const idToken = await user.getIdToken();
-      const API_BASE = process.env.REACT_APP_API_BASE_URL || "https://damayan-savings-backend.onrender.com";
+      const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "https://damayan-savings-backend.onrender.com";
 
       // 🔹 Call backend to create capital share entry
       const response = await fetch(`${API_BASE}/api/add-capital-share`, {
@@ -378,7 +378,7 @@ const MemberCapitalShare = () => {
     if (entry.profitStatus === "Claimed") return alert("This profit was already claimed.");
 
     try {
-      const API_BASE = process.env.REACT_APP_API_BASE_URL || "https://damayan-savings-backend.onrender.com";
+      const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "https://damayan-savings-backend.onrender.com";
       const idToken = await user.getIdToken();
       const response = await fetch(`${API_BASE}/api/transfer-profit`, {
         method: "POST",
@@ -429,7 +429,7 @@ const MemberCapitalShare = () => {
     const transferAmount = entry.transferablePortion - (entry.transferredAmount || 0);
 
     try {
-      const API_BASE = process.env.REACT_APP_API_BASE_URL || "https://damayan-savings-backend.onrender.com";
+      const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "https://damayan-savings-backend.onrender.com";
       const idToken = await user.getIdToken();
       const response = await fetch(`${API_BASE}/api/transfer-capital-share`, {
         method: "POST",

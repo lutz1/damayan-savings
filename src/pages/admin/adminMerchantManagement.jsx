@@ -15,6 +15,7 @@ import {
   CircularProgress,
   Tooltip,
   useMediaQuery,
+  Drawer,
 } from "@mui/material";
 import StoreIcon from "@mui/icons-material/Store";
 import { collection, query, where, onSnapshot, doc, updateDoc } from "firebase/firestore";
@@ -22,6 +23,7 @@ import { db } from "../../firebase";
 import { motion } from "framer-motion";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
+import AdminSidebarToggle from "../../components/AdminSidebarToggle";
 import bgImage from "../../assets/bg.jpg";
 
 const AdminMerchantManagement = () => {
@@ -30,6 +32,7 @@ const AdminMerchantManagement = () => {
   const [loading, setLoading] = useState(true);
 
   const isMobile = useMediaQuery("(max-width:900px)");
+  useEffect(() => setSidebarOpen(!isMobile), [isMobile]);
 
   const handleToggleSidebar = () => setSidebarOpen(prev => !prev);
 
@@ -78,9 +81,31 @@ const AdminMerchantManagement = () => {
       </Box>
 
       {/* Sidebar */}
-      <Box sx={{ zIndex: 5 }}>
-        <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
-      </Box>
+      {!isMobile && (
+        <Box sx={{ zIndex: 5 }}>
+          <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+        </Box>
+      )}
+
+      {isMobile && (
+        <>
+          <AdminSidebarToggle onClick={handleToggleSidebar} />
+          <Drawer
+            anchor="left"
+            open={sidebarOpen}
+            onClose={handleToggleSidebar}
+            ModalProps={{ keepMounted: true }}
+            PaperProps={{
+              sx: {
+                background: "transparent",
+                boxShadow: "none",
+              },
+            }}
+          >
+            <AppBottomNav layout="sidebar" open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+          </Drawer>
+        </>
+      )}
 
       {/* Main content */}
       <Box
@@ -89,7 +114,7 @@ const AdminMerchantManagement = () => {
           flexGrow: 1,
           p: isMobile ? 2 : 4,
           mt: 0,
-          pb: { xs: 12, sm: 12, md: 12 },
+          pb: { xs: 3, sm: 12, md: 12 },
           color: "white",
           zIndex: 1,
           width: "100%",

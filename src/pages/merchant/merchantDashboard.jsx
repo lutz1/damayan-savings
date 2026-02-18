@@ -3,22 +3,20 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Box,
   Typography,
-  Grid,
   Card,
   CardContent,
-  Fab,
-  Chip,
-  ToggleButton,
-  ToggleButtonGroup,
-  Divider,
-  List,
-  ListItem,
-  ListItemText,
   Avatar,
+  IconButton,
+  LinearProgress,
+  Chip,
+  Divider,
+  Stack,
+  Paper,
+  Container,
+  Snackbar,
+  Alert,
 } from "@mui/material";
-import { Add } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
-import { ResponsiveBar } from "@nivo/bar";
 import {
   collection,
   query,
@@ -30,6 +28,20 @@ import {
 import { db } from "../../firebase";
 import BottomNav from "../../components/BottomNav";
 
+// Material Symbols Icon Component
+const MaterialIcon = ({ name, filled = false, weight = 400, size = 24, sx = {} }) => (
+  <span
+    className="material-symbols-outlined"
+    style={{
+      fontSize: size,
+      fontVariationSettings: `'FILL' ${filled ? 1 : 0}, 'wght' ${weight}`,
+      ...sx
+    }}
+  >
+    {name}
+  </span>
+);
+
 const MerchantDashboard = () => {
   const navigate = useNavigate();
   const merchantId = localStorage.getItem("uid");
@@ -39,6 +51,7 @@ const MerchantDashboard = () => {
   const [sales, setSales] = useState([]);
   const [feedbacks, setFeedbacks] = useState([]);
   const [period, setPeriod] = useState("monthly");
+  const [snack, setSnack] = useState({ open: false, severity: "error", message: "" });
 
  /* ======================
    LOAD MERCHANT NAME
@@ -60,7 +73,10 @@ useEffect(() => {
         console.warn("User doc not found:", merchantId);
       }
     },
-    (err) => console.error("User snapshot error:", err)
+    (err) => {
+      console.error("User snapshot error:", err);
+      setSnack({ open: true, severity: "error", message: "Failed to load merchant profile." });
+    }
   );
 
   return () => unsub();
@@ -75,7 +91,11 @@ useEffect(() => {
     const unsubProducts = onSnapshot(
       query(collection(db, "products"), where("merchantId", "==", merchantId)),
       (snap) =>
-        setProducts(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+        setProducts(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      (err) => {
+        console.error("Products listener error:", err);
+        setSnack({ open: true, severity: "error", message: "Unable to load products." });
+      }
     );
 
     const unsubSales = onSnapshot(
@@ -85,7 +105,11 @@ useEffect(() => {
         orderBy("createdAt", "desc")
       ),
       (snap) =>
-        setSales(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+        setSales(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      (err) => {
+        console.error("Sales listener error:", err);
+        setSnack({ open: true, severity: "error", message: "Unable to load orders/sales." });
+      }
     );
 
     const unsubFeedback = onSnapshot(
@@ -95,7 +119,11 @@ useEffect(() => {
         orderBy("createdAt", "desc")
       ),
       (snap) =>
-        setFeedbacks(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+        setFeedbacks(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      (err) => {
+        console.error("Feedback listener error:", err);
+        setSnack({ open: true, severity: "error", message: "Unable to load feedback." });
+      }
     );
 
     return () => {
@@ -199,225 +227,366 @@ useEffect(() => {
     return "Good Evening";
   };
 
+  // Helper to get initials from name
+  const getInitials = (name) => {
+    if (!name) return "?";
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return parts[0].slice(0, 2).toUpperCase();
+  };
+
+  // Format time ago
+  const getTimeAgo = (timestamp) => {
+    if (!timestamp) return "Just now";
+    const date = timestamp?.toDate ? timestamp.toDate() : new Date(timestamp);
+    const seconds = Math.floor((new Date() - date) / 1000);
+    
+    if (seconds < 60) return "Just now";
+    if (seconds < 120) return "1 min ago";
+    if (seconds < 3600) return `${Math.floor(seconds / 60)} mins ago`;
+    if (seconds < 7200) return "1 hour ago";
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
+    return `${Math.floor(seconds / 86400)} days ago`;
+  };
+
+  // Calculate daily goal (you can adjust this)
+  const dailyGoal = 1650;
+  const todayProgress = Math.min((revenueInsights.today / dailyGoal) * 100, 100);
+
   /* ======================
      UI
   ====================== */
   return (
-    <Box sx={{ pb: 10, px: 2, pt: 2, minHeight: "100vh", bgcolor: "#f5f5f5" }}>
-      {/* Welcome Greeting Header */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h5" fontWeight="bold" color="primary">
-          Welcome back, {merchantName || "Merchant"}
-        </Typography>
-        <Typography variant="h6" fontWeight="500" color="text.secondary" sx={{ mt: 0.5 }}>
-          {getTimeBasedGreeting()} 👋
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1, lineHeight: 1.6 }}>
-          Insights So You Can Keep Track of Your Revenue and Performance and watch your business grow.
-        </Typography>
-      </Box>
-
-      {/* ===== Revenue Overview ===== */}
-      <Typography variant="h6" fontWeight={600} mb={2}>
-        📊 Revenue Overview
-      </Typography>
-      <Grid container spacing={2} mb={3}>
-        <Grid item xs={6}>
-          <Card sx={{ bgcolor: '#e3f2fd' }}>
-            <CardContent>
-              <Typography variant="body2" color="text.secondary">Today</Typography>
-              <Typography variant="h6" fontWeight="bold">₱{revenueInsights.today.toFixed(2)}</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6}>
-          <Card sx={{ bgcolor: '#f3e5f5' }}>
-            <CardContent>
-              <Typography variant="body2" color="text.secondary">This Week</Typography>
-              <Typography variant="h6" fontWeight="bold">₱{revenueInsights.week.toFixed(2)}</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6}>
-          <Card sx={{ bgcolor: '#e8f5e9' }}>
-            <CardContent>
-              <Typography variant="body2" color="text.secondary">This Month</Typography>
-              <Typography variant="h6" fontWeight="bold">₱{revenueInsights.month.toFixed(2)}</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6}>
-          <Card sx={{ bgcolor: '#fff3e0' }}>
-            <CardContent>
-              <Typography variant="body2" color="text.secondary">Total Revenue</Typography>
-              <Typography variant="h6" fontWeight="bold">₱{totalSales.toFixed(2)}</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* ===== Performance Metrics ===== */}
-      <Typography variant="h6" fontWeight={600} mb={2}>
-        📈 Performance Metrics
-      </Typography>
-      <Grid container spacing={2} mb={3}>
-        <Grid item xs={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="body2" color="text.secondary">Total Orders</Typography>
-              <Typography variant="h5" fontWeight="bold">{revenueInsights.totalOrders}</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="body2" color="text.secondary">Avg Order Value</Typography>
-              <Typography variant="h5" fontWeight="bold">₱{revenueInsights.avgOrder.toFixed(2)}</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="body2" color="text.secondary">Total Customers</Typography>
-              <Typography variant="h5" fontWeight="bold">{customerInsights.total}</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="body2" color="text.secondary">Repeat Rate</Typography>
-              <Typography variant="h5" fontWeight="bold">{customerInsights.repeatRate}%</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* ===== Product Stats ===== */}
-      <Typography variant="h6" fontWeight={600} mb={2}>
-        📦 Product Statistics
-      </Typography>
-      <Grid container spacing={2} mb={3}>
-        <Grid item xs={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="body2" color="text.secondary">Total Products</Typography>
-              <Typography variant="h5" fontWeight="bold">{products.length}</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="body2" color="text.secondary">Active</Typography>
-              <Typography variant="h5" fontWeight="bold" color="success.main">{productPerformance.active}</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="body2" color="text.secondary">Low Stock</Typography>
-              <Typography variant="h5" fontWeight="bold" color="error.main">{productPerformance.lowStock}</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* ===== Period Toggle ===== */}
-      <ToggleButtonGroup
-        fullWidth
-        size="small"
-        value={period}
-        exclusive
-        onChange={(_, v) => v && setPeriod(v)}
-        sx={{ mb: 2 }}
+    <Box sx={{ 
+      minHeight: "100vh", 
+      bgcolor: "#f6f7f8",
+      display: 'flex',
+      justifyContent: 'center',
+      pb: 12
+    }}>
+      <Container 
+        maxWidth="sm" 
+        disableGutters
+        sx={{ 
+          bgcolor: 'white',
+          minHeight: '100vh',
+          boxShadow: { sm: '0 0 40px rgba(0,0,0,0.1)' }
+        }}
       >
-        <ToggleButton value="weekly">Weekly</ToggleButton>
-        <ToggleButton value="monthly">Monthly</ToggleButton>
-        <ToggleButton value="annual">Annual</ToggleButton>
-      </ToggleButtonGroup>
+        {/* Header */}
+        <Paper
+          elevation={0}
+          sx={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
+            bgcolor: 'rgba(255, 255, 255, 0.8)',
+            backdropFilter: 'blur(12px)',
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+            px: 2,
+            py: 2
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Box sx={{ position: 'relative' }}>
+                <Avatar 
+                  sx={{ 
+                    width: 40, 
+                    height: 40,
+                    border: '2px solid rgba(43, 124, 238, 0.1)'
+                  }}
+                >
+                  {getInitials(merchantName)}
+                </Avatar>
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    bottom: 0,
+                    right: 0,
+                    width: 10,
+                    height: 10,
+                    bgcolor: '#4ade80',
+                    borderRadius: '50%',
+                    border: '2px solid white'
+                  }}
+                />
+              </Box>
+              <Box>
+                <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem', fontWeight: 500 }}>
+                  Welcome back,
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 700, fontSize: '1.125rem', lineHeight: 1.2, color: '#0f172a' }}>
+                  {merchantName || "Merchant"}
+                </Typography>
+              </Box>
+            </Box>
+            <IconButton 
+              sx={{ 
+                bgcolor: '#f8fafc',
+                width: 40,
+                height: 40,
+                '&:hover': { 
+                  bgcolor: 'rgba(43, 124, 238, 0.1)',
+                  color: '#2b7cee'
+                }
+              }}
+            >
+              <MaterialIcon name="notifications" size={22} sx={{ color: '#64748b' }} />
+            </IconButton>
+          </Box>
+        </Paper>
 
-      {/* ===== Sales Chart ===== */}
-      <Card sx={{ height: 260, mb: 3 }}>
-        <CardContent>
-          <Typography fontWeight={600} mb={1}>
-            Product Sales Analytics
-          </Typography>
-          <ResponsiveBar
-            data={productSalesData}
-            keys={["sales"]}
-            indexBy="product"
-            margin={{ top: 20, right: 20, bottom: 60, left: 60 }}
-            padding={0.3}
-            axisBottom={{ tickRotation: -30 }}
-            enableLabel={false}
-          />
-        </CardContent>
-      </Card>
+        {/* Main Content */}
+        <Box sx={{ px: 2, pt: 3 }}>
+          {/* Summary Metrics Section */}
+          <Box sx={{ mb: 4 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1.5 }}>
+              {/* Large Primary Card - Today's Sales */}
+              <Card 
+                sx={{ 
+                  gridColumn: 'span 2',
+                  border: '1px solid rgba(43, 124, 238, 0.2)',
+                  bgcolor: 'rgba(43, 124, 238, 0.05)',
+                  boxShadow: 'none'
+                }}
+              >
+                <CardContent sx={{ p: 2.5 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                    <Typography 
+                      variant="caption" 
+                      sx={{ 
+                        color: '#2b7cee', 
+                        fontWeight: 600,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                        fontSize: '0.875rem'
+                      }}
+                    >
+                      Today's Sales
+                    </Typography>
+                    <Chip
+                      icon={<MaterialIcon name="trending_up" size={14} sx={{ color: '#16a34a' }} />}
+                      label="+12%"
+                      size="small"
+                      sx={{
+                        height: 20,
+                        bgcolor: '#dcfce7',
+                        color: '#16a34a',
+                        fontWeight: 700,
+                        fontSize: '0.75rem',
+                        '& .MuiChip-icon': { ml: 0.5 }
+                      }}
+                    />
+                  </Box>
+                  <Typography 
+                    variant="h4" 
+                    sx={{ 
+                      fontWeight: 800, 
+                      mb: 1.5,
+                      color: '#0f172a',
+                      fontSize: '2rem'
+                    }}
+                  >
+                    ₱{revenueInsights.today.toFixed(2)}
+                  </Typography>
+                  <LinearProgress 
+                    variant="determinate" 
+                    value={todayProgress}
+                    sx={{
+                      height: 6,
+                      borderRadius: 999,
+                      bgcolor: '#e2e8f0',
+                      '& .MuiLinearProgress-bar': {
+                        bgcolor: '#2b7cee',
+                        borderRadius: 999
+                      }
+                    }}
+                  />
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      color: '#64748b', 
+                      fontSize: '0.6875rem',
+                      mt: 1,
+                      display: 'block'
+                    }}
+                  >
+                    {todayProgress.toFixed(0)}% of daily goal reached
+                  </Typography>
+                </CardContent>
+              </Card>
 
-      {/* ===== Top Products ===== */}
-      <Typography fontWeight={600} mb={1}>
-        Top Trending Products
-      </Typography>
-      {topProducts.map((p) => (
-        <Chip
-          key={p.product}
-          label={`${p.product} ₱${p.sales}`}
-          sx={{ mr: 1, mb: 1 }}
-          color="success"
-        />
-      ))}
+              {/* Small Secondary Cards */}
+              <Card sx={{ border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+                <CardContent sx={{ p: 2 }}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      width: 32,
+                      height: 32,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: '8px',
+                      bgcolor: '#eff6ff',
+                      mb: 1
+                    }}
+                  >
+                    <MaterialIcon name="shopping_cart" size={20} sx={{ color: '#3b82f6' }} />
+                  </Box>
+                  <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 500, fontSize: '0.75rem' }}>
+                    Active Orders
+                  </Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mt: 0.5 }}>
+                    {revenueInsights.totalOrders}
+                  </Typography>
+                </CardContent>
+              </Card>
 
-      <Divider sx={{ my: 2 }} />
+              <Card sx={{ border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+                <CardContent sx={{ p: 2 }}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      width: 32,
+                      height: 32,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: '8px',
+                      bgcolor: '#fff7ed',
+                      mb: 1
+                    }}
+                  >
+                    <MaterialIcon name="local_shipping" size={20} sx={{ color: '#f97316' }} />
+                  </Box>
+                  <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 500, fontSize: '0.75rem' }}>
+                    Pending Deliveries
+                  </Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mt: 0.5 }}>
+                    {sales.filter(s => s.status === 'pending' || s.status === 'processing').length}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Box>
+          </Box>
 
-      {/* ===== Purchase Logs ===== */}
-      <Typography fontWeight={600}>Purchase Logs</Typography>
-      <List>
-        {sales.slice(0, 5).map((s) => (
-          <ListItem key={s.id}>
-            <Avatar sx={{ mr: 2 }}>
-              {s.customerName?.[0] || "C"}
-            </Avatar>
-            <ListItemText
-              primary={`${s.customerName} purchased ${s.productName}`}
-              secondary={`x${s.quantity} ₱${s.price} = ₱${s.total}`}
-            />
-          </ListItem>
-        ))}
-      </List>
+          {/* Recent Orders Section */}
+          <Box sx={{ mb: 4 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Typography 
+                variant="h6" 
+                sx={{ 
+                  fontWeight: 700, 
+                  fontSize: '1.25rem',
+                  color: '#0f172a'
+                }}
+              >
+                Recent Orders
+              </Typography>
+              <Typography
+                onClick={() => navigate('/merchant/orders')}
+                sx={{
+                  color: '#2b7cee',
+                  fontWeight: 600,
+                  fontSize: '0.875rem',
+                  cursor: 'pointer',
+                  '&:hover': { textDecoration: 'underline' }
+                }}
+              >
+                View All
+              </Typography>
+            </Box>
 
-      <Divider sx={{ my: 2 }} />
+            <Stack divider={<Divider />} sx={{ bgcolor: 'white' }}>
+              {sales.slice(0, 4).length === 0 ? (
+                <Box sx={{ py: 6, textAlign: 'center' }}>
+                  <MaterialIcon name="receipt_long" size={48} sx={{ color: '#cbd5e1', mb: 2 }} />
+                  <Typography color="text.secondary">No orders yet</Typography>
+                </Box>
+              ) : (
+                sales.slice(0, 4).map((sale) => (
+                  <Box
+                    key={sale.id}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      py: 2,
+                      cursor: 'pointer',
+                      '&:hover': { bgcolor: '#f8fafc' }
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                      <Avatar
+                        sx={{
+                          width: 48,
+                          height: 48,
+                          bgcolor: '#f1f5f9',
+                          color: '#64748b',
+                          fontWeight: 700
+                        }}
+                      >
+                        {getInitials(sale.customerName || "Customer")}
+                      </Avatar>
+                      <Box>
+                        <Typography variant="body1" sx={{ fontWeight: 600, color: '#0f172a', fontSize: '1rem' }}>
+                          {sale.customerName || "Customer"}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                          Order #{sale.id.slice(-4)} • {getTimeAgo(sale.createdAt)}
+                        </Typography>
+                      </Box>
+                    </Box>
+                    <Box sx={{ textAlign: 'right' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
+                        ₱{Number(sale.total || 0).toFixed(2)}
+                      </Typography>
+                      <Chip
+                        label={sale.status === 'completed' ? 'Ready' : sale.status === 'pending' ? 'In Progress' : 'Scheduled'}
+                        size="small"
+                        sx={{
+                          height: 18,
+                          fontSize: '0.625rem',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          ...(sale.status === 'completed' && {
+                            bgcolor: '#dcfce7',
+                            color: '#16a34a'
+                          }),
+                          ...(sale.status === 'pending' && {
+                            bgcolor: '#fef3c7',
+                            color: '#d97706'
+                          }),
+                          ...(!sale.status && {
+                            bgcolor: '#f1f5f9',
+                            color: '#64748b'
+                          })
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                ))
+              )}
+            </Stack>
+          </Box>
+        </Box>
 
-      {/* ===== Feedback ===== */}
-      <Typography fontWeight={600}>Customer Feedback</Typography>
-      {feedbacks.length === 0 ? (
-        <Typography color="gray">No feedback yet</Typography>
-      ) : (
-        <List>
-          {feedbacks.slice(0, 5).map((f) => (
-            <ListItem key={f.id}>
-              <ListItemText
-                primary={`${f.customerName} — ⭐ ${f.rating}`}
-                secondary={`${f.productName}: ${f.comment}`}
-              />
-            </ListItem>
-          ))}
-        </List>
-      )}
+        {/* Bottom Navigation */}
+        <BottomNav />
 
-      {/* ===== Floating Add ===== */}
-      <Fab
-        color="success"
-        sx={{ position: "fixed", bottom: 90, right: 16 }}
-        onClick={() => navigate("/merchant/add-product")}
-      >
-        <Add />
-      </Fab>
-
-      <BottomNav />
+        <Snackbar
+          open={snack.open}
+          autoHideDuration={3500}
+          onClose={() => setSnack({ ...snack, open: false })}
+          anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+        >
+          <Alert severity={snack.severity} variant="filled">
+            {snack.message}
+          </Alert>
+        </Snackbar>
+      </Container>
     </Box>
   );
 };

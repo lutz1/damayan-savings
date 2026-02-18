@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
-import App from './App';
+import App from './App.jsx';
 import reportWebVitals from './reportWebVitals';
 
 // Register service worker for PWA support
@@ -16,7 +16,7 @@ import reportWebVitals from './reportWebVitals';
 //         scope: scope,
 //       });
 //       console.log('✅ Service Worker registered:', reg.scope);
-      
+//
 //       // Check for updates periodically
 //       setInterval(() => {
 //         reg.update();
@@ -25,7 +25,7 @@ import reportWebVitals from './reportWebVitals';
 //       console.warn('⚠️ Service Worker registration failed:', err);
 //     }
 //   });
-  
+//
 //   // Handle service worker updates
 //   if (navigator.serviceWorker.controller) {
 //     navigator.serviceWorker.addEventListener('controllerchange', () => {

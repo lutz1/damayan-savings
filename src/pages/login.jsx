@@ -45,7 +45,7 @@ const Login = () => {
 
   // ✅ Redirect users based on role
   const handleRedirect = (role) => { 
-    const base = "/damayan-savings";
+    const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
     const upper = role.toUpperCase();
 
     // mark that a redirect flow is in progress to avoid duplicate/contradictory redirects
@@ -421,7 +421,7 @@ const Login = () => {
         onClose={() => {
           setShowSplash(false);
           (function () {
-            const base = "/damayan-savings";
+            const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
             if (postSplashTarget) {
               window.location.replace(`${base}${postSplashTarget}`);
             } else {

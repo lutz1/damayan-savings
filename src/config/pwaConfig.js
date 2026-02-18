@@ -15,13 +15,13 @@
  *    - Automatic cache updates
  *    - Works across all browsers supporting PWA
  * 
- * ✅ HTML Meta Tags: public/index.html
+ * ✅ HTML Meta Tags: index.html
  *    - Mobile viewport configuration
  *    - iOS PWA support (apple-mobile-web-app-capable)
  *    - Apple touch icons and splash screens
  *    - Theme colors for browser UI
  * 
- * ✅ Service Worker Registration: src/index.js
+ * ✅ Service Worker Registration: src/main.jsx
  *    - Automatic registration on app load
  *    - Periodic update checks (every 60 seconds)
  *    - Install prompt handling

@@ -120,7 +120,7 @@ const OverrideUplineRewardsDialog = ({
                   try {
                     setLoadingTransfer((prev) => ({ ...prev, [o.id]: true }));
                     const idToken = await user.getIdToken();
-                    const API_BASE = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
+                    const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
                     const response = await fetch(`${API_BASE}/api/transfer-override-reward`, {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },

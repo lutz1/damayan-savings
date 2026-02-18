@@ -15,7 +15,9 @@ import {
   TableContainer,
   Button,
   TextField,
-  InputAdornment
+  InputAdornment,
+  Drawer,
+  Stack,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import * as XLSX from "xlsx";
@@ -24,6 +26,7 @@ import { collection, onSnapshot, doc, getDoc,
 } from "firebase/firestore";
 import { db } from "../../firebase";
 import AppBottomNav from "../../components/AppBottomNav";
+import AdminSidebarToggle from "../../components/AdminSidebarToggle";
 import Topbar from "../../components/Topbar";
 import bgImage from "../../assets/bg.jpg";
 import {
@@ -52,6 +55,7 @@ const AdminGenerateCode = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  useEffect(() => setSidebarOpen(!isMobile), [isMobile]);
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
 
     // Memoized filtered codes
@@ -277,9 +281,31 @@ const filteredDownlineCodes = useMemo(() => {
       </Box>
 
       {/* Sidebar */}
-      <Box sx={{ zIndex: 5 }}>
-        <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
-      </Box>
+      {!isMobile && (
+        <Box sx={{ zIndex: 5 }}>
+          <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+        </Box>
+      )}
+
+      {isMobile && (
+        <>
+          <AdminSidebarToggle onClick={handleToggleSidebar} />
+          <Drawer
+            anchor="left"
+            open={sidebarOpen}
+            onClose={handleToggleSidebar}
+            ModalProps={{ keepMounted: true }}
+            PaperProps={{
+              sx: {
+                background: "transparent",
+                boxShadow: "none",
+              },
+            }}
+          >
+            <AppBottomNav layout="sidebar" open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+          </Drawer>
+        </>
+      )}
 
       {/* Main Content */}
       <Box
@@ -288,7 +314,7 @@ const filteredDownlineCodes = useMemo(() => {
           flexGrow: 1,
           p: isMobile ? 1 : 4,
           mt: 0,
-          pb: { xs: 12, sm: 12, md: 12 },
+          pb: { xs: 3, sm: 12, md: 12 },
           color: "#f5f7fa",
           zIndex: 1,
           width: "100%",
@@ -467,59 +493,86 @@ const filteredDownlineCodes = useMemo(() => {
                       border: '1.5px solid rgba(129,199,132,0.10)',
                     }}
                   >
-                    <Box sx={{ width: "100%", overflowX: "auto" }}>
-                      <TableContainer>
-                        <Table size={isMobile ? "small" : "medium"} sx={{ minWidth: 600, background: 'transparent' }}>
-                          <TableHead>
-                            <TableRow sx={{ background: "rgba(129,199,132,0.15)" }}>
-                              <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
-                                Code
-                              </TableCell>
-                              <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
-                                Amount (₱)
-                              </TableCell>
-                              <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
-                                Purchased By
-                              </TableCell>
-                              <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
-                                Date
-                              </TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {filteredCapitalCodes
-                              .slice(capitalPage * rowsPerPage, capitalPage * rowsPerPage + rowsPerPage)
-                              .map((code) => (
-                                <TableRow
-                                  key={code.id}
-                                  sx={{
-                                    "&:hover": {
-                                      backgroundColor: "rgba(129,199,132,0.1)",
-                                    },
-                                  }}
-                                >
-                                  <TableCell sx={{ color: "#fff" }}>
-                                    {code.code}
-                                  </TableCell>
-                                  <TableCell sx={{ color: "#fff" }}>
-                                    ₱{Number(code.amount || 0).toLocaleString()}
-                                  </TableCell>
-                                  <TableCell sx={{ color: "#fff" }}>
-                                    {code.userDisplay}
-                                  </TableCell>
-                                  <TableCell sx={{ color: "#fff" }}>
-                                    {code.createdAt?.seconds
-                                      ? new Date(
-                                          code.createdAt.seconds * 1000
-                                        ).toLocaleString()
-                                      : "--"}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
-                    </Box>
+                    {isMobile ? (
+                      <Stack spacing={2} sx={{ p: 1 }}>
+                        {filteredCapitalCodes
+                          .slice(capitalPage * rowsPerPage, capitalPage * rowsPerPage + rowsPerPage)
+                          .map((code) => (
+                            <Card
+                              key={code.id}
+                              sx={{
+                                background: "rgba(15, 23, 42, 0.75)",
+                                borderRadius: 3,
+                                border: "1px solid rgba(255,255,255,0.1)",
+                                color: "white",
+                              }}
+                            >
+                              <CardContent sx={{ p: 2 }}>
+                                <Typography sx={{ fontWeight: 700, mb: 1 }}>{code.code}</Typography>
+                                <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                                  Amount: ₱{Number(code.amount || 0).toLocaleString()}
+                                </Typography>
+                                <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                                  Purchased By: {code.userDisplay}
+                                </Typography>
+                                <Typography sx={{ fontSize: 12, opacity: 0.7, mt: 0.5 }}>
+                                  {code.createdAt?.seconds
+                                    ? new Date(code.createdAt.seconds * 1000).toLocaleString()
+                                    : "--"}
+                                </Typography>
+                              </CardContent>
+                            </Card>
+                          ))}
+                      </Stack>
+                    ) : (
+                      <Box sx={{ width: "100%", overflowX: "auto" }}>
+                        <TableContainer>
+                          <Table size="medium" sx={{ minWidth: 600, background: 'transparent' }}>
+                            <TableHead>
+                              <TableRow sx={{ background: "rgba(129,199,132,0.15)" }}>
+                                <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
+                                  Code
+                                </TableCell>
+                                <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
+                                  Amount (₱)
+                                </TableCell>
+                                <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
+                                  Purchased By
+                                </TableCell>
+                                <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
+                                  Date
+                                </TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {filteredCapitalCodes
+                                .slice(capitalPage * rowsPerPage, capitalPage * rowsPerPage + rowsPerPage)
+                                .map((code) => (
+                                  <TableRow
+                                    key={code.id}
+                                    sx={{
+                                      "&:hover": {
+                                        backgroundColor: "rgba(129,199,132,0.1)",
+                                      },
+                                    }}
+                                  >
+                                    <TableCell sx={{ color: "#fff" }}>{code.code}</TableCell>
+                                    <TableCell sx={{ color: "#fff" }}>
+                                      ₱{Number(code.amount || 0).toLocaleString()}
+                                    </TableCell>
+                                    <TableCell sx={{ color: "#fff" }}>{code.userDisplay}</TableCell>
+                                    <TableCell sx={{ color: "#fff" }}>
+                                      {code.createdAt?.seconds
+                                        ? new Date(code.createdAt.seconds * 1000).toLocaleString()
+                                        : "--"}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      </Box>
+                    )}
 
                     <TablePagination
                       component="div"
@@ -653,59 +706,86 @@ const filteredDownlineCodes = useMemo(() => {
                       border: '1.5px solid rgba(79,195,247,0.10)',
                     }}
                   >
-                    <Box sx={{ width: "100%", overflowX: "auto" }}>
-                      <TableContainer>
-                        <Table size={isMobile ? "small" : "medium"} sx={{ minWidth: 600, background: 'transparent' }}>
-                          <TableHead>
-                            <TableRow sx={{ background: "rgba(79,195,247,0.15)" }}>
-                              <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
-                                Code
-                              </TableCell>
-                              <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
-                                Amount (₱)
-                              </TableCell>
-                              <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
-                                Purchased By
-                              </TableCell>
-                              <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
-                                Date
-                              </TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {filteredDownlineCodes
-                              .slice(downlinePage * rowsPerPage, downlinePage * rowsPerPage + rowsPerPage)
-                              .map((code) => (
-                                <TableRow
-                                  key={code.id}
-                                  sx={{
-                                    "&:hover": {
-                                      backgroundColor: "rgba(79,195,247,0.1)",
-                                    },
-                                  }}
-                                >
-                                  <TableCell sx={{ color: "#fff" }}>
-                                    {code.code}
-                                  </TableCell>
-                                  <TableCell sx={{ color: "#fff" }}>
-                                    ₱{Number(code.amount || 0).toLocaleString()}
-                                  </TableCell>
-                                  <TableCell sx={{ color: "#fff" }}>
-                                    {code.userDisplay}
-                                  </TableCell>
-                                  <TableCell sx={{ color: "#fff" }}>
-                                    {code.createdAt?.seconds
-                                      ? new Date(
-                                          code.createdAt.seconds * 1000
-                                        ).toLocaleString()
-                                      : "--"}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
-                    </Box>
+                    {isMobile ? (
+                      <Stack spacing={2} sx={{ p: 1 }}>
+                        {filteredDownlineCodes
+                          .slice(downlinePage * rowsPerPage, downlinePage * rowsPerPage + rowsPerPage)
+                          .map((code) => (
+                            <Card
+                              key={code.id}
+                              sx={{
+                                background: "rgba(15, 23, 42, 0.75)",
+                                borderRadius: 3,
+                                border: "1px solid rgba(255,255,255,0.1)",
+                                color: "white",
+                              }}
+                            >
+                              <CardContent sx={{ p: 2 }}>
+                                <Typography sx={{ fontWeight: 700, mb: 1 }}>{code.code}</Typography>
+                                <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                                  Amount: ₱{Number(code.amount || 0).toLocaleString()}
+                                </Typography>
+                                <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                                  Purchased By: {code.userDisplay}
+                                </Typography>
+                                <Typography sx={{ fontSize: 12, opacity: 0.7, mt: 0.5 }}>
+                                  {code.createdAt?.seconds
+                                    ? new Date(code.createdAt.seconds * 1000).toLocaleString()
+                                    : "--"}
+                                </Typography>
+                              </CardContent>
+                            </Card>
+                          ))}
+                      </Stack>
+                    ) : (
+                      <Box sx={{ width: "100%", overflowX: "auto" }}>
+                        <TableContainer>
+                          <Table size="medium" sx={{ minWidth: 600, background: 'transparent' }}>
+                            <TableHead>
+                              <TableRow sx={{ background: "rgba(79,195,247,0.15)" }}>
+                                <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
+                                  Code
+                                </TableCell>
+                                <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
+                                  Amount (₱)
+                                </TableCell>
+                                <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
+                                  Purchased By
+                                </TableCell>
+                                <TableCell sx={{ color: "#fff", fontWeight: "bold" }}>
+                                  Date
+                                </TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {filteredDownlineCodes
+                                .slice(downlinePage * rowsPerPage, downlinePage * rowsPerPage + rowsPerPage)
+                                .map((code) => (
+                                  <TableRow
+                                    key={code.id}
+                                    sx={{
+                                      "&:hover": {
+                                        backgroundColor: "rgba(79,195,247,0.1)",
+                                      },
+                                    }}
+                                  >
+                                    <TableCell sx={{ color: "#fff" }}>{code.code}</TableCell>
+                                    <TableCell sx={{ color: "#fff" }}>
+                                      ₱{Number(code.amount || 0).toLocaleString()}
+                                    </TableCell>
+                                    <TableCell sx={{ color: "#fff" }}>{code.userDisplay}</TableCell>
+                                    <TableCell sx={{ color: "#fff" }}>
+                                      {code.createdAt?.seconds
+                                        ? new Date(code.createdAt.seconds * 1000).toLocaleString()
+                                        : "--"}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      </Box>
+                    )}
 
                     <TablePagination
                       component="div"

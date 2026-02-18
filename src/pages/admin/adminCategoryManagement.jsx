@@ -18,6 +18,8 @@ import {
   Alert,
   IconButton,
   CircularProgress,
+  Drawer,
+  useMediaQuery,
 } from "@mui/material";
 import {
   Add as AddIcon,
@@ -32,9 +34,11 @@ import { getStorage } from "firebase/storage";
 import AppHeader from "../../components/AppHeader";
 import AppBottomNav from "../../components/AppBottomNav";
 import Topbar from "../../components/Topbar";
+import AdminSidebarToggle from "../../components/AdminSidebarToggle";
 import bgImage from "../../assets/bg.jpg";
 
 export default function AdminCategoryManagement() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -42,6 +46,9 @@ export default function AdminCategoryManagement() {
   const [formData, setFormData] = useState({ name: "", displayInShop: true, image: null, imageUrl: "" });
   const [snack, setSnack] = useState({ open: false, severity: "success", message: "" });
   const [uploadingImage, setUploadingImage] = useState(false);
+  const isMobile = useMediaQuery("(max-width:900px)");
+  useEffect(() => setSidebarOpen(!isMobile), [isMobile]);
+  const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
   const fileInputRef = useRef(null);
   const storage = getStorage();
 
@@ -267,8 +274,34 @@ export default function AdminCategoryManagement() {
     }}>
       <Box sx={{ position: "relative", zIndex: 1 }}>
         <AppHeader />
-        <Topbar />
+        <Topbar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
       </Box>
+
+      {!isMobile && (
+        <Box sx={{ zIndex: 5 }}>
+          <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+        </Box>
+      )}
+
+      {isMobile && (
+        <>
+          <AdminSidebarToggle onClick={handleToggleSidebar} />
+          <Drawer
+            anchor="left"
+            open={sidebarOpen}
+            onClose={handleToggleSidebar}
+            ModalProps={{ keepMounted: true }}
+            PaperProps={{
+              sx: {
+                background: "transparent",
+                boxShadow: "none",
+              },
+            }}
+          >
+            <AppBottomNav layout="sidebar" open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+          </Drawer>
+        </>
+      )}
 
       <Container maxWidth="md" sx={{ pt: 4, pb: 4, position: "relative", zIndex: 1 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
@@ -505,7 +538,6 @@ export default function AdminCategoryManagement() {
         </Alert>
       </Snackbar>
 
-      <AppBottomNav />
     </Box>
   );
 }

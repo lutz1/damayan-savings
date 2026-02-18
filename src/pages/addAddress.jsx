@@ -57,7 +57,7 @@ const AddAddress = () => {
   const [markerAnimation, setMarkerAnimation] = useState(null);
 
   const { isLoaded } = useJsApiLoader({
-    googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY || "YOUR_API_KEY_HERE",
+    googleMapsApiKey: import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY || "YOUR_API_KEY_HERE",
     libraries: GOOGLE_MAP_LIBRARIES,
   });
 

@@ -122,7 +122,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
       const idToken = await auth.currentUser.getIdToken();
 
       // Call secure backend endpoint
-      const API_BASE = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
+      const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
       const response = await fetch(`${API_BASE}/api/transfer-funds`, {
         method: "POST",
         headers: {

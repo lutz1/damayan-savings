@@ -35,6 +35,7 @@ import {
 import { db } from "../../firebase";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
+import AdminSidebarToggle from "../../components/AdminSidebarToggle";
 import bgImage from "../../assets/bg.jpg";
 import { useTheme } from "@mui/material/styles";
 import {
@@ -78,9 +79,9 @@ const AdminWalletToWallet = () => {
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  useEffect(() => setSidebarOpen(!isMobile), [isMobile]);
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
 
-  // 🔹 ENHANCED SEARCH/FILTER styles
   const iosInputStyle = {
     borderRadius: "20px",
     backgroundColor: "rgba(255,255,255,0.15)",
@@ -103,7 +104,12 @@ const AdminWalletToWallet = () => {
     "& .MuiSvgIcon-root": { color: "white" },
   };
 
-  // Fetch sender name
+  const formatCurrency = (value) =>
+    `PHP ${Number(value || 0).toLocaleString("en-PH", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+
   const fetchSenderName = async (emailOrId) => {
     try {
       let userQuery = query(collection(db, "users"), where("uid", "==", emailOrId));
@@ -117,21 +123,19 @@ const AdminWalletToWallet = () => {
       if (!userSnap.empty) {
         const user = userSnap.docs[0].data();
         return user.fullName || user.name || user.username || "Unknown";
-      } else {
-        return "Unknown";
       }
+      return "Unknown";
     } catch (err) {
       console.error("Error fetching sender name:", err);
       return "Unknown";
     }
   };
 
-  // Fetch transfers
   useEffect(() => {
     const q = query(collection(db, "transferFunds"), orderBy("createdAt", "desc"));
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
-      let data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
       const dataWithNames = await Promise.all(
         data.map(async (t) => {
@@ -156,7 +160,6 @@ const AdminWalletToWallet = () => {
     return () => unsubscribe();
   }, []);
 
-
   const chartData = [
     { name: "Pending", value: summary.totalPending },
     { name: "Approved", value: summary.totalApproved },
@@ -170,28 +173,31 @@ const AdminWalletToWallet = () => {
 
   const financialData = [
     { name: "Gross Transfers", value: summary.totalAmount },
-    { name: "Platform Revenue", value: summary.totalRevenue },
+    { name: "Revenue", value: summary.totalRevenue },
   ];
 
-  const formatCurrency = (val) =>
-    `₱${(val || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
+  const filteredTransfers = transfers.filter((t) => {
+    const search = searchTerm.toLowerCase();
+    const matchesSearch =
+      (t.senderName || "").toLowerCase().includes(search) ||
+      (t.recipientUsername || "").toLowerCase().includes(search) ||
+      (t.senderEmail || "").toLowerCase().includes(search) ||
+      (t.userId || "").toLowerCase().includes(search);
+    const matchesStatus =
+      filterStatus === "All" || t.status?.toLowerCase() === filterStatus.toLowerCase();
+    return matchesSearch && matchesStatus;
+  });
+
+  const pagedTransfers = filteredTransfers.slice(
+    page * rowsPerPage,
+    page * rowsPerPage + rowsPerPage
+  );
 
   const handleChangePage = (event, newPage) => setPage(newPage);
   const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
-
-  const filteredTransfers = transfers.filter((t) => {
-    const search = searchTerm.toLowerCase();
-    const matchesSearch =
-      t.senderName?.toLowerCase().includes(search) ||
-      t.recipientUsername?.toLowerCase().includes(search) ||
-      t.userId?.toLowerCase().includes(search);
-
-    const matchesStatus = filterStatus === "All" || t.status === filterStatus;
-    return matchesSearch && matchesStatus;
-  });
 
   return (
     <Box
@@ -226,14 +232,23 @@ const AdminWalletToWallet = () => {
       )}
 
       {isMobile && (
-        <Drawer
-          anchor="left"
-          open={sidebarOpen}
-          onClose={handleToggleSidebar}
-          ModalProps={{ keepMounted: true }}
-        >
-          <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
-        </Drawer>
+        <>
+          <AdminSidebarToggle onClick={handleToggleSidebar} />
+          <Drawer
+            anchor="left"
+            open={sidebarOpen}
+            onClose={handleToggleSidebar}
+            ModalProps={{ keepMounted: true }}
+            PaperProps={{
+              sx: {
+                background: "transparent",
+                boxShadow: "none",
+              },
+            }}
+          >
+            <AppBottomNav layout="sidebar" open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+          </Drawer>
+        </>
       )}
 
       <Box
@@ -242,7 +257,7 @@ const AdminWalletToWallet = () => {
           flexGrow: 1,
           p: isMobile ? 1 : 3,
           mt: 2,
-          pb: { xs: 12, sm: 12, md: 12 },
+          pb: { xs: 3, sm: 12, md: 12 },
           color: "white",
           zIndex: 1,
           width: "100%",
@@ -259,123 +274,121 @@ const AdminWalletToWallet = () => {
             textAlign: isMobile ? "center" : "left",
           }}
         >
-          💳 Wallet-to-Wallet Transfer Requests
+          Wallet-to-Wallet Transfers
         </Typography>
 
-        {/* Summary */}
+        <Card
+          sx={{
+            color: "white",
+            background: "rgba(255,255,255,0.12)",
+            backdropFilter: "blur(12px)",
+            borderRadius: "16px",
+            mb: 3,
+            width: "100%",
+          }}
+        >
+          <CardContent sx={{ textAlign: isMobile ? "center" : "left" }}>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Sales Summary
+            </Typography>
+            <Typography sx={{ mt: 1 }}>
+              Total Transfers: <b>{formatCurrency(summary.totalAmount)}</b>
+            </Typography>
+            <Typography sx={{ mt: 1 }}>
+              Total Revenue: <b>{formatCurrency(summary.totalRevenue)}</b>
+            </Typography>
+          </CardContent>
+        </Card>
+
         <Card
           sx={{
             background: "rgba(255,255,255,0.12)",
             backdropFilter: "blur(12px)",
             borderRadius: "16px",
             mb: 3,
+            width: "100%",
           }}
         >
           <CardContent>
-            <Typography variant="h6" sx={{ fontWeight: 600 , color: "white",}}>
-              📊 Transfer Summary
-            </Typography>
+            <Stack direction={isMobile ? "column" : "row"} spacing={2}>
+              <Box sx={{ flex: 1, minWidth: 260, height: 260 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadialBarChart
+                    innerRadius="40%"
+                    outerRadius="90%"
+                    startAngle={90}
+                    endAngle={-270}
+                    data={chartData}
+                  >
+                    <RadialBar dataKey="value" background cornerRadius={10} />
+                    {chartData.map((entry, index) => (
+                      <Cell key={entry.name} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                    <RechartsTooltip
+                      formatter={(value, name) => [value, name]}
+                      cursor={{ fill: "rgba(255,255,255,0.05)" }}
+                      contentStyle={{
+                        background: "rgba(0,0,0,0.75)",
+                        border: "1px solid rgba(255,255,255,0.15)",
+                        borderRadius: 10,
+                        color: "white",
+                      }}
+                    />
+                    <Legend wrapperStyle={{ color: "white" }} />
+                  </RadialBarChart>
+                </ResponsiveContainer>
+                <Typography align="center" sx={{ mt: 1, opacity: 0.8, fontSize: 12 }}>
+                  Total status count: {statusTotal}
+                </Typography>
+              </Box>
 
-            <Box sx={{ width: "100%", mt: 2 }}>
-              <Stack direction={isMobile ? "column" : "row"} spacing={2}>
-                <Box sx={{ flex: 1, height: 260 }}>
-              
-                  <ResponsiveContainer>
-                    <RadialBarChart
-                      innerRadius="35%"
-                      outerRadius="95%"
-                      data={chartData.map((item, idx) => ({
-                        ...item,
-                        fill: COLORS[idx % COLORS.length],
-                        percent: Math.round((item.value / statusTotal) * 100),
-                      }))}
-                    >
-                      <RadialBar
+              <Box sx={{ flex: 1, minWidth: 260, height: 260 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={financialData} margin={{ top: 16, right: 8, left: 8, bottom: 8 }}>
+                    <defs>
+                      <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#4FC3F7" stopOpacity={0.9} />
+                        <stop offset="95%" stopColor="#4FC3F7" stopOpacity={0.5} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.15)" />
+                    <XAxis dataKey="name" stroke="#fff" />
+                    <YAxis stroke="#fff" tickFormatter={(v) => Math.round(v)} />
+                    <RechartsTooltip
+                      formatter={(value, name) => [formatCurrency(value), name]}
+                      cursor={{ fill: "rgba(255,255,255,0.05)" }}
+                      contentStyle={{
+                        background: "rgba(0,0,0,0.75)",
+                        border: "1px solid rgba(255,255,255,0.15)",
+                        borderRadius: 10,
+                        color: "white",
+                      }}
+                    />
+                    <Legend wrapperStyle={{ color: "white" }} />
+                    <Bar dataKey="value" name="Amount" fill="url(#barGradient)" radius={[10, 10, 0, 0]}>
+                      <LabelList
                         dataKey="value"
-                        cornerRadius={12}
-                        background
-                        clockWise
-                        minAngle={10}
+                        position="top"
+                        formatter={(v) => formatCurrency(v)}
+                        style={{ fill: "white", fontWeight: 600 }}
                       />
-                      <Legend
-                        iconSize={12}
-                        layout="vertical"
-                        verticalAlign="middle"
-                        align="right"
-                        formatter={(value, entry) => `${value} — ${entry.payload.percent || 0}%`}
-                      />
-                      <RechartsTooltip
-                        formatter={(value, name) => [value, `${name} requests`]}
-                        contentStyle={{
-                          background: "rgba(0,0,0,0.75)",
-                          border: "1px solid rgba(255,255,255,0.15)",
-                          borderRadius: 10,
-                          color: "white",
-                        }}
-                      />
-                    </RadialBarChart>
-                  </ResponsiveContainer>
-                </Box>
-
-                <Box sx={{ flex: 1, height: 260 }}>
-                  <ResponsiveContainer>
-                    <BarChart data={financialData} barSize={28}>
-                      <defs>
-                        <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#4FC3F7" stopOpacity={0.95} />
-                          <stop offset="100%" stopColor="#81C784" stopOpacity={0.85} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                      <XAxis dataKey="name" tick={{ fill: "white" }} axisLine={false} tickLine={false} />
-                      <YAxis
-                        tick={{ fill: "white" }}
-                        axisLine={false}
-                        tickLine={false}
-                        tickFormatter={(v) => `₱${(v / 1000).toFixed(0)}k`}
-                      />
-                      <RechartsTooltip
-                        formatter={(value, name) => [formatCurrency(value), name]}
-                        cursor={{ fill: "rgba(255,255,255,0.05)" }}
-                        contentStyle={{
-                          background: "rgba(0,0,0,0.75)",
-                          border: "1px solid rgba(255,255,255,0.15)",
-                          borderRadius: 10,
-                          color: "white",
-                        }}
-                      />
-                      <Legend wrapperStyle={{ color: "white" }} />
-                      <Bar dataKey="value" name="Amount" fill="url(#barGradient)" radius={[10, 10, 0, 0]}>
-                        <LabelList
-                          dataKey="value"
-                          position="top"
-                          formatter={(v) => formatCurrency(v)}
-                          style={{ fill: "white", fontWeight: 600 }}
-                        />
-                        {financialData.map((entry, index) => (
-                          <Cell key={entry.name} fill={index === 1 ? "#FFB74D" : "url(#barGradient)"} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </Box>
-              </Stack>
-            </Box>
+                      {financialData.map((entry, index) => (
+                        <Cell key={entry.name} fill={index === 1 ? "#FFB74D" : "url(#barGradient)"} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </Box>
+            </Stack>
           </CardContent>
         </Card>
 
-        {/* Search & Filter */}
-        <Stack
-          direction={isMobile ? "column" : "row"}
-          spacing={2}
-          mb={2}
-          sx={{ width: "100%" }}
-        >
+        <Stack direction={isMobile ? "column" : "row"} spacing={2} mb={2} sx={{ width: "100%" }}>
           <TextField
-            placeholder="Search by Sender, Recipient, or User ID"
+            placeholder="Search by sender, recipient, or user ID"
             variant="outlined"
             size="small"
-            fullWidth={true}
+            fullWidth
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             InputProps={{
@@ -403,30 +416,95 @@ const AdminWalletToWallet = () => {
           </TextField>
         </Stack>
 
-        {/* Table */}
-        <Box sx={{ width: "100%", overflowX: "auto" }}> {/* 🔹 Wrap table for mobile */}
-          <Card
-            sx={{
-              background: "rgba(255,255,255,0.12)",
-              backdropFilter: "blur(12px)",
-              borderRadius: "16px",
-              boxShadow: "0 6px 25px rgba(0,0,0,0.25)",
-              minWidth: isMobile ? "700px" : "auto",
-            }}
-          >
-            <CardContent sx={{ p: 1 }}>
-              {loading ? (
-                <Box sx={{ display: "flex", justifyContent: "center", py: 5 }}>
-                  <CircularProgress sx={{ color: "white" }} />
-                </Box>
-              ) : filteredTransfers.length === 0 ? (
-                <Typography align="center" sx={{ color: "rgba(255,255,255,0.7)", py: 3 }}>
-                  No transfer requests found.
-                </Typography>
-              ) : (
-                <>
+        <Card
+          sx={{
+            background: "rgba(255,255,255,0.12)",
+            backdropFilter: "blur(12px)",
+            borderRadius: "16px",
+            boxShadow: "0 6px 25px rgba(0,0,0,0.25)",
+            width: "100%",
+            overflowX: "auto",
+          }}
+        >
+          <CardContent sx={{ p: 1 }}>
+            {loading ? (
+              <Box sx={{ display: "flex", justifyContent: "center", py: 5 }}>
+                <CircularProgress sx={{ color: "white" }} />
+              </Box>
+            ) : filteredTransfers.length === 0 ? (
+              <Typography align="center" sx={{ color: "rgba(255,255,255,0.7)", py: 3 }}>
+                No transfer requests found.
+              </Typography>
+            ) : (
+              <>
+                {isMobile ? (
+                  <Stack spacing={2} sx={{ p: 1 }}>
+                    {pagedTransfers.map((t) => (
+                      <Card
+                        key={t.id}
+                        sx={{
+                          background: "rgba(15, 23, 42, 0.75)",
+                          borderRadius: 3,
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          color: "white",
+                        }}
+                      >
+                        <CardContent sx={{ p: 2 }}>
+                          <Typography sx={{ fontWeight: 700, mb: 1 }}>
+                            {t.senderName || "Unknown"} to {t.recipientUsername}
+                          </Typography>
+                          <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                            Amount: {formatCurrency(t.amount)}
+                          </Typography>
+                          <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                            Charge: {formatCurrency(t.charge)}
+                          </Typography>
+                          <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                            Net: {formatCurrency(t.netAmount)}
+                          </Typography>
+                          <Box
+                            sx={{
+                              mt: 1,
+                              display: "inline-block",
+                              px: 2,
+                              py: 0.5,
+                              borderRadius: "12px",
+                              backgroundColor:
+                                t.status === "Approved"
+                                  ? "rgba(129, 199, 132, 0.2)"
+                                  : t.status === "Rejected"
+                                  ? "rgba(229, 115, 115, 0.2)"
+                                  : "rgba(255, 183, 77, 0.2)",
+                              color:
+                                t.status === "Approved"
+                                  ? "#81C784"
+                                  : t.status === "Rejected"
+                                  ? "#E57373"
+                                  : "#FFB74D",
+                              fontWeight: 600,
+                              fontSize: "0.85rem",
+                            }}
+                          >
+                            {t.status}
+                          </Box>
+                          <Typography sx={{ fontSize: 12, opacity: 0.7, mt: 0.5 }}>
+                            {t.createdAt?.toDate
+                              ? new Date(t.createdAt.toDate()).toLocaleString("en-PH", {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : "N/A"}
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </Stack>
+                ) : (
                   <TableContainer>
-                    <Table size={isMobile ? "small" : "medium"}>
+                    <Table size="medium">
                       <TableHead>
                         <TableRow>
                           {[
@@ -440,7 +518,7 @@ const AdminWalletToWallet = () => {
                           ].map((head) => (
                             <TableCell
                               key={head}
-                              sx={{ color: "white", fontWeight: "bold" }}
+                              sx={{ color: "white", fontWeight: "bold", whiteSpace: "nowrap" }}
                             >
                               {head}
                             </TableCell>
@@ -448,88 +526,82 @@ const AdminWalletToWallet = () => {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {filteredTransfers
-                          .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                          .map((t) => (
-                            <motion.tr
-                              key={t.id}
-                              initial={{ opacity: 0, y: 10 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ duration: 0.3 }}
-                            >
-                              <TableCell sx={{ color: "white" }}>{t.senderName || "Unknown"}</TableCell>
-                              <TableCell sx={{ color: "white" }}>{t.recipientUsername}</TableCell>
-                              <TableCell sx={{ color: "white" }}>
-                                ₱{t.amount?.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
-                              </TableCell>
-                              <TableCell sx={{ color: "white" }}>
-                                ₱{t.charge?.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
-                              </TableCell>
-                              <TableCell sx={{ color: "white" }}>
-                                ₱{t.netAmount?.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
-                              </TableCell>
-                              <TableCell>
-                                <Box
-                                  sx={{
-                                    display: "inline-block",
-                                    px: 2,
-                                    py: 0.5,
-                                    borderRadius: "12px",
-                                    backgroundColor:
-                                      t.status === "Approved"
-                                        ? "rgba(129, 199, 132, 0.2)"
-                                        : t.status === "Rejected"
-                                        ? "rgba(229, 115, 115, 0.2)"
-                                        : "rgba(255, 183, 77, 0.2)",
-                                    color:
-                                      t.status === "Approved"
-                                        ? "#81C784"
-                                        : t.status === "Rejected"
-                                        ? "#E57373"
-                                        : "#FFB74D",
-                                    fontWeight: 600,
-                                    fontSize: "0.85rem",
-                                  }}
-                                >
-                                  {t.status}
-                                </Box>
-                              </TableCell>
-                              <TableCell sx={{ color: "white" }}>
-                                {t.createdAt?.toDate
-                                  ? new Date(t.createdAt.toDate()).toLocaleString("en-PH", {
-                                      month: "short",
-                                      day: "numeric",
-                                      year: "numeric",
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })
-                                  : "N/A"}
-                              </TableCell>
-                            </motion.tr>
-                          ))}
+                        {pagedTransfers.map((t) => (
+                          <motion.tr
+                            key={t.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.3 }}
+                          >
+                            <TableCell sx={{ color: "white" }}>{t.senderName || "Unknown"}</TableCell>
+                            <TableCell sx={{ color: "white" }}>{t.recipientUsername}</TableCell>
+                            <TableCell sx={{ color: "white" }}>{formatCurrency(t.amount)}</TableCell>
+                            <TableCell sx={{ color: "white" }}>{formatCurrency(t.charge)}</TableCell>
+                            <TableCell sx={{ color: "white" }}>{formatCurrency(t.netAmount)}</TableCell>
+                            <TableCell>
+                              <Box
+                                sx={{
+                                  display: "inline-block",
+                                  px: 2,
+                                  py: 0.5,
+                                  borderRadius: "12px",
+                                  backgroundColor:
+                                    t.status === "Approved"
+                                      ? "rgba(129, 199, 132, 0.2)"
+                                      : t.status === "Rejected"
+                                      ? "rgba(229, 115, 115, 0.2)"
+                                      : "rgba(255, 183, 77, 0.2)",
+                                  color:
+                                    t.status === "Approved"
+                                      ? "#81C784"
+                                      : t.status === "Rejected"
+                                      ? "#E57373"
+                                      : "#FFB74D",
+                                  fontWeight: 600,
+                                  fontSize: "0.85rem",
+                                }}
+                              >
+                                {t.status}
+                              </Box>
+                            </TableCell>
+                            <TableCell sx={{ color: "white" }}>
+                              {t.createdAt?.toDate
+                                ? new Date(t.createdAt.toDate()).toLocaleString("en-PH", {
+                                    month: "short",
+                                    day: "numeric",
+                                    year: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })
+                                : "N/A"}
+                            </TableCell>
+                          </motion.tr>
+                        ))}
                       </TableBody>
                     </Table>
                   </TableContainer>
+                )}
 
-                  <TablePagination
-                    component="div"
-                    count={filteredTransfers.length}
-                    page={page}
-                    onPageChange={handleChangePage}
-                    rowsPerPage={rowsPerPage}
-                    onRowsPerPageChange={handleChangeRowsPerPage}
-                    rowsPerPageOptions={[5, 10, 25, 50]}
-                    sx={{
+                <TablePagination
+                  component="div"
+                  count={filteredTransfers.length}
+                  page={page}
+                  onPageChange={handleChangePage}
+                  rowsPerPage={rowsPerPage}
+                  onRowsPerPageChange={handleChangeRowsPerPage}
+                  rowsPerPageOptions={[5, 10, 25, 50]}
+                  sx={{
+                    color: "white",
+                    ".MuiTablePagination-toolbar": { color: "white" },
+                    ".MuiTablePagination-selectLabel, .MuiTablePagination-displayedRows": {
                       color: "white",
-                      ".MuiTablePagination-toolbar": { color: "white" },
-                      ".MuiTablePagination-selectLabel, .MuiTablePagination-displayedRows": { color: "white" },
-                    }}
-                  />
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </Box>
+                    },
+                  }}
+                />
+              </>
+            )}
+          </CardContent>
+        </Card>
       </Box>
 
       <Snackbar

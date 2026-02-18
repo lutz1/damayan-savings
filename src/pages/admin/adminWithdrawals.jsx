@@ -23,16 +23,18 @@ import {
   Stack,
   MenuItem,
   InputAdornment,
+  TablePagination,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import { motion } from "framer-motion";
 import { collection, onSnapshot, doc, updateDoc, getDoc, query } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 import { db } from "../../firebase";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
+import AdminSidebarToggle from "../../components/AdminSidebarToggle";
 import bgImage from "../../assets/bg.jpg";
 import { useTheme } from "@mui/material/styles";
-import { getAuth } from "firebase/auth";
 
 const AdminWithdrawals = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -42,18 +44,22 @@ const AdminWithdrawals = () => {
   const [remarks, setRemarks] = useState("");
   const [qrImage, setQrImage] = useState(null);
   const [salesData, setSalesData] = useState({ total: 0, revenue: 0 });
-  const [userRole, setUserRole] = useState("");
+  const [userRole, setUserRole] = useState(
+    () => localStorage.getItem("userRole")?.toLowerCase() || ""
+  );
 
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const auth = getAuth();
 
+  useEffect(() => setSidebarOpen(!isMobile), [isMobile]);
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
 
-  // iOS Input Styling
   const iosInputStyle = {
     borderRadius: "20px",
     backgroundColor: "rgba(255,255,255,0.15)",
@@ -76,80 +82,79 @@ const AdminWithdrawals = () => {
     "& .MuiSvgIcon-root": { color: "white" },
   };
 
-  // Get current user role
   useEffect(() => {
     const fetchRole = async () => {
       const user = auth.currentUser;
       if (!user) return;
-      const userDoc = await getDoc(doc(db, "users", user.uid));
-      if (userDoc.exists()) setUserRole(userDoc.data().role?.toLowerCase() || "");
+
+      try {
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists()) {
+          const role = userDoc.data().role?.toLowerCase() || "";
+          setUserRole(role);
+        }
+      } catch (err) {
+        console.error("[adminWithdrawals] Error fetching role:", err);
+      }
     };
+
     fetchRole();
   }, [auth]);
 
-  // Listen to withdrawals collection
   useEffect(() => {
-  const q = query(collection(db, "withdrawals"));
-  const unsubscribe = onSnapshot(q, async (snapshot) => {
-    const data = await Promise.all(
-      snapshot.docs.map(async (docSnap) => {
-        const w = { id: docSnap.id, ...docSnap.data() };
-        if (w.userId) {
-          const userSnap = await getDoc(doc(db, "users", w.userId));
-          w.name = userSnap.exists() ? userSnap.data().username || "" : "";
-        } else {
-          w.name = "";
-        }
-        return w;
-      })
-    );
-    const sorted = data.sort((a, b) => b.createdAt?.seconds - a.createdAt?.seconds);
-    setWithdrawals(sorted);
+    const q = query(collection(db, "withdrawals"));
+    const unsubscribe = onSnapshot(
+      q,
+      async (snapshot) => {
+        const rawData = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }));
 
-    const approvedTotal = sorted
-      .filter((w) => w.status?.toLowerCase() === "approved")
-      .reduce((sum, w) => sum + Number(w.amount || 0), 0);
-    setSalesData({ total: approvedTotal, revenue: approvedTotal * 0.05 });
-    setLoading(false);
-  });
-  return () => unsubscribe();
-}, []);
+        const enrichedData = await Promise.all(
+          rawData.map(async (withdrawal) => {
+            if (!withdrawal.name || withdrawal.name.trim() === "") {
+              try {
+                const userRef = doc(db, "users", withdrawal.userId);
+                const userSnap = await getDoc(userRef);
+                if (userSnap.exists()) {
+                  const userData = userSnap.data();
+                  const displayName =
+                    userData.name || userData.fullName || userData.username || "Unknown";
+                  return { ...withdrawal, name: displayName };
+                }
+              } catch (err) {
+                console.warn("Failed to fetch user for withdrawal:", withdrawal.id, err);
+              }
+            }
+            return withdrawal;
+          })
+        );
 
-  // Approve or Reject withdrawal
-  const handleAction = async (status) => {
-    if (!selectedWithdrawal) return;
-    const { id, userId, amount } = selectedWithdrawal;
+        const sorted = enrichedData.sort(
+          (a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)
+        );
 
-    try {
-      const withdrawalRef = doc(db, "withdrawals", id);
-      await updateDoc(withdrawalRef, {
-        status: status.toLowerCase(),
-        reviewedAt: new Date(),
-        remarks,
-      });
+        const approved = sorted.filter((w) => w.status?.toLowerCase() === "approved");
+        const totalAmount = approved.reduce((sum, w) => sum + Number(w.amount || 0), 0);
+        const revenue = approved.reduce((sum, w) => sum + Number(w.charge || 0), 0);
 
-      if (status.toLowerCase() === "approved") {
-        const userRef = doc(db, "users", userId);
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists()) {
-          const currentBalance = Number(userSnap.data().eWallet || 0);
-          await updateDoc(userRef, {
-            eWallet: currentBalance - Number(amount),
-            lastUpdated: new Date(),
-          });
-        }
+        setWithdrawals(sorted);
+        setSalesData({ total: totalAmount, revenue });
+        setLoading(false);
+      },
+      (err) => {
+        console.error("Error fetching withdrawals:", err);
+        setLoading(false);
       }
+    );
 
-      setSelectedWithdrawal(null);
-      setRemarks("");
-    } catch (err) {
-      console.error("Error updating withdrawal:", err);
-    }
-  };
+    return () => unsubscribe();
+  }, []);
 
   const openDialog = (withdrawal) => {
     setSelectedWithdrawal(withdrawal);
-    setRemarks("");
+    setRemarks(withdrawal?.remarks || "");
   };
 
   const closeDialog = () => {
@@ -160,18 +165,45 @@ const AdminWithdrawals = () => {
   const handleViewQR = (url) => setQrImage(url);
   const closeQRDialog = () => setQrImage(null);
 
+  const handleAction = async (status) => {
+    if (!selectedWithdrawal) return;
+    const { id } = selectedWithdrawal;
+
+    try {
+      const withdrawalRef = doc(db, "withdrawals", id);
+      await updateDoc(withdrawalRef, {
+        status: status.toLowerCase(),
+        reviewedAt: new Date(),
+        remarks,
+      });
+      closeDialog();
+    } catch (err) {
+      console.error("Error updating withdrawal:", err);
+    }
+  };
+
   const canApproveReject = ["admin", "ceo"].includes(userRole);
 
-  // Filtered withdrawals
   const filteredWithdrawals = withdrawals.filter((w) => {
     const search = searchTerm.toLowerCase();
     const matchesSearch =
-      w.name?.toLowerCase().includes(search) ||
-      w.paymentMethod?.toLowerCase().includes(search);
+      (w.name || "").toLowerCase().includes(search) ||
+      (w.paymentMethod || "").toLowerCase().includes(search);
     const matchesStatus =
       filterStatus === "All" || w.status?.toLowerCase() === filterStatus.toLowerCase();
     return matchesSearch && matchesStatus;
   });
+
+  const pagedWithdrawals = filteredWithdrawals.slice(
+    page * rowsPerPage,
+    page * rowsPerPage + rowsPerPage
+  );
+
+  const handleChangePage = (event, newPage) => setPage(newPage);
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
 
   return (
     <Box
@@ -195,38 +227,43 @@ const AdminWithdrawals = () => {
         },
       }}
     >
-      {/* Topbar */}
       <Box sx={{ position: "fixed", width: "100%", zIndex: 10 }}>
         <Topbar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
       </Box>
 
-      {/* Sidebar for desktop */}
       {!isMobile && (
         <Box sx={{ zIndex: 5 }}>
           <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
         </Box>
       )}
 
-      {/* Sidebar Drawer for mobile */}
       {isMobile && (
-        <Drawer
-          anchor="left"
-          open={sidebarOpen}
-          onClose={handleToggleSidebar}
-          ModalProps={{ keepMounted: true }}
-        >
-          <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
-        </Drawer>
+        <>
+          <AdminSidebarToggle onClick={handleToggleSidebar} />
+          <Drawer
+            anchor="left"
+            open={sidebarOpen}
+            onClose={handleToggleSidebar}
+            ModalProps={{ keepMounted: true }}
+            PaperProps={{
+              sx: {
+                background: "transparent",
+                boxShadow: "none",
+              },
+            }}
+          >
+            <AppBottomNav layout="sidebar" open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+          </Drawer>
+        </>
       )}
 
-      {/* Main Content */}
       <Box
         component="main"
         sx={{
           flexGrow: 1,
           p: isMobile ? 1 : 3,
           mt: 2,
-          pb: { xs: 12, sm: 12, md: 12 },
+          pb: { xs: 3, sm: 12, md: 12 },
           color: "white",
           zIndex: 1,
           width: "100%",
@@ -243,10 +280,9 @@ const AdminWithdrawals = () => {
             textAlign: isMobile ? "center" : "left",
           }}
         >
-          💰 Withdrawals Management
+          Withdrawals Management
         </Typography>
 
-        {/* Sales Summary */}
         <Card
           sx={{
             color: "white",
@@ -255,26 +291,22 @@ const AdminWithdrawals = () => {
             borderRadius: "16px",
             mb: 3,
             width: "100%",
-            overflowX: "auto",
           }}
         >
           <CardContent sx={{ textAlign: isMobile ? "center" : "left" }}>
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              📈 Sales Summary
+              Sales Summary
             </Typography>
             <Typography sx={{ mt: 1 }}>
-              Total Approved Withdrawals:{" "}
-              <b>₱{salesData.total.toFixed(2)}</b>
+              Total Approved Withdrawals: <b>₱{salesData.total.toFixed(2)}</b>
             </Typography>
             <Typography sx={{ mt: 1 }}>
-              Revenue (5% charge):{" "}
-              <b>₱{salesData.revenue.toFixed(2)}</b>
+              Revenue (5% charge): <b>₱{salesData.revenue.toFixed(2)}</b>
             </Typography>
           </CardContent>
         </Card>
 
-        {/* 🔹 Search & Filter */}
-        <Stack direction={isMobile ? "column" : "row"} spacing={2} mb={2}>
+        <Stack direction={isMobile ? "column" : "row"} spacing={2} mb={2} sx={{ width: "100%" }}>
           <TextField
             placeholder="Search by Name or Method"
             variant="outlined"
@@ -307,7 +339,6 @@ const AdminWithdrawals = () => {
           </TextField>
         </Stack>
 
-        {/* Withdrawals Table */}
         <Card
           sx={{
             background: "rgba(255,255,255,0.12)",
@@ -328,65 +359,57 @@ const AdminWithdrawals = () => {
                 No withdrawals found.
               </Typography>
             ) : (
-              <TableContainer>
-                <Table size={isMobile ? "small" : "medium"}>
-                  <TableHead>
-                    <TableRow>
-                      {["Name", "Amount", "Charge", "Net", "Method", "Status", "Date", "Actions"].map(
-                        (head) => (
-                          <TableCell
-                            key={head}
-                            sx={{ color: "white", fontWeight: "bold", whiteSpace: "nowrap" }}
-                          >
-                            {head}
-                          </TableCell>
-                        )
-                      )}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {filteredWithdrawals.map((w) => {
+              <>
+                {isMobile ? (
+                  <Stack spacing={2} sx={{ p: 1 }}>
+                    {pagedWithdrawals.map((w) => {
                       const status = w.status?.toLowerCase() || "pending";
+                      const canAction = canApproveReject && status === "pending";
                       return (
-                        <motion.tr
+                        <Card
                           key={w.id}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.3 }}
+                          sx={{
+                            background: "rgba(15, 23, 42, 0.75)",
+                            borderRadius: 3,
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            color: "white",
+                          }}
                         >
-                          <TableCell sx={{ color: "white" }}>{w.name}</TableCell>
-                          <TableCell sx={{ color: "white" }}>₱{w.amount}</TableCell>
-                          <TableCell sx={{ color: "white" }}>₱{w.charge || 0}</TableCell>
-                          <TableCell sx={{ color: "white" }}>₱{w.netAmount || w.amount}</TableCell>
-                          <TableCell sx={{ color: "white" }}>{w.paymentMethod || "Wallet"}</TableCell>
-                          <TableCell
-                            sx={{
-                              color:
-                                status === "approved"
-                                  ? "#00e676"
-                                  : status === "rejected"
-                                  ? "#ff1744"
-                                  : "#fff",
-                              fontWeight: 600,
-                            }}
-                          >
-                            {status.toUpperCase()}
-                          </TableCell>
-                          <TableCell sx={{ color: "white", whiteSpace: "nowrap" }}>
-                            {w.createdAt
-                              ? new Date(w.createdAt.seconds * 1000).toLocaleString()
-                              : "—"}
-                          </TableCell>
-                          <TableCell>
-                            {canApproveReject && status === "pending" ? (
-                              <Box
-                                sx={{
-                                  display: "flex",
-                                  gap: 1,
-                                  flexWrap: "wrap",
-                                  justifyContent: "center",
-                                }}
-                              >
+                          <CardContent sx={{ p: 2 }}>
+                            <Typography sx={{ fontWeight: 700, mb: 1 }}>{w.name}</Typography>
+                            <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                              Amount: ₱{w.amount}
+                            </Typography>
+                            <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                              Charge: ₱{w.charge || 0}
+                            </Typography>
+                            <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                              Net: ₱{w.netAmount || w.amount}
+                            </Typography>
+                            <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                              Method: {w.paymentMethod || "Wallet"}
+                            </Typography>
+                            <Typography
+                              sx={{
+                                mt: 1,
+                                fontWeight: 700,
+                                color:
+                                  status === "approved"
+                                    ? "#00e676"
+                                    : status === "rejected"
+                                    ? "#ff1744"
+                                    : "#fff",
+                              }}
+                            >
+                              {status.toUpperCase()}
+                            </Typography>
+                            <Typography sx={{ fontSize: 12, opacity: 0.7, mt: 0.5 }}>
+                              {w.createdAt
+                                ? new Date(w.createdAt.seconds * 1000).toLocaleString()
+                                : "—"}
+                            </Typography>
+                            {canAction ? (
+                              <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 1 }}>
                                 {w.qrUrl && (
                                   <Button
                                     variant="outlined"
@@ -409,29 +432,145 @@ const AdminWithdrawals = () => {
                             ) : (
                               <Typography
                                 variant="body2"
-                                sx={{ color: "rgba(255,255,255,0.6)" }}
+                                sx={{ color: "rgba(255,255,255,0.6)", mt: 1 }}
                               >
                                 {status === "pending" ? "—" : "Done"}
                               </Typography>
                             )}
-                          </TableCell>
-                        </motion.tr>
+                          </CardContent>
+                        </Card>
                       );
                     })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                  </Stack>
+                ) : (
+                  <TableContainer>
+                    <Table size="medium">
+                      <TableHead>
+                        <TableRow>
+                          {[
+                            "Name",
+                            "Amount",
+                            "Charge",
+                            "Net",
+                            "Method",
+                            "Status",
+                            "Date",
+                            "Actions",
+                          ].map((head) => (
+                            <TableCell
+                              key={head}
+                              sx={{ color: "white", fontWeight: "bold", whiteSpace: "nowrap" }}
+                            >
+                              {head}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {pagedWithdrawals.map((w) => {
+                          const status = w.status?.toLowerCase() || "pending";
+                          return (
+                            <motion.tr
+                              key={w.id}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.3 }}
+                            >
+                              <TableCell sx={{ color: "white" }}>{w.name}</TableCell>
+                              <TableCell sx={{ color: "white" }}>₱{w.amount}</TableCell>
+                              <TableCell sx={{ color: "white" }}>₱{w.charge || 0}</TableCell>
+                              <TableCell sx={{ color: "white" }}>₱{w.netAmount || w.amount}</TableCell>
+                              <TableCell sx={{ color: "white" }}>{w.paymentMethod || "Wallet"}</TableCell>
+                              <TableCell
+                                sx={{
+                                  color:
+                                    status === "approved"
+                                      ? "#00e676"
+                                      : status === "rejected"
+                                      ? "#ff1744"
+                                      : "#fff",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {status.toUpperCase()}
+                              </TableCell>
+                              <TableCell sx={{ color: "white", whiteSpace: "nowrap" }}>
+                                {w.createdAt
+                                  ? new Date(w.createdAt.seconds * 1000).toLocaleString()
+                                  : "—"}
+                              </TableCell>
+                              <TableCell>
+                                {canApproveReject && status === "pending" ? (
+                                  <Box
+                                    sx={{
+                                      display: "flex",
+                                      gap: 1,
+                                      flexWrap: "wrap",
+                                      justifyContent: "center",
+                                    }}
+                                  >
+                                    {w.qrUrl && (
+                                      <Button
+                                        variant="outlined"
+                                        color="info"
+                                        size="small"
+                                        onClick={() => handleViewQR(w.qrUrl)}
+                                      >
+                                        View QR
+                                      </Button>
+                                    )}
+                                    <Button
+                                      variant="contained"
+                                      color="success"
+                                      size="small"
+                                      onClick={() => openDialog(w)}
+                                    >
+                                      Approve / Reject
+                                    </Button>
+                                  </Box>
+                                ) : (
+                                  <Typography
+                                    variant="body2"
+                                    sx={{ color: "rgba(255,255,255,0.6)" }}
+                                  >
+                                    {status === "pending" ? "—" : "Done"}
+                                  </Typography>
+                                )}
+                              </TableCell>
+                            </motion.tr>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+
+                <TablePagination
+                  component="div"
+                  count={filteredWithdrawals.length}
+                  page={page}
+                  onPageChange={handleChangePage}
+                  rowsPerPage={rowsPerPage}
+                  onRowsPerPageChange={handleChangeRowsPerPage}
+                  rowsPerPageOptions={[5, 10, 25, 50]}
+                  sx={{
+                    color: "white",
+                    ".MuiTablePagination-toolbar": { color: "white" },
+                    ".MuiTablePagination-selectLabel, .MuiTablePagination-displayedRows": {
+                      color: "white",
+                    },
+                  }}
+                />
+              </>
             )}
           </CardContent>
         </Card>
 
-        {/* Approve / Reject Dialog */}
         <Dialog open={!!selectedWithdrawal} onClose={closeDialog} fullWidth maxWidth="sm">
           <DialogTitle>Approve or Reject Withdrawal</DialogTitle>
           <DialogContent>
             <Typography variant="body1" sx={{ mb: 2 }}>
-              {selectedWithdrawal?.name} requested ₱
-              {selectedWithdrawal?.amount}.<br />
+              {selectedWithdrawal?.name} requested ₱{selectedWithdrawal?.amount}.<br />
               Charge: ₱{selectedWithdrawal?.charge || 0} | Net: ₱
               {selectedWithdrawal?.netAmount || selectedWithdrawal?.amount}
             </Typography>
@@ -446,24 +585,15 @@ const AdminWithdrawals = () => {
           </DialogContent>
           <DialogActions sx={{ flexWrap: "wrap", gap: 1 }}>
             <Button onClick={closeDialog}>Cancel</Button>
-            <Button
-              onClick={() => handleAction("rejected")}
-              color="error"
-              variant="contained"
-            >
+            <Button onClick={() => handleAction("rejected")} color="error" variant="contained">
               Reject
             </Button>
-            <Button
-              onClick={() => handleAction("approved")}
-              color="success"
-              variant="contained"
-            >
+            <Button onClick={() => handleAction("approved")} color="success" variant="contained">
               Approve
             </Button>
           </DialogActions>
         </Dialog>
 
-        {/* QR Viewer Dialog */}
         <Dialog open={!!qrImage} onClose={closeQRDialog} fullWidth maxWidth="xs">
           <DialogTitle>QR / Proof Image</DialogTitle>
           <DialogContent sx={{ textAlign: "center" }}>

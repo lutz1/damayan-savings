@@ -16,6 +16,7 @@ import {
   Divider,
   InputAdornment,
   Backdrop,
+  Drawer,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { doc, getDocs, query, collection, where, updateDoc, onSnapshot } from "firebase/firestore";
@@ -31,6 +32,7 @@ import PersonIcon from "@mui/icons-material/Person";
 import EmailIcon from "@mui/icons-material/Email";
 import PhoneIcon from "@mui/icons-material/Phone";
 import LockIcon from "@mui/icons-material/Lock";
+import AdminSidebarToggle from "../../components/AdminSidebarToggle";
 
 const AdminProfile = () => {
   const theme = useTheme();
@@ -201,9 +203,32 @@ const AdminProfile = () => {
       <Box sx={{ position: "fixed", width: "100%", zIndex: 10 }}>
         <Topbar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
       </Box>
-      <Box sx={{ zIndex: 5, position: isMobile ? "fixed" : "relative", height: "100%" }}>
-        <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
-      </Box>
+
+      {!isMobile && (
+        <Box sx={{ zIndex: 5, position: "relative", height: "100%" }}>
+          <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+        </Box>
+      )}
+
+      {isMobile && (
+        <>
+          <AdminSidebarToggle onClick={handleToggleSidebar} />
+          <Drawer
+            anchor="left"
+            open={sidebarOpen}
+            onClose={handleToggleSidebar}
+            ModalProps={{ keepMounted: true }}
+            PaperProps={{
+              sx: {
+                background: "transparent",
+                boxShadow: "none",
+              },
+            }}
+          >
+            <AppBottomNav layout="sidebar" open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+          </Drawer>
+        </>
+      )}
 
       <Box
         component="main"

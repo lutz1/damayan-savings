@@ -38,6 +38,7 @@ import {
 import { db } from "../../firebase";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
+import AdminSidebarToggle from "../../components/AdminSidebarToggle";
 import bgImage from "../../assets/bg.jpg";
 import { useTheme } from "@mui/material/styles";
 import { getAuth } from "firebase/auth";
@@ -65,6 +66,7 @@ const AdminDeposits = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const auth = getAuth();
 
+  useEffect(() => setSidebarOpen(!isMobile), [isMobile]);
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
 
   // 🔹 ENHANCED SEARCH/FILTER styles
@@ -251,6 +253,11 @@ const AdminDeposits = () => {
     return matchesSearch && matchesStatus;
   });
 
+  const pagedDeposits = filteredDeposits.slice(
+    page * rowsPerPage,
+    page * rowsPerPage + rowsPerPage
+  );
+
   // 🔹 Pagination handlers
   const handleChangePage = (event, newPage) => setPage(newPage);
   const handleChangeRowsPerPage = (event) => {
@@ -294,14 +301,23 @@ const AdminDeposits = () => {
 
       {/* Sidebar Drawer for mobile */}
       {isMobile && (
-        <Drawer
-          anchor="left"
-          open={sidebarOpen}
-          onClose={handleToggleSidebar}
-          ModalProps={{ keepMounted: true }}
-        >
-          <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
-        </Drawer>
+        <>
+          <AdminSidebarToggle onClick={handleToggleSidebar} />
+          <Drawer
+            anchor="left"
+            open={sidebarOpen}
+            onClose={handleToggleSidebar}
+            ModalProps={{ keepMounted: true }}
+            PaperProps={{
+              sx: {
+                background: "transparent",
+                boxShadow: "none",
+              },
+            }}
+          >
+            <AppBottomNav layout="sidebar" open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+          </Drawer>
+        </>
       )}
 
       {/* Main Content */}
@@ -311,7 +327,7 @@ const AdminDeposits = () => {
           flexGrow: 1,
           p: isMobile ? 1 : 3,
           mt: 2,
-          pb: { xs: 12, sm: 12, md: 12 },
+          pb: { xs: 3, sm: 12, md: 12 },
           color: "white",
           zIndex: 1,
           width: "100%",
@@ -416,30 +432,112 @@ const AdminDeposits = () => {
               </Typography>
             ) : (
               <>
-                <TableContainer>
-                  <Table size={isMobile ? "small" : "medium"}>
-                    <TableHead>
-                      <TableRow>
-                        {["Name", "Amount", "Type", "Charge", "Net Amount", "Status", "Date", "Actions"].map(
-                          (head) => (
-                            <TableCell
-                              key={head}
-                              sx={{ color: "white", fontWeight: "bold", whiteSpace: "nowrap" }}
+                {isMobile ? (
+                  <Stack spacing={2} sx={{ p: 1 }}>
+                    {pagedDeposits.map((d) => {
+                      const status = d.status?.toLowerCase() || "pending";
+                      const isPending = status === "pending";
+                      const canAction = canApproveReject && isPending;
+
+                      return (
+                        <Card
+                          key={d.id}
+                          sx={{
+                            background: "rgba(15, 23, 42, 0.75)",
+                            borderRadius: 3,
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            color: "white",
+                          }}
+                        >
+                          <CardContent sx={{ p: 2 }}>
+                            <Typography sx={{ fontWeight: 700, mb: 1 }}>
+                              {d.name || "Unknown"}
+                            </Typography>
+                            <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                              Amount: ₱{d.amount}
+                            </Typography>
+                            <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                              Type: {d.type || "—"}
+                            </Typography>
+                            <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                              Charge: ₱{d.charge || 0}
+                            </Typography>
+                            <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                              Net: ₱{d.netAmount || d.amount}
+                            </Typography>
+                            <Typography
+                              sx={{
+                                mt: 1,
+                                fontWeight: 700,
+                                color:
+                                  status === "approved"
+                                    ? "#00e676"
+                                    : status === "rejected"
+                                    ? "#ff1744"
+                                    : "#fff",
+                              }}
                             >
-                              {head}
-                            </TableCell>
-                          )
-                        )}
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {filteredDeposits
-                        .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                        .map((d) => {
+                              {status.toUpperCase()}
+                            </Typography>
+                            <Typography sx={{ fontSize: 12, opacity: 0.7, mt: 0.5 }}>
+                              {d.createdAt
+                                ? new Date(d.createdAt.seconds * 1000).toLocaleString()
+                                : "—"}
+                            </Typography>
+                            {canAction ? (
+                              <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 1 }}>
+                                {d.receiptUrl && (
+                                  <Button
+                                    variant="outlined"
+                                    color="info"
+                                    size="small"
+                                    onClick={() => handleViewProof(d.receiptUrl)}
+                                  >
+                                    View Proof
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="contained"
+                                  color="success"
+                                  size="small"
+                                  onClick={() => openDialog(d)}
+                                >
+                                  Approve / Reject
+                                </Button>
+                              </Box>
+                            ) : (
+                              <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.6)", mt: 1 }}>
+                                —
+                              </Typography>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </Stack>
+                ) : (
+                  <TableContainer>
+                    <Table size="medium">
+                      <TableHead>
+                        <TableRow>
+                          {["Name", "Amount", "Type", "Charge", "Net Amount", "Status", "Date", "Actions"].map(
+                            (head) => (
+                              <TableCell
+                                key={head}
+                                sx={{ color: "white", fontWeight: "bold", whiteSpace: "nowrap" }}
+                              >
+                                {head}
+                              </TableCell>
+                            )
+                          )}
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {pagedDeposits.map((d) => {
                           const status = d.status?.toLowerCase() || "pending";
                           const isPending = status === "pending";
                           const canAction = canApproveReject && isPending;
-                          
+
                           return (
                             <motion.tr
                               key={d.id}
@@ -508,9 +606,10 @@ const AdminDeposits = () => {
                             </motion.tr>
                           );
                         })}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
 
                 {/* 🔹 Pagination */}
                 <TablePagination

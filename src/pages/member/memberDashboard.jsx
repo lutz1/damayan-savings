@@ -189,7 +189,7 @@ const handleTransferToWallet = async ({ amount, type, rewardId = null }) => {
       if (rewardId) {
         // Single reward transfer via backend
         const idToken = await user.getIdToken();
-        const API_BASE = process.env.REACT_APP_API_BASE_URL || "https://damayan-savings-backend.onrender.com";
+        const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "https://damayan-savings-backend.onrender.com";
         
         const response = await fetch(`${API_BASE}/api/transfer-referral-reward`, {
           method: "POST",
@@ -207,7 +207,7 @@ const handleTransferToWallet = async ({ amount, type, rewardId = null }) => {
         // Bulk transfer for all approved rewards
         const userRef = doc(db, "users", user.uid);
         const idToken = await user.getIdToken();
-        const API_BASE = process.env.REACT_APP_API_BASE_URL || "https://damayan-savings-backend.onrender.com";
+        const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "https://damayan-savings-backend.onrender.com";
 
         let totalAmount = 0;
         const approvedRewards = rewardHistory.filter(r => r.payoutReleased && !r.transferredAmount);
@@ -233,7 +233,7 @@ const handleTransferToWallet = async ({ amount, type, rewardId = null }) => {
     } else if (type === "override") {
       if (rewardId) {
         const idToken = await user.getIdToken();
-        const API_BASE = process.env.REACT_APP_API_BASE_URL || "https://damayan-savings-backend.onrender.com";
+        const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "https://damayan-savings-backend.onrender.com";
         
         const response = await fetch(`${API_BASE}/api/transfer-override-reward`, {
           method: "POST",

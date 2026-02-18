@@ -28,10 +28,11 @@ import AdminCategoryManagement from "./pages/admin/adminCategoryManagement";
 import AdminPaybackEntries from "./pages/admin/adminPaybackEntries";
 
 import MerchantDashboard from "./pages/merchant/merchantDashboard";
+import MerchantOrders from "./pages/merchant/merchantOrders";
+import MerchantProducts from "./pages/merchant/merchantProducts";
 
 import AddProductPage from "./pages/merchant/addProduct";
-
-import ManageProductPage from "./pages/merchant/manageProduct";
+import EditProductPage from "./pages/merchant/editProduct";
 
 import StoreProfilePage from "./pages/merchant/storeProfile";
 
@@ -60,8 +61,8 @@ import DepositCancel from "./pages/depositCancel";
 function App() {
   const [initialized, setInitialized] = useState(false);
   const [role, setRole] = useState(() => localStorage.getItem("userRole"));
+  const appBase = window.location.pathname.startsWith("/damayan-savings") ? "/damayan-savings" : "";
   const [showSplash, setShowSplash] = useState(() => {
-    // Show splash on standalone app launch (iOS or Android PWA)
     const isStandalone =
       window.navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
     const splashShown = sessionStorage.getItem("splash_shown");
@@ -88,10 +89,6 @@ function App() {
     );
   }
 
-  /* ======================
-     ROUTE GUARDS
-  ====================== */
-
   const AdminRoute = ({ children }) =>
     ["ADMIN", "CEO"].includes(role?.toUpperCase())
       ? children
@@ -109,15 +106,11 @@ function App() {
       ? children
       : <Navigate to="/login" replace />;
 
-  /* ======================
-     AUTO REDIRECT
-  ====================== */
-
   const AutoRedirect = () => {
     const location = useLocation();
 
     useEffect(() => {
-      const base = process.env.PUBLIC_URL || "";
+      const base = appBase;
       const userRole = localStorage.getItem("userRole")?.toUpperCase();
       const locationCompleted = localStorage.getItem('locationCompleted') === 'true';
       const path = location.pathname;
@@ -128,7 +121,6 @@ function App() {
         if (["ADMIN", "CEO"].includes(userRole)) {
           window.location.replace(`${base}/admin/dashboard`);
         } else if (userRole === "MERCHANT") {
-          // Ensure merchant completes the LocationAccess flow before landing on dashboard
           if (locationCompleted) {
             window.location.replace(`${base}/merchant/dashboard`);
           } else {
@@ -150,28 +142,21 @@ function App() {
       <LocalizationProvider dateAdapter={AdapterMoment}>
         <Splashscreen
           open={showSplash}
-          logo="/damayan-savings/damayan.png"
+          logo={`${appBase}/damayan.png`}
           duration={2000}
           onClose={() => setShowSplash(false)}
         />
         {!showSplash && (
-          <Router basename={process.env.PUBLIC_URL || ""}>
+          <Router basename={appBase}>
             <AutoRedirect />
 
             <Routes>
-            {/* ======================
-                PUBLIC
-            ====================== */}
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<Login />} />
-            {/* Mobile install handled inline on the login page */}
             <Route path="/location-access" element={<LocationAccess />} />
             <Route path="/deposit-success" element={<DepositSuccess />} />
             <Route path="/deposit-cancel" element={<DepositCancel />} />
 
-            {/* ======================
-                ADMIN
-            ====================== */}
             <Route
               path="/admin/dashboard"
               element={
@@ -261,14 +246,19 @@ function App() {
               }
             />
 
-            {/* ======================
-                MERCHANT (PWA)
-            ====================== */}
            <Route
               path="/merchant/dashboard"
               element={
                 <MerchantRoute>
                   <MerchantDashboard /> 
+                </MerchantRoute>
+              }
+            />
+            <Route
+              path="/merchant/orders"
+              element={
+                <MerchantRoute>
+                  <MerchantOrders />
                 </MerchantRoute>
               }
             />
@@ -281,10 +271,18 @@ function App() {
               }
             />
             <Route
+              path="/merchant/edit-product/:productId"
+              element={
+                <MerchantRoute>
+                  <EditProductPage />
+                </MerchantRoute>
+              }
+            />
+            <Route
               path="/merchant/products"
               element={
                 <MerchantRoute>
-                  <ManageProductPage /> 
+                  <MerchantProducts />
                 </MerchantRoute>
               }
             />
@@ -305,18 +303,12 @@ function App() {
               }
             />
 
-            {/* ======================
-                CUSTOMER SHOP
-            ====================== */}
             <Route path="/shop" element={<ShopPage />} />
             <Route path="/store/:id" element={<StoreDetailsPage />} />
             <Route path="/all-stores" element={<AllStoresPage />} />
             <Route path="/shop/add-address" element={<AddAddress />} />
             <Route path="/cart" element={<CartPage />} />
 
-            {/* ======================
-                MEMBER
-            ====================== */}
             <Route
               path="/member/dashboard"
               element={
@@ -350,13 +342,6 @@ function App() {
               }
             />
 
-            {/* ======================
-                FALLBACK
-            ====================== */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-            {/* ======================
-                FALLBACK
-            ====================== */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           </Router>

@@ -13,18 +13,26 @@ import {
   TableRow,
   Paper,
   CircularProgress,
+  Drawer,
+  useMediaQuery,
+  Stack,
 } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import { motion } from "framer-motion";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import { db } from "../../firebase";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
+import AdminSidebarToggle from "../../components/AdminSidebarToggle";
 import bgImage from "../../assets/bg.jpg";
 
 const AdminTransferTransaction = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  useEffect(() => setSidebarOpen(!isMobile), [isMobile]);
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
 
   // 🔥 Fetch passive transfers (used for Total Passive Income)
@@ -71,18 +79,40 @@ const AdminTransferTransaction = () => {
       </Box>
 
       {/* 🧭 Sidebar */}
-      <Box sx={{ zIndex: 5 }}>
-        <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
-      </Box>
+      {!isMobile && (
+        <Box sx={{ zIndex: 5 }}>
+          <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+        </Box>
+      )}
+
+      {isMobile && (
+        <>
+          <AdminSidebarToggle onClick={handleToggleSidebar} />
+          <Drawer
+            anchor="left"
+            open={sidebarOpen}
+            onClose={handleToggleSidebar}
+            ModalProps={{ keepMounted: true }}
+            PaperProps={{
+              sx: {
+                background: "transparent",
+                boxShadow: "none",
+              },
+            }}
+          >
+            <AppBottomNav layout="sidebar" open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+          </Drawer>
+        </>
+      )}
 
       {/* 🧩 Main Content */}
       <Box
         component="main"
         sx={{
           flexGrow: 1,
-          p: 4,
+          p: isMobile ? 2 : 4,
           mt: 0,
-          pb: { xs: 12, sm: 12, md: 12 },
+          pb: { xs: 3, sm: 12, md: 12 },
           color: "white",
           zIndex: 1,
           width: "100%",
@@ -145,6 +175,38 @@ const AdminTransferTransaction = () => {
               <Typography align="center" sx={{ color: "rgba(255,255,255,0.7)", py: 3 }}>
                 No passive transfer records found.
               </Typography>
+            ) : isMobile ? (
+              <Stack spacing={2} sx={{ p: 1 }}>
+                {transactions.map((txn) => (
+                  <Card
+                    key={txn.id}
+                    sx={{
+                      background: "rgba(15, 23, 42, 0.75)",
+                      borderRadius: 3,
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      color: "white",
+                    }}
+                  >
+                    <CardContent sx={{ p: 2 }}>
+                      <Typography sx={{ fontWeight: 700, mb: 1 }}>
+                        User: {txn.userId || "—"}
+                      </Typography>
+                      <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                        Amount: ₱{txn.amount?.toFixed(2) || "0.00"}
+                      </Typography>
+                      <Typography sx={{ fontSize: 14, opacity: 0.9, color: "#00e676" }}>
+                        Fee (1%): ₱{txn.fee?.toFixed(2) || "0.00"}
+                      </Typography>
+                      <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                        Net: ₱{txn.netAmount?.toFixed(2) || "0.00"}
+                      </Typography>
+                      <Typography sx={{ fontSize: 12, opacity: 0.7, mt: 0.5 }}>
+                        {txn.createdAt ? new Date(txn.createdAt).toLocaleString() : "—"}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                ))}
+              </Stack>
             ) : (
               <TableContainer
                 component={Paper}

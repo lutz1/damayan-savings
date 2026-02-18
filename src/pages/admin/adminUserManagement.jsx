@@ -26,6 +26,8 @@ import {
   TextField,
   TablePagination,
   useMediaQuery,
+  Drawer,
+  Stack,
 } from "@mui/material";
 import { motion } from "framer-motion";
 import * as XLSX from "xlsx";
@@ -49,6 +51,7 @@ import { createUserWithEmailAndPassword } from "firebase/auth";
 import { db, secondaryAuth } from "../../firebase";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
+import AdminSidebarToggle from "../../components/AdminSidebarToggle";
 import bgImage from "../../assets/bg.jpg";
 
 const AdminUserManagement = () => {
@@ -82,6 +85,7 @@ const AdminUserManagement = () => {
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const isMobile = useMediaQuery("(max-width:768px)");
+  useEffect(() => setSidebarOpen(!isMobile), [isMobile]);
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
 
   const handleExportExcel = () => {
@@ -494,9 +498,31 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
       </Box>
 
       {/* 🧭 Sidebar */}
-      <Box sx={{ zIndex: 5 }}>
-        <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
-      </Box>
+      {!isMobile && (
+        <Box sx={{ zIndex: 5 }}>
+          <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+        </Box>
+      )}
+
+      {isMobile && (
+        <>
+          <AdminSidebarToggle onClick={handleToggleSidebar} />
+          <Drawer
+            anchor="left"
+            open={sidebarOpen}
+            onClose={handleToggleSidebar}
+            ModalProps={{ keepMounted: true }}
+            PaperProps={{
+              sx: {
+                background: "transparent",
+                boxShadow: "none",
+              },
+            }}
+          >
+            <AppBottomNav layout="sidebar" open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+          </Drawer>
+        </>
+      )}
 
       {/* 🧩 Main Content */}
       <Box
@@ -504,7 +530,7 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
         sx={{
           flexGrow: 1,
           p: isMobile ? 2 : 4,
-          pb: { xs: 12, sm: 12, md: 12 },
+          pb: { xs: 3, sm: 12, md: 12 },
           color: "white",
           zIndex: 1,
           width: "100%",
@@ -617,32 +643,58 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
               </Box>
             ) : (
               <>
-                <TableContainer component={Paper} sx={{ background: "transparent" }}>
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell sx={{ color: "white" }}>Username</TableCell>
-                        <TableCell sx={{ color: "white" }}>Name</TableCell>
-                        <TableCell sx={{ color: "white" }}>Email</TableCell>
-                        <TableCell sx={{ color: "white" }}>Role</TableCell>
-                        <TableCell sx={{ color: "white" }}>Referred By</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {paginatedUsers.map((user) => (
-                        <motion.tr key={user.id}>
-                          <TableCell sx={{ color: "white" }}>{user.username}</TableCell>
-                          <TableCell sx={{ color: "white" }}>{user.name}</TableCell>
-                          <TableCell sx={{ color: "white" }}>{user.email}</TableCell>
-                          <TableCell sx={{ color: "white" }}>{user.role}</TableCell>
-                          <TableCell sx={{ color: "white" }}>
-                            {user.referredBy || "—"}
-                          </TableCell>
-                        </motion.tr>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                {isMobile ? (
+                  <Stack spacing={2} sx={{ p: 1 }}>
+                    {paginatedUsers.map((user) => (
+                      <Card
+                        key={user.id}
+                        sx={{
+                          background: "rgba(15, 23, 42, 0.75)",
+                          borderRadius: 3,
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          color: "white",
+                        }}
+                      >
+                        <CardContent sx={{ p: 2 }}>
+                          <Typography sx={{ fontWeight: 700, mb: 1 }}>{user.username}</Typography>
+                          <Typography sx={{ fontSize: 14, opacity: 0.9 }}>Name: {user.name}</Typography>
+                          <Typography sx={{ fontSize: 14, opacity: 0.9 }}>Email: {user.email}</Typography>
+                          <Typography sx={{ fontSize: 14, opacity: 0.9 }}>Role: {user.role}</Typography>
+                          <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                            Referred By: {user.referredBy || "—"}
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </Stack>
+                ) : (
+                  <TableContainer component={Paper} sx={{ background: "transparent" }}>
+                    <Table>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ color: "white" }}>Username</TableCell>
+                          <TableCell sx={{ color: "white" }}>Name</TableCell>
+                          <TableCell sx={{ color: "white" }}>Email</TableCell>
+                          <TableCell sx={{ color: "white" }}>Role</TableCell>
+                          <TableCell sx={{ color: "white" }}>Referred By</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {paginatedUsers.map((user) => (
+                          <motion.tr key={user.id}>
+                            <TableCell sx={{ color: "white" }}>{user.username}</TableCell>
+                            <TableCell sx={{ color: "white" }}>{user.name}</TableCell>
+                            <TableCell sx={{ color: "white" }}>{user.email}</TableCell>
+                            <TableCell sx={{ color: "white" }}>{user.role}</TableCell>
+                            <TableCell sx={{ color: "white" }}>
+                              {user.referredBy || "—"}
+                            </TableCell>
+                          </motion.tr>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
 
                 {/* Pagination controls */}
                 <TablePagination
@@ -669,6 +721,59 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
               <Typography align="center" sx={{ color: "rgba(255,255,255,0.7)", py: 3 }}>
                 No pending invites.
               </Typography>
+            ) : isMobile ? (
+              <Stack spacing={2} sx={{ p: 1 }}>
+                {pendingInvites.map((invite) => (
+                  <Card
+                    key={invite.id}
+                    sx={{
+                      background: "rgba(15, 23, 42, 0.75)",
+                      borderRadius: 3,
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      color: "white",
+                    }}
+                  >
+                    <CardContent sx={{ p: 2 }}>
+                      <Typography sx={{ fontWeight: 700, mb: 1 }}>
+                        {invite.inviteeUsername}
+                      </Typography>
+                      <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                        Name: {invite.inviteeName}
+                      </Typography>
+                      <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                        Email: {invite.inviteeEmail}
+                      </Typography>
+                      <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                        Role: {invite.role}
+                      </Typography>
+                      <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                        Upline: {invite.uplineUsername}
+                      </Typography>
+                      <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                        Referral Code: {invite.referralCode}
+                      </Typography>
+                      <Box sx={{ display: "flex", gap: 1, mt: 1, flexWrap: "wrap" }}>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="success"
+                          onClick={() => handleApproveInvite(invite)}
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="error"
+                          onClick={() => handleRejectInvite(invite.id)}
+                        >
+                          Reject
+                        </Button>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                ))}
+              </Stack>
             ) : (
               <TableContainer component={Paper} sx={{ background: "transparent" }}>
                 <Table>

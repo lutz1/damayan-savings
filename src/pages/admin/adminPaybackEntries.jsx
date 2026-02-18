@@ -9,12 +9,16 @@ import {
   Toolbar,
   InputAdornment,
   IconButton,
+  Drawer,
+  useMediaQuery,
 } from "@mui/material";
 import SearchIcon from '@mui/icons-material/Search';
+import { useTheme } from "@mui/material/styles";
 import { db } from "../../firebase";
 import { collection, getDocs, doc, getDoc } from "firebase/firestore";
 import AppBottomNav from "../../components/AppBottomNav";
 import Topbar from "../../components/Topbar";
+import AdminSidebarToggle from "../../components/AdminSidebarToggle";
 import bgImage from "../../assets/bg.jpg";
 
 const getStatusColor = (expirationDate) => {
@@ -35,6 +39,9 @@ const AdminPaybackEntries = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [holdLoading, setHoldLoading] = useState({});
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  useEffect(() => setSidebarOpen(!isMobile), [isMobile]);
   // Filtered entries by search (username, email)
   const filteredEntries = useMemo(() => {
     return entries.filter(e => {
@@ -135,6 +142,31 @@ const AdminPaybackEntries = () => {
     >
       <Topbar open={sidebarOpen} onToggleSidebar={() => setSidebarOpen((prev) => !prev)} />
       <Toolbar />
+
+      {!isMobile && (
+        <AppBottomNav open={sidebarOpen} onToggleSidebar={() => setSidebarOpen((prev) => !prev)} />
+      )}
+
+      {isMobile && (
+        <>
+          <AdminSidebarToggle onClick={() => setSidebarOpen((prev) => !prev)} />
+          <Drawer
+            anchor="left"
+            open={sidebarOpen}
+            onClose={() => setSidebarOpen((prev) => !prev)}
+            ModalProps={{ keepMounted: true }}
+            PaperProps={{
+              sx: {
+                background: "transparent",
+                boxShadow: "none",
+              },
+            }}
+          >
+            <AppBottomNav layout="sidebar" open={sidebarOpen} onToggleSidebar={() => setSidebarOpen((prev) => !prev)} />
+          </Drawer>
+        </>
+      )}
+
       <Box sx={{ flex: 1, p: { xs: 1.5, md: 4 }, pt: { xs: 2, md: 4 }, maxWidth: 1400, mx: "auto", width: "100%" }}>
         <Typography variant="h4" sx={{ mb: 3, fontWeight: 800, color: "#fff", textShadow: "1px 1px 8px #000" }}>
           All Payback Entries
@@ -328,8 +360,7 @@ const AdminPaybackEntries = () => {
           </Box>
         )}
       </Box>
-      <Box sx={{ height: 80 }} />
-      <AppBottomNav open={sidebarOpen} onToggleSidebar={() => setSidebarOpen((prev) => !prev)} />
+      <Box sx={{ height: isMobile ? 0 : 80 }} />
     </Box>
   );
 };

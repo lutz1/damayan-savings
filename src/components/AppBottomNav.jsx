@@ -6,6 +6,13 @@ import {
   Paper,
   Menu,
   MenuItem,
+  Box,
+  List,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Divider,
+  Typography,
 } from "@mui/material";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
@@ -26,7 +33,7 @@ import {
   AccountBalance as DepositsIcon,
 } from "@mui/icons-material";
 
-const AppBottomNav = ({ open, onToggleSidebar }) => {
+const AppBottomNav = ({ open, onToggleSidebar, layout = "bottom" }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [merchantMenuAnchor, setMerchantMenuAnchor] = useState(null);
@@ -73,22 +80,23 @@ const AppBottomNav = ({ open, onToggleSidebar }) => {
     ];
   }
 
-  const handleNavigate = (value, isMenu) => {
+  const handleNavigate = (value, isMenu, anchorEl = null) => {
     if (!value || isNavigating) return;
     
     if (isMenu && value === "merchants-menu") {
-      // Open the merchants submenu - find the button element
-      const merchantsButton = document.querySelector('[data-merchants-menu]');
+      const merchantsButton = anchorEl || document.querySelector('[data-merchants-menu]');
       setMerchantMenuAnchor(merchantsButton);
     } else if (isMenu && value === "transactions-menu") {
-      // Open the transactions submenu - find the button element
-      const transactionsButton = document.querySelector('[data-transactions-menu]');
+      const transactionsButton = anchorEl || document.querySelector('[data-transactions-menu]');
       setTransactionMenuAnchor(transactionsButton);
     } else {
       // For direct nav items, use a longer delay
       setIsNavigating(true);
       setTimeout(() => {
         navigate(value);
+        if (layout === "sidebar" && onToggleSidebar) {
+          onToggleSidebar();
+        }
       }, 200);
     }
   };
@@ -98,6 +106,9 @@ const AppBottomNav = ({ open, onToggleSidebar }) => {
     // Delay navigation to allow Firestore to properly cleanup previous listeners
     setTimeout(() => {
       navigate(path);
+      if (layout === "sidebar" && onToggleSidebar) {
+        onToggleSidebar();
+      }
     }, 300);
   };
 
@@ -106,74 +117,128 @@ const AppBottomNav = ({ open, onToggleSidebar }) => {
     // Delay navigation to allow Firestore to properly cleanup previous listeners
     setTimeout(() => {
       navigate(path);
+      if (layout === "sidebar" && onToggleSidebar) {
+        onToggleSidebar();
+      }
     }, 300);
   };
 
+  const sidebarContent = (
+    <Paper
+      elevation={0}
+      sx={{
+        width: 280,
+        height: "100%",
+        borderRadius: 0,
+        background: "rgba(16, 20, 28, 0.95)",
+        backdropFilter: "blur(20px)",
+        borderRight: "1px solid rgba(255, 255, 255, 0.15)",
+        color: "#fff",
+      }}
+    >
+      <Box sx={{ px: 2, py: 2 }}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 700, letterSpacing: 0.3 }}>
+          Navigation
+        </Typography>
+      </Box>
+      <Divider sx={{ borderColor: "rgba(255,255,255,0.12)" }} />
+      <List sx={{ px: 1.2, py: 1.2 }}>
+        {navItems.map((item) => {
+          const isSelected = !item.isMenu && location.pathname === item.value;
+          return (
+            <ListItemButton
+              key={item.value}
+              onClick={(e) => handleNavigate(item.value, item.isMenu, e.currentTarget)}
+              sx={{
+                mb: 0.5,
+                borderRadius: 2,
+                color: "rgba(255,255,255,0.9)",
+                backgroundColor: isSelected ? "rgba(79,195,247,0.18)" : "transparent",
+                "&:hover": {
+                  backgroundColor: "rgba(255,255,255,0.08)",
+                },
+              }}
+            >
+              <ListItemIcon sx={{ color: "inherit", minWidth: 36 }}>{item.icon}</ListItemIcon>
+              <ListItemText
+                primary={item.label}
+                primaryTypographyProps={{ fontSize: 14, fontWeight: isSelected ? 700 : 500 }}
+              />
+            </ListItemButton>
+          );
+        })}
+      </List>
+    </Paper>
+  );
+
   return (
     <>
-      <Paper
-        elevation={10}
-        sx={{
-          position: "fixed",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          borderTopLeftRadius: 16,
-          borderTopRightRadius: 16,
-          overflow: "hidden",
-          height: 80,
-          zIndex: 1000,
-          background: "rgba(255, 255, 255, 0.1)",
-          backdropFilter: "blur(20px)",
-          borderTop: "1px solid rgba(255, 255, 255, 0.15)",
-          boxShadow: "0 8px 32px rgba(31, 38, 135, 0.25)",
-        }}
-      >
-        <BottomNavigation
-          showLabels
-          value={
-            // For merchants menu, use the current pathname if it's one of the merchant paths
-            merchantMenuAnchor && location.pathname.includes("merchant")
-              ? location.pathname
-              : merchantMenuAnchor && location.pathname.includes("categories")
-              ? location.pathname
-              : location.pathname
-          }
-          onChange={(_, value) => handleNavigate(value, navItems.find((item) => item.value === value)?.isMenu)}
+      {layout === "sidebar" ? (
+        sidebarContent
+      ) : (
+        <Paper
+          elevation={10}
           sx={{
-            height: "100%",
-            backgroundColor: "transparent",
-            "& .MuiBottomNavigationAction-root": {
-              minWidth: 70,
-              paddingTop: 5,
-              paddingBottom: 8,
-              color: "rgba(255,255,255,0.8)",
-            },
-            "& .MuiBottomNavigationAction-root.Mui-selected": {
-              color: "#ffffff",
-            },
-            "& .MuiBottomNavigationAction-label": {
-              fontSize: "0.75rem",
-              transition: "color 0.2s ease, opacity 0.2s ease",
-            },
-            "& .MuiBottomNavigationAction-root.Mui-selected .MuiBottomNavigationAction-label": {
-              fontWeight: 600,
-              letterSpacing: 0.2,
-            },
+            position: "fixed",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            borderTopLeftRadius: 16,
+            borderTopRightRadius: 16,
+            overflow: "hidden",
+            height: 80,
+            zIndex: 1000,
+            background: "rgba(255, 255, 255, 0.1)",
+            backdropFilter: "blur(20px)",
+            borderTop: "1px solid rgba(255, 255, 255, 0.15)",
+            boxShadow: "0 8px 32px rgba(31, 38, 135, 0.25)",
           }}
         >
-          {navItems.map((item) => (
-            <BottomNavigationAction
-              key={item.value}
-              label={item.label}
-              value={item.value}
-              icon={item.icon}
-              data-merchants-menu={item.isMenu && item.value === "merchants-menu" ? "true" : undefined}
-              data-transactions-menu={item.isMenu && item.value === "transactions-menu" ? "true" : undefined}
-            />
-          ))}
-        </BottomNavigation>
-      </Paper>
+          <BottomNavigation
+            showLabels
+            value={
+              merchantMenuAnchor && location.pathname.includes("merchant")
+                ? location.pathname
+                : merchantMenuAnchor && location.pathname.includes("categories")
+                ? location.pathname
+                : location.pathname
+            }
+            onChange={(_, value) => handleNavigate(value, navItems.find((item) => item.value === value)?.isMenu)}
+            sx={{
+              height: "100%",
+              backgroundColor: "transparent",
+              "& .MuiBottomNavigationAction-root": {
+                minWidth: 70,
+                paddingTop: 5,
+                paddingBottom: 8,
+                color: "rgba(255,255,255,0.8)",
+              },
+              "& .MuiBottomNavigationAction-root.Mui-selected": {
+                color: "#ffffff",
+              },
+              "& .MuiBottomNavigationAction-label": {
+                fontSize: "0.75rem",
+                transition: "color 0.2s ease, opacity 0.2s ease",
+              },
+              "& .MuiBottomNavigationAction-root.Mui-selected .MuiBottomNavigationAction-label": {
+                fontWeight: 600,
+                letterSpacing: 0.2,
+              },
+            }}
+          >
+            {navItems.map((item) => (
+              <BottomNavigationAction
+                key={item.value}
+                label={item.label}
+                value={item.value}
+                icon={item.icon}
+                data-merchants-menu={item.isMenu && item.value === "merchants-menu" ? "true" : undefined}
+                data-transactions-menu={item.isMenu && item.value === "transactions-menu" ? "true" : undefined}
+              />
+            ))}
+          </BottomNavigation>
+        </Paper>
+      )}
 
       {/* Merchants Submenu */}
       <Menu
@@ -201,7 +266,7 @@ const AppBottomNav = ({ open, onToggleSidebar }) => {
         }}
       >
         <MenuItem
-          onClick={() => handleMerchantMenuItemClick("/admin/merchant-management")}
+          onClick={() => handleMerchantMenuItemClick("/admin/merchants")}
           sx={{
             display: "flex",
             alignItems: "center",

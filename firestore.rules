@@ -48,7 +48,14 @@ service cloud.firestore {
             "contactNumber",
             "address",
             "username",
-            "updatedAt"
+            "updatedAt",
+            "storeName",
+            "storeDescription",
+            "phone",
+            "email",
+            "city",
+            "coverImage",
+            "logo"
           ])
         ) ||
         // Admin/CEO
@@ -359,6 +366,23 @@ service cloud.firestore {
           ) ||
           userRole() in ["admin", "ceo"]
         );
+    }
+
+    // 💰 SALES
+    match /sales/{saleId} {
+      allow read: if request.auth != null &&
+        (resource.data.merchantId == request.auth.uid || userRole() in ["admin", "ceo"]);
+
+      allow create, update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
+    }
+
+    // 💬 FEEDBACK
+    match /feedback/{feedbackId} {
+      allow read: if request.auth != null &&
+        (resource.data.merchantId == request.auth.uid || userRole() in ["admin", "ceo"]);
+
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
     }
 
     // 🏪 MERCHANTS (store profiles)

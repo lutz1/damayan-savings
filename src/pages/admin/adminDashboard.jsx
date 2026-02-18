@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Box, Toolbar, Typography, Grid, Card, LinearProgress } from "@mui/material";
+import { Box, Toolbar, Typography, Grid, Card, LinearProgress, Drawer, useMediaQuery } from "@mui/material";
 // import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 // import 'leaflet/dist/leaflet.css';
 import { GoogleMap, Marker, InfoWindow, useJsApiLoader } from '@react-google-maps/api';
@@ -8,17 +8,22 @@ import { collection, query, onSnapshot, orderBy } from "firebase/firestore";
 import { motion } from "framer-motion";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
+import AdminSidebarToggle from "../../components/AdminSidebarToggle";
 import bgImage from "../../assets/bg.jpg";
 import { PieChart, Pie, Cell, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts";
+import { useTheme } from "@mui/material/styles";
 
 const AdminDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  useEffect(() => setSidebarOpen(!isMobile), [isMobile]);
 
   const [userCounts, setUserCounts] = useState({ MD: 0, MS: 0, MI: 0, Agent: 0 });
   const [userLocations, setUserLocations] = useState([]); // [{lat, lng, name, address, profileUrl}]
   const [selectedMarker, setSelectedMarker] = useState(null);
     // Google Maps API loader
-    const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY || "YOUR_GOOGLE_MAPS_API_KEY_HERE";
+    const GOOGLE_MAPS_API_KEY = import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY || "YOUR_GOOGLE_MAPS_API_KEY_HERE";
     const { isLoaded } = useJsApiLoader({
       googleMapsApiKey: GOOGLE_MAPS_API_KEY,
     });
@@ -311,7 +316,30 @@ const AdminDashboard = () => {
       }}
     >
       <Box sx={{ position: "fixed", width: "100%", zIndex: 10 }}><Topbar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} /></Box>
-      <Box sx={{ zIndex: 5 }}><AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} /></Box>
+
+      {!isMobile && (
+        <Box sx={{ zIndex: 5 }}><AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} /></Box>
+      )}
+
+      {isMobile && (
+        <>
+          <AdminSidebarToggle onClick={handleToggleSidebar} />
+          <Drawer
+            anchor="left"
+            open={sidebarOpen}
+            onClose={handleToggleSidebar}
+            ModalProps={{ keepMounted: true }}
+            PaperProps={{
+              sx: {
+                background: "transparent",
+                boxShadow: "none",
+              },
+            }}
+          >
+            <AppBottomNav layout="sidebar" open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+          </Drawer>
+        </>
+      )}
 
       <Box
         component="main"
@@ -319,7 +347,7 @@ const AdminDashboard = () => {
           flexGrow: 1,
           p: { xs: 2, sm: 4 },
           mt: 0,
-          pb: { xs: 12, sm: 12, md: 12 },
+          pb: { xs: 3, sm: 12, md: 12 },
           color: "#f5f7fa",
           zIndex: 1,
           width: "100%",
@@ -327,16 +355,16 @@ const AdminDashboard = () => {
           position: "relative",
           display: 'flex',
           flexDirection: 'column',
-          alignItems: 'center',
+          alignItems: { xs: 'stretch', md: 'center' },
         }}
       >
         <Toolbar />
         {/* Header Section */}
         <Box sx={{ mb: 4, width: '100%', maxWidth: 1200 }}>
-          <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: 1, mb: 1, color: '#fff', textShadow: '0 2px 12px #000a' }}>
+          <Typography variant={isMobile ? "h5" : "h3"} sx={{ fontWeight: 900, letterSpacing: 1, mb: 1, color: '#fff', textShadow: '0 2px 12px #000a' }}>
             Welcome to <span style={{ color: '#4FC3F7' }}>Damayan Admin</span>
           </Typography>
-          <Typography variant="h6" sx={{ color: '#b0bec5', fontWeight: 500, mb: 1.5, textShadow: '0 1px 8px #0006' }}>
+          <Typography variant={isMobile ? "body1" : "h6"} sx={{ color: '#b0bec5', fontWeight: 500, mb: 1.5, textShadow: '0 1px 8px #0006' }}>
             <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>⏰ Real-time Analytics</Box>
             <Box component="span" sx={{ mx: 1, color: '#4FC3F7' }}>•</Box>
             <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>📊 Performance Metrics</Box>
@@ -348,14 +376,14 @@ const AdminDashboard = () => {
 
 
         {/* KPI Cards */}
-        <Grid container spacing={2.5} sx={{ mb: 4, width: '100%', maxWidth: 1200, flexWrap: 'nowrap' }}>
+        <Grid container spacing={2.5} sx={{ mb: 4, width: '100%', maxWidth: 1200, flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
           {[
             { label: "Total Users", value: Object.values(userCounts).reduce((a, b) => a + b, 0), icon: "👥", color: "#4FC3F7", bg: "rgba(79,195,247,0.15)", growth: "+12.5%", trend: "up" },
             { label: "Total Revenue", value: `₱${totalRevenue.toLocaleString()}` , icon: "💰", color: "#81C784", bg: "rgba(129,199,132,0.15)", growth: `${revenueGrowth}%`, trend: revenueGrowth > 0 ? "up" : "down" },
             { label: "Total Deposits", value: `₱${totalDeposits.toLocaleString()}` , icon: "📥", color: "#FFB74D", bg: "rgba(255,183,77,0.15)", growth: "+8.2%", trend: "up" },
             { label: "Total Withdrawals", value: `₱${totalWithdrawals.toLocaleString()}` , icon: "📤", color: "#E57373", bg: "rgba(229,115,115,0.15)", growth: "-5.1%", trend: "down" },
           ].map((item, index) => (
-            <Grid item xs={3} key={index} sx={{ display: "flex", width: '100%', flexBasis: 0, flexGrow: 1, flexShrink: 0 }}>
+            <Grid item xs={12} sm={6} md={3} key={index} sx={{ display: "flex", width: '100%' }}>
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -439,8 +467,8 @@ const AdminDashboard = () => {
 
 
         {/* 7-Day Trends and User Distribution Side by Side */}
-        <Grid container spacing={3} sx={{ mb: 4, width: '100%', maxWidth: 1200, flexWrap: 'nowrap'}}>
-          <Grid item xs={6} md={6} sx={{ display: 'flex', width: '78%' }}>
+        <Grid container spacing={3} sx={{ mb: 4, width: '100%', maxWidth: 1200, flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
+          <Grid item xs={12} md={8} sx={{ display: 'flex', width: '100%' }}>
             <Card sx={{
               background: "linear-gradient(120deg, rgba(79,195,247,0.18), rgba(129,199,132,0.10))",
               backdropFilter: "blur(14px)",
@@ -482,7 +510,7 @@ const AdminDashboard = () => {
               )}
             </Card>
           </Grid>
-          <Grid item xs={6} md={6} sx={{ display: 'flex', width: '25%' }}>
+          <Grid item xs={12} md={4} sx={{ display: 'flex', width: '100%' }}>
             <Card sx={{
               background: "linear-gradient(120deg, rgba(255,183,77,0.18), rgba(229,115,115,0.10))",
               backdropFilter: "blur(14px)",
@@ -542,7 +570,7 @@ const AdminDashboard = () => {
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, color: '#2196f3', display: 'flex', alignItems: 'center', gap: 1 }}>
                   🗺️ User Address Map
                 </Typography>
-                <Box sx={{ width: '100%', height: 340, borderRadius: '14px', overflow: 'hidden', position: 'relative', zIndex: 1 }}>
+                <Box sx={{ width: '100%', height: { xs: 240, sm: 300, md: 340 }, borderRadius: '14px', overflow: 'hidden', position: 'relative', zIndex: 1 }}>
                   {isLoaded && (
                     <GoogleMap
                       mapContainerStyle={{ width: '100%', height: '100%' }}
@@ -590,8 +618,8 @@ const AdminDashboard = () => {
               </Card>
             </Box>
             {/* Recent Activity & Top Users - Responsive */}
-<Grid container spacing={2.5} sx={{ mb: 4, width: '100%', maxWidth: 1200, flexWrap: 'nowrap' }}>
-  <Grid item xs={12} md={4} sx={{ display: 'flex', width: '100%', flexBasis: 0, flexGrow: 1, flexShrink: 0 }}>
+<Grid container spacing={2.5} sx={{ mb: 4, width: '100%', maxWidth: 1200, flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
+  <Grid item xs={12} md={4} sx={{ display: 'flex', width: '100%' }}>
     <Card sx={{
       background: "linear-gradient(120deg, rgba(129,199,132,0.18), rgba(79,195,247,0.10))",
       backdropFilter: "blur(14px)",
@@ -663,7 +691,7 @@ const AdminDashboard = () => {
     </Card>
   </Grid>
 
-  <Grid item xs={12} md={4} sx={{ display: 'flex', width: '100%', flexBasis: 0, flexGrow: 1, flexShrink: 0 }}>
+  <Grid item xs={12} md={4} sx={{ display: 'flex', width: '100%' }}>
     <Card sx={{
       background: "linear-gradient(120deg, rgba(255,183,77,0.18), rgba(129,199,132,0.10))",
       backdropFilter: "blur(14px)",
@@ -755,7 +783,7 @@ const AdminDashboard = () => {
     </Card>
   </Grid>
 
-  <Grid item xs={12} md={4} sx={{ display: 'flex', width: '100%', flexBasis: 0, flexGrow: 1, flexShrink: 0 }}>
+  <Grid item xs={12} md={4} sx={{ display: 'flex', width: '100%' }}>
     <Card sx={{
       background: "linear-gradient(120deg, rgba(255,183,77,0.18), rgba(229,115,115,0.10))",
       backdropFilter: "blur(14px)",

@@ -1,31 +1,39 @@
-// src/pages/merchant/merchantProfile.jsx
 import React, { useEffect, useState } from "react";
 import {
   Box,
   Typography,
-  Card,
-  CardContent,
+  Paper,
   Avatar,
   Button,
-  Divider,
   IconButton,
   Stack,
-  CircularProgress,
+  Container,
+  LinearProgress,
+  List,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
   Alert,
   Snackbar,
 } from "@mui/material";
-import {
-  AttachFile,
-  Download,
-  Delete as DeleteIcon,
-  Description,
-} from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db, auth, storage } from "../../firebase";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import BottomNav from "../../components/BottomNav";
+
+const MaterialIcon = ({ name, size = 24, filled = false }) => (
+  <span
+    className="material-symbols-outlined"
+    style={{
+      fontSize: `${size}px`,
+      fontVariationSettings: `'FILL' ${filled ? 1 : 0}, 'wght' 400`
+    }}
+  >
+    {name}
+  </span>
+);
 
 const MerchantProfile = () => {
   const navigate = useNavigate();
@@ -42,32 +50,25 @@ const MerchantProfile = () => {
     message: "",
   });
 
-  /* ======================
-     LOAD MERCHANT DATA
-  ====================== */
-useEffect(() => {
-  if (!merchantId) return;
+  useEffect(() => {
+    if (!merchantId) return;
 
-  const loadMerchant = async () => {
-    try {
-      const snap = await getDoc(doc(db, "users", merchantId));
-      console.log("User doc:", snap.data());
-      if (snap.exists()) {
-        const data = snap.data();
-        setMerchantData(data);
-        setAttachments(data.attachments || []);
-      } else {
-        console.warn("No merchant found for UID:", merchantId);
+    const loadMerchant = async () => {
+      try {
+        const snap = await getDoc(doc(db, "users", merchantId));
+        if (snap.exists()) {
+          const data = snap.data();
+          setMerchantData(data);
+          setAttachments(data.attachments || []);
+        }
+      } catch (err) {
+        console.error("Failed to load merchant data:", err);
       }
-    } catch (err) {
-      console.error("Failed to load merchant data:", err);
-    }
-  };
+    };
 
-  loadMerchant();
-}, [merchantId]);
+    loadMerchant();
+  }, [merchantId]);
 
-  // If there's no UID in localStorage, wait for auth state to provide it
   useEffect(() => {
     if (merchantId) return;
     const unsub = onAuthStateChanged(auth, (user) => {
@@ -76,7 +77,7 @@ useEffect(() => {
         try {
           localStorage.setItem("uid", user.uid);
         } catch (e) {
-          /* ignore storage errors */
+          
         }
       }
     });
@@ -138,7 +139,6 @@ useEffect(() => {
     try {
       const attachment = attachments[index];
       
-      // Delete from storage
       try {
         const fileRef = ref(storage, attachment.url);
         await deleteObject(fileRef);
@@ -146,7 +146,6 @@ useEffect(() => {
         console.warn("Failed to delete from storage:", err);
       }
 
-      // Update Firestore
       const updatedAttachments = attachments.filter((_, i) => i !== index);
       await updateDoc(doc(db, "users", merchantId), {
         attachments: updatedAttachments,
@@ -181,7 +180,7 @@ useEffect(() => {
       localStorage.removeItem('uid');
       localStorage.clear();
     } catch (e) {
-      /* ignore storage errors */
+      
     }
 
     navigate("/login");
@@ -189,78 +188,155 @@ useEffect(() => {
 
   if (!merchantData) {
     return (
-      <Box sx={{ textAlign: "center", mt: 5 }}>
-        Loading merchant info...
+      <Box sx={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <LinearProgress sx={{ width: "60%" }} />
       </Box>
     );
   }
 
-  const { merchantProfile, name, email, contactNumber, address, status } =
-    merchantData;
+  const displayName = merchantData?.merchantProfile?.merchantName || merchantData?.name || "Merchant";
+  const displayEmail = merchantData?.email || "No email";
+  const avatarUrl = merchantData?.profileImage || merchantData?.photoURL || merchantData?.merchantProfile?.logo || "";
+
+  const menuItems = [
+    { key: "personal", icon: "person", title: "Personal Information", subtitle: merchantData?.contactNumber || displayEmail },
+    { key: "payouts", icon: "account_balance", title: "Bank Account / Payouts", subtitle: "Manage payout details" },
+    { key: "store", icon: "store", title: "Store Settings", subtitle: merchantData?.address || "Manage store profile", onClick: () => navigate("/merchant/store-profile") },
+    { key: "security", icon: "shield", title: "Security & Password", subtitle: "Update account security" },
+    { key: "help", icon: "help", title: "Help Center", subtitle: "Support and FAQs" },
+  ];
 
   return (
-    <Box sx={{ pb: 10, px: 2, pt: 2, minHeight: "100vh", bgcolor: "#f5f5f5" }}>
-      <Typography variant="h5" fontWeight="bold" mb={2}>
-        {merchantProfile?.merchantName || "Merchant"} Profile
-      </Typography>
+    <Box sx={{ minHeight: "100vh", bgcolor: "#f6f7f8", pb: 16 }}>
+      <Paper
+        elevation={0}
+        sx={{
+          position: "sticky",
+          top: 0,
+          zIndex: 10,
+          bgcolor: "rgba(255, 255, 255, 0.85)",
+          backdropFilter: "blur(12px)",
+          borderBottom: "1px solid #eef2f7",
+        }}
+      >
+        <Box sx={{ px: 2, py: 2, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <Typography sx={{ fontSize: "1.25rem", fontWeight: 700, color: "#0f172a" }}>
+            Account
+          </Typography>
+          <IconButton
+            sx={{
+              width: 40,
+              height: 40,
+              bgcolor: "#f8fafc",
+              color: "#475569",
+              "&:hover": { bgcolor: "#e2e8f0", color: "#2b7cee" },
+            }}
+          >
+            <MaterialIcon name="notifications" size={22} />
+          </IconButton>
+        </Box>
+      </Paper>
 
-      <Card sx={{ mb: 2 }}>
-        <CardContent sx={{ display: "flex", alignItems: "center" }}>
-          <Avatar sx={{ width: 64, height: 64, mr: 2 }}>
-            {merchantProfile?.merchantName?.[0] || "M"}
-          </Avatar>
-          <Box>
-            <Typography variant="h6">
-              {merchantProfile?.merchantName || "Merchant Name"}
-            </Typography>
-            <Typography variant="body2" color="gray">
-              {status?.toUpperCase() || "ACTIVE"}
-            </Typography>
+      <Container maxWidth="sm" sx={{ pt: 2 }}>
+        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 2.5 }}>
+          <Box sx={{ position: "relative", mb: 1.5 }}>
+            <Avatar
+              src={avatarUrl}
+              sx={{ width: 96, height: 96, border: "4px solid #fff", boxShadow: "0 8px 24px rgba(15, 23, 42, 0.12)" }}
+            >
+              {displayName?.[0] || "M"}
+            </Avatar>
+            <Box
+              component="button"
+              type="button"
+              sx={{
+                position: "absolute",
+                right: -4,
+                bottom: -4,
+                width: 32,
+                height: 32,
+                borderRadius: "50%",
+                border: "2px solid #fff",
+                bgcolor: "#2b7cee",
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                p: 0,
+              }}
+            >
+              <MaterialIcon name="edit" size={16} />
+            </Box>
           </Box>
-        </CardContent>
-      </Card>
+          <Typography sx={{ fontSize: "1.25rem", fontWeight: 700, color: "#0f172a" }}>
+            {displayName}
+          </Typography>
+          <Typography sx={{ fontSize: "0.875rem", color: "#64748b", fontWeight: 500 }}>
+            Store Manager • {merchantData?.storeName || displayName}
+          </Typography>
+        </Box>
 
-      <Card sx={{ mb: 2 }}>
-        <CardContent>
-          <Typography variant="subtitle2" color="gray">
-            Owner Name
-          </Typography>
-          <Typography variant="body1" mb={1}>
-            {name}
-          </Typography>
+        <Paper elevation={0} sx={{ borderRadius: 3, p: 0.75, bgcolor: "transparent", mb: 2 }}>
+          <List disablePadding>
+            {menuItems.map((item) => (
+              <ListItemButton
+                key={item.key}
+                onClick={item.onClick}
+                sx={{
+                  borderRadius: 2,
+                  bgcolor: "#f8fafc",
+                  mb: 1,
+                  py: 1.2,
+                  "&:hover": { bgcolor: "#f1f5f9" },
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: 44 }}>
+                  <Box
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 2,
+                      bgcolor: "#ffffff",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      boxShadow: "0 1px 2px rgba(15,23,42,0.08)",
+                      color: "#475569",
+                    }}
+                  >
+                    <MaterialIcon name={item.icon} size={20} />
+                  </Box>
+                </ListItemIcon>
+                <ListItemText
+                  primary={item.title}
+                  secondary={item.subtitle}
+                  primaryTypographyProps={{ fontWeight: 700, color: "#334155", fontSize: "0.95rem" }}
+                  secondaryTypographyProps={{ color: "#94a3b8", fontSize: "0.75rem" }}
+                />
+                <MaterialIcon name="chevron_right" size={20} />
+              </ListItemButton>
+            ))}
+          </List>
+        </Paper>
 
-          <Typography variant="subtitle2" color="gray">
-            Email
-          </Typography>
-          <Typography variant="body1" mb={1}>
-            {email}
-          </Typography>
-
-          <Typography variant="subtitle2" color="gray">
-            Contact Number
-          </Typography>
-          <Typography variant="body1" mb={1}>
-            {contactNumber}
-          </Typography>
-
-          <Typography variant="subtitle2" color="gray">
-            Address
-          </Typography>
-          <Typography variant="body1" mb={2}>{address}</Typography>
-
-          <Divider sx={{ my: 2 }} />
-
-          <Typography variant="subtitle2" color="gray" mb={1}>
+        <Paper elevation={0} sx={{ borderRadius: 3, p: 2, mb: 2 }}>
+          <Typography sx={{ fontSize: "0.9rem", fontWeight: 700, color: "#334155", mb: 1.5 }}>
             Company Documents
           </Typography>
-          
           <Button
             component="label"
-            variant="outlined"
-            startIcon={uploading ? <CircularProgress size={20} /> : <AttachFile />}
-            disabled={uploading}
             fullWidth
-            sx={{ mb: 2 }}
+            disabled={uploading}
+            sx={{
+              mb: 1.5,
+              bgcolor: "#eef4ff",
+              color: "#2b7cee",
+              fontWeight: 700,
+              textTransform: "none",
+              borderRadius: 2,
+              "&:hover": { bgcolor: "#e2edff" },
+            }}
+            startIcon={<MaterialIcon name={uploading ? "hourglass_top" : "attach_file"} size={18} />}
           >
             {uploading ? "Uploading..." : "Upload Attachments"}
             <input
@@ -273,88 +349,73 @@ useEffect(() => {
           </Button>
 
           {attachments.length === 0 ? (
-            <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", py: 2 }}>
+            <Typography sx={{ textAlign: "center", color: "#94a3b8", py: 1, fontSize: "0.8rem" }}>
               No documents uploaded yet
             </Typography>
           ) : (
             <Stack spacing={1}>
               {attachments.map((file, index) => (
-                <Card key={index} variant="outlined" sx={{ bgcolor: "#f8f9fa" }}>
-                  <CardContent sx={{ py: 1.5, px: 2, "&:last-child": { pb: 1.5 } }}>
-                    <Stack direction="row" alignItems="center" justifyContent="space-between">
-                      <Stack direction="row" alignItems="center" spacing={1} flex={1}>
-                        <Description color="primary" />
-                        <Box sx={{ minWidth: 0, flex: 1 }}>
-                          <Typography 
-                            variant="body2" 
-                            fontWeight={500}
-                            sx={{ 
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap"
-                            }}
-                          >
-                            {file.name}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {file.size ? `${(file.size / 1024).toFixed(1)} KB` : ""}
-                            {file.uploadedAt && ` • ${new Date(file.uploadedAt).toLocaleDateString()}`}
-                          </Typography>
-                        </Box>
-                      </Stack>
-                      <Stack direction="row" spacing={0.5}>
-                        <IconButton
-                          size="small"
-                          color="primary"
-                          onClick={() => window.open(file.url, "_blank")}
-                          title="Download"
-                        >
-                          <Download fontSize="small" />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => handleDeleteAttachment(index)}
-                          title="Delete"
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Stack>
-                    </Stack>
-                  </CardContent>
-                </Card>
+                <Box
+                  key={index}
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1,
+                    p: 1,
+                    borderRadius: 2,
+                    bgcolor: "#f8fafc",
+                  }}
+                >
+                  <MaterialIcon name="description" size={20} />
+                  <Box sx={{ minWidth: 0, flex: 1 }}>
+                    <Typography sx={{ fontSize: "0.8rem", fontWeight: 600, color: "#334155", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {file.name}
+                    </Typography>
+                    <Typography sx={{ fontSize: "0.7rem", color: "#94a3b8" }}>
+                      {file.size ? `${(file.size / 1024).toFixed(1)} KB` : ""}
+                      {file.uploadedAt && ` • ${new Date(file.uploadedAt).toLocaleDateString()}`}
+                    </Typography>
+                  </Box>
+                  <IconButton size="small" onClick={() => window.open(file.url, "_blank")}>
+                    <MaterialIcon name="download" size={18} />
+                  </IconButton>
+                  <IconButton size="small" onClick={() => handleDeleteAttachment(index)}>
+                    <MaterialIcon name="delete" size={18} />
+                  </IconButton>
+                </Box>
               ))}
             </Stack>
           )}
-        </CardContent>
-      </Card>
+        </Paper>
 
-      <Button
-        variant="contained"
-        color="primary"
-        fullWidth
-        sx={{ mb: 1 }}
-        onClick={() => alert("Edit Profile clicked!")}
-      >
-        Edit Profile
-      </Button>
+        <Button
+          fullWidth
+          onClick={handleLogout}
+          sx={{
+            mb: 2,
+            border: "2px solid #fee2e2",
+            color: "#dc2626",
+            fontWeight: 700,
+            textTransform: "none",
+            borderRadius: 2.5,
+            py: 1.4,
+            "&:hover": { bgcolor: "#fef2f2", borderColor: "#fecaca" },
+          }}
+          startIcon={<MaterialIcon name="logout" size={20} />}
+        >
+          Logout
+        </Button>
 
-      <Button
-        variant="outlined"
-        color="error"
-        fullWidth
-        onClick={handleLogout}
-      >
-        Logout
-      </Button>
-
-      <Divider sx={{ my: 2 }} />
+        <Typography sx={{ textAlign: "center", fontSize: "0.65rem", letterSpacing: "0.12em", color: "#94a3b8", textTransform: "uppercase", pb: 3 }}>
+          Version 2.4.0 (Build 124)
+        </Typography>
+      </Container>
 
       <Snackbar
         open={snack.open}
         autoHideDuration={3000}
         onClose={() => setSnack({ ...snack, open: false })}
-        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       >
         <Alert severity={snack.severity} variant="filled">
           {snack.message}

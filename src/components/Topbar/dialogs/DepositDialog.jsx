@@ -70,7 +70,7 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
       }, 3000);
 
       const idToken = await auth.currentUser.getIdToken();
-      const API_BASE = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
+      const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
       const depositName = userData?.name && userData?.name.trim() 
         ? userData.name 
         : (currentUser.displayName || currentUser.email || "Unknown User");

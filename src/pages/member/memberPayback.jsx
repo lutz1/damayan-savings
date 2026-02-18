@@ -248,7 +248,7 @@ const fetchPaybackData = useCallback(async (userId) => {
       // Call backend endpoint to create payback entry securely
       const entryDate = new Date(selectedDate || new Date()).toISOString();
       const idToken = await user.getIdToken();
-      const API_BASE = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
+      const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
 
       let response;
       let retries = 0;
@@ -388,7 +388,7 @@ const fetchPaybackData = useCallback(async (userId) => {
       setLoadingTransfer(maturedEntry.id);
 
       const idToken = await user.getIdToken();
-      const API_BASE = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
+      const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
       const response = await fetch(`${API_BASE}/api/transfer-passive-income`, {
         method: "POST",
         headers: {
