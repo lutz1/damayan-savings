@@ -58,6 +58,9 @@ import MemberProfile from "./pages/member/memberProfile";
 import DepositSuccess from "./pages/depositSuccess";
 import DepositCancel from "./pages/depositCancel";
 
+import RiderDashboard from "./pages/rider/riderDashboard";
+import RiderProfile from "./pages/rider/riderProfile";
+
 
 function App() {
   const [initialized, setInitialized] = useState(false);
@@ -107,6 +110,11 @@ function App() {
       ? children
       : <Navigate to="/login" replace />;
 
+  const RiderRoute = ({ children }) =>
+    role?.toUpperCase() === "RIDER"
+      ? children
+      : <Navigate to="/login" replace />;
+
   const AutoRedirect = () => {
     const location = useLocation();
 
@@ -127,6 +135,8 @@ function App() {
           } else {
             window.location.replace(`${base}/location-access`);
           }
+        } else if (userRole === "RIDER") {
+          window.location.replace(`${base}/rider/dashboard`);
         } else if (
           ["MASTERMD", "MD", "MS", "MI", "AGENT", "MEMBER"].includes(userRole)
         ) {
@@ -348,6 +358,23 @@ function App() {
                 <MemberRoute>
                   <MemberProfile />
                 </MemberRoute>
+              }
+            />
+
+            <Route
+              path="/rider/dashboard"
+              element={
+                <RiderRoute>
+                  <RiderDashboard />
+                </RiderRoute>
+              }
+            />
+            <Route
+              path="/rider/profile"
+              element={
+                <RiderRoute>
+                  <RiderProfile />
+                </RiderRoute>
               }
             />
 

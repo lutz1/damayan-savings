@@ -74,6 +74,9 @@ const Login = () => {
       case "MEMBER":
         goTo("/member/dashboard");
         break;
+      case "RIDER":
+        goTo("/rider/dashboard");
+        break;
       default:
         goTo("/");
     }

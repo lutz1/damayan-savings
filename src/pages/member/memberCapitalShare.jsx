@@ -27,7 +27,6 @@ import {
   query,
   where,
   serverTimestamp,
-  orderBy,
 } from "firebase/firestore";
 // 🔹 CHANGE: react-big-calendar imports
 import Topbar from "../../components/Topbar";
@@ -121,42 +120,62 @@ const MemberCapitalShare = () => {
       const entriesRef = collection(db, "capitalShareEntries");
       const q = query(
         entriesRef,
-        where("userId", "==", user.uid),
-        orderBy("createdAt", "desc")
+        where("userId", "==", user.uid)
       );
       const snap = await getDocs(q);
       const now = new Date();
 
       const updates = [];
 
+      const toDateSafe = (value) => {
+        if (!value) return null;
+        if (typeof value.toDate === "function") return value.toDate();
+        const parsed = value instanceof Date ? value : new Date(value);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+      };
+
       snap.docs.forEach((docEntry) => {
         const data = docEntry.data();
-        
-        let nextProfitDate = data.nextProfitDate?.toDate ? data.nextProfitDate.toDate() : data.nextProfitDate;
-        const createdAt = data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt;
+
+        const createdAt = toDateSafe(data.createdAt) || toDateSafe(data.date);
+        if (!createdAt) return;
+
+        let nextProfitDate = toDateSafe(data.nextProfitDate);
+        if (!nextProfitDate) {
+          nextProfitDate = new Date(createdAt);
+          nextProfitDate.setMonth(nextProfitDate.getMonth() + 1);
+        }
+
         const expireDate = new Date(createdAt);
         expireDate.setFullYear(expireDate.getFullYear() + 1);
 
-        if (now >= nextProfitDate && now <= expireDate) {
-          // Profit calculation: 5% of capital share amount
-          // If already transferred, use remaining lock-in; otherwise use full amount
-          let profitBase = 0;
-          if (data.transferredAmount && data.transferredAmount > 0) {
-            // After transfer: profit only on remaining lock-in amount
-            // Lock-in is never transferred, so remaining lock-in = lockInPortion
-            profitBase = data.lockInPortion || 0;
-          } else {
-            // Before transfer: profit on full amount
-            profitBase = data.amount || 0;
-          }
-          
-          const profitAmount = profitBase * 0.05;
-          updates.push({
-            id: docEntry.id,
-            newProfit: (data.profit || 0) + profitAmount,
-            nextProfitDate: new Date(nextProfitDate.setMonth(nextProfitDate.getMonth() + 1)),
-          });
+        if (now > expireDate || now < nextProfitDate) return;
+
+        let profitBase = 0;
+        if (data.transferredAmount && data.transferredAmount > 0) {
+          profitBase = data.lockInPortion || 0;
+        } else {
+          profitBase = data.amount || 0;
         }
+
+        if (profitBase <= 0) return;
+
+        let monthsDue = 0;
+        const nextDateAfterAccrual = new Date(nextProfitDate);
+        while (nextDateAfterAccrual <= now && nextDateAfterAccrual <= expireDate) {
+          monthsDue += 1;
+          nextDateAfterAccrual.setMonth(nextDateAfterAccrual.getMonth() + 1);
+        }
+
+        if (monthsDue <= 0) return;
+
+        const totalProfitToAdd = profitBase * 0.05 * monthsDue;
+        updates.push({
+          id: docEntry.id,
+          newProfit: (data.profit || 0) + totalProfitToAdd,
+          nextProfitDate: nextDateAfterAccrual,
+          profitStatus: "Pending",
+        });
       });
 
       for (const u of updates) {
@@ -164,6 +183,7 @@ const MemberCapitalShare = () => {
         await updateDoc(entryRef, {
           profit: u.newProfit,
           nextProfitDate: u.nextProfitDate,
+          profitStatus: u.profitStatus,
         });
       }
     } catch (err) {
@@ -241,12 +261,21 @@ const MemberCapitalShare = () => {
 
       if (entry.nextProfitDate && typeof entry.nextProfitDate.toDate === "function") {
         entry.nextProfitDate = entry.nextProfitDate.toDate();
+      } else if (entry.nextProfitDate && !(entry.nextProfitDate instanceof Date)) {
+        const parsedNextProfit = new Date(entry.nextProfitDate);
+        entry.nextProfitDate = Number.isNaN(parsedNextProfit.getTime()) ? null : parsedNextProfit;
       }
       if (entry.createdAt && typeof entry.createdAt.toDate === "function") {
         entry.createdAt = entry.createdAt.toDate();
+      } else if (entry.createdAt && !(entry.createdAt instanceof Date)) {
+        const parsedCreatedAt = new Date(entry.createdAt);
+        entry.createdAt = Number.isNaN(parsedCreatedAt.getTime()) ? null : parsedCreatedAt;
       }
       if (entry.date && typeof entry.date.toDate === "function") {
         entry.date = entry.date.toDate();
+      } else if (entry.date && !(entry.date instanceof Date)) {
+        const parsedDate = new Date(entry.date);
+        entry.date = Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
       }
       if (entry.transferableAfterDate && typeof entry.transferableAfterDate.toDate === "function") {
         entry.transferableAfterDate = entry.transferableAfterDate.toDate();

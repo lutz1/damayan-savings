@@ -433,7 +433,33 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // 🚫 DENY EVERYTHING ELSE
+    // � DELIVERIES
+    match /deliveries/{deliveryId} {
+      allow read: if request.auth != null &&
+        (resource.data.riderId == request.auth.uid || userRole() in ["admin", "ceo"]);
+
+      allow list: if request.auth != null && (
+        userRole() in ["admin", "ceo"] ||
+        request.query.where("riderId", "==", request.auth.uid)
+      );
+
+      allow create: if request.auth != null && userRole() in ["admin", "ceo"];
+
+      allow update: if request.auth != null &&
+        (
+          (resource.data.riderId == request.auth.uid &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              "status", "lastUpdated", "notes"
+            ])
+          ) ||
+          userRole() in ["admin", "ceo"]
+        );
+
+      allow delete: if request.auth != null && userRole() in ["admin", "ceo"];
+    }
+
+    // ==========================================
+    // �🚫 DENY EVERYTHING ELSE
     match /{document=**} {
       allow read, write: if false;
     }
