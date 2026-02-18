@@ -200,7 +200,7 @@ const AdminProfile = () => {
         overflowX: "hidden",
       }}
     >
-      <Box sx={{ position: "fixed", width: "100%", zIndex: 10 }}>
+      <Box sx={{ position: "fixed", width: "100%", zIndex: 1200 }}>
         <Topbar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
       </Box>
 

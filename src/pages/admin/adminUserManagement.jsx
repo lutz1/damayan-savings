@@ -48,7 +48,8 @@ import {
   updateDoc
 } from "firebase/firestore";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { db, secondaryAuth } from "../../firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth, db, secondaryAuth } from "../../firebase";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
 import AdminSidebarToggle from "../../components/AdminSidebarToggle";
@@ -60,6 +61,7 @@ const AdminUserManagement = () => {
   const [users, setUsers] = useState([]);
   const [pendingInvites, setPendingInvites] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [authReady, setAuthReady] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [newUser, setNewUser] = useState({
@@ -87,6 +89,13 @@ const AdminUserManagement = () => {
   const isMobile = useMediaQuery("(max-width:768px)");
   useEffect(() => setSidebarOpen(!isMobile), [isMobile]);
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
+
+  useEffect(() => {
+    const unsubAuth = onAuthStateChanged(auth, () => {
+      setAuthReady(true);
+    });
+    return () => unsubAuth();
+  }, []);
 
   const handleExportExcel = () => {
   if (!users || users.length === 0) {
@@ -118,6 +127,10 @@ const AdminUserManagement = () => {
 
   // 🔥 Fetch users
   useEffect(() => {
+    if (!authReady || !auth.currentUser) {
+      return undefined;
+    }
+
     setLoading(true);
     let q = query(collection(db, "users"), orderBy("createdAt", "desc"));
     if (roleFilter !== "All") {
@@ -135,22 +148,36 @@ const AdminUserManagement = () => {
         setLoading(false);
       },
       (error) => {
-        console.error("Error fetching users:", error);
+        if (error?.code !== "permission-denied") {
+          console.error("Error fetching users:", error);
+        }
         setLoading(false);
       }
     );
 
     return () => unsubscribe();
-  }, [roleFilter]);
+  }, [roleFilter, authReady]);
 
   // 🔥 Fetch pending invites
   useEffect(() => {
+    if (!authReady || !auth.currentUser) {
+      return undefined;
+    }
+
     const q = collection(db, "pendingInvites");
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setPendingInvites(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        setPendingInvites(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+      },
+      (error) => {
+        if (error?.code !== "permission-denied") {
+          console.error("Error fetching pending invites:", error);
+        }
+      }
+    );
     return () => unsubscribe();
-  }, []);
+  }, [authReady]);
 
   // ✅ Create user manually
   const handleCreateUser = async () => {
@@ -493,7 +520,7 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
       }}
     >
       {/* 🔝 Topbar */}
-      <Box sx={{ position: "fixed", width: "100%", zIndex: 10 }}>
+      <Box sx={{ position: "fixed", width: "100%", zIndex: 1200 }}>
         <Topbar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
       </Box>
 

@@ -24,6 +24,7 @@ import AdminWithdrawals from "./pages/admin/adminWithdrawals";
 import AdminDeposits from "./pages/admin/adminDeposits";
 
 import AdminCategoryManagement from "./pages/admin/adminCategoryManagement";
+import AdminProductManagement from "./pages/admin/adminProductManagement";
 
 import AdminPaybackEntries from "./pages/admin/adminPaybackEntries";
 
@@ -242,6 +243,14 @@ function App() {
               element={
                 <AdminRoute>
                   <AdminCategoryManagement />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/products"
+              element={
+                <AdminRoute>
+                  <AdminProductManagement />
                 </AdminRoute>
               }
             />

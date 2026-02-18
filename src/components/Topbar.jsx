@@ -33,6 +33,7 @@ import {
   GroupAdd as InviteIcon,
   KeyboardArrowRight as CloseIcon,
   VpnKey as CodeIcon,
+  Menu as MenuIcon,
 } from "@mui/icons-material";
 import { signOut } from "firebase/auth";
 import { auth, db } from "../firebase";
@@ -191,6 +192,7 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
         <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
           {/* Left */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            {onToggleSidebar && <IconButton color="inherit" onClick={onToggleSidebar} sx={{ display: { xs: "none", md: "inline-flex" } }}><MenuIcon /></IconButton>}
             <Box
               component="img"
               src={tclcLogo}

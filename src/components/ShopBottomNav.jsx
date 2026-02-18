@@ -1,83 +1,80 @@
 import React from "react";
-import {
-  Badge,
-  BottomNavigation,
-  BottomNavigationAction,
-  Paper,
-} from "@mui/material";
-import {
-  AccountCircle,
-  ShoppingBasket,
-  RestaurantMenu,
-  LocalMall,
-  Weekend,
-} from "@mui/icons-material";
+import { Badge, Box, Paper, Typography } from "@mui/material";
+
+const MaterialIcon = ({ name, filled = false }) => (
+  <span
+    className="material-symbols-outlined"
+    style={{
+      fontSize: 22,
+      fontVariationSettings: `'FILL' ${filled ? 1 : 0}, 'wght' 400`,
+    }}
+  >
+    {name}
+  </span>
+);
 
 const ShopBottomNav = ({ value, onChange, cartCount = 0 }) => (
   <Paper
-    elevation={10}
+    elevation={0}
     sx={{
       position: "fixed",
       bottom: 0,
       left: 0,
       right: 0,
-      borderTopLeftRadius: 16,
-      borderTopRightRadius: 16,
-      overflow: "hidden",
-      height: 80,
+      borderTop: "1px solid",
+      borderColor: "#e5e7eb",
+      bgcolor: "rgba(255, 255, 255, 0.95)",
+      backdropFilter: "blur(10px)",
+      height: 76,
       zIndex: 1000,
     }}
   >
-    <BottomNavigation
-      showLabels
-      value={value}
-      onChange={(_, newValue) => onChange?.(newValue)}
+    <Box
       sx={{
-        height: "100%",
-        "& .MuiBottomNavigationAction-root": {
-          minWidth: 70,
-          paddingTop: 5,
-          paddingBottom: 8,
-        },
-        "& .MuiBottomNavigationAction-label": {
-          fontSize: "0.85rem",
-        },
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        px: 3,
+        pt: 1.5,
+        pb: 2.5,
       }}
     >
-      <BottomNavigationAction
-        label="Food"
-        value="food"
-        icon={<RestaurantMenu />}
-      />
-
-      <BottomNavigationAction
-        label="Grocery"
-        value="grocery"
-        icon={<ShoppingBasket />}
-      />
-
-      <BottomNavigationAction
-        label="Leisure"
-        value="leisure"
-        icon={<Weekend />}
-      />
-
-      <BottomNavigationAction
-        label="Market"
-        value="cart"
-        icon={
-          <Badge color="error" badgeContent={cartCount} max={99}>
-            <LocalMall />
-          </Badge>
-        }
-      />
-
-      <BottomNavigationAction
-        label="Account"
-        value="account"
-        icon={<AccountCircle />}
-      />
-    </BottomNavigation>
+      {[
+        { label: "Food", value: "food", icon: "restaurant" },
+        { label: "Grocery", value: "grocery", icon: "shopping_basket" },
+        { label: "Leisure", value: "leisure", icon: "weekend" },
+        { label: "Market", value: "cart", icon: "storefront" },
+        { label: "Account", value: "account", icon: "account_circle" },
+      ].map((item) => {
+        const isActive = value === item.value;
+        return (
+          <Box
+            key={item.value}
+            onClick={() => onChange?.(item.value)}
+            sx={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 0.5,
+              color: isActive ? "#3b4a6b" : "#94a3b8",
+              cursor: "pointer",
+            }}
+          >
+            {item.value === "cart" ? (
+              <Badge color="error" badgeContent={cartCount} max={99}>
+                <MaterialIcon name={item.icon} filled={isActive} />
+              </Badge>
+            ) : (
+              <MaterialIcon name={item.icon} filled={isActive} />
+            )}
+            <Typography sx={{ fontSize: "0.6rem", fontWeight: isActive ? 700 : 600 }}>
+              {item.label}
+            </Typography>
+          </Box>
+        );
+      })}
+    </Box>
   </Paper>
 );
 

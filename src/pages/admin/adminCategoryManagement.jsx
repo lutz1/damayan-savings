@@ -272,9 +272,11 @@ export default function AdminCategoryManagement() {
         zIndex: 0,
       },
     }}>
-      <Box sx={{ position: "relative", zIndex: 1 }}>
-        <AppHeader />
-        <Topbar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+      <Box sx={{ position: "fixed", width: "100%", zIndex: 1200 }}>
+        <Box sx={{ position: "relative", zIndex: 1 }}>
+          <AppHeader />
+          <Topbar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
+        </Box>
       </Box>
 
       {!isMobile && (
@@ -303,7 +305,7 @@ export default function AdminCategoryManagement() {
         </>
       )}
 
-      <Container maxWidth="md" sx={{ pt: 4, pb: 4, position: "relative", zIndex: 1 }}>
+      <Container maxWidth="md" sx={{ pt: 4, pb: 4, position: "relative", zIndex: 1, mt: 8, ml: isMobile ? 0 : sidebarOpen ? 35 : 0, transition: "all 0.3s ease" }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
           <Typography variant="h5" fontWeight="bold" color="#fff">
             Shop Categories

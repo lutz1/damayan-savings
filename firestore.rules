@@ -16,22 +16,29 @@ service cloud.firestore {
     match /users/{userId} {
 
       // Allow reading user profiles (safe fields only)
+      // Any authenticated user can read (merchants can read their own or any user)
       allow read: if request.auth != null;
 
-      // Username search
-      allow list: if request.auth != null &&
-        request.query.limit <= 10 &&
-        request.query.where("username", ">=") &&
-        request.query.where("username", "<=");
+      // List users:
+      // - Admin/CEO can list for management screens
+      // - Others can only run bounded username-prefix search
+      allow list: if request.auth != null && (
+        userRole() in ["admin", "ceo"] ||
+        (
+          request.query.limit <= 10 &&
+          request.query.where("username", ">=") &&
+          request.query.where("username", "<=")
+        )
+      );
 
       // CREATE
       allow create: if request.auth != null && userRole() in ["admin", "ceo"];
 
-      // UPDATE - Allow admin SDK (no auth context) OR user updating their own OR admin/ceo
+      // UPDATE - Allow admin SDK (no auth context) OR user updating their own OR admin/ceo (including merchants)
       allow update: if (
         // Admin SDK (server-side)
         request.auth == null ||
-        // User updating their own profile
+        // User updating their own profile or merchant updating their profile
         (
           request.auth.uid == userId &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([

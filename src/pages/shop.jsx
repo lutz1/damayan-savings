@@ -7,6 +7,7 @@ import {
   Stack,
   Typography,
   Button,
+  Paper,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -14,6 +15,8 @@ import {
   TextField as MuiTextField,
   Container,
   IconButton,
+  InputAdornment,
+  Badge,
   Snackbar,
   Alert,
   CircularProgress,
@@ -30,9 +33,21 @@ import {
 } from "@mui/icons-material";
 import { collection, query, where, onSnapshot, doc, getDoc} from "firebase/firestore";
 import { db } from "../firebase";
-import ShopTopNav from "../components/ShopTopNav";
 import ShopBottomNav from "../components/ShopBottomNav";
 import ShopLocationDialog from "../components/ShopLocationDialog";
+
+const MaterialIcon = ({ name, filled = false, size = 24, sx = {} }) => (
+  <span
+    className="material-symbols-outlined"
+    style={{
+      fontSize: size,
+      fontVariationSettings: `'FILL' ${filled ? 1 : 0}, 'wght' 400`,
+      ...sx,
+    }}
+  >
+    {name}
+  </span>
+);
 
 const currency = (n) =>
   typeof n === "number"
@@ -87,6 +102,7 @@ export default function ShopPage() {
   const lastScrollY = useRef(0);
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const normalizeText = (value) => (value || "").toString().trim().toLowerCase();
   const categoryToNav = (cat) => {
     if (!cat) return "none";
     const lookup = {
@@ -267,13 +283,41 @@ export default function ShopPage() {
     return [];
   }, [shopCategories]);
 
+  const visibleProducts = useMemo(() => {
+    const selectedCategory = normalizeText(category);
+    const searchTerm = normalizeText(search);
+
+    return products
+      .filter((product) => {
+        const productStatus = normalizeText(product.status);
+        const productApproval = (product.approvalStatus || "PENDING").toString().toUpperCase();
+        if (productStatus !== "active" || productApproval !== "APPROVED") return false;
+
+        const matchesCategory =
+          selectedCategory === "all" || normalizeText(product.category) === selectedCategory;
+
+        const matchesSearch =
+          !searchTerm ||
+          normalizeText(product.name).includes(searchTerm) ||
+          normalizeText(product.description).includes(searchTerm) ||
+          normalizeText(product.category).includes(searchTerm);
+
+        return matchesCategory && matchesSearch;
+      })
+      .sort((a, b) => {
+        const aTime = a.updatedAt?.toMillis?.() || a.createdAt?.toMillis?.() || 0;
+        const bTime = b.updatedAt?.toMillis?.() || b.createdAt?.toMillis?.() || 0;
+        return bTime - aTime;
+      });
+  }, [products, category, search]);
+
   // Derived: ordered merchant list for store headers
   const merchantList = useMemo(() => {
-    const ids = [...new Set(products.map((p) => p.merchantId).filter(Boolean))];
+    const ids = [...new Set(visibleProducts.map((p) => p.merchantId).filter(Boolean))];
     return ids
       .map((id) => ({ id, ...(merchants[id] || {}) }))
       .filter((m) => Object.keys(m).length > 1);
-  }, [products, merchants]);
+  }, [visibleProducts, merchants]);
 
   const cartTotal = useMemo(
     () => cart.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0),
@@ -379,33 +423,105 @@ export default function ShopPage() {
   const locationSubtext = currentLocationCityProvince || currentLocation || "Set delivery location";
 
   return (
-    <Box sx={{
-      minHeight: "100vh",
-      bgcolor: "#f5f5f5",
-      pb: 12,
-      pt: 30, // reserve space for fixed ShopTopNav (~208px)
-      overscrollBehaviorY: "contain",
-      overflowX: "hidden",
-    }}>
-      <ShopTopNav
-        search={search}
-        onSearchChange={(e) => setSearch(e.target.value)}
-        headerHidden={headerHidden}
-        locationText={locationText}
-        locationSubtext={locationSubtext}
-        adHidden={adHidden}
-        onLocationClick={() => setLocationDialogOpen(true)}
-        onBackClick={() => navigate("/member/dashboard")}
-        onVoiceError={(msg) => setSnack({ open: true, severity: "error", message: msg })}
-        cartCount={cart.length}
-        onCartClick={() => setCartDialogOpen(true)}
-      />
+    <Box
+      sx={{
+        minHeight: "100vh",
+        bgcolor: "#f4f4f5",
+        pb: 14,
+        overscrollBehaviorY: "contain",
+        overflowX: "hidden",
+      }}
+    >
+      <Box
+        sx={{
+          bgcolor: "#3b4a6b",
+          pt: 6,
+          pb: 4,
+          px: 2,
+          borderBottomLeftRadius: "32px",
+          borderBottomRightRadius: "32px",
+          boxShadow: "0 12px 26px rgba(15, 23, 42, 0.25)",
+        }}
+      >
+        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+          <Stack direction="row" alignItems="center" spacing={1.5} sx={{ flex: 1, minWidth: 0 }}>
+            <IconButton
+              onClick={() => navigate("/member/dashboard")}
+              sx={{ color: "white" }}
+              aria-label="back"
+            >
+              <MaterialIcon name="arrow_back" size={22} />
+            </IconButton>
+            <Box
+              onClick={() => setLocationDialogOpen(true)}
+              sx={{ cursor: "pointer", minWidth: 0 }}
+            >
+              <Typography sx={{ fontSize: "0.6rem", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#cbd5f5" }}>
+                Current Location
+              </Typography>
+              <Stack direction="row" spacing={0.5} alignItems="center" sx={{ color: "white" }}>
+                <MaterialIcon name="location_on" size={16} />
+                <Typography
+                  sx={{ fontSize: "0.85rem", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                >
+                  {locationSubtext}
+                </Typography>
+              </Stack>
+            </Box>
+          </Stack>
+
+          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ color: "white" }}>
+            <IconButton onClick={() => setCartDialogOpen(true)} sx={{ color: "white" }}>
+              <Badge
+                color="error"
+                badgeContent={cart.length}
+                overlap="circular"
+                sx={{ "& .MuiBadge-badge": { fontSize: "0.55rem" } }}
+              >
+                <MaterialIcon name="shopping_cart" size={22} />
+              </Badge>
+            </IconButton>
+            <IconButton sx={{ color: "white" }}>
+              <MaterialIcon name="notifications" size={22} />
+            </IconButton>
+          </Stack>
+        </Stack>
+
+        <MuiTextField
+          fullWidth
+          placeholder="Search products..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <MaterialIcon name="search" size={20} sx={{ color: "#94a3b8" }} />
+              </InputAdornment>
+            ),
+            endAdornment: (
+              <InputAdornment position="end">
+                <MaterialIcon name="mic" size={20} sx={{ color: "#94a3b8" }} />
+              </InputAdornment>
+            ),
+          }}
+          sx={{
+            "& .MuiOutlinedInput-root": {
+              bgcolor: "#f8fafc",
+              borderRadius: 3,
+              fontSize: "0.9rem",
+              "& fieldset": { border: "none" },
+              "&:hover": { bgcolor: "#f1f5f9" },
+              "&.Mui-focused": { bgcolor: "#ffffff", boxShadow: "0 0 0 2px rgba(124, 58, 237, 0.15)" },
+            },
+          }}
+        />
+      </Box>
 
       {/* Pull-to-Refresh Indicator */}
       <Box
         sx={{
           position: "fixed",
-          top: headerHidden ? 60 : 200,
+          top: 120,
           left: 0,
           right: 0,
           display: "flex",
@@ -438,34 +554,69 @@ export default function ShopPage() {
         </Box>
       </Box>
 
-      <Container maxWidth="sm" sx={{ pt: 2 }}>
-        {/* Category List - Scrollable Horizontal with Images */}
+      <Container maxWidth="sm" sx={{ mt: -3, pb: 2 }}>
+        <Paper
+          elevation={0}
+          sx={{
+            p: 2.5,
+            borderRadius: 4,
+            bgcolor: "#ffffff",
+            border: "1px solid #e5e7eb",
+            boxShadow: "0 14px 26px rgba(15, 23, 42, 0.08)",
+            display: "flex",
+            gap: 2,
+            alignItems: "center",
+            mb: 3,
+          }}
+        >
+          <Box
+            sx={{
+              width: 56,
+              height: 56,
+              borderRadius: "50%",
+              bgcolor: "#7c3aed",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 8px 18px rgba(124, 58, 237, 0.25)",
+              color: "white",
+            }}
+          >
+            <MaterialIcon name="bolt" size={30} filled />
+          </Box>
+          <Box sx={{ flex: 1 }}>
+            <Typography sx={{ fontWeight: 800, color: "#7c3aed", fontSize: "1rem" }}>
+              Flash sale today only
+            </Typography>
+            <Typography sx={{ fontSize: "0.75rem", color: "#64748b", mt: 0.5 }}>
+              Limited time offers. Shop now!
+            </Typography>
+            <Stack direction="row" spacing={0.5} sx={{ mt: 1.5 }}>
+              <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#e2e8f0" }} />
+              <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#e2e8f0" }} />
+              <Box sx={{ width: 24, height: 6, borderRadius: 6, bgcolor: "#7c3aed" }} />
+            </Stack>
+          </Box>
+        </Paper>
+
         {!loading && categories.length > 0 && (
           <Stack spacing={1.5} sx={{ mb: 3 }}>
-            <Typography 
-              variant="subtitle1" 
-              fontWeight={600} 
-              sx={{ px: 2, color: "#333" }}
-            >
+            <Typography sx={{ fontWeight: 800, color: "#1f2937", fontSize: "1.1rem", px: 0.5 }}>
               What’s your mood for food?
             </Typography>
             <Box
               sx={{
                 display: "flex",
-                gap: 5,
+                gap: 2,
                 overflowX: "auto",
                 pb: 1,
-                px: 2,
                 scrollBehavior: "smooth",
-                "&::-webkit-scrollbar": {
-                  display: "none",
-                },
+                "&::-webkit-scrollbar": { display: "none" },
                 msOverflowStyle: "none",
                 scrollbarWidth: "none",
               }}
             >
-              {/* "All" category option */}
-              <Stack alignItems="center" spacing={0.75}>
+              <Stack alignItems="center" spacing={1} sx={{ minWidth: 80 }}>
                 <Button
                   onClick={() => {
                     setCategory("all");
@@ -473,29 +624,19 @@ export default function ShopPage() {
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   }}
                   sx={{
-                    minWidth: 72,
-                    width: 72,
-                    height: 72,
+                    width: 80,
+                    height: 80,
                     p: 0,
-                    borderRadius: 4,
+                    borderRadius: 3,
                     overflow: "hidden",
-                    transition: "all 200ms ease",
-                    border: category === "all" ? "2px solid #1976d2" : "1px solid #e0e0e0",
-                    bgcolor: "#fff",
-                    "&:hover": {
-                      borderColor: "#1976d2",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                    },
+                    border: category === "all" ? "2px solid #3b82f6" : "1px solid #e5e7eb",
+                    bgcolor: "#ffffff",
+                    boxShadow: "0 6px 16px rgba(15, 23, 42, 0.08)",
                   }}
                 >
-                  <Typography variant="h5" sx={{ fontSize: "1.5rem" }}>
-                    🛍️
-                  </Typography>
+                  <MaterialIcon name="restaurant" size={32} />
                 </Button>
-                <Typography
-                  variant="caption"
-                  sx={{ fontSize: "0.75rem", fontWeight: 600, color: category === "all" ? "#1976d2" : "#333" }}
-                >
+                <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, color: category === "all" ? "#2563eb" : "#475569" }}>
                   All
                 </Typography>
               </Stack>
@@ -505,23 +646,18 @@ export default function ShopPage() {
                 const isSelected = category === cat;
 
                 return (
-                  <Stack key={cat} alignItems="center" spacing={0.75}>
+                  <Stack key={cat} alignItems="center" spacing={1} sx={{ minWidth: 80 }}>
                     <Button
                       onClick={() => setCategory(cat)}
                       sx={{
-                        minWidth: 72,
-                        width: 72,
-                        height: 72,
+                        width: 80,
+                        height: 80,
                         p: 0,
-                        borderRadius: 4,
+                        borderRadius: 3,
                         overflow: "hidden",
-                        transition: "all 200ms ease",
-                        border: isSelected ? "2px solid #1976d2" : "1px solid #e0e0e0",
-                        bgcolor: "#fff",
-                        "&:hover": {
-                          borderColor: "#1976d2",
-                          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                        },
+                        border: isSelected ? "2px solid #3b82f6" : "1px solid #e5e7eb",
+                        bgcolor: "#ffffff",
+                        boxShadow: "0 6px 16px rgba(15, 23, 42, 0.08)",
                       }}
                     >
                       {categoryData?.imageUrl ? (
@@ -529,71 +665,150 @@ export default function ShopPage() {
                           component="img"
                           src={categoryData.imageUrl}
                           alt={cat}
-                          sx={{
-                            width: "100%",
-                            height: "100%",
-                            objectFit: "cover",
-                            display: "block",
-                          }}
+                          sx={{ width: "100%", height: "100%", objectFit: "cover" }}
                         />
                       ) : (
-                        <Box
-                          sx={{
-                            width: "100%",
-                            height: "100%",
-                            bgcolor: "#eee",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          <Typography variant="caption" sx={{ fontSize: "1.4rem" }}>
-                            📁
-                          </Typography>
-                        </Box>
+                        <MaterialIcon name="restaurant" size={28} />
                       )}
                     </Button>
-                    <Typography
-                      variant="caption"
-                      sx={{ fontSize: "0.75rem", fontWeight: 600, color: isSelected ? "#1976d2" : "#333" }}
-                    >
+                    <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, color: isSelected ? "#2563eb" : "#64748b" }}>
                       {cat}
                     </Typography>
                   </Stack>
                 );
               })}
             </Box>
-            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ px: 2, mt: 0.5 }}>
-              <Typography
-                variant="subtitle2"
-                sx={{ color: "#555", fontWeight: 600 }}
-              >
-                Hungry? Order now
-              </Typography>
-              <IconButton
-                size="small"
-                onClick={() => navigate("/all-stores")}
-                sx={{ color: "#555" }}
-              >
-                <ChevronRightIcon fontSize="small" />
-              </IconButton>
+            <Stack direction="row" spacing={1} alignItems="center" justifyContent="center">
+              <MaterialIcon name="arrow_left" size={12} sx={{ color: "#94a3b8" }} />
+              <Box sx={{ height: 6, width: 120, borderRadius: 999, bgcolor: "#e2e8f0", overflow: "hidden" }}>
+                <Box sx={{ width: 40, height: "100%", bgcolor: "#94a3b8", borderRadius: 999 }} />
+              </Box>
+              <MaterialIcon name="arrow_right" size={12} sx={{ color: "#94a3b8" }} />
             </Stack>
           </Stack>
         )}
 
-        {/* Store Headers - Horizontal scroll for multiple stores */}
+        <Button
+          fullWidth
+          onClick={() => navigate("/all-stores")}
+          sx={{
+            mb: 3,
+            p: 2,
+            borderRadius: 3,
+            bgcolor: "#ffffff",
+            border: "1px solid #e5e7eb",
+            textTransform: "none",
+            fontWeight: 700,
+            color: "#475569",
+            justifyContent: "space-between",
+            "&:hover": { bgcolor: "#f8fafc" },
+          }}
+        >
+          Hungry? Order now
+          <MaterialIcon name="chevron_right" size={20} sx={{ color: "#94a3b8" }} />
+        </Button>
+
+        {!loading && (
+          <Stack spacing={1.5} sx={{ mb: 3 }}>
+            <Typography sx={{ fontWeight: 800, color: "#1f2937", fontSize: "1.05rem", px: 0.5 }}>
+              {category === "all" ? "Recommended for you" : `${category} picks`}
+            </Typography>
+
+            {visibleProducts.length === 0 ? (
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 2,
+                  borderRadius: 3,
+                  bgcolor: "#ffffff",
+                  border: "1px solid #e5e7eb",
+                  color: "#64748b",
+                  fontWeight: 600,
+                }}
+              >
+                No approved products yet for this category.
+              </Paper>
+            ) : (
+              <Stack spacing={1.5}>
+                {visibleProducts.slice(0, 20).map((product) => (
+                  <Card
+                    key={product.id}
+                    sx={{
+                      borderRadius: 3,
+                      overflow: "hidden",
+                      border: "1px solid #e5e7eb",
+                      boxShadow: "0 8px 18px rgba(15, 23, 42, 0.08)",
+                    }}
+                  >
+                    <Stack direction="row" spacing={0} sx={{ minHeight: 112 }}>
+                      <Box sx={{ width: 118, flexShrink: 0, bgcolor: "#f1f5f9" }}>
+                        <CardMedia
+                          component="img"
+                          image={product.image || "/icons/icon-192x192.png"}
+                          alt={product.name || "Product"}
+                          sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        />
+                      </Box>
+                      <Stack spacing={0.5} sx={{ flex: 1, p: 1.5, minWidth: 0 }}>
+                        <Typography sx={{ fontWeight: 800, color: "#0f172a", fontSize: "0.95rem" }} noWrap>
+                          {product.name || "Product"}
+                        </Typography>
+                        <Typography sx={{ color: "#16a34a", fontWeight: 800, fontSize: "0.9rem" }}>
+                          {currency(Number(product.price || 0))}
+                        </Typography>
+                        <Typography
+                          sx={{
+                            color: "#64748b",
+                            fontSize: "0.78rem",
+                            lineHeight: 1.35,
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {product.description || "No description available."}
+                        </Typography>
+                        <Box sx={{ pt: 0.5 }}>
+                          <Button
+                            size="small"
+                            variant="contained"
+                            onClick={() => {
+                              setSelectedProduct(product);
+                              setQuantity(1);
+                            }}
+                            sx={{
+                              textTransform: "none",
+                              fontWeight: 700,
+                              borderRadius: 2,
+                              px: 1.6,
+                              minWidth: 0,
+                            }}
+                          >
+                            Add
+                          </Button>
+                        </Box>
+                      </Stack>
+                    </Stack>
+                  </Card>
+                ))}
+              </Stack>
+            )}
+          </Stack>
+        )}
+
+        {/* Store Cards - Horizontal scroll for multiple stores */}
         {!loading && merchantList.length > 0 && (
-          <Stack spacing={1} sx={{ mb: 3 }}>
-            <Typography variant="subtitle1" fontWeight={600} sx={{ px: 1, color: "#333" }}>
-              Stores
+          <Stack spacing={2} sx={{ mb: 3 }}>
+            <Typography sx={{ fontWeight: 800, color: "#1f2937", fontSize: "1.1rem", px: 0.5 }}>
+              Featured Stores
             </Typography>
             <Box
               sx={{
                 display: "flex",
-                gap: 1.5,
+                gap: 2,
                 overflowX: "auto",
                 pb: 1,
-                px: 1,
                 scrollBehavior: "smooth",
                 "&::-webkit-scrollbar": { display: "none" },
                 msOverflowStyle: "none",
@@ -601,66 +816,119 @@ export default function ShopPage() {
               }}
             >
               {merchantList.map((merchant) => (
-                <Stack key={merchant.id} spacing={0.75} sx={{ minWidth: 240, maxWidth: 260 }}>
-                  <Card
-                    sx={{ boxShadow: "0 2px 8px rgba(0,0,0,0.08)", overflow: "hidden", borderRadius: 1, cursor: "pointer" }}
-                    onClick={() => navigate(`/store/${merchant.id}`)}
-                  >
-                    <Box sx={{ position: "relative", height: 160, bgcolor: "#eee" }}>
-                      <CardMedia
-                        component="img"
-                        image={merchant.coverImage || "/icons/icon-192x192.png"}
-                        alt="Store cover"
-                        sx={{ height: "100%", width: "100%", objectFit: "cover" }}
-                      />
-                      <IconButton
-                        size="small"
-                        sx={{ position: "absolute", top: 8, right: 8, bgcolor: "rgba(255,255,255,0.9)" }}
-                        aria-label="favorite"
-                      >
-                        <FavoriteBorderIcon sx={{ color: "#d32f2f" }} />
-                      </IconButton>
-                    </Box>
-                  </Card>
-                  <Stack spacing={0.5} sx={{ px: 0.5 }}>
-                    <Typography variant="subtitle1" fontWeight="bold" noWrap>
+                <Card
+                  key={merchant.id}
+                  onClick={() => navigate(`/store/${merchant.id}`)}
+                  sx={{
+                    minWidth: 280,
+                    maxWidth: 300,
+                    borderRadius: 3,
+                    overflow: "hidden",
+                    border: "1px solid #e5e7eb",
+                    boxShadow: "0 6px 16px rgba(15, 23, 42, 0.08)",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    "&:hover": {
+                      transform: "translateY(-4px)",
+                      boxShadow: "0 12px 28px rgba(59, 74, 107, 0.18)",
+                      borderColor: "#3b4a6b",
+                    },
+                  }}
+                >
+                  <Box sx={{ position: "relative", height: 140, bgcolor: "#f1f5f9" }}>
+                    <CardMedia
+                      component="img"
+                      image={merchant.coverImage || "/icons/icon-192x192.png"}
+                      alt={merchant.storeName || "Store"}
+                      sx={{ height: "100%", width: "100%", objectFit: "cover" }}
+                    />
+                    <IconButton
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Add to favorites logic here
+                      }}
+                      sx={{
+                        position: "absolute",
+                        top: 10,
+                        right: 10,
+                        bgcolor: "rgba(255,255,255,0.95)",
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                        "&:hover": { bgcolor: "white" },
+                      }}
+                      aria-label="favorite"
+                    >
+                      <FavoriteBorderIcon sx={{ fontSize: 18, color: "#ef4444" }} />
+                    </IconButton>
+                  </Box>
+                  
+                  <Stack spacing={1.5} sx={{ p: 2 }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: "1rem", color: "#1f2937" }} noWrap>
                       {merchant.storeName || "Shop"}
                     </Typography>
+                    
                     {merchant.hours && (
-                      <Stack direction="row" spacing={0.75} alignItems="center">
-                        <AccessTimeIcon sx={{ fontSize: 16, color: "#90a4ae" }} />
-                        <Typography variant="caption" color="#90a4ae">
-                          Hours: {merchant.hours}
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <AccessTimeIcon sx={{ fontSize: 16, color: "#3b4a6b" }} />
+                        <Typography sx={{ fontSize: "0.75rem", color: "#64748b" }}>
+                          {merchant.hours}
                         </Typography>
                       </Stack>
                     )}
+                    
                     {merchant.deliveryTime && (
-                      <Stack direction="row" spacing={0.75} alignItems="center">
-                        <TimerIcon sx={{ fontSize: 16, color: "#90a4ae" }} />
-                        <Typography variant="caption" color="#90a4ae">
-                          Delivery time: {merchant.deliveryTime}
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <TimerIcon sx={{ fontSize: 16, color: "#3b4a6b" }} />
+                        <Typography sx={{ fontSize: "0.75rem", color: "#64748b" }}>
+                          {merchant.deliveryTime}
                         </Typography>
                       </Stack>
                     )}
+                    
                     {(merchant.deliveryRadiusKm || merchant.deliveryRatePerKm) && (
-                      <Stack direction="row" spacing={0.75} alignItems="center">
-                        <LocalShippingIcon sx={{ fontSize: 16, color: "#90a4ae" }} />
-                        <Typography variant="caption" color="#90a4ae">
-                          Delivery fee: {merchant.deliveryRatePerKm ? `₱${merchant.deliveryRatePerKm}/km` : "-"}
-                          {merchant.deliveryRadiusKm ? ` within ${merchant.deliveryRadiusKm} km` : ""}
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <LocalShippingIcon sx={{ fontSize: 16, color: "#3b4a6b" }} />
+                        <Typography sx={{ fontSize: "0.75rem", color: "#64748b" }} noWrap>
+                          {merchant.deliveryRatePerKm ? `₱${merchant.deliveryRatePerKm}/km` : "Free delivery"}
+                          {merchant.deliveryRadiusKm ? ` • ${merchant.deliveryRadiusKm} km` : ""}
                         </Typography>
                       </Stack>
                     )}
+                    
                     {merchant.location && (
-                      <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 0 }}>
-                        <LocationOnIcon sx={{ fontSize: 16, color: "#90a4ae" }} />
-                        <Typography variant="caption" color="#90a4ae" noWrap>
+                      <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                        <LocationOnIcon sx={{ fontSize: 16, color: "#3b4a6b" }} />
+                        <Typography sx={{ fontSize: "0.75rem", color: "#64748b" }} noWrap>
                           {merchant.location}
                         </Typography>
                       </Stack>
                     )}
+
+                    <Box
+                      sx={{
+                        mt: 1,
+                        pt: 1.5,
+                        borderTop: "1px solid #e5e7eb",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Stack direction="row" spacing={0.5} alignItems="center">
+                        <MaterialIcon name="star" size={16} filled sx={{ color: "#fbbf24" }} />
+                        <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, color: "#1f2937" }}>
+                          4.8
+                        </Typography>
+                        <Typography sx={{ fontSize: "0.7rem", color: "#94a3b8" }}>
+                          (120+)
+                        </Typography>
+                      </Stack>
+                      <Typography sx={{ fontSize: "0.7rem", fontWeight: 600, color: "#7c3aed" }}>
+                        View Store →
+                      </Typography>
+                    </Box>
                   </Stack>
-                </Stack>
+                </Card>
               ))}
             </Box>
           </Stack>
@@ -776,7 +1044,7 @@ export default function ShopPage() {
         savedAddresses={savedAddresses}
         onSelectAddress={handleSelectAddress}
         onAddAddress={handleLocationDialogAddAddress}
-      / >
+      />
 
       <Snackbar
         open={snack.open}

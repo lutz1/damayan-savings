@@ -41,7 +41,12 @@ export default function AllStoresPage() {
           query(collection(db, "products"), where("status", "==", "active"))
         );
 
-        const merchantIds = [...new Set(productsSnap.docs.map((d) => d.data().merchantId).filter(Boolean))];
+        const approvedProducts = productsSnap.docs.filter((d) => {
+          const approvalStatus = (d.data().approvalStatus || "").toString().toUpperCase();
+          return approvalStatus === "APPROVED";
+        });
+
+        const merchantIds = [...new Set(approvedProducts.map((d) => d.data().merchantId).filter(Boolean))];
 
         const merchantData = await Promise.all(
           merchantIds.map(async (id) => {

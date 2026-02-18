@@ -288,7 +288,7 @@ const AdminDeposits = () => {
       }}
     >
       {/* Topbar */}
-      <Box sx={{ position: "fixed", width: "100%", zIndex: 10 }}>
+      <Box sx={{ position: "fixed", width: "100%", zIndex: 1200 }}>
         <Topbar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
       </Box>
 
@@ -332,6 +332,8 @@ const AdminDeposits = () => {
           zIndex: 1,
           width: "100%",
           overflowX: "hidden",
+          paddingLeft: isMobile ? 0 : sidebarOpen ? 280 : 0,
+          transition: "all 0.3s ease",
         }}
       >
         <Toolbar />

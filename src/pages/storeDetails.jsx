@@ -76,7 +76,9 @@ export default function StoreDetailsPage() {
     const unsub = onSnapshot(
       productsQuery,
       (snap) => {
-        const list = snap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+        const list = snap.docs
+          .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+          .filter((product) => (product.approvalStatus || "").toString().toUpperCase() === "APPROVED");
         setProducts(list);
         setProductsLoading(false);
       },

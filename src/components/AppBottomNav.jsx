@@ -13,8 +13,12 @@ import {
   ListItemText,
   Divider,
   Typography,
+  Badge,
 } from "@mui/material";
 import { useNavigate, useLocation } from "react-router-dom";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth, db } from "../firebase";
 import {
   Dashboard as DashboardIcon,
   AccountCircle as AccountCircleIcon,
@@ -31,6 +35,7 @@ import {
   Category as CategoryIcon,
   Receipt as TransactionIcon,
   AccountBalance as DepositsIcon,
+  FactCheck as ProductApprovalIcon,
 } from "@mui/icons-material";
 
 const AppBottomNav = ({ open, onToggleSidebar, layout = "bottom" }) => {
@@ -39,6 +44,8 @@ const AppBottomNav = ({ open, onToggleSidebar, layout = "bottom" }) => {
   const [merchantMenuAnchor, setMerchantMenuAnchor] = useState(null);
   const [transactionMenuAnchor, setTransactionMenuAnchor] = useState(null);
   const [isNavigating, setIsNavigating] = useState(false);
+  const [pendingApprovals, setPendingApprovals] = useState(0);
+  const [authReady, setAuthReady] = useState(false);
 
   // Close menus when location changes
   useEffect(() => {
@@ -47,8 +54,35 @@ const AppBottomNav = ({ open, onToggleSidebar, layout = "bottom" }) => {
     setIsNavigating(false);
   }, [location.pathname]);
 
+  useEffect(() => {
+    const unsubAuth = onAuthStateChanged(auth, () => {
+      setAuthReady(true);
+    });
+
+    return () => unsubAuth();
+  }, []);
+
   const role = localStorage.getItem("userRole");
   const upperRole = role?.toUpperCase();
+  const effectiveLayout = ["ADMIN", "CEO"].includes(upperRole) && layout === "bottom" ? "sidebar" : layout;
+
+  useEffect(() => {
+    if (!["ADMIN", "CEO"].includes(upperRole) || !authReady || !auth.currentUser) return undefined;
+
+    const unsubPendingApprovals = onSnapshot(
+      query(collection(db, "products"), where("approvalStatus", "==", "PENDING")),
+      (snap) => {
+        setPendingApprovals(snap.size);
+      },
+      (err) => {
+        if (err?.code !== "permission-denied") {
+          console.error("Pending approvals listener error:", err);
+        }
+      }
+    );
+
+    return () => unsubPendingApprovals();
+  }, [upperRole, authReady]);
 
   // Navigation items based on role
   let navItems = [];
@@ -60,6 +94,7 @@ const AppBottomNav = ({ open, onToggleSidebar, layout = "bottom" }) => {
       { label: "Codes", value: "/admin/generate-codes", icon: <MonetizationOnIcon /> },
       { label: "Users", value: "/admin/user-management", icon: <PieChartIcon /> },
       { label: "Merchants", value: "merchants-menu", icon: <MerchantIcon />, isMenu: true },
+      { label: "Product Management", value: "/admin/products", icon: <ProductApprovalIcon /> },
       { label: "Transactions", value: "transactions-menu", icon: <TransactionIcon />, isMenu: true },
       { label: "Account", value: "/admin/profile", icon: <AccountCircleIcon /> },
     ];
@@ -123,17 +158,39 @@ const AppBottomNav = ({ open, onToggleSidebar, layout = "bottom" }) => {
     }, 300);
   };
 
+  const renderItemIcon = (item) => {
+    if (item.value === "/admin/products" && pendingApprovals > 0) {
+      return (
+        <Badge
+          color="error"
+          badgeContent={pendingApprovals > 99 ? "99+" : pendingApprovals}
+          sx={{ "& .MuiBadge-badge": { fontSize: "0.6rem", minWidth: 16, height: 16 } }}
+        >
+          {item.icon}
+        </Badge>
+      );
+    }
+
+    return item.icon;
+  };
+
   const sidebarContent = (
     <Paper
       elevation={0}
       sx={{
+        position: "fixed",
+        left: open ? 0 : -280,
+        top: 64,
+        bottom: 0,
         width: 280,
-        height: "100%",
         borderRadius: 0,
         background: "rgba(16, 20, 28, 0.95)",
         backdropFilter: "blur(20px)",
         borderRight: "1px solid rgba(255, 255, 255, 0.15)",
         color: "#fff",
+        zIndex: 1100,
+        overflowY: "auto",
+        transition: "left 0.3s ease",
       }}
     >
       <Box sx={{ px: 2, py: 2 }}>
@@ -159,7 +216,7 @@ const AppBottomNav = ({ open, onToggleSidebar, layout = "bottom" }) => {
                 },
               }}
             >
-              <ListItemIcon sx={{ color: "inherit", minWidth: 36 }}>{item.icon}</ListItemIcon>
+              <ListItemIcon sx={{ color: "inherit", minWidth: 36 }}>{renderItemIcon(item)}</ListItemIcon>
               <ListItemText
                 primary={item.label}
                 primaryTypographyProps={{ fontSize: 14, fontWeight: isSelected ? 700 : 500 }}
@@ -173,7 +230,7 @@ const AppBottomNav = ({ open, onToggleSidebar, layout = "bottom" }) => {
 
   return (
     <>
-      {layout === "sidebar" ? (
+      {effectiveLayout === "sidebar" ? (
         sidebarContent
       ) : (
         <Paper
@@ -231,7 +288,7 @@ const AppBottomNav = ({ open, onToggleSidebar, layout = "bottom" }) => {
                 key={item.value}
                 label={item.label}
                 value={item.value}
-                icon={item.icon}
+                icon={renderItemIcon(item)}
                 data-merchants-menu={item.isMenu && item.value === "merchants-menu" ? "true" : undefined}
                 data-transactions-menu={item.isMenu && item.value === "transactions-menu" ? "true" : undefined}
               />
