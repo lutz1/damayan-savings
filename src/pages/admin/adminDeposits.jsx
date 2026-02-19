@@ -63,7 +63,7 @@ const AdminDeposits = () => {
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const auth = getAuth();
 
   useEffect(() => setSidebarOpen(!isMobile), [isMobile]);

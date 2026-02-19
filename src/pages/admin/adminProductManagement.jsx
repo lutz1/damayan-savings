@@ -329,6 +329,7 @@ const AdminProductManagement = () => {
             {filteredProducts.map((product) => {
               const statusKey = getApprovalStatus(product);
               const status = statusConfig[statusKey];
+              const canModerate = statusKey === "PENDING";
               return (
                 <Card
                   key={product.id}
@@ -391,36 +392,38 @@ const AdminProductManagement = () => {
                     </Box>
                   </Stack>
 
-                  <Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>
-                    <Button
-                      fullWidth
-                      variant="outlined"
-                      color="error"
-                      onClick={() => openRejectDialog(product)}
-                      sx={{
-                        borderRadius: 2,
-                        fontWeight: 700,
-                        borderColor: "rgba(239,68,68,0.6)",
-                        color: "#fecaca",
-                        "&:hover": { borderColor: "#f87171", background: "rgba(239,68,68,0.1)" },
-                      }}
-                    >
-                      Reject
-                    </Button>
-                    <Button
-                      fullWidth
-                      variant="contained"
-                      color="info"
-                      onClick={() => handleApprove(product)}
-                      sx={{
-                        borderRadius: 2,
-                        fontWeight: 700,
-                        color: "#0f172a",
-                      }}
-                    >
-                      Approve
-                    </Button>
-                  </Stack>
+                  {canModerate && (
+                    <Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>
+                      <Button
+                        fullWidth
+                        variant="outlined"
+                        color="error"
+                        onClick={() => openRejectDialog(product)}
+                        sx={{
+                          borderRadius: 2,
+                          fontWeight: 700,
+                          borderColor: "rgba(239,68,68,0.6)",
+                          color: "#fecaca",
+                          "&:hover": { borderColor: "#f87171", background: "rgba(239,68,68,0.1)" },
+                        }}
+                      >
+                        Reject
+                      </Button>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        color="info"
+                        onClick={() => handleApprove(product)}
+                        sx={{
+                          borderRadius: 2,
+                          fontWeight: 700,
+                          color: "#0f172a",
+                        }}
+                      >
+                        Approve
+                      </Button>
+                    </Stack>
+                  )}
                 </Card>
               );
             })}

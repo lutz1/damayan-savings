@@ -8,6 +8,16 @@ export default defineConfig(() => {
     base,
     envPrefix: ['VITE_', 'REACT_APP_'],
     plugins: [react({ include: /\.[jt]sx?$/ })],
+    server: {
+      host: true,
+      port: 5173,
+      strictPort: true,
+    },
+    preview: {
+      host: true,
+      port: 5173,
+      strictPort: true,
+    },
     test: {
       globals: true,
       environment: 'jsdom',

@@ -40,7 +40,7 @@ const AdminPaybackEntries = () => {
   const [search, setSearch] = useState("");
   const [holdLoading, setHoldLoading] = useState({});
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   useEffect(() => setSidebarOpen(!isMobile), [isMobile]);
   // Filtered entries by search (username, email)
   const filteredEntries = useMemo(() => {

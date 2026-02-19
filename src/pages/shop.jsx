@@ -678,13 +678,6 @@ export default function ShopPage() {
                 );
               })}
             </Box>
-            <Stack direction="row" spacing={1} alignItems="center" justifyContent="center">
-              <MaterialIcon name="arrow_left" size={12} sx={{ color: "#94a3b8" }} />
-              <Box sx={{ height: 6, width: 120, borderRadius: 999, bgcolor: "#e2e8f0", overflow: "hidden" }}>
-                <Box sx={{ width: 40, height: "100%", bgcolor: "#94a3b8", borderRadius: 999 }} />
-              </Box>
-              <MaterialIcon name="arrow_right" size={12} sx={{ color: "#94a3b8" }} />
-            </Stack>
           </Stack>
         )}
 
