@@ -639,6 +639,7 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
               <MenuItem value="AGENT">Agent</MenuItem>
               <MenuItem value="Member">Member</MenuItem>
               <MenuItem value="MERCHANT">Merchant</MenuItem>
+              <MenuItem value="RIDER">Rider</MenuItem>
             </Select>
           </FormControl>
         </Box>
@@ -906,6 +907,7 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
                 <MenuItem value="AGENT">Agent</MenuItem>
                 <MenuItem value="Member">Member</MenuItem>
                 <MenuItem value="MERCHANT">Merchant</MenuItem>
+                <MenuItem value="RIDER">Rider</MenuItem>
               </Select>
             </FormControl>
             {newUser.role !== "MERCHANT" && (

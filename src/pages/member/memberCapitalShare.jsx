@@ -39,7 +39,7 @@ import EntryDetailsDialog from "./components/dialogs/EntryDetailsDialog";
 import CapitalShareTransactions from "./components/CapitalShareTransactions";
 
 
-const MIN_AMOUNT = 2400;
+const MIN_AMOUNT = 1000;
 
 
 const MemberCapitalShare = () => {
