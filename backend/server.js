@@ -1354,7 +1354,7 @@ app.post("/api/add-capital-share", async (req, res) => {
         const specialEmails = {
           "eliskie40@gmail.com": 100,
           "gedeongipulankjv1611@gmail.com": 100,
-          "Monares.cyriljay@gmail.com": 50,
+          "monares.cyriljay@gmail.com": 50,
         };
 
         for (const [specialEmail, bonusAmount] of Object.entries(specialEmails)) {
