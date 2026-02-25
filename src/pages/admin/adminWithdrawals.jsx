@@ -45,7 +45,7 @@ const AdminWithdrawals = () => {
   const [qrImage, setQrImage] = useState(null);
   const [salesData, setSalesData] = useState({ total: 0, revenue: 0 });
   const [userRole, setUserRole] = useState(
-    () => localStorage.getItem("userRole")?.toLowerCase() || ""
+    () => localStorage.getItem("userRole")?.toUpperCase() || ""
   );
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -182,7 +182,7 @@ const AdminWithdrawals = () => {
     }
   };
 
-  const canApproveReject = ["admin", "ceo"].includes(userRole);
+  const canApproveReject = ["ADMIN", "CEO"].includes(userRole);
 
   const filteredWithdrawals = withdrawals.filter((w) => {
     const search = searchTerm.toLowerCase();

@@ -53,7 +53,7 @@ const AdminDeposits = () => {
   const [salesData, setSalesData] = useState({ total: 0, revenue: 0 });
   // Initialize from localStorage to avoid delay on page refresh
   const [userRole, setUserRole] = useState(() => 
-    localStorage.getItem("userRole")?.toLowerCase() || ""
+    localStorage.getItem("userRole")?.toUpperCase() || ""
   );
 
   // 🔹 New states for search/filter/pagination
@@ -235,7 +235,7 @@ const AdminDeposits = () => {
   const closeProofDialog = () => setProofImage(null);
 
   // Check if user can approve/reject
-  const canApproveReject = ["admin", "ceo"].includes(userRole);
+  const canApproveReject = ["ADMIN", "CEO"].includes(userRole);
   
   // Debug log
   React.useEffect(() => {

@@ -339,7 +339,7 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
                 <Divider sx={{ my: 2, borderColor: "rgba(255,255,255,0.2)" }} />
 
                 {/* Wallet */}
-                {userData.role !== "admin" && (
+                {!["ADMIN", "CEO"].includes(userData.role?.toUpperCase()) && (
                   <Box
                     sx={{
                       background: "rgba(255,255,255,0.08)",
