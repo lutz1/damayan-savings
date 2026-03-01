@@ -26,6 +26,8 @@ import {
   query,
   where,
   onSnapshot,
+  doc,
+  runTransaction,
 } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
@@ -98,17 +100,40 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
       const charge = numAmount * 0.05;
       const finalAmount = numAmount - charge;
 
-      await addDoc(collection(db, "withdrawals"), {
-        userId: auth.currentUser.uid,
-        name: userData.name,
-        email: userData.email,
-        amount: numAmount,
-        paymentMethod,
-        charge,
-        netAmount: finalAmount,
-        qrUrl,
-        status: "Pending",
-        createdAt: serverTimestamp(),
+      // ✅ Atomic transaction: deduct wallet + create withdrawal record
+      await runTransaction(db, async (transaction) => {
+        const userRef = doc(db, "users", auth.currentUser.uid);
+        const userSnap = await transaction.get(userRef);
+        if (!userSnap.exists()) {
+          throw new Error("User account not found.");
+        }
+
+        const userData = userSnap.data();
+        const currentBalance = Number(userData.eWallet || 0);
+        if (currentBalance < numAmount) {
+          throw new Error("Insufficient wallet balance.");
+        }
+
+        // Deduct wallet immediately
+        transaction.update(userRef, {
+          eWallet: currentBalance - numAmount,
+          updatedAt: new Date(),
+        });
+
+        // Create withdrawal record (reserved, pending approval)
+        const withdrawalRef = doc(collection(db, "withdrawals"));
+        transaction.set(withdrawalRef, {
+          userId: auth.currentUser.uid,
+          name: userData.name,
+          email: userData.email,
+          amount: numAmount,
+          paymentMethod,
+          charge,
+          netAmount: finalAmount,
+          qrUrl,
+          status: "Pending",
+          createdAt: new Date(),
+        });
       });
 
       if (onBalanceUpdate) onBalanceUpdate(userData.eWallet - numAmount);
@@ -120,7 +145,7 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
       setQrPreview("");
     } catch (err) {
       console.error("Withdraw failed:", err);
-      setError("Something went wrong. Please try again.");
+      setError(err?.message || "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }

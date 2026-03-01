@@ -27,7 +27,15 @@ import {
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import { motion } from "framer-motion";
-import { collection, onSnapshot, doc, updateDoc, getDoc, query } from "firebase/firestore";
+import {
+  collection,
+  onSnapshot,
+  doc,
+  updateDoc,
+  getDoc,
+  query,
+  runTransaction,
+} from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { db } from "../../firebase";
 import Topbar from "../../components/Topbar";
@@ -170,15 +178,62 @@ const AdminWithdrawals = () => {
     const { id } = selectedWithdrawal;
 
     try {
+      const nextStatus = status.toLowerCase();
       const withdrawalRef = doc(db, "withdrawals", id);
-      await updateDoc(withdrawalRef, {
-        status: status.toLowerCase(),
-        reviewedAt: new Date(),
-        remarks,
-      });
+
+      if (nextStatus === "rejected") {
+        // ✅ Reject: refund wallet (reverse the deduction from request time)
+        await runTransaction(db, async (transaction) => {
+          const withdrawalSnap = await transaction.get(withdrawalRef);
+          if (!withdrawalSnap.exists()) {
+            throw new Error("Withdrawal request not found.");
+          }
+
+          const withdrawalData = withdrawalSnap.data();
+          const currentStatus = (withdrawalData.status || "").toLowerCase();
+          if (currentStatus !== "pending") {
+            throw new Error("This withdrawal has already been reviewed.");
+          }
+
+          const amount = Number(withdrawalData.amount || 0);
+          if (!amount || amount <= 0) {
+            throw new Error("Invalid withdrawal amount.");
+          }
+
+          const userRef = doc(db, "users", withdrawalData.userId);
+          const userSnap = await transaction.get(userRef);
+          if (!userSnap.exists()) {
+            throw new Error("User account not found.");
+          }
+
+          const userData = userSnap.data();
+          const currentBalance = Number(userData.eWallet || 0);
+
+          // Refund the deducted amount
+          transaction.update(userRef, {
+            eWallet: currentBalance + amount,
+            updatedAt: new Date(),
+          });
+
+          transaction.update(withdrawalRef, {
+            status: nextStatus,
+            reviewedAt: new Date(),
+            remarks,
+          });
+        });
+      } else {
+        // ✅ Approve: just mark as approved (wallet already deducted at request time)
+        await updateDoc(withdrawalRef, {
+          status: nextStatus,
+          reviewedAt: new Date(),
+          remarks,
+        });
+      }
+
       closeDialog();
     } catch (err) {
       console.error("Error updating withdrawal:", err);
+      alert(err?.message || "Failed to update withdrawal.");
     }
   };
 
