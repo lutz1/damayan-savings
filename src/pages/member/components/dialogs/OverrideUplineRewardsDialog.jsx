@@ -119,24 +119,62 @@ const OverrideUplineRewardsDialog = ({
                   if (!confirmed) return;
                   try {
                     setLoadingTransfer((prev) => ({ ...prev, [o.id]: true }));
+                    
+                    // Get user's ID token
                     const idToken = await user.getIdToken();
-                    const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
-                    const response = await fetch(`${API_BASE}/api/transfer-override-reward`, {
+                    
+                    // Call Cloud Function HTTP endpoint with Authorization header
+                    const endpoint = "https://us-central1-amayan-savings.cloudfunctions.net/transferOverrideReward";
+                    console.log("[OverrideTransfer] Calling endpoint:", endpoint);
+                    
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+                    
+                    const response = await fetch(endpoint, {
                       method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ idToken, overrideId: o.id, amount: o.amount })
+                      headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${idToken}`,
+                      },
+                      body: JSON.stringify({
+                        overrideId: o.id,
+                        amount: o.amount,
+                      }),
+                      signal: controller.signal,
                     });
-                    let result;
-                    try {
-                      result = await response.json();
-                    } catch (e) {
-                      throw new Error("Server error: Invalid response");
+                    
+                    clearTimeout(timeoutId);
+
+                    if (!response.ok) {
+                      let errorMessage = "Failed to transfer reward";
+                      try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.error || errorMessage;
+                      } catch (e) {
+                        errorMessage = `Server error (${response.status}): ${response.statusText}`;
+                      }
+                      throw new Error(errorMessage);
                     }
-                    if (!response.ok) throw new Error(result.error || "Transfer failed");
-                    alert(`₱${o.amount.toLocaleString()} successfully transferred to eWallet!`);
+
+                    const result = await response.json();
+                    console.log("[OverrideTransfer] Success:", result);
+                    
+                    if (result.alreadyTransferred) {
+                      alert("This reward was already credited previously.");
+                    } else {
+                      alert(`₱${o.amount.toLocaleString()} successfully transferred to eWallet!`);
+                    }
                   } catch (err) {
-                    console.error(err);
-                    alert(err.message || "Transfer failed.");
+                    console.error("[OverrideTransfer] Error:", err);
+                    let userMsg = "Failed to transfer reward: ";
+                    if (err.name === "AbortError") {
+                      userMsg += "Request timeout (check your internet connection)";
+                    } else if (err instanceof TypeError && err.message.includes("fetch")) {
+                      userMsg += "Network error - unable to reach Cloud Function";
+                    } else {
+                      userMsg += err.message || "Unknown error";
+                    }
+                    alert(userMsg);
                   } finally {
                     setLoadingTransfer((prev) => ({ ...prev, [o.id]: false }));
                   }

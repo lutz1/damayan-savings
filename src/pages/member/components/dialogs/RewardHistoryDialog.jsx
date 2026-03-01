@@ -106,19 +106,27 @@ const RewardHistoryDialog = ({
                     // Get user's ID token
                     const idToken = await user.getIdToken();
                     
-                    // Call backend API to transfer reward
-                    const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
-                    const response = await fetch(`${API_BASE}/api/transfer-referral-reward`, {
+                    // Call Cloud Function HTTP endpoint with Authorization header
+                    const endpoint = "https://us-central1-amayan-savings.cloudfunctions.net/transferReferralReward";
+                    console.log("[RewardTransfer] Calling endpoint:", endpoint);
+                    
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+                    
+                    const response = await fetch(endpoint, {
                       method: "POST",
                       headers: {
                         "Content-Type": "application/json",
+                        "Authorization": `Bearer ${idToken}`,
                       },
                       body: JSON.stringify({
-                        idToken,
                         rewardId: reward.id,
                         amount: reward.amount,
                       }),
+                      signal: controller.signal,
                     });
+                    
+                    clearTimeout(timeoutId);
 
                     if (!response.ok) {
                       let errorMessage = "Failed to transfer reward";
@@ -131,12 +139,27 @@ const RewardHistoryDialog = ({
                       throw new Error(errorMessage);
                     }
 
-                    await response.json();
-                    alert(`₱${reward.amount.toLocaleString()} transferred to eWallet!`);
+                    const result = await response.json();
+                    console.log("[RewardTransfer] Success:", result);
+                    
+                    if (result.alreadyTransferred) {
+                      alert("This reward was already transferred previously.");
+                    } else {
+                      alert(`₱${reward.amount.toLocaleString()} transferred to eWallet!`);
+                    }
+                    
                     onTransferSuccess();
                   } catch (err) {
-                    console.error("Error transferring reward:", err);
-                    alert(`Failed to transfer reward: ${err.message || "Unknown error"}`);
+                    console.error("[RewardTransfer] Error:", err);
+                    let userMsg = "Failed to transfer reward: ";
+                    if (err.name === "AbortError") {
+                      userMsg += "Request timeout (check your internet connection)";
+                    } else if (err instanceof TypeError && err.message.includes("fetch")) {
+                      userMsg += "Network error - unable to reach Cloud Function";
+                    } else {
+                      userMsg += err.message || "Unknown error";
+                    }
+                    alert(userMsg);
                   } finally {
                     setLoadingTransfer((prev) => ({ ...prev, [reward.id]: false }));
                   }

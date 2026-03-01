@@ -238,7 +238,7 @@ const AdminProfile = () => {
           mt: 1,
           color: "white",
           minHeight: "100vh",
-          width: isMobile ? "100%" : `calc(100% - ${sidebarOpen ? 240 : 60}px)`,
+          width: "100%",
           transition: "all 0.3s ease",
         }}
       >

@@ -351,7 +351,7 @@ const AdminDashboard = () => {
           color: "#f5f7fa",
           zIndex: 1,
           width: "100%",
-          paddingLeft: isMobile ? 0 : sidebarOpen ? 280 : 0,
+          paddingLeft: 0,
           transition: "all 0.3s ease",
           position: "relative",
           display: 'flex',

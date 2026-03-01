@@ -158,7 +158,13 @@ function App() {
           onClose={() => setShowSplash(false)}
         />
         {!showSplash && (
-          <Router basename={appBase}>
+          <Router
+            basename={appBase}
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true,
+            }}
+          >
             <AutoRedirect />
 
             <Routes>

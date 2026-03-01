@@ -169,7 +169,7 @@ const AdminPaybackEntries = () => {
         </>
       )}
 
-      <Box sx={{ flex: 1, p: { xs: 1.5, md: 4 }, pt: { xs: 2, md: 4 }, maxWidth: 1400, mx: "auto", width: "100%", paddingLeft: isMobile ? 0 : sidebarOpen ? 280 : 0, transition: "all 0.3s ease" }}>
+      <Box sx={{ flex: 1, p: { xs: 1.5, md: 4 }, pt: { xs: 2, md: 4 }, maxWidth: 1400, mx: "auto", width: "100%", paddingLeft: 0, transition: "all 0.3s ease" }}>
         <Typography variant="h4" sx={{ mb: 3, fontWeight: 800, color: "#fff", textShadow: "1px 1px 8px #000" }}>
           All Payback Entries
         </Typography>

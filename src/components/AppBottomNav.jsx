@@ -181,57 +181,75 @@ const AppBottomNav = ({ open, onToggleSidebar, layout = "bottom" }) => {
   };
 
   const sidebarContent = (
-    <Paper
-      elevation={0}
-      sx={{
-        position: "fixed",
-        left: open ? 0 : -280,
-        top: 64,
-        bottom: 0,
-        width: 280,
-        borderRadius: 0,
-        background: "rgba(16, 20, 28, 0.95)",
-        backdropFilter: "blur(20px)",
-        borderRight: "1px solid rgba(255, 255, 255, 0.15)",
-        color: "#fff",
-        zIndex: 1100,
-        overflowY: "auto",
-        transition: "left 0.3s ease",
-      }}
-    >
-      <Box sx={{ px: 2, py: 2 }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 700, letterSpacing: 0.3 }}>
-          Navigation
-        </Typography>
-      </Box>
-      <Divider sx={{ borderColor: "rgba(255,255,255,0.12)" }} />
-      <List sx={{ px: 1.2, py: 1.2 }}>
-        {navItems.map((item) => {
-          const isSelected = !item.isMenu && location.pathname === item.value;
-          return (
-            <ListItemButton
-              key={item.value}
-              onClick={(e) => handleNavigate(item.value, item.isMenu, e.currentTarget)}
-              sx={{
-                mb: 0.5,
-                borderRadius: 2,
-                color: "rgba(255,255,255,0.9)",
-                backgroundColor: isSelected ? "rgba(79,195,247,0.18)" : "transparent",
-                "&:hover": {
-                  backgroundColor: "rgba(255,255,255,0.08)",
-                },
-              }}
-            >
-              <ListItemIcon sx={{ color: "inherit", minWidth: 36 }}>{renderItemIcon(item)}</ListItemIcon>
-              <ListItemText
-                primary={item.label}
-                primaryTypographyProps={{ fontSize: 14, fontWeight: isSelected ? 700 : 500 }}
-              />
-            </ListItemButton>
-          );
-        })}
-      </List>
-    </Paper>
+    <>
+      <Box
+        onClick={onToggleSidebar}
+        sx={{
+          display: { xs: "none", md: open ? "block" : "none" },
+          position: "fixed",
+          top: 64,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(2, 6, 23, 0.38)",
+          backdropFilter: "blur(1.5px)",
+          zIndex: 1090,
+          transition: "opacity 0.25s ease",
+        }}
+      />
+
+      <Paper
+        elevation={0}
+        sx={{
+          position: "fixed",
+          left: open ? 0 : -280,
+          top: 64,
+          bottom: 0,
+          width: 280,
+          borderRadius: 0,
+          background: "rgba(16, 20, 28, 0.95)",
+          backdropFilter: "blur(20px)",
+          borderRight: "1px solid rgba(255, 255, 255, 0.15)",
+          color: "#fff",
+          zIndex: 1100,
+          overflowY: "auto",
+          transition: "left 0.3s ease",
+        }}
+      >
+        <Box sx={{ px: 2, py: 2 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, letterSpacing: 0.3 }}>
+            Navigation
+          </Typography>
+        </Box>
+        <Divider sx={{ borderColor: "rgba(255,255,255,0.12)" }} />
+        <List sx={{ px: 1.2, py: 1.2 }}>
+          {navItems.map((item) => {
+            const isSelected = !item.isMenu && location.pathname === item.value;
+            return (
+              <ListItemButton
+                key={item.value}
+                onClick={(e) => handleNavigate(item.value, item.isMenu, e.currentTarget)}
+                sx={{
+                  mb: 0.5,
+                  borderRadius: 2,
+                  color: "rgba(255,255,255,0.9)",
+                  backgroundColor: isSelected ? "rgba(79,195,247,0.18)" : "transparent",
+                  "&:hover": {
+                    backgroundColor: "rgba(255,255,255,0.08)",
+                  },
+                }}
+              >
+                <ListItemIcon sx={{ color: "inherit", minWidth: 36 }}>{renderItemIcon(item)}</ListItemIcon>
+                <ListItemText
+                  primary={item.label}
+                  primaryTypographyProps={{ fontSize: 14, fontWeight: isSelected ? 700 : 500 }}
+                />
+              </ListItemButton>
+            );
+          })}
+        </List>
+      </Paper>
+    </>
   );
 
   return (

@@ -1,70 +1,79 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Box,
-  Button,
-  Card,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Divider,
-  Stack,
-  Typography,
-  useMediaQuery,
-  useTheme,
-  CircularProgress,
-  Alert,
-} from "@mui/material";
-import { LocationOn as LocationOnIcon, Check as CheckIcon, Add as AddIcon } from "@mui/icons-material";
+import { Dialog, useMediaQuery, useTheme } from "@mui/material";
+
+const RECENT_SEARCHES_KEY = "shopRecentLocationSearches";
+
+const getCityProvinceFromAddress = (address) => {
+  if (!address) return "";
+  const parts = address
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length >= 2) {
+    return `${parts[parts.length - 2]}, ${parts[parts.length - 1]}`;
+  }
+
+  return parts[0] || "";
+};
 
 const ShopLocationDialog = ({
   open,
   onClose,
-  savedAddresses,
+  savedAddresses = [],
   onSelectAddress,
-  onAddAddress,
 }) => {
   const navigate = useNavigate();
-  const [currentLocationData, setCurrentLocationData] = useState(null);
-  const [locationLoading, setLocationLoading] = useState(false);
-  const [locationError, setLocationError] = useState("");
-  const [selectedCoords, setSelectedCoords] = useState(null);
-  const mapContainerRef = useRef(null);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
-  // Platform/permission helpers
-  const isIOS = React.useMemo(() => {
-    if (typeof window === "undefined") return false;
-    const ua = window.navigator.userAgent;
-    const isAppleTouch = ua.includes("Mac") && "ontouchend" in window;
-    return /iPad|iPhone|iPod/.test(ua) || isAppleTouch;
-  }, []);
-  const [geoPermission, setGeoPermission] = useState(null); // granted | prompt | denied | null
+  const [searchTerm, setSearchTerm] = useState("");
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationError, setLocationError] = useState("");
+  const [recentSearches, setRecentSearches] = useState([]);
 
-  React.useEffect(() => {
-    let unsub;
+  useEffect(() => {
+    if (!open) return;
+
     try {
-      if (navigator.permissions && navigator.permissions.query) {
-        navigator.permissions
-          .query({ name: "geolocation" })
-          .then((res) => {
-            setGeoPermission(res.state);
-            res.onchange = () => setGeoPermission(res.state);
-            unsub = () => (res.onchange = null);
-          })
-          .catch(() => {});
-      }
-    } catch {}
-    return () => {
-      if (unsub) unsub();
-    };
-  }, []);
+      const cached = JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || "[]");
+      setRecentSearches(Array.isArray(cached) ? cached : []);
+    } catch {
+      setRecentSearches([]);
+    }
+  }, [open]);
 
-  const handleAddNewAddress = () => {
-    navigate("/shop/add-address");
-    onClose();
+  const pushRecentSearch = (address) => {
+    if (!address) return;
+
+    const deduped = [
+      address,
+      ...recentSearches.filter((entry) => entry.toLowerCase() !== address.toLowerCase()),
+    ].slice(0, 8);
+
+    setRecentSearches(deduped);
+    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(deduped));
+  };
+
+  const filteredSavedAddresses = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return savedAddresses;
+
+    return savedAddresses.filter((address) => (address || "").toLowerCase().includes(term));
+  }, [savedAddresses, searchTerm]);
+
+  const filteredRecentSearches = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return recentSearches;
+
+    return recentSearches.filter((entry) => (entry || "").toLowerCase().includes(term));
+  }, [recentSearches, searchTerm]);
+
+  const handleSelectAddress = (address) => {
+    const cityProvince = getCityProvinceFromAddress(address);
+    pushRecentSearch(address);
+    onSelectAddress({ address, cityProvince });
   };
 
   const handleGetCurrentLocation = () => {
@@ -81,60 +90,51 @@ const ShopLocationDialog = ({
       async (position) => {
         try {
           const { latitude, longitude } = position.coords;
-          setSelectedCoords({ lat: latitude, lng: longitude });
 
-          // Try to reverse geocode using a free service
           const response = await fetch(
             `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
           );
 
-          if (response.ok) {
-            const data = await response.json();
-            const fullAddress = data.address?.road
-              ? `${data.address.road}, ${data.address.city || data.address.county || ""}`
-              : data.display_name;
-
-            // Extract city and province for display
-            const city = data.address?.city || data.address?.county || data.address?.town || "Location";
-            const province = data.address?.state || data.address?.province || "";
-            const cityProvince = province ? `${city}, ${province}` : city;
-
-            setCurrentLocationData({ 
-              address: fullAddress, 
-              cityProvince,
-              latitude, 
-              longitude 
-            });
-            onSelectAddress({ address: fullAddress, cityProvince });
-            setLocationLoading(false);
-          } else {
-            throw new Error("Failed to get address");
+          if (!response.ok) {
+            throw new Error("Failed reverse geocoding");
           }
-        } catch (err) {
-          // Fallback: show coordinates
+
+          const data = await response.json();
+          const city =
+            data.address?.city ||
+            data.address?.town ||
+            data.address?.municipality ||
+            data.address?.county ||
+            "Location";
+          const province = data.address?.state || data.address?.province || "";
+          const cityProvince = province ? `${city}, ${province}` : city;
+
+          const fullAddress =
+            data.display_name ||
+            [data.address?.road, data.address?.suburb, cityProvince].filter(Boolean).join(", ");
+
+          pushRecentSearch(fullAddress);
+          onSelectAddress({ address: fullAddress, cityProvince });
+        } catch {
           const { latitude, longitude } = position.coords;
-          const coordAddress = `Lat: ${latitude.toFixed(4)}, Lon: ${longitude.toFixed(4)}`;
-          setCurrentLocationData({ 
-            address: coordAddress, 
-            cityProvince: "Coordinates",
-            latitude, 
-            longitude 
-          });
-          onSelectAddress({ address: coordAddress, cityProvince: "Coordinates" });
+          const fallback = `Lat: ${latitude.toFixed(5)}, Lon: ${longitude.toFixed(5)}`;
+          pushRecentSearch(fallback);
+          onSelectAddress({ address: fallback, cityProvince: "Coordinates" });
+        } finally {
           setLocationLoading(false);
         }
       },
       (error) => {
         setLocationLoading(false);
-        // Don't show permission denied error - let user try again
+
         if (error.code === error.PERMISSION_DENIED) {
-          setLocationError("Location access denied. Please tap the button again and allow access when prompted.");
+          setLocationError("Location access denied. Please allow location permission and try again.");
         } else if (error.code === error.POSITION_UNAVAILABLE) {
-          setLocationError("Location information is unavailable. Please try again.");
+          setLocationError("Location unavailable. Please try again.");
         } else if (error.code === error.TIMEOUT) {
           setLocationError("Location request timed out. Please try again.");
         } else {
-          setLocationError("Unable to retrieve your location. Please try again.");
+          setLocationError("Unable to get your location.");
         }
       },
       {
@@ -145,369 +145,155 @@ const ShopLocationDialog = ({
     );
   };
 
-  const initializeMap = useCallback(() => {
-    if (!mapContainerRef.current || !selectedCoords) return;
-
-    const { lat, lng } = selectedCoords;
-
-    // Initialize map
-    const map = window.L.map(mapContainerRef.current, {
-      center: [lat, lng],
-      zoom: 15,
-      dragging: false,
-      doubleClickZoom: false,
-      scrollWheelZoom: false,
-      touchZoom: false,
-    });
-
-    // Add OpenStreetMap tiles
-    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors",
-      maxZoom: 19,
-    }).addTo(map);
-
-    // Add marker
-    window.L.marker([lat, lng])
-      .addTo(map)
-      .bindPopup("Your Location")
-      .openPopup();
-  }, [selectedCoords]);
-
-  // Load minimap when coordinates are available
-  React.useEffect(() => {
-    if (selectedCoords && mapContainerRef.current && typeof window !== "undefined") {
-      // Dynamically load Leaflet library
-      if (!window.L) {
-        const link = document.createElement("link");
-        link.rel = "stylesheet";
-        link.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
-        document.head.appendChild(link);
-
-        const script = document.createElement("script");
-        script.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
-        script.onload = () => {
-          initializeMap();
-        };
-        document.head.appendChild(script);
-      } else {
-        initializeMap();
-      }
-    }
-  }, [selectedCoords, initializeMap]);
+  const openMapPicker = () => {
+    onClose();
+    navigate("/shop/add-address");
+  };
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
+      fullScreen={isMobile}
       fullWidth
-      maxWidth="100%"
+      maxWidth="sm"
       PaperProps={{
         sx: {
-          position: isMobile ? "fixed" : "relative",
-          bottom: isMobile ? "auto" : "auto",
-          left: isMobile ? 0 : "auto",
-          right: isMobile ? 0 : "auto",
           m: 0,
-          width: isMobile ? "100%" : "90%",
-          maxWidth: isMobile ? "100%" : "500px",
-          borderRadius: isMobile ? 0 : 2,
-          borderBottomLeftRadius: isMobile ? 0 : 2,
-          borderBottomRightRadius: isMobile ? 0 : 2,
-          maxHeight: isMobile ? "90vh" : "85vh",
-          animation: isMobile ? "slideUp 0.3s ease-in-out" : "fadeIn 0.3s ease-in-out",
-          "@keyframes slideUp": {
-            from: {
-              transform: "translateY(100%)",
-            },
-            to: {
-              transform: "translateY(0)",
-            },
-          },
-          "@keyframes fadeIn": {
-            from: {
-              opacity: 0,
-            },
-            to: {
-              opacity: 1,
-            },
-          },
+          borderRadius: isMobile ? 0 : 3,
+          height: isMobile ? "100dvh" : "85vh",
+          backgroundColor: "#F8FAFC",
+          overflow: "hidden",
         },
       }}
     >
-      <DialogTitle
-        sx={{
-          borderBottom: "1px solid #e0e0e0",
-          pb: isMobile ? 1.5 : 2,
-          pt: isMobile ? 2 : 2,
-          px: isMobile ? 1.5 : 2,
-        }}
-      >
-        <Typography
-          variant="subtitle1"
-          fontWeight={700}
-          sx={{ fontSize: isMobile ? "1.1rem" : "1.25rem" }}
-        >
-          Where should we deliver your order?
-        </Typography>
-      </DialogTitle>
-
-      {/* Use Current Location Section */}
-      <Box
-        sx={{
-          px: isMobile ? 1.5 : 2,
-          py: isMobile ? 1.5 : 2,
-          borderBottom: "1px solid #e0e0e0",
-        }}
-      >
-        <Button
-          fullWidth
-          startIcon={
-            locationLoading ? (
-              <CircularProgress size={20} />
-            ) : (
-              <LocationOnIcon sx={{ color: "#e91e63" }} />
-            )
-          }
-          onClick={handleGetCurrentLocation}
-          disabled={locationLoading}
-          sx={{
-            justifyContent: "flex-start",
-            py: isMobile ? 1.5 : 2,
-            px: 2,
-            textTransform: "none",
-            fontSize: isMobile ? "0.95rem" : "1rem",
-            color: "#333",
-            backgroundColor: "#f5f5f5",
-            border: "1px solid #e0e0e0",
-            "&:hover": {
-              backgroundColor: "#eeeeee",
-              border: "1px solid #d0d0d0",
-            },
-            "&:disabled": {
-              backgroundColor: "#f5f5f5",
-              color: "#999",
-            },
-          }}
-        >
-          {locationLoading ? "Getting your location..." : "Use my current location"}
-        </Button>
-        {locationError && (
-          <Alert severity="error" sx={{ mt: 1, fontSize: isMobile ? "0.85rem" : "0.9rem" }}>
-            {locationError}
-          </Alert>
-        )}
-
-          {isIOS && (geoPermission === "denied" || /denied/i.test(locationError)) && (
-            <Box
-              sx={{
-                mt: 1.5,
-                p: 1.5,
-                border: "1px solid #ffe0b2",
-                backgroundColor: "#fff3e0",
-                borderRadius: 1,
-              }}
+      <div className="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 h-full flex flex-col">
+        <header className="bg-primary pt-9 pb-20 px-4 relative shrink-0 shadow-sm">
+          <div className="flex items-center mb-5">
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-white p-1 -ml-1 flex items-center justify-center rounded-full hover:bg-white/10 transition"
             >
-              <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.75, color: "#e65100" }}>
-                Enable Location on iPhone
-              </Typography>
-              <Typography variant="caption" sx={{ display: "block", color: "#5d4037" }}>
-                In Safari: tap the aA icon → Website Settings → Location → Allow. Also enable
-                “Use Precise Location”. Then come back and tap Retry.
-              </Typography>
-              <Typography variant="caption" sx={{ display: "block", color: "#5d4037", mt: 0.5 }}>
-                Or go to Settings → Privacy & Security → Location Services → Safari Websites → While Using.
-              </Typography>
-              {typeof window !== "undefined" && window.location?.protocol !== "https:" && (
-                <Typography variant="caption" sx={{ display: "block", color: "#5d4037", mt: 0.5 }}>
-                  Tip: iOS may require HTTPS for location. Use your secure preview link when testing.
-                </Typography>
-              )}
-              <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                <Button size="small" variant="outlined" onClick={handleGetCurrentLocation}>
-                  Retry
-                </Button>
-              </Stack>
-            </Box>
-          )}
-      </Box>
+              <span className="material-symbols-outlined text-2xl">arrow_back</span>
+            </button>
+            <h1 className="text-white text-[1.06rem] font-bold ml-2.5">Select Delivery Location</h1>
+          </div>
+          <div className="absolute -bottom-6 left-4 right-4 z-10">
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg flex items-center px-4 py-3 border border-slate-100 dark:border-slate-700">
+              <span className="material-symbols-outlined text-slate-400 mr-3">search</span>
+              <input
+                className="bg-transparent border-none focus:ring-0 text-sm w-full text-slate-600 dark:text-slate-300 p-0"
+                placeholder="Search for area, street name..."
+                type="text"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+              />
+            </div>
+          </div>
+        </header>
 
-      {/* Current Location Display with Minimap */}
-      {currentLocationData && (
-        <>
-          <Divider sx={{ my: 0 }} />
-          <Box
-            sx={{
-              px: isMobile ? 1.5 : 2,
-              py: isMobile ? 1.5 : 2,
-              borderBottom: "1px solid #e0e0e0",
-            }}
+        <main className="mt-10 px-4 flex-1 pb-3 overflow-y-auto no-scrollbar bg-slate-50/80 dark:bg-transparent">
+          <button
+            type="button"
+            onClick={handleGetCurrentLocation}
+            disabled={locationLoading}
+            className="w-full flex items-center p-4 bg-white dark:bg-slate-800 rounded-2xl mb-6 border border-slate-100 dark:border-slate-700 shadow-sm disabled:opacity-60"
           >
-            {/* Minimap */}
-            <Box
-              ref={mapContainerRef}
-              sx={{
-                width: "100%",
-                height: isMobile ? "250px" : "300px",
-                borderRadius: 1,
-                mb: 2,
-                border: "1px solid #e0e0e0",
-                overflow: "hidden",
-              }}
-            />
+            <div className="w-9 h-9 bg-slate-50 dark:bg-slate-700 rounded-full flex items-center justify-center text-slate-600 shadow-sm mr-3.5 shrink-0">
+              <span className="material-symbols-outlined text-xl">
+                {locationLoading ? "progress_activity" : "my_location"}
+              </span>
+            </div>
+            <div className="text-left">
+              <p className="font-bold text-slate-800 dark:text-slate-100 text-sm leading-tight">
+                {locationLoading ? "Getting current location..." : "Use my current location"}
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Using GPS for better accuracy
+              </p>
+            </div>
+          </button>
 
-            {/* Current Location Label */}
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 1.5,
-                py: 1.5,
-                px: 1.5,
-                backgroundColor: "#e8f5e9",
-                borderRadius: 1,
-                border: "1px solid #4caf50",
-              }}
-            >
-              <CheckIcon sx={{ color: "#4caf50", fontSize: isMobile ? 24 : 28, flexShrink: 0 }} />
-              <Box>
-                <Typography
-                  variant="subtitle2"
-                  fontWeight={600}
-                  sx={{
-                    fontSize: isMobile ? "0.95rem" : "1rem",
-                    color: "#2e7d32",
-                  }}
-                >
-                  Current Location
-                </Typography>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontSize: isMobile ? "0.85rem" : "0.9rem",
-                    color: "#555",
-                    mt: 0.5,
-                    wordBreak: "break-word",
-                  }}
-                >
-                  {currentLocationData.cityProvince}
-                </Typography>
-              </Box>
-            </Box>
-
-            {/* Add New Address Button */}
-            <Button
-              fullWidth
-              startIcon={<AddIcon />}
-              onClick={handleAddNewAddress}
-              sx={{
-                mt: 2,
-                py: isMobile ? 1.5 : 2,
-                textTransform: "none",
-                fontSize: isMobile ? "0.95rem" : "1rem",
-                fontWeight: 600,
-                backgroundColor: "#f5f5f5",
-                color: "#1976d2",
-                border: "2px dashed #1976d2",
-                "&:hover": {
-                  backgroundColor: "#e3f2fd",
-                  border: "2px dashed #1565c0",
-                },
-              }}
-            >
-              + Add a new address
-            </Button>
-          </Box>
-        </>
-      )}
-
-      <DialogContent
-        sx={{
-          pt: isMobile ? 1.5 : 2,
-          px: isMobile ? 1.5 : 2,
-          overflow: "auto",
-          maxHeight: isMobile ? "calc(90vh - 180px)" : "calc(85vh - 180px)",
-        }}
-      >
-        <Stack spacing={isMobile ? 1.5 : 2}>
-          {/* Saved Addresses Section */}
-          {savedAddresses.length > 0 && (
-            <Box>
-              <Typography
-                variant="subtitle2"
-                fontWeight={600}
-                sx={{
-                  mb: isMobile ? 0.75 : 1,
-                  fontSize: isMobile ? "0.9rem" : "1rem",
-                }}
-              >
-                Your saved addresses
-              </Typography>
-              <Stack spacing={isMobile ? 0.75 : 1}>
-                {savedAddresses.map((address, index) => (
-                  <Card
-                    key={index}
-                    sx={{
-                      p: isMobile ? 1 : 1.5,
-                      cursor: "pointer",
-                      transition: "all 0.2s ease",
-                      border: "2px solid #e0e0e0",
-                      minHeight: isMobile ? 50 : "auto",
-                      display: "flex",
-                      alignItems: "center",
-                      "&:hover": {
-                        border: "2px solid #1976d2",
-                        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                        backgroundColor: "#f5f5f5",
-                      },
-                      "&:active": {
-                        backgroundColor: "#eeeeee",
-                      },
-                    }}
-                    onClick={() => {
-                      // Extract city and province from saved address
-                      const parts = address.split(",");
-                      const cityProvince = parts.slice(-2).join(",").trim() || address.split(",")[0];
-                      onSelectAddress({ address, cityProvince });
-                    }}
-                  >
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        fontSize: isMobile ? "0.9rem" : "1rem",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {address}
-                    </Typography>
-                  </Card>
-                ))}
-              </Stack>
-            </Box>
+          {locationError && (
+            <div className="mb-6 rounded-xl border border-red-200 bg-red-50 text-red-700 text-xs px-3 py-2">
+              {locationError}
+            </div>
           )}
-        </Stack>
-      </DialogContent>
-      <DialogActions
-        sx={{
-          borderTop: "1px solid #e0e0e0",
-          pt: isMobile ? 1.5 : 2,
-          px: isMobile ? 1.5 : 2,
-          pb: isMobile ? 2 : 2,
-          gap: isMobile ? 0.5 : 1,
-        }}
-      >
-        <Button
-          onClick={onClose}
-          variant="outlined"
-          sx={{
-            flex: isMobile ? 1 : "auto",
-            py: isMobile ? 1 : 1,
-            fontSize: isMobile ? "0.85rem" : "0.9rem",
-            textTransform: "none",
-          }}
-        >
-          Close
-        </Button>
-      </DialogActions>
+
+          <section className="mb-8">
+            <h2 className="text-xs font-extrabold text-slate-500 uppercase tracking-[0.08em] px-1 mb-3.5">
+              Saved Addresses
+            </h2>
+            <div className="space-y-2">
+              {filteredSavedAddresses.length === 0 ? (
+                <div className="text-xs text-slate-500 px-2 py-2.5">
+                  No saved addresses yet. Use "Set location on map" to add one.
+                </div>
+              ) : (
+                filteredSavedAddresses.map((address, index) => {
+                  const iconName = index === 0 ? "home" : index === 1 ? "work" : "location_on";
+                  const label = index === 0 ? "Home" : index === 1 ? "Work" : `Address ${index + 1}`;
+
+                  return (
+                    <button
+                      key={`${address}-${index}`}
+                      type="button"
+                      onClick={() => handleSelectAddress(address)}
+                      className="w-full text-left flex items-start p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm hover:border-slate-200 dark:hover:border-slate-600 transition"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-slate-500 mr-3.5 shrink-0">
+                        <span className="material-symbols-outlined text-[20px]">{iconName}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100 truncate leading-tight">{label}</h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
+                          {address}
+                        </p>
+                      </div>
+                      <span className="material-symbols-outlined text-slate-300 text-base">more_vert</span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </section>
+
+          <section className="mb-6">
+            <h2 className="text-xs font-extrabold text-slate-500 uppercase tracking-[0.08em] px-1 mb-3.5">
+              Recent Searches
+            </h2>
+            <div className="space-y-3 px-1">
+              {filteredRecentSearches.length === 0 ? (
+                <p className="text-xs text-slate-500">No recent searches yet.</p>
+              ) : (
+                filteredRecentSearches.map((entry, index) => (
+                  <button
+                    key={`${entry}-${index}`}
+                    type="button"
+                    onClick={() => handleSelectAddress(entry)}
+                    className="w-full text-left flex items-center text-slate-600 dark:text-slate-300 rounded-xl px-1 py-1"
+                  >
+                    <span className="material-symbols-outlined text-slate-400 mr-4">history</span>
+                    <p className="text-sm truncate">{entry}</p>
+                  </button>
+                ))
+              )}
+            </div>
+          </section>
+        </main>
+
+        <div className="shrink-0 p-3.5 pt-3 pb-[calc(0.85rem+env(safe-area-inset-bottom))] bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-100 dark:border-slate-800">
+          <button
+            type="button"
+            onClick={openMapPicker}
+            className="w-full bg-primary text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-md hover:opacity-95 transition"
+          >
+            <span className="material-symbols-outlined text-xl">map</span>
+            <span>Set location on map</span>
+          </button>
+        </div>
+      </div>
     </Dialog>
   );
 };
