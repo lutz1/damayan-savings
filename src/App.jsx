@@ -53,24 +53,13 @@ function App() {
   const [initialized, setInitialized] = useState(false);
   const [role, setRole] = useState(() => localStorage.getItem("userRole"));
   const appBase = window.location.pathname.startsWith("/damayan-savings") ? "/damayan-savings" : "";
-  const [showSplash, setShowSplash] = useState(() => {
-    const isStandalone =
-      window.navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
-    const splashShown = sessionStorage.getItem("splash_shown");
-    return isStandalone && !splashShown;
-  });
+  const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
     const storedRole = localStorage.getItem("userRole");
     if (storedRole) setRole(storedRole);
     setInitialized(true);
   }, []);
-
-  useEffect(() => {
-    if (showSplash) {
-      sessionStorage.setItem("splash_shown", "true");
-    }
-  }, [showSplash]);
 
   if (!initialized) {
     return (
@@ -140,7 +129,7 @@ function App() {
       <Splashscreen
         open={showSplash}
         logo={`${appBase}/damayan.png`}
-        duration={2000}
+        duration={0}
         onClose={() => setShowSplash(false)}
       />
       {!showSplash && (

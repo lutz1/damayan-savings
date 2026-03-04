@@ -1,10 +1,14 @@
 import React, { useEffect, useRef } from "react";
 import { Box, Fade } from "@mui/material";
 import { motion } from "framer-motion";
-import merchantVideo from "../assets/merchant.mp4";
+import bownersVideo from "../assets/bowners.mp4";
 
 const Splashscreen = ({ open = false, logo, duration = 1800, onClose, overlayColor = "rgba(0,0,0,0.9)" }) => {
   const videoRef = useRef(null);
+
+  const handleVideoEnded = () => {
+    if (typeof onClose === "function") onClose();
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -64,9 +68,10 @@ const Splashscreen = ({ open = false, logo, duration = 1800, onClose, overlayCol
               ref={videoRef}
               component="video"
               autoPlay
-              loop
+              loop={false}
               muted
               playsInline
+              onEnded={handleVideoEnded}
               sx={{
                 width: "100%",
                 maxWidth: { xs: "90vw", sm: "70vw", md: "60vw" },
@@ -78,7 +83,7 @@ const Splashscreen = ({ open = false, logo, duration = 1800, onClose, overlayCol
                 objectFit: "contain",
               }}
             >
-              <source src={merchantVideo} type="video/mp4" />
+              <source src={bownersVideo} type="video/mp4" />
             </Box>
           </motion.div>
         </Box>

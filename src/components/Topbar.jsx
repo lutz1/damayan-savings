@@ -47,7 +47,7 @@ import {
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "@mui/material/styles";
-import tclcLogo from "../assets/tclc-logo1.png";
+import appLogo from "../assets/newlogo.png";
 
 // Dialog components
 import PurchaseCodesDialog from "./Topbar/dialogs/PurchaseCodesDialog";
@@ -202,7 +202,7 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
             {onToggleSidebar && <IconButton color="inherit" onClick={onToggleSidebar} sx={{ display: { xs: "none", md: "inline-flex" } }}><MenuIcon /></IconButton>}
             <Box
               component="img"
-              src={tclcLogo}
+              src={appLogo}
               alt="TCLC Logo"
               sx={{
                 width: { xs: 45, sm: 55, md: 60 },

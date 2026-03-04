@@ -4,7 +4,7 @@ import { Link } from "react-scroll";
 import { motion } from "framer-motion";
 import { useTheme } from "@mui/material/styles";
 
-import tclcLogo from "../assets/tclc-logo1.png";
+import appLogo from "../assets/newlogo.png";
 import damayanLogo from "../assets/damayan.png";
 
 const sections = ["home", "about", "leadership", "stats", "contact"];
@@ -65,7 +65,7 @@ const Navbar = () => {
         cursor: "pointer",
       }}
     >
-      <Box component="img" src={tclcLogo} alt="TCLC Logo" sx={{ height: 40 }} />
+      <Box component="img" src={appLogo} alt="App Logo" sx={{ height: 40 }} />
       <Box component="img" src={damayanLogo} alt="DAMAYAN Logo" sx={{ height: 40 }} />
     </Box>
   )}
