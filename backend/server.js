@@ -569,18 +569,33 @@ app.post("/api/paymongo-webhook", async (req, res) => {
       }
 
       const metadataData = metadataDoc.data();
-      const { userId, amount, name } = metadataData;
+      const metadataRef = db.collection("paymentMetadata").doc(checkoutId);
+      let txResult = null;
 
-      console.log("[paymongo-webhook] ✅ Metadata found - creating deposit for user:", userId);
+      console.log("[paymongo-webhook] ✅ Metadata found - processing deposit for user:", metadataData.userId);
 
-      // Create deposit record with PENDING status (requires admin approval)
-      const depositRef = db.collection("deposits").doc();
       await db.runTransaction(async (transaction) => {
-        // Create deposit record with Pending status - requires admin approval
+        const freshMetadataSnap = await transaction.get(metadataRef);
+        if (!freshMetadataSnap.exists) {
+          throw new Error("Payment metadata disappeared during transaction");
+        }
+
+        const freshMetadata = freshMetadataSnap.data();
+        if (freshMetadata.depositId) {
+          txResult = {
+            depositId: freshMetadata.depositId,
+            userId: freshMetadata.userId,
+            amount: freshMetadata.amount,
+            alreadyExists: true,
+          };
+          return;
+        }
+
+        const depositRef = db.collection("deposits").doc();
         transaction.set(depositRef, {
-          userId,
-          name,
-          amount,
+          userId: freshMetadata.userId,
+          name: freshMetadata.name,
+          amount: freshMetadata.amount,
           reference: checkoutId,
           receiptUrl: "",
           status: "Pending",
@@ -588,16 +603,24 @@ app.post("/api/paymongo-webhook", async (req, res) => {
           createdAt: new Date(),
         });
 
-        // DO NOT update user eWallet - wait for admin approval
-
-        // Update metadata to link deposit
-        transaction.update(db.collection("paymentMetadata").doc(checkoutId), {
+        transaction.update(metadataRef, {
           depositId: depositRef.id,
           completedAt: new Date(),
         });
+
+        txResult = {
+          depositId: depositRef.id,
+          userId: freshMetadata.userId,
+          amount: freshMetadata.amount,
+          alreadyExists: false,
+        };
       });
 
-      console.info(`[paymongo-webhook] ✅ DEPOSIT CREATED - user=${userId} amount=₱${amount} checkoutId=${checkoutId} depositId=${depositRef.id} status=Pending (awaiting admin approval)`);
+      if (txResult?.alreadyExists) {
+        console.info(`[paymongo-webhook] ℹ️ Deposit already linked - checkoutId=${checkoutId} depositId=${txResult.depositId}`);
+      } else {
+        console.info(`[paymongo-webhook] ✅ DEPOSIT CREATED - user=${txResult?.userId} amount=₱${txResult?.amount} checkoutId=${checkoutId} depositId=${txResult?.depositId} status=Pending (awaiting admin approval)`);
+      }
       return res.json({ success: true });
     }
 
@@ -631,7 +654,8 @@ app.post("/api/verify-paymongo-payment", async (req, res) => {
     const userId = decodedToken.uid;
 
     // Check if deposit was already created by webhook
-    const metadataDoc = await db.collection("paymentMetadata").doc(sessionId).get();
+    const metadataRef = db.collection("paymentMetadata").doc(sessionId);
+    const metadataDoc = await metadataRef.get();
 
     if (!metadataDoc.exists) {
       console.error("[verify-payment] Payment metadata not found:", sessionId);
@@ -646,7 +670,6 @@ app.post("/api/verify-paymongo-payment", async (req, res) => {
       return res.status(403).json({ error: "Unauthorized: Payment belongs to different user" });
     }
 
-    // If deposit already created (by webhook), return success
     if (metadataData.depositId) {
       console.info(`[verify-payment] ✅ Deposit already created: ${metadataData.depositId}`);
       return res.json({
@@ -656,16 +679,34 @@ app.post("/api/verify-paymongo-payment", async (req, res) => {
       });
     }
 
-    // If webhook hasn't processed yet, create deposit manually
-    console.warn("[verify-payment] ⚠️ Webhook not processed, creating deposit manually");
-    const depositRef = db.collection("deposits").doc();
+    console.warn("[verify-payment] ⚠️ Webhook not processed yet, resolving via idempotent transaction");
+    let txResult = null;
 
     await db.runTransaction(async (transaction) => {
-      // Create deposit record with Pending status - requires admin approval
+      const freshMetadataSnap = await transaction.get(metadataRef);
+      if (!freshMetadataSnap.exists) {
+        throw new Error("Payment metadata not found");
+      }
+
+      const freshMetadata = freshMetadataSnap.data();
+      if (freshMetadata.userId !== userId) {
+        throw new Error("Unauthorized: Payment belongs to different user");
+      }
+
+      if (freshMetadata.depositId) {
+        txResult = {
+          depositId: freshMetadata.depositId,
+          amount: freshMetadata.amount,
+          alreadyExists: true,
+        };
+        return;
+      }
+
+      const depositRef = db.collection("deposits").doc();
       transaction.set(depositRef, {
         userId,
-        name: metadataData.name,
-        amount: metadataData.amount,
+        name: freshMetadata.name,
+        amount: freshMetadata.amount,
         reference: sessionId,
         receiptUrl: "",
         status: "Pending",
@@ -673,20 +714,23 @@ app.post("/api/verify-paymongo-payment", async (req, res) => {
         createdAt: new Date(),
       });
 
-      // DO NOT update user eWallet - wait for admin approval
-      
-      // Update metadata
-      transaction.update(db.collection("paymentMetadata").doc(sessionId), {
+      transaction.update(metadataRef, {
         depositId: depositRef.id,
         completedAt: new Date(),
       });
+
+      txResult = {
+        depositId: depositRef.id,
+        amount: freshMetadata.amount,
+        alreadyExists: false,
+      };
     });
 
-    console.info(`[verify-payment] ✅ user=${userId} amount=₱${metadataData.amount} sessionId=${sessionId} depositId=${depositRef.id} status=Pending (awaiting admin approval)`);
+    console.info(`[verify-payment] ✅ user=${userId} amount=₱${txResult?.amount} sessionId=${sessionId} depositId=${txResult?.depositId} status=Pending (awaiting admin approval)`);
 
     res.json({
       success: true,
-      depositId: depositRef.id,
+      depositId: txResult?.depositId,
       message: "Payment received and awaiting admin approval",
     });
   } catch (error) {
@@ -724,7 +768,7 @@ app.post("/api/chat", async (req, res) => {
 // 💸 Secure Transfer Funds Endpoint
 app.post("/api/transfer-funds", async (req, res) => {
   try {
-    const { idToken, recipientUsername, amount } = req.body;
+    const { idToken, recipientUsername, amount, clientRequestId } = req.body;
 
     // Validate input
     if (!idToken || !recipientUsername || !amount) {
@@ -770,6 +814,20 @@ app.post("/api/transfer-funds", async (req, res) => {
         const currentBalance = Number(senderData.eWallet);
         if (isNaN(currentBalance)) throw new Error("Sender wallet balance is invalid");
 
+        const transferRef = clientRequestId
+          ? db.collection("transferFunds").doc(`${senderId}_${clientRequestId}`)
+          : db.collection("transferFunds").doc();
+
+        const existingTransferSnap = await transaction.get(transferRef);
+        if (existingTransferSnap.exists) {
+          return {
+            success: true,
+            newBalance: currentBalance,
+            transferId: transferRef.id,
+            deduped: true,
+          };
+        }
+
         // Check balance
         if (currentBalance < numAmount) {
           throw new Error("Insufficient wallet balance");
@@ -805,8 +863,6 @@ app.post("/api/transfer-funds", async (req, res) => {
           eWallet: isNaN(recipientBalance) ? netTransfer : Number(recipientBalance + netTransfer),
         });
 
-        // Create transfer log
-        const transferRef = db.collection("transferFunds").doc();
         transaction.set(transferRef, {
           senderId: senderId,
           senderName: senderData.name || senderData.username,
@@ -816,6 +872,7 @@ app.post("/api/transfer-funds", async (req, res) => {
           amount: numAmount,
           charge: charge,
           netAmount: netTransfer,
+          clientRequestId: clientRequestId || null,
           status: "Approved",
           createdAt: new Date(),
         });

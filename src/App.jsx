@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from "react";
+import React, { Suspense, lazy, useEffect, useState } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -11,55 +11,42 @@ import { ParallaxProvider } from "react-scroll-parallax";
 import { LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterMoment } from "@mui/x-date-pickers/AdapterMoment";
 import Splashscreen from "./components/splashscreen";
-import Login from "./pages/login";
-import AdminDashboard from "./pages/admin/adminDashboard";
-import AdminGenerateCode from "./pages/admin/adminGenerateCode";
-import AdminUserManagement from "./pages/admin/adminUserManagement";
-import AdminMerchantManagement from "./pages/admin/adminMerchantManagement";
 
-import AdminProfile from "./pages/admin/adminProfile";
-import AdminTransferTransaction from "./pages/admin/adminTransferTransaction";
-import AdminWalletToWallet from "./pages/admin/adminWallettoWallet";
-import AdminWithdrawals from "./pages/admin/adminWithdrawals";
-import AdminDeposits from "./pages/admin/adminDeposits";
-
-import AdminCategoryManagement from "./pages/admin/adminCategoryManagement";
-import AdminProductManagement from "./pages/admin/adminProductManagement";
-
-import AdminPaybackEntries from "./pages/admin/adminPaybackEntries";
-
-import MerchantDashboard from "./pages/merchant/merchantDashboard";
-import MerchantOrders from "./pages/merchant/merchantOrders";
-import MerchantProducts from "./pages/merchant/merchantProducts";
-
-import AddProductPage from "./pages/merchant/addProduct";
-import EditProductPage from "./pages/merchant/editProduct";
-
-import StoreProfilePage from "./pages/merchant/storeProfile";
-
-import MerchantProfile from "./pages/merchant/merchantProfile";
-
-import LocationAccess from "./pages/LocationAccess";
-
-import ShopPage from "./pages/shop";
-
-import StoreDetailsPage from "./pages/storeDetails";
-
-import AllStoresPage from "./pages/allStores";
-
-import AddAddress from "./pages/addAddress";
-
-import CartPage from "./pages/cart";
-import MemberDashboard from "./pages/member/memberDashboard";
-import MemberPayback from "./pages/member/memberPayback";
-import MemberCapitalShare from "./pages/member/memberCapitalShare";
-
-import MemberProfile from "./pages/member/memberProfile";
-import DepositSuccess from "./pages/depositSuccess";
-import DepositCancel from "./pages/depositCancel";
-
-import RiderDashboard from "./pages/rider/riderDashboard";
-import RiderProfile from "./pages/rider/riderProfile";
+const Login = lazy(() => import("./pages/login"));
+const AdminDashboard = lazy(() => import("./pages/admin/adminDashboard"));
+const AdminGenerateCode = lazy(() => import("./pages/admin/adminGenerateCode"));
+const AdminUserManagement = lazy(() => import("./pages/admin/adminUserManagement"));
+const AdminMerchantManagement = lazy(() => import("./pages/admin/adminMerchantManagement"));
+const AdminProfile = lazy(() => import("./pages/admin/adminProfile"));
+const AdminTransferTransaction = lazy(() => import("./pages/admin/adminTransferTransaction"));
+const AdminWalletToWallet = lazy(() => import("./pages/admin/adminWallettoWallet"));
+const AdminWithdrawals = lazy(() => import("./pages/admin/adminWithdrawals"));
+const AdminDeposits = lazy(() => import("./pages/admin/adminDeposits"));
+const AdminCategoryManagement = lazy(() => import("./pages/admin/adminCategoryManagement"));
+const AdminProductManagement = lazy(() => import("./pages/admin/adminProductManagement"));
+const AdminPaybackEntries = lazy(() => import("./pages/admin/adminPaybackEntries"));
+const MerchantDashboard = lazy(() => import("./pages/merchant/merchantDashboard"));
+const MerchantOrders = lazy(() => import("./pages/merchant/merchantOrders"));
+const MerchantProducts = lazy(() => import("./pages/merchant/merchantProducts"));
+const AddProductPage = lazy(() => import("./pages/merchant/addProduct"));
+const EditProductPage = lazy(() => import("./pages/merchant/editProduct"));
+const StoreProfilePage = lazy(() => import("./pages/merchant/storeProfile"));
+const MerchantProfile = lazy(() => import("./pages/merchant/merchantProfile"));
+const LocationAccess = lazy(() => import("./pages/LocationAccess"));
+const ShopPage = lazy(() => import("./pages/shop"));
+const StoreDetailsPage = lazy(() => import("./pages/storeDetails"));
+const AllStoresPage = lazy(() => import("./pages/allStores"));
+const AddAddress = lazy(() => import("./pages/addAddress"));
+const CartPage = lazy(() => import("./pages/cart"));
+const MemberDashboard = lazy(() => import("./pages/member/memberDashboard"));
+const MemberPayback = lazy(() => import("./pages/member/memberPayback"));
+const MemberCapitalShare = lazy(() => import("./pages/member/memberCapitalShare"));
+const MemberOrders = lazy(() => import("./pages/member/memberOrders"));
+const MemberProfile = lazy(() => import("./pages/member/memberProfile"));
+const DepositSuccess = lazy(() => import("./pages/depositSuccess"));
+const DepositCancel = lazy(() => import("./pages/depositCancel"));
+const RiderDashboard = lazy(() => import("./pages/rider/riderDashboard"));
+const RiderProfile = lazy(() => import("./pages/rider/riderProfile"));
 
 
 function App() {
@@ -167,6 +154,13 @@ function App() {
           >
             <AutoRedirect />
 
+            <Suspense
+              fallback={
+                <div style={{ textAlign: "center", marginTop: "20%" }}>
+                  Loading...
+                </div>
+              }
+            >
             <Routes>
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<Login />} />
@@ -359,6 +353,14 @@ function App() {
               }
             />
             <Route
+              path="/member/orders"
+              element={
+                <MemberRoute>
+                  <MemberOrders />
+                </MemberRoute>
+              }
+            />
+            <Route
               path="/member/profile"
               element={
                 <MemberRoute>
@@ -386,6 +388,7 @@ function App() {
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </Suspense>
           </Router>
         )}
       </LocalizationProvider>

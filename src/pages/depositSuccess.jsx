@@ -4,7 +4,7 @@ import { Box, Typography, CircularProgress, Card, CardContent, Button } from "@m
 import { CheckCircle, ErrorOutline } from "@mui/icons-material";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { db } from "../firebase";
-import { collection, doc, getDoc, setDoc } from "firebase/firestore";
+import { collection, doc, getDoc, runTransaction } from "firebase/firestore";
 import bgImage from "../assets/bg.jpg";
 
 const DepositSuccess = () => {
@@ -15,24 +15,53 @@ const DepositSuccess = () => {
   const auth = getAuth();
 
   // Fallback: Create deposit directly in Firestore if backend is unavailable
-  const createDepositClientSide = async (user, metadata) => {
+  const createDepositClientSide = async (user, sessionId) => {
     try {
       console.log("[depositSuccess] 🔄 Creating deposit directly in Firestore (backend offline fallback)");
-      
-      const depositRef = doc(collection(db, "deposits"));
-      await setDoc(depositRef, {
-        userId: user.uid,
-        name: metadata.name,
-        amount: metadata.amount,
-        reference: metadata.checkoutId,
-        receiptUrl: "",
-        status: "Pending",
-        paymentMethod: "PayMongo",
-        createdAt: new Date(),
+
+      const metadataRef = doc(db, "paymentMetadata", sessionId);
+      const txResult = await runTransaction(db, async (transaction) => {
+        const metadataSnap = await transaction.get(metadataRef);
+        if (!metadataSnap.exists()) {
+          throw new Error("Payment metadata not found");
+        }
+
+        const metadata = metadataSnap.data();
+        if (metadata.userId !== user.uid) {
+          throw new Error("Payment belongs to different account");
+        }
+
+        if (metadata.depositId) {
+          return { depositId: metadata.depositId, alreadyExists: true };
+        }
+
+        const depositRef = doc(collection(db, "deposits"));
+        transaction.set(depositRef, {
+          userId: user.uid,
+          name: metadata.name,
+          amount: metadata.amount,
+          reference: sessionId,
+          receiptUrl: "",
+          status: "Pending",
+          paymentMethod: "PayMongo",
+          createdAt: new Date(),
+        });
+
+        transaction.update(metadataRef, {
+          depositId: depositRef.id,
+          completedAt: new Date(),
+        });
+
+        return { depositId: depositRef.id, alreadyExists: false };
       });
 
-      console.log("[depositSuccess] ✅ Deposit created via client-side fallback:", depositRef.id);
-      return { success: true, depositId: depositRef.id, isClientSideFallback: true };
+      if (txResult.alreadyExists) {
+        console.log("[depositSuccess] ℹ️ Deposit already exists in fallback flow:", txResult.depositId);
+      } else {
+        console.log("[depositSuccess] ✅ Deposit created via client-side fallback:", txResult.depositId);
+      }
+
+      return { success: true, depositId: txResult.depositId, isClientSideFallback: true };
     } catch (error) {
       console.error("[depositSuccess] ❌ Client-side fallback failed:", error);
       throw error;
@@ -158,8 +187,8 @@ const DepositSuccess = () => {
             return;
           }
 
-          // Create deposit using client-side fallback
-          await createDepositClientSide(user, metadata);
+          // Create deposit using client-side fallback (idempotent)
+          await createDepositClientSide(user, sessionId);
 
           setStatus("success");
           setMessage("Payment received! Your deposit is awaiting admin approval. You will be notified once it's confirmed.");

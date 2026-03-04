@@ -571,7 +571,7 @@ const AddAddress = () => {
                 disabled={!finalAddress}
                 className="w-full bg-[#2b8cee] text-white py-3.5 rounded-lg font-bold text-base shadow-lg shadow-[#2b8cee]/30 hover:opacity-95 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Confirm Location
+                Confirm Location 
               </button>
             </div>
           </div>

@@ -26,6 +26,7 @@ import {
   query,
   where,
   onSnapshot,
+  runTransaction,
 } from "firebase/firestore";
 
 
@@ -91,24 +92,44 @@ const PurchaseCodesDialog = ({
 };
 
   const performPurchase = async (amount) => {
+    if (loading) return;
     setLoading(true);
     try {
       const randomCode =
         "TCLC-" + Math.random().toString(36).substring(2, 10).toUpperCase();
 
-      await addDoc(collection(db, "purchaseCodes"), {
-        userId: auth.currentUser.uid,
-        name: userData.name,
-        email: userData.email,
-        code: randomCode,
-        type:
-          codeType === "capital"
-            ? "Activate Capital Share"
-            : "Downline Code",
-        amount,
-        used: false,
-        status: "Success",
-        createdAt: serverTimestamp(),
+      const txResult = await runTransaction(db, async (transaction) => {
+        const userRef = doc(db, "users", auth.currentUser.uid);
+        const userSnap = await transaction.get(userRef);
+
+        if (!userSnap.exists()) {
+          throw new Error("User account not found.");
+        }
+
+        const freshUser = userSnap.data();
+        const currentBalance = Number(freshUser.eWallet || 0);
+        if (currentBalance < amount) {
+          throw new Error("Insufficient wallet balance.");
+        }
+
+        const purchaseRef = doc(collection(db, "purchaseCodes"));
+        transaction.set(purchaseRef, {
+          userId: auth.currentUser.uid,
+          name: freshUser.name || userData.name,
+          email: freshUser.email || userData.email,
+          code: randomCode,
+          type:
+            codeType === "capital"
+              ? "Activate Capital Share"
+              : "Downline Code",
+          amount,
+          used: false,
+          status: "Success",
+          createdAt: new Date(),
+        });
+
+        transaction.update(userRef, { eWallet: currentBalance - amount });
+        return { newBalance: currentBalance - amount };
       });
 
       // Send notification for capital share activation code
@@ -116,10 +137,7 @@ const PurchaseCodesDialog = ({
         await sendPurchaseNotification({ userId: auth.currentUser.uid, codeType: "Capital Share Activation Code" });
       }
 
-      const userRef = doc(db, "users", auth.currentUser.uid);
-      const newBalance = userData.eWallet - amount;
-      await updateDoc(userRef, { eWallet: newBalance });
-      if (onBalanceUpdate) onBalanceUpdate(newBalance);
+      if (onBalanceUpdate) onBalanceUpdate(txResult.newBalance);
 
       setSuccessMessage(
         codeType === "capital"
@@ -365,9 +383,10 @@ const PurchaseCodesDialog = ({
     await performPurchase(codePrices[codeType]); // ✅ purchase runs only once here
   }}
   variant="contained"
+  disabled={loading}
   sx={{ bgcolor: "#4FC3F7", color: "#000", "&:hover": { bgcolor: "#29B6F6" } }}
 >
-  Confirm
+  {loading ? <CircularProgress size={20} sx={{ color: "#000" }} /> : "Confirm"}
 </Button>
   </DialogActions>
 </Dialog>

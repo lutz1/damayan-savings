@@ -4,6 +4,7 @@ import {Dialog,DialogTitle,DialogContent,DialogActions,Box,Button,TextField,Circ
 } from "@mui/material";
 import { PersonAdd } from "@mui/icons-material";
 import {collection,query,where,onSnapshot,addDoc,serverTimestamp,doc,updateDoc,limit,getDocs,
+  runTransaction,
 } from "firebase/firestore";
 
 const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
@@ -55,6 +56,7 @@ const isValidEmail = (email) => {
   }, [auth.currentUser, db, selectedCode]);
 
   const handleRegisterInvitee = async () => {
+    if (loading) return;
     if (
       !newUserName ||
       !newUserUsername ||
@@ -76,38 +78,76 @@ const isValidEmail = (email) => {
     setLoading(true);
 
     // Check if email is already in use
-  const emailExists = await isEmailInUse(newUserEmail);
-  if (emailExists) {
-    setError("This email is already in use. Please use another email.");
-    setLoading(false);
-    return;
-  }
+    const emailExists = await isEmailInUse(newUserEmail);
+    if (emailExists) {
+      setError("This email is already in use. Please use another email.");
+      setLoading(false);
+      return;
+    }
+
+    // Prevent duplicate pending invite for same inviter + invitee email
+    const existingInviteQ = query(
+      collection(db, "pendingInvites"),
+      where("inviterId", "==", auth.currentUser.uid),
+      where("inviteeEmail", "==", newUserEmail),
+      where("status", "==", "Pending Approval"),
+      limit(1)
+    );
+    const existingInviteSnap = await getDocs(existingInviteQ);
+    if (!existingInviteSnap.empty) {
+      setError("An invite for this email is already pending approval.");
+      setLoading(false);
+      return;
+    }
 
     try {
-      // 1️⃣ Add pending invite record
-      await addDoc(collection(db, "pendingInvites"), {
-        inviterId: auth.currentUser.uid,
-        inviterUsername: userData.username,
-        inviterRole: userData.role,
-        inviteeName: newUserName,
-        inviteeUsername: newUserUsername,
-        inviteeEmail: newUserEmail,
-        contactNumber: newUserContact,
-        address: newUserAddress,
-        role: newUserRole,
-        code: selectedCode,
-        referralCode,
-        referredBy: userData.username,
-        referrerRole: userData.role,
-        status: "Pending Approval",
-        createdAt: serverTimestamp(),
-      });
-
-      // 2️⃣ Mark activation code as used
       const codeDoc = availableCodes.find((c) => c.code === selectedCode);
-      if (codeDoc) {
-        await updateDoc(doc(db, "purchaseCodes", codeDoc.id), { used: true });
+      if (!codeDoc?.id) {
+        throw new Error("Selected activation code is no longer available.");
       }
+
+      // 1️⃣ + 2️⃣ Atomic: create pending invite and consume activation code once
+      await runTransaction(db, async (transaction) => {
+        const codeRef = doc(db, "purchaseCodes", codeDoc.id);
+        const codeSnap = await transaction.get(codeRef);
+        if (!codeSnap.exists()) {
+          throw new Error("Activation code not found.");
+        }
+
+        const codeData = codeSnap.data();
+        if (codeData.used) {
+          throw new Error("Activation code already used.");
+        }
+
+        if (codeData.userId !== auth.currentUser.uid) {
+          throw new Error("Activation code does not belong to your account.");
+        }
+
+        const pendingInviteRef = doc(collection(db, "pendingInvites"));
+        transaction.set(pendingInviteRef, {
+          inviterId: auth.currentUser.uid,
+          inviterUsername: userData.username,
+          inviterRole: userData.role,
+          inviteeName: newUserName,
+          inviteeUsername: newUserUsername,
+          inviteeEmail: newUserEmail,
+          contactNumber: newUserContact,
+          address: newUserAddress,
+          role: newUserRole,
+          code: selectedCode,
+          referralCode,
+          referredBy: userData.username,
+          referrerRole: userData.role,
+          status: "Pending Approval",
+          createdAt: new Date(),
+        });
+
+        transaction.update(codeRef, {
+          used: true,
+          usedAt: new Date(),
+          usedByInviteeEmail: newUserEmail,
+        });
+      });
 
       // 3️⃣ Direct Invite Reward
       const directRewardMap = {
@@ -536,9 +576,10 @@ if (role?.toLowerCase() === "md") {
         handleRegisterInvitee();
       }}
       variant="contained"
+      disabled={loading}
       sx={{ bgcolor: "#FFD54F", color: "#000", "&:hover": { bgcolor: "#FFCA28" } }}
     >
-      Confirm
+      {loading ? <CircularProgress size={20} sx={{ color: "#000" }} /> : "Confirm"}
     </Button>
   </DialogActions>
 </Dialog>

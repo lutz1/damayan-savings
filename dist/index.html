@@ -59,8 +59,40 @@
         }
       })();
     </script>
-    <script type="module" crossorigin src="/damayan-savings/assets/index-D28UoJPc.js"></script>
-    <link rel="stylesheet" crossorigin href="/damayan-savings/assets/index-B5MGPQaS.css">
+
+    <script type="text/javascript">
+      (function () {
+        if (!('serviceWorker' in navigator)) return;
+
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.getRegistrations()
+            .then(function (registrations) {
+              return Promise.all(
+                registrations.map(function (registration) {
+                  return registration.unregister();
+                })
+              );
+            })
+            .then(function () {
+              if (!('caches' in window)) return;
+              return caches.keys().then(function (keys) {
+                return Promise.all(keys.map(function (key) {
+                  return caches.delete(key);
+                }));
+              });
+            })
+            .catch(function () {
+              // Ignore cleanup errors to avoid blocking app startup
+            });
+        });
+      })();
+    </script>
+    <script type="module" crossorigin src="/damayan-savings/assets/index-DnmqhQBy.js"></script>
+    <link rel="modulepreload" crossorigin href="/damayan-savings/assets/vendor-emotion-CzXs6gIp.js">
+    <link rel="modulepreload" crossorigin href="/damayan-savings/assets/vendor-mui-x-CBO6ZwBL.js">
+    <link rel="modulepreload" crossorigin href="/damayan-savings/assets/vendor-mui-core-WPA_2qMc.js">
+    <link rel="stylesheet" crossorigin href="/damayan-savings/assets/vendor-mui-x-BU3nLhQd.css">
+    <link rel="stylesheet" crossorigin href="/damayan-savings/assets/index-D_oD1V3r.css">
   </head>
 
   <body>

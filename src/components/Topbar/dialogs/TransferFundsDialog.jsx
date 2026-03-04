@@ -43,6 +43,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
   const [confirmDialog, setConfirmDialog] = useState(false); // ✅ Custom confirm dialog toggle
   const [receiptDialog, setReceiptDialog] = useState(false);
   const [receiptData, setReceiptData] = useState(null);
+  const [clientRequestId, setClientRequestId] = useState(null);
 
   // ✅ Real-time transfer logs
   useEffect(() => {
@@ -108,15 +109,21 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
     if (numAmount < 50) return setError("Minimum transfer is ₱50.");
 
     setError("");
+    if (!clientRequestId) {
+      setClientRequestId(`tf_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`);
+    }
     setConfirmDialog(true); // ✅ Ask user permission before sending
   };
 
   const handleConfirmTransfer = async () => {
+    if (loading) return;
     setConfirmDialog(false);
     setLoading(true);
 
     try {
       const numAmount = parseFloat(amount);
+      const requestId = clientRequestId || `tf_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      setClientRequestId(requestId);
 
       // Get user's ID token for authentication
       const idToken = await auth.currentUser.getIdToken();
@@ -132,6 +139,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
           idToken,
           recipientUsername,
           amount: numAmount,
+          clientRequestId: requestId,
         }),
       });
 
@@ -163,6 +171,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
       setAmount("");
       setRecipientUsername("");
       setSearchResults([]);
+      setClientRequestId(null);
     } catch (err) {
       console.error("Transfer request failed:", err);
       setError(err.message || "Something went wrong. Please try again.");
@@ -180,6 +189,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
     setConfirmDialog(false);
     setReceiptDialog(false);
     setReceiptData(null);
+    setClientRequestId(null);
     onClose();
   };
 
@@ -482,6 +492,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
                         button
                         onClick={() => handleSelectUser(u.username)}
                         sx={{ "&:hover": { background: "rgba(255,255,255,0.1)" } }}
+                          disabled={loading}
                       >
                         <ListItemText
                           primary={u.username}

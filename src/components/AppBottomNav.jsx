@@ -116,7 +116,7 @@ const AppBottomNav = ({ open, onToggleSidebar, layout = "bottom" }) => {
       { label: "Dashboard", value: "/member/dashboard", icon: <DashboardIcon /> },
       { label: "Payback", value: "/member/income/payback", icon: <SavingsIcon /> },
       { label: "Capital", value: "/member/income/capital-share", icon: <PieChartIcon /> },
-      { label: "Shop", value: "/shop", icon: <LocalMallIcon /> },
+      { label: "Orders", value: "/member/orders", icon: <TransactionIcon /> },
       { label: "Account", value: "/member/profile", icon: <AccountCircleIcon /> },
     ];
   }

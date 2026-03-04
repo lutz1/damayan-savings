@@ -84,6 +84,7 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
 
   // ✅ Main Withdraw Logic (called after user confirms)
   const performWithdraw = async () => {
+    if (loading) return;
     setConfirmOpen(false);
     setError("");
     setLoading(true);
@@ -486,6 +487,7 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
           <Button
             onClick={performWithdraw}
             variant="contained"
+            disabled={loading}
             sx={{
               bgcolor: "#FF7043",
               color: "#000",

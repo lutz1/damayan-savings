@@ -378,9 +378,33 @@ service cloud.firestore {
     // 💰 SALES
     match /sales/{saleId} {
       allow read: if request.auth != null &&
-        (resource.data.merchantId == request.auth.uid || userRole() in ["admin", "ceo"]);
+        (
+          resource.data.merchantId == request.auth.uid ||
+          resource.data.customerId == request.auth.uid ||
+          userRole() in ["admin", "ceo"]
+        );
 
-      allow create, update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
+      allow create: if request.auth != null && (
+        userRole() in ["admin", "ceo"] ||
+        (
+          request.resource.data.customerId == request.auth.uid &&
+          request.resource.data.status == "PENDING" &&
+          request.resource.data.keys().hasAll([
+            "merchantId",
+            "customerId",
+            "customerName",
+            "items",
+            "subtotal",
+            "deliveryFee",
+            "total",
+            "status",
+            "deliveryAddress",
+            "createdAt"
+          ])
+        )
+      );
+
+      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
     }
 
     // 💬 FEEDBACK

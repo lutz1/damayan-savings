@@ -720,7 +720,11 @@ export default function ShopPage() {
         }}
         onAddAddress={({ success, address }) => {
           if (success && address.trim()) {
-            const newAddresses = [...savedAddresses, address];
+            const normalized = address.trim().toLowerCase();
+            const newAddresses = [
+              ...savedAddresses.filter((entry) => (entry || "").trim().toLowerCase() !== normalized),
+              address.trim(),
+            ];
             setSavedAddresses(newAddresses);
             localStorage.setItem("savedAddresses", JSON.stringify(newAddresses));
             setSnack({ open: true, severity: "success", message: "Address added successfully" });
