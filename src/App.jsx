@@ -6,6 +6,7 @@ import {
   Route,
   Navigate,
   useLocation,
+  useNavigate,
 } from "react-router-dom";
 import { LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterMoment } from "@mui/x-date-pickers/AdapterMoment";
@@ -103,9 +104,9 @@ function App() {
 
   const AutoRedirect = () => {
     const location = useLocation();
+    const navigate = useNavigate();
 
     useEffect(() => {
-      const base = appBase;
       const userRole = localStorage.getItem("userRole")?.toUpperCase();
       const locationCompleted = localStorage.getItem('locationCompleted') === 'true';
       const path = location.pathname;
@@ -114,22 +115,22 @@ function App() {
 
       if (path === "/" || path === "/login") {
         if (["ADMIN", "CEO"].includes(userRole)) {
-          window.location.replace(`${base}/admin/dashboard`);
+          navigate("/admin/dashboard", { replace: true });
         } else if (userRole === "MERCHANT") {
           if (locationCompleted) {
-            window.location.replace(`${base}/merchant/dashboard`);
+            navigate("/merchant/dashboard", { replace: true });
           } else {
-            window.location.replace(`${base}/location-access`);
+            navigate("/location-access", { replace: true });
           }
         } else if (userRole === "RIDER") {
-          window.location.replace(`${base}/rider/dashboard`);
+          navigate("/rider/dashboard", { replace: true });
         } else if (
           ["MASTERMD", "MD", "MS", "MI", "AGENT", "MEMBER"].includes(userRole)
         ) {
-          window.location.replace(`${base}/member/dashboard`);
+          navigate("/member/dashboard", { replace: true });
         }
       }
-    }, [location]);
+    }, [location.pathname, navigate]);
 
     return null;
   };

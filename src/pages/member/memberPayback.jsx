@@ -490,7 +490,7 @@ const fetchPaybackData = useCallback(async (userId) => {
           overflowY: 'auto',
           maxHeight: '100vh',
           scrollbarWidth: 'none', // Firefox
-          '-ms-overflow-style': 'none', // IE and Edge
+          msOverflowStyle: 'none', // IE and Edge
           '&::-webkit-scrollbar': {
             display: 'none', // Chrome, Safari, Opera
           },

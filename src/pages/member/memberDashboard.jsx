@@ -599,7 +599,7 @@ const fetchPaybackAndCapital = async (uid) => {
           position: "relative",
           // Hide scrollbar while keeping scroll functionality
           scrollbarWidth: 'none', // Firefox
-          '-ms-overflow-style': 'none', // IE and Edge
+          msOverflowStyle: 'none', // IE and Edge
           '&::-webkit-scrollbar': {
             display: 'none', // Chrome, Safari, Opera
           },

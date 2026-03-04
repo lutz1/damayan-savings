@@ -74,7 +74,7 @@ const RewardHistoryDialog = ({
               overflowY: "auto",
               maxHeight: { xs: 700, sm: 800, md: 900, lg: 1100 },
               scrollbarWidth: "none",
-              "-ms-overflow-style": "none",
+              msOverflowStyle: "none",
               "&::-webkit-scrollbar": {
                 display: "none",
               },

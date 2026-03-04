@@ -67,7 +67,7 @@ const PaybackTransactions = ({ loading, paybackEntries }) => {
           overflowY: 'auto',
           height: '100%',
           scrollbarWidth: 'none', // Firefox
-          '-ms-overflow-style': 'none', // IE and Edge
+          msOverflowStyle: 'none', // IE and Edge
           '&::-webkit-scrollbar': {
             display: 'none', // Chrome, Safari, Opera
           },
