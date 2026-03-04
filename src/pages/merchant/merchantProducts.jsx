@@ -267,11 +267,14 @@ const MerchantProducts = () => {
   return (
     <Box
       sx={{
-        minHeight: "100vh",
+        minHeight: "100dvh",
         bgcolor: "#f6f7f8",
         display: "flex",
         justifyContent: "center",
         pb: 12,
+        paddingTop: 'env(safe-area-inset-top, 0)',
+        paddingLeft: 'env(safe-area-inset-left, 0)',
+        paddingRight: 'env(safe-area-inset-right, 0)',
       }}
     >
       <Container
@@ -279,7 +282,7 @@ const MerchantProducts = () => {
         disableGutters
         sx={{
           bgcolor: "white",
-          minHeight: "100vh",
+          minHeight: "100dvh",
           boxShadow: { sm: "0 0 40px rgba(0,0,0,0.1)" },
         }}
       >

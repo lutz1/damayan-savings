@@ -11,6 +11,14 @@ service cloud.firestore {
         : "";
     }
 
+    function userEmail() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email is string
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email.lower()
+        : "";
+    }
+
     // ==========================================
     // 👤 USERS
     match /users/{userId} {
@@ -62,12 +70,57 @@ service cloud.firestore {
             "email",
             "city",
             "coverImage",
-            "logo"
+            "logo",
+            "capitalShareVoucherType",
+            "capitalShareVoucherUpdatedAt",
+            "capitalShareVoucherBranchId",
+            "capitalShareVoucherBranchName",
+            "capitalShareVoucherBranchAddress",
+            "capitalShareVoucherBranchEmail"
           ])
         ) ||
         // Admin/CEO
         userRole() in ["admin", "ceo"]
       );
+    }
+
+    // ==========================================
+    // 🎟️ CAPITAL SHARE VOUCHERS
+    match /capitalShareVouchers/{userId} {
+      allow read: if request.auth != null &&
+        (request.auth.uid == userId || userRole() in ["admin", "ceo", "merchant"]);
+
+      allow create, update: if
+        request.auth == null ||
+        (
+          request.auth != null &&
+          (
+            request.auth.uid == userId ||
+            userRole() in ["admin", "ceo"] ||
+            (
+              userRole() == "merchant" &&
+              resource.data.voucherStatus == "ACTIVE" &&
+              resource.data.voucherType == "WALK_IN" &&
+              (
+                (resource.data.branchId is string && resource.data.branchId == request.auth.uid) ||
+                (resource.data.branchEmail is string && resource.data.branchEmail.lower() == userEmail())
+              ) &&
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                "voucherStatus",
+                "redeemedAt",
+                "redeemedByMerchantId",
+                "redeemedByMerchantName",
+                "redeemedByMerchantEmail",
+                "updatedAt"
+              ]) &&
+              request.resource.data.voucherStatus == "REDEEMED" &&
+              request.resource.data.redeemedByMerchantId == request.auth.uid
+            )
+          )
+        );
+
+      allow delete: if request.auth != null &&
+        (request.auth.uid == userId || userRole() in ["admin", "ceo"]);
     }
 
     // ==========================================

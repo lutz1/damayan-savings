@@ -1,5 +1,6 @@
 // src/pages/MemberCapitalShare.jsx
 import React, { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Box,
   Card,
@@ -21,6 +22,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import {
   doc,
   getDoc,
+  setDoc,
   updateDoc,
   collection,
   getDocs,
@@ -36,6 +38,8 @@ import { auth, db } from "../../firebase";
 import ProfitHistoryDialog from "./components/dialogs/ProfitHistoryDialog";
 import AddCapitalShareDialog from "./components/dialogs/AddCapitalShareDialog";
 import EntryDetailsDialog from "./components/dialogs/EntryDetailsDialog";
+import CapitalShareVoucherDialog from "./components/dialogs/CapitalShareVoucherDialog";
+import WalkInBranchDialog from "./components/dialogs/WalkInBranchDialog";
 import CapitalShareTransactions from "./components/CapitalShareTransactions";
 
 
@@ -43,6 +47,7 @@ const MIN_AMOUNT = 1000;
 
 
 const MemberCapitalShare = () => {
+  const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
@@ -69,6 +74,10 @@ const MemberCapitalShare = () => {
   const [entryDetailsOpen, setEntryDetailsOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [addingEntry, setAddingEntry] = useState(false);
+  const [voucherDialogOpen, setVoucherDialogOpen] = useState(false);
+  const [walkInBranchDialogOpen, setWalkInBranchDialogOpen] = useState(false);
+  const [voucherType, setVoucherType] = useState("WALK_IN");
+  const [savingVoucherType, setSavingVoucherType] = useState(false);
 
 
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
@@ -76,9 +85,13 @@ const MemberCapitalShare = () => {
   const fetchUserData = useCallback(async (currentUser) => {
     try {
       const userRef = doc(db, "users", currentUser.uid);
-      const snap = await getDoc(userRef);
+      const voucherRef = doc(db, "capitalShareVouchers", currentUser.uid);
+      const [snap, voucherSnap] = await Promise.all([getDoc(userRef), getDoc(voucherRef)]);
       if (snap.exists()) {
         const data = snap.data();
+        const voucherData = voucherSnap.exists() ? voucherSnap.data() : null;
+        const savedVoucherType = voucherData?.voucherType || data.capitalShareVoucherType;
+        const hasConfirmedVoucherType = savedVoucherType === "WALK_IN" || savedVoucherType === "OFW";
         
         // ✅ CHECK: Validate if activation has expired after 1 year
         let activationExpired = false;
@@ -94,7 +107,19 @@ const MemberCapitalShare = () => {
           }
         }
         
-        setUserData({ ...data, activationExpired });
+        setUserData({ ...data, activationExpired, voucherData: voucherData || null });
+
+        if (hasConfirmedVoucherType) {
+          setVoucherType(savedVoucherType);
+          setVoucherDialogOpen(false);
+          setWalkInBranchDialogOpen(false);
+        } else if (data.capitalShareActive && !activationExpired) {
+          setVoucherType("WALK_IN");
+          setVoucherDialogOpen(true);
+        } else {
+          setVoucherDialogOpen(false);
+          setWalkInBranchDialogOpen(false);
+        }
 
         // Fetch available codes if activation is expired OR not active
         if (!data.capitalShareActive || activationExpired) {
@@ -352,6 +377,8 @@ const MemberCapitalShare = () => {
       alert("✅ Capital Share successfully activated!");
       setSelectedCode("");
       await fetchUserData(user);
+      setVoucherType("WALK_IN");
+      setVoucherDialogOpen(true);
     } catch (err) {
       console.error(err);
       alert("Activation failed.");
@@ -359,6 +386,62 @@ const MemberCapitalShare = () => {
       setLoading(false);
       setOpenDialog(false);
     }
+  };
+
+  const saveVoucherType = useCallback(async (type, extraFields = {}, options = {}) => {
+    if (!user) return false;
+    const shouldCloseDialogs = options.closeDialogs ?? true;
+    const shouldShowAlert = options.showAlert ?? true;
+    const shouldRefreshUserData = options.refreshUserData ?? true;
+
+    try {
+      setSavingVoucherType(true);
+      const voucherRef = doc(db, "capitalShareVouchers", user.uid);
+      await setDoc(voucherRef, {
+        userId: user.uid,
+        voucherType: type,
+        updatedAt: serverTimestamp(),
+        ...extraFields,
+      }, { merge: true });
+      if (shouldCloseDialogs) {
+        setVoucherDialogOpen(false);
+        setWalkInBranchDialogOpen(false);
+      }
+      if (shouldRefreshUserData) {
+        await fetchUserData(user);
+      }
+      if (shouldShowAlert) {
+        alert(`✅ Voucher status saved: ${type === "WALK_IN" ? "Walk-In" : "OFW"}`);
+      }
+      return true;
+    } catch (err) {
+      console.error("Failed to save voucher status:", err);
+      alert("❌ Failed to save voucher status.");
+      return false;
+    } finally {
+      setSavingVoucherType(false);
+    }
+  }, [fetchUserData, user]);
+
+  const handleOfwSelect = async () => {
+    setVoucherType("OFW");
+    await saveVoucherType("OFW");
+  };
+
+  const handleWalkInBranchConfirm = async (branch) => {
+    setVoucherType("WALK_IN");
+    return true;
+  };
+
+  const handleWalkInVoucherDone = async (voucherPayload) => {
+    setVoucherType("WALK_IN");
+    return await saveVoucherType("WALK_IN", {
+      ...voucherPayload,
+    }, {
+      closeDialogs: true,
+      showAlert: false,
+      refreshUserData: true,
+    });
   };
 
   const handleAddEntry = async () => {
@@ -837,6 +920,37 @@ const MemberCapitalShare = () => {
             </Button>
           </DialogActions>
         </Dialog>
+
+        <CapitalShareVoucherDialog
+          open={voucherDialogOpen}
+          onClose={() => setVoucherDialogOpen(false)}
+          voucherType={voucherType}
+          onVoucherTypeChange={setVoucherType}
+          onWalkInClick={() => {
+            setWalkInBranchDialogOpen(true);
+            setVoucherDialogOpen(false);
+          }}
+          onOfwClick={handleOfwSelect}
+        />
+
+        <WalkInBranchDialog
+          open={walkInBranchDialogOpen}
+          onClose={() => {
+            setWalkInBranchDialogOpen(false);
+            setVoucherDialogOpen(true);
+          }}
+          onConfirmDone={handleWalkInVoucherDone}
+          saving={savingVoucherType}
+          onDone={() => {
+            setWalkInBranchDialogOpen(false);
+            setVoucherDialogOpen(false);
+          }}
+          onViewVouchers={() => {
+            setWalkInBranchDialogOpen(false);
+            setVoucherDialogOpen(false);
+            navigate("/member/vouchers");
+          }}
+        />
 
         {/* History Dialog */}
         {/* Capital Share Transactions Section - always visible below Add Capital Share */}

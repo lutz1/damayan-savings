@@ -28,6 +28,7 @@ const AdminPaybackEntries = lazy(() => import("./pages/admin/adminPaybackEntries
 const MerchantDashboard = lazy(() => import("./pages/merchant/merchantDashboard"));
 const MerchantOrders = lazy(() => import("./pages/merchant/merchantOrders"));
 const MerchantProducts = lazy(() => import("./pages/merchant/merchantProducts"));
+const MerchantVouchers = lazy(() => import("./pages/merchant/merchantVouchers"));
 const AddProductPage = lazy(() => import("./pages/merchant/addProduct"));
 const EditProductPage = lazy(() => import("./pages/merchant/editProduct"));
 const StoreProfilePage = lazy(() => import("./pages/merchant/storeProfile"));
@@ -43,6 +44,7 @@ const MemberPayback = lazy(() => import("./pages/member/memberPayback"));
 const MemberCapitalShare = lazy(() => import("./pages/member/memberCapitalShare"));
 const MemberOrders = lazy(() => import("./pages/member/memberOrders"));
 const MemberProfile = lazy(() => import("./pages/member/memberProfile"));
+const MemberVouchers = lazy(() => import("./pages/member/memberVouchers"));
 const DepositSuccess = lazy(() => import("./pages/depositSuccess"));
 const DepositCancel = lazy(() => import("./pages/depositCancel"));
 const RiderDashboard = lazy(() => import("./pages/rider/riderDashboard"));
@@ -50,16 +52,21 @@ const RiderProfile = lazy(() => import("./pages/rider/riderProfile"));
 
 
 function App() {
+  const skipSplashAfterLogin = sessionStorage.getItem("skipAppSplash") === "true";
   const [initialized, setInitialized] = useState(false);
   const [role, setRole] = useState(() => localStorage.getItem("userRole"));
   const appBase = window.location.pathname.startsWith("/damayan-savings") ? "/damayan-savings" : "";
-  const [showSplash, setShowSplash] = useState(true);
+  const [showSplash, setShowSplash] = useState(() => !skipSplashAfterLogin);
 
   useEffect(() => {
+    if (skipSplashAfterLogin) {
+      sessionStorage.removeItem("skipAppSplash");
+    }
+
     const storedRole = localStorage.getItem("userRole");
     if (storedRole) setRole(storedRole);
     setInitialized(true);
-  }, []);
+  }, [skipSplashAfterLogin]);
 
   if (!initialized) {
     return (
@@ -294,6 +301,14 @@ function App() {
               }
             />
             <Route
+              path="/merchant/vouchers"
+              element={
+                <MerchantRoute>
+                  <MerchantVouchers />
+                </MerchantRoute>
+              }
+            />
+            <Route
               path="/merchant/store-profile"
               element={
                 <MerchantRoute>
@@ -353,6 +368,14 @@ function App() {
               element={
                 <MemberRoute>
                   <MemberProfile />
+                </MemberRoute>
+              }
+            />
+            <Route
+              path="/member/vouchers"
+              element={
+                <MemberRoute>
+                  <MemberVouchers />
                 </MemberRoute>
               }
             />

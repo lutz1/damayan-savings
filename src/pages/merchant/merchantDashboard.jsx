@@ -258,18 +258,21 @@ useEffect(() => {
   ====================== */
   return (
     <Box sx={{ 
-      minHeight: "100vh", 
+      minHeight: "100dvh", 
       bgcolor: "#f6f7f8",
       display: 'flex',
       justifyContent: 'center',
-      pb: 12
+      pb: 12,
+      paddingTop: 'env(safe-area-inset-top, 0)',
+      paddingLeft: 'env(safe-area-inset-left, 0)',
+      paddingRight: 'env(safe-area-inset-right, 0)',
     }}>
       <Container 
         maxWidth="sm" 
         disableGutters
         sx={{ 
           bgcolor: 'white',
-          minHeight: '100vh',
+          minHeight: '100dvh',
           boxShadow: { sm: '0 0 40px rgba(0,0,0,0.1)' }
         }}
       >
@@ -322,19 +325,35 @@ useEffect(() => {
                 </Typography>
               </Box>
             </Box>
-            <IconButton 
-              sx={{ 
-                bgcolor: '#f8fafc',
-                width: 40,
-                height: 40,
-                '&:hover': { 
-                  bgcolor: 'rgba(43, 124, 238, 0.1)',
-                  color: '#2b7cee'
-                }
-              }}
-            >
-              <MaterialIcon name="notifications" size={22} sx={{ color: '#64748b' }} />
-            </IconButton>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <IconButton
+                onClick={() => navigate('/merchant/vouchers')}
+                sx={{
+                  bgcolor: '#f8fafc',
+                  width: 40,
+                  height: 40,
+                  '&:hover': {
+                    bgcolor: 'rgba(43, 124, 238, 0.1)',
+                    color: '#2b7cee'
+                  }
+                }}
+              >
+                <MaterialIcon name="confirmation_number" size={22} sx={{ color: '#64748b' }} />
+              </IconButton>
+              <IconButton
+                sx={{
+                  bgcolor: '#f8fafc',
+                  width: 40,
+                  height: 40,
+                  '&:hover': {
+                    bgcolor: 'rgba(43, 124, 238, 0.1)',
+                    color: '#2b7cee'
+                  }
+                }}
+              >
+                <MaterialIcon name="notifications" size={22} sx={{ color: '#64748b' }} />
+              </IconButton>
+            </Box>
           </Box>
         </Paper>
 

@@ -188,7 +188,7 @@ const MerchantProfile = () => {
 
   if (!merchantData) {
     return (
-      <Box sx={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <Box sx={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", paddingTop: 'env(safe-area-inset-top, 0)' }}>
         <LinearProgress sx={{ width: "60%" }} />
       </Box>
     );
@@ -207,7 +207,7 @@ const MerchantProfile = () => {
   ];
 
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "#f6f7f8", pb: 16 }}>
+    <Box sx={{ minHeight: "100dvh", bgcolor: "#f6f7f8", pb: 16, paddingTop: 'env(safe-area-inset-top, 0)', paddingLeft: 'env(safe-area-inset-left, 0)', paddingRight: 'env(safe-area-inset-right, 0)' }}>
       <Paper
         elevation={0}
         sx={{

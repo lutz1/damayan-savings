@@ -122,6 +122,10 @@ const AppBottomNav = ({ open, onToggleSidebar, layout = "bottom" }) => {
 
   const handleNavigate = (value, isMenu, anchorEl = null) => {
     if (!value || isNavigating) return;
+
+    if (!isMenu && value === location.pathname) {
+      return;
+    }
     
     if (isMenu && value === "merchants-menu") {
       const merchantsButton = anchorEl || document.querySelector('[data-merchants-menu]');
@@ -137,6 +141,9 @@ const AppBottomNav = ({ open, onToggleSidebar, layout = "bottom" }) => {
         if (layout === "sidebar" && onToggleSidebar) {
           onToggleSidebar();
         }
+        setTimeout(() => {
+          setIsNavigating(false);
+        }, 400);
       }, 200);
     }
   };

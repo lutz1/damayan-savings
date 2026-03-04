@@ -34,6 +34,7 @@ import {
   KeyboardArrowRight as CloseIcon,
   VpnKey as CodeIcon,
   Menu as MenuIcon,
+  ConfirmationNumber as VoucherIcon,
 } from "@mui/icons-material";
 import { signOut } from "firebase/auth";
 import { auth, db } from "../firebase";
@@ -171,6 +172,9 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
 
   const handleOpenLogoutDialog = () => setLogoutDialogOpen(true);
   const handleCloseLogoutDialog = () => setLogoutDialogOpen(false);
+  const normalizedRole = String(userData.role || localStorage.getItem("userRole") || "")
+    .trim()
+    .toUpperCase();
 
   return (
     <>
@@ -346,7 +350,7 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
                 <Divider sx={{ my: 2, borderColor: "rgba(255,255,255,0.2)" }} />
 
                 {/* Wallet */}
-                {!["ADMIN", "CEO"].includes(userData.role?.toUpperCase()) && (
+                {!["ADMIN", "CEO"].includes(normalizedRole) && (
                   <Box
                     sx={{
                       background: "rgba(255,255,255,0.08)",
@@ -439,8 +443,17 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
     { icon: <DepositIcon sx={{ color: "#81C784" }} />, label: "Deposit", dialog: "deposit" },
                      { icon: <TransferIcon sx={{ color: "#BA68C8" }} />, label: "Send Money", dialog: "transfer" },
     { icon: <InviteIcon sx={{ color: "#FFB300" }} />, label: "Invite & Earn", dialog: "invite" },
+    {
+      icon: <VoucherIcon sx={{ color: "#66BB6A" }} />,
+      label: "My Vouchers",
+      action: () => {
+        closeDrawer();
+        navigate("/member/vouchers");
+      },
+      visible: !["ADMIN", "CEO"].includes(normalizedRole),
+    },
     { icon: <LogoutIcon sx={{ color: "#FF5252" }} />, label: "Logout", action: handleOpenLogoutDialog },
-  ].map((item, i) => {
+  ].filter((item) => item.visible !== false).map((item, i) => {
     const emailLower = (userData.email || "").toLowerCase();
     const isRestrictedUser = restrictedEmails.includes(emailLower);
     const disabledForRestricted = ["Purchase Codes", "Withdrawal", "Invite & Earn"];

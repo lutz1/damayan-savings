@@ -211,14 +211,14 @@ export default function StoreProfilePage() {
 
   if (loading) {
     return (
-      <Box sx={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <Box sx={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", paddingTop: 'env(safe-area-inset-top, 0)' }}>
         <LinearProgress sx={{ width: "60%" }} />
       </Box>
     );
   }
 
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "white", pb: 28 }}>
+    <Box sx={{ minHeight: "100dvh", bgcolor: "white", pb: 28, paddingTop: 'env(safe-area-inset-top, 0)', paddingLeft: 'env(safe-area-inset-left, 0)', paddingRight: 'env(safe-area-inset-right, 0)' }}>
       {/* Sticky Header */}
       <Paper
         elevation={0}

@@ -51,7 +51,10 @@ const Login = () => {
     // mark that a redirect flow is in progress to avoid duplicate/contradictory redirects
     setRedirecting(true);
 
-    const goTo = (path) => window.location.replace(`${base}${path}`);
+    const goTo = (path) => {
+      sessionStorage.setItem("skipAppSplash", "true");
+      window.location.replace(`${base}${path}`);
+    };
 
     // Show splash for merchants before redirecting
     if (upper === "MERCHANT") {
@@ -425,6 +428,7 @@ const Login = () => {
           setShowSplash(false);
           (function () {
             const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
+            sessionStorage.setItem("skipAppSplash", "true");
             if (postSplashTarget) {
               window.location.replace(`${base}${postSplashTarget}`);
             } else {
