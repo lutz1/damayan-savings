@@ -85,8 +85,8 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
     "vanessa.ilagan@gmail.com"
   ];
   /*
-  const restrictedForAdmin = ["Purchase Codes", "Withdrawal", "Deposit", "Transfer Funds", "Invite & Earn"];
-*/
+  const restrictedForAdmin = ["Purchase Codes", "Withdrawal", /* "Deposit", */ "Transfer Funds", "Invite & Earn" // DISABLED: deposits disabled for now
+*
   // 🔹 Real-time Firestore listeners
   useEffect(() => {
     let unsubscribeUser = null;
@@ -440,7 +440,7 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
   {[
     { icon: <PurchaseIcon sx={{ color: "#4FC3F7" }} />, label: "Purchase Codes", dialog: "purchase" },
     { icon: <WithdrawIcon sx={{ color: "#FF7043" }} />, label: "Withdrawal", dialog: "withdraw" },
-    { icon: <DepositIcon sx={{ color: "#81C784" }} />, label: "Deposit", dialog: "deposit" },
+    { icon: <DepositIcon sx={{ color: "#81C784" }} />, label: "Deposit", dialog: "deposit", disabled: true }, // DISABLED: deposits disabled for now
                      { icon: <TransferIcon sx={{ color: "#BA68C8" }} />, label: "Send Money", dialog: "transfer" },
     { icon: <InviteIcon sx={{ color: "#FFB300" }} />, label: "Invite & Earn", dialog: "invite" },
     {
