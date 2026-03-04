@@ -9,6 +9,8 @@ import {
   Box,
 } from "@mui/material";
 
+const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
+
 const OverrideUplineRewardsDialog = ({
   open,
   onClose,
@@ -123,8 +125,8 @@ const OverrideUplineRewardsDialog = ({
                     // Get user's ID token
                     const idToken = await user.getIdToken();
                     
-                    // Call Cloud Function HTTP endpoint with Authorization header
-                    const endpoint = "https://us-central1-amayan-savings.cloudfunctions.net/transferOverrideReward";
+                    // Call backend endpoint (Render)
+                    const endpoint = `${API_BASE}/api/transfer-override-reward`;
                     console.log("[OverrideTransfer] Calling endpoint:", endpoint);
                     
                     const controller = new AbortController();
@@ -134,11 +136,12 @@ const OverrideUplineRewardsDialog = ({
                       method: "POST",
                       headers: {
                         "Content-Type": "application/json",
-                        "Authorization": `Bearer ${idToken}`,
                       },
                       body: JSON.stringify({
+                        idToken,
                         overrideId: o.id,
                         amount: o.amount,
+                        clientRequestId: `override-${o.id}-${user.uid}`,
                       }),
                       signal: controller.signal,
                     });
@@ -170,7 +173,7 @@ const OverrideUplineRewardsDialog = ({
                     if (err.name === "AbortError") {
                       userMsg += "Request timeout (check your internet connection)";
                     } else if (err instanceof TypeError && err.message.includes("fetch")) {
-                      userMsg += "Network error - unable to reach Cloud Function";
+                      userMsg += "Network error - unable to reach backend";
                     } else {
                       userMsg += err.message || "Unknown error";
                     }

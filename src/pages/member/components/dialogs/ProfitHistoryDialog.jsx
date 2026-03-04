@@ -14,6 +14,7 @@ const ProfitHistoryDialog = ({
   onClose,
   transactionHistory,
   onTransferProfit,
+  transferLoading = false,
 }) => {
   return (
     <Dialog
@@ -145,6 +146,7 @@ const ProfitHistoryDialog = ({
                   variant="contained"
                   size="small"
                   disabled={
+                    transferLoading ||
                     !t.profit ||
                     t.profit <= 0 ||
                     t.profitStatus === "Claimed"

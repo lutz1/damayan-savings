@@ -6,6 +6,8 @@ import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
 
+const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
+
 const RewardHistoryDialog = ({
   open,
   onClose,
@@ -106,8 +108,8 @@ const RewardHistoryDialog = ({
                     // Get user's ID token
                     const idToken = await user.getIdToken();
                     
-                    // Call Cloud Function HTTP endpoint with Authorization header
-                    const endpoint = "https://us-central1-amayan-savings.cloudfunctions.net/transferReferralReward";
+                    // Call backend endpoint (Render)
+                    const endpoint = `${API_BASE}/api/transfer-referral-reward`;
                     console.log("[RewardTransfer] Calling endpoint:", endpoint);
                     
                     const controller = new AbortController();
@@ -117,11 +119,12 @@ const RewardHistoryDialog = ({
                       method: "POST",
                       headers: {
                         "Content-Type": "application/json",
-                        "Authorization": `Bearer ${idToken}`,
                       },
                       body: JSON.stringify({
+                        idToken,
                         rewardId: reward.id,
                         amount: reward.amount,
+                        clientRequestId: `reward-${reward.id}-${user.uid}`,
                       }),
                       signal: controller.signal,
                     });
@@ -155,7 +158,7 @@ const RewardHistoryDialog = ({
                     if (err.name === "AbortError") {
                       userMsg += "Request timeout (check your internet connection)";
                     } else if (err instanceof TypeError && err.message.includes("fetch")) {
-                      userMsg += "Network error - unable to reach Cloud Function";
+                      userMsg += "Network error - unable to reach backend";
                     } else {
                       userMsg += err.message || "Unknown error";
                     }

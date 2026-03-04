@@ -198,6 +198,7 @@ const handleTransferToWallet = async ({ amount, type, rewardId = null }) => {
             idToken,
             rewardId,
             amount: rewardHistory.find(r => r.id === rewardId)?.amount || amount,
+            clientRequestId: `referral_${rewardId}`,
           }),
         });
 
@@ -220,6 +221,7 @@ const handleTransferToWallet = async ({ amount, type, rewardId = null }) => {
               idToken,
               rewardId: reward.id,
               amount: reward.amount,
+              clientRequestId: `referral_${reward.id}`,
             }),
           });
 
@@ -238,7 +240,7 @@ const handleTransferToWallet = async ({ amount, type, rewardId = null }) => {
         const response = await fetch(`${API_BASE}/api/transfer-override-reward`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ idToken, overrideId: rewardId, amount: amount || overrideList.find(o => o.id === rewardId)?.amount }),
+          body: JSON.stringify({ idToken, overrideId: rewardId, amount: amount || overrideList.find(o => o.id === rewardId)?.amount, clientRequestId: `override_${rewardId}` }),
         });
 
         const result = await response.json();

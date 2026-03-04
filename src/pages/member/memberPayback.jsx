@@ -203,6 +203,7 @@ const fetchPaybackData = useCallback(async (userId) => {
 // Removed: handleOpenConfirmDialog (unused)
   // ===================== Add Payback Entry (continued) =====================
   const handleAddPayback = async () => {
+    if (adding) return;
     setAdding(true);
     let transactionSuccessful = false;
     let paybackEntryId = null;
@@ -249,6 +250,7 @@ const fetchPaybackData = useCallback(async (userId) => {
       const entryDate = new Date(selectedDate || new Date()).toISOString();
       const idToken = await user.getIdToken();
       const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
+      const clientRequestId = `pb_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
       let response;
       let retries = 0;
@@ -264,6 +266,7 @@ const fetchPaybackData = useCallback(async (userId) => {
               uplineUsername,
               amount: amountNum,
               entryDate,
+              clientRequestId,
             }),
           });
 
@@ -362,6 +365,7 @@ const fetchPaybackData = useCallback(async (userId) => {
   // ===================== Transfer Logic =====================
   // Only allow transfer of the 2% profit (not the principal amount)
   const handleTransfer = async () => {
+    if (loadingTransfer) return;
     const profitAvailable = Number(totalPassiveIncome);
     const amountNum = parseFloat(transferAmount);
     if (isNaN(amountNum) || amountNum <= 0) return alert("Enter a valid amount");
@@ -398,6 +402,7 @@ const fetchPaybackData = useCallback(async (userId) => {
           idToken,
           paybackEntryId: maturedEntry.id,
           amount: amountNum,
+          clientRequestId: `passive_${maturedEntry.id}`,
         }),
       });
 
@@ -713,8 +718,8 @@ const fetchPaybackData = useCallback(async (userId) => {
           <Button onClick={() => setTransferDialogOpen(false)} color="error" variant="outlined" sx={{ borderRadius: 2, minWidth: 100, fontWeight: 600 }}>
             Cancel
           </Button>
-          <Button onClick={handleTransfer} color="success" variant="contained" sx={{ borderRadius: 2, minWidth: 100, fontWeight: 600, boxShadow: 2 }}>
-            Confirm
+          <Button onClick={handleTransfer} disabled={Boolean(loadingTransfer)} color="success" variant="contained" sx={{ borderRadius: 2, minWidth: 100, fontWeight: 600, boxShadow: 2 }}>
+            {loadingTransfer ? "Processing..." : "Confirm"}
           </Button>
         </DialogActions>
       </Dialog>

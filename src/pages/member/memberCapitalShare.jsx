@@ -68,6 +68,7 @@ const MemberCapitalShare = () => {
   const [profitTransferLoading, setProfitTransferLoading] = useState(false);
   const [entryDetailsOpen, setEntryDetailsOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState(null);
+  const [addingEntry, setAddingEntry] = useState(false);
 
 
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
@@ -361,6 +362,7 @@ const MemberCapitalShare = () => {
   };
 
   const handleAddEntry = async () => {
+    if (addingEntry) return;
     const entryAmount = Number(amount);
     const walletBalance = Number(userData?.eWallet || 0);
     if (!entryAmount || entryAmount < MIN_AMOUNT)
@@ -369,9 +371,11 @@ const MemberCapitalShare = () => {
       return alert("Insufficient wallet balance.");
 
     try {
+      setAddingEntry(true);
       // 🔹 Get ID token
       const idToken = await user.getIdToken();
       const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "https://damayan-savings-backend.onrender.com";
+      const clientRequestId = `cs_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
       // 🔹 Call backend to create capital share entry
       const response = await fetch(`${API_BASE}/api/add-capital-share`, {
@@ -382,6 +386,7 @@ const MemberCapitalShare = () => {
           amount: entryAmount,
           entryDate: selectedDate.toISOString(),
           referredBy: userData?.referredBy || null,
+          clientRequestId,
         }),
       });
 
@@ -399,6 +404,8 @@ const MemberCapitalShare = () => {
     } catch (err) {
       console.error("Error adding capital share entry:", err);
       alert("❌ Failed to add entry.");
+    } finally {
+      setAddingEntry(false);
     }
   };
 
@@ -416,6 +423,7 @@ const MemberCapitalShare = () => {
           idToken,
           entryId: entry.id,
           amount: entry.profit,
+          clientRequestId: `profit_${entry.id}`,
         }),
       });
 
@@ -847,6 +855,7 @@ const MemberCapitalShare = () => {
           open={profitHistoryOpen}
           onClose={() => setProfitHistoryOpen(false)}
           transactionHistory={transactionHistory}
+          transferLoading={profitTransferLoading}
           onTransferProfit={(entry) => {
             setSelectedProfitEntry(entry);
             setProfitConfirmOpen(true);

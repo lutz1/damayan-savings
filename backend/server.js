@@ -7,17 +7,73 @@ const axios = require("axios");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const { db, auth } = require("./firebaseAdmin.js");
+const os = require("os");
 
 dotenv.config();
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+const SERVER_START_TS = Date.now();
+
+const logEvent = (level, event, meta = {}) => {
+  const payload = {
+    level,
+    event,
+    ts: new Date().toISOString(),
+    service: process.env.RENDER_SERVICE_NAME || "amayan-backend",
+    env: process.env.NODE_ENV || "development",
+    ...meta,
+  };
+
+  if (level === "error") {
+    console.error(JSON.stringify(payload));
+    return;
+  }
+  console.log(JSON.stringify(payload));
+};
+
+const logTransactionEvent = (meta = {}) => {
+  logEvent("info", "transaction_event", meta);
+};
+
+app.use((req, res, next) => {
+  const startedAt = Date.now();
+  const incomingRequestId = req.headers["x-request-id"];
+  const requestId =
+    (typeof incomingRequestId === "string" && incomingRequestId.trim()) ||
+    `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  req.requestId = requestId;
+  res.setHeader("x-request-id", requestId);
+
+  logEvent("info", "http_request_start", {
+    requestId,
+    method: req.method,
+    path: req.path,
+    ip: req.ip,
+    userAgent: req.headers["user-agent"] || null,
+  });
+
+  res.on("finish", () => {
+    const durationMs = Date.now() - startedAt;
+    logEvent("info", "http_request_end", {
+      requestId,
+      method: req.method,
+      path: req.path,
+      statusCode: res.statusCode,
+      durationMs,
+    });
+  });
+
+  next();
+});
+
 // � Add Payback Entry Endpoint
 app.post("/api/add-payback-entry", async (req, res) => {
   console.log("[payback-entry] 🔄 Request received");
   try {
-    const { idToken, uplineUsername, amount, entryDate } = req.body;
+    const { idToken, uplineUsername, amount, entryDate, clientRequestId } = req.body;
     console.log("[payback-entry] Validating input:", { uplineUsername, amount, entryDate });
     
     // Validate input
@@ -62,6 +118,28 @@ app.post("/api/add-payback-entry", async (req, res) => {
         const userData = userDoc.data();
         const walletBalance = userData.eWallet || 0;
 
+        const paybackRef = clientRequestId
+          ? db.collection("paybackEntries").doc(`${userId}_${clientRequestId}`)
+          : db.collection("paybackEntries").doc();
+
+        const existingPaybackSnap = await transaction.get(paybackRef);
+        if (existingPaybackSnap.exists) {
+          const existingData = existingPaybackSnap.data() || {};
+          return {
+            success: true,
+            paybackEntryId: paybackRef.id,
+            newBalance: walletBalance,
+            deduped: true,
+            uplineReward: {
+              amount: 65,
+              currency: "PHP",
+              claimableAfterDays: 30,
+              description: "Upline will receive ₱65 override reward when entry expires"
+            },
+            existingEntryDate: existingData.date || null,
+          };
+        }
+
         // Check wallet balance
         if (walletBalance < numAmount) {
           throw new Error("Insufficient wallet balance");
@@ -89,7 +167,6 @@ app.post("/api/add-payback-entry", async (req, res) => {
 
         // Create payback entry
         const expirationDate = new Date(new Date(entryDate).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
-        const paybackRef = db.collection("paybackEntries").doc();
         transaction.set(paybackRef, {
           userId,
           uplineUsername,
@@ -102,7 +179,7 @@ app.post("/api/add-payback-entry", async (req, res) => {
         });
 
         // Create upline reward immediately in separate collection (for fast querying)
-        const uplineRewardRef = db.collection("uplineRewards").doc();
+        const uplineRewardRef = db.collection("uplineRewards").doc(`${paybackRef.id}_upline`);
         transaction.set(uplineRewardRef, {
           uplineId,
           uplineUsername,
@@ -117,7 +194,7 @@ app.post("/api/add-payback-entry", async (req, res) => {
         });
 
         // Create transaction log for audit trail
-        const logRef = db.collection("paybackTransactionLogs").doc();
+        const logRef = db.collection("paybackTransactionLogs").doc(`${paybackRef.id}_log`);
         transaction.set(logRef, {
           userId,
           uplineUsername,
@@ -147,6 +224,16 @@ app.post("/api/add-payback-entry", async (req, res) => {
         `[payback-entry] ✅ TRANSACTION SUCCESS - user=${userId} upline=${uplineUsername} amount=₱${numAmount} uplineReward=₱65 (in 30 days) entryId=${result.paybackEntryId}`
       );
 
+      logTransactionEvent({
+        requestId: req.requestId || null,
+        transactionType: "add_payback_entry",
+        status: result.deduped ? "deduped" : "success",
+        userId,
+        amount: numAmount,
+        paybackEntryId: result.paybackEntryId,
+        newBalance: result.newBalance,
+      });
+
       res.json(result);
     } catch (transactionError) {
       console.error("[payback-entry] ❌ Transaction failed:", transactionError);
@@ -161,7 +248,7 @@ app.post("/api/add-payback-entry", async (req, res) => {
 // �💼 Transfer Override Reward Endpoint
 app.post("/api/transfer-override-reward", async (req, res) => {
   try {
-    const { idToken, overrideId, amount } = req.body;
+    const { idToken, overrideId, amount, clientRequestId } = req.body;
     if (!idToken || !overrideId || !amount) {
       return res.status(400).json({ error: "Missing required fields" });
     }
@@ -186,6 +273,31 @@ app.post("/api/transfer-override-reward", async (req, res) => {
         // Try both collections: uplineRewards and override
         let rewardData;
         let rewardRef;
+
+        const overrideTransactionRef = clientRequestId
+          ? db.collection("overrideTransactions").doc(`${userId}_${clientRequestId}`)
+          : db.collection("overrideTransactions").doc();
+
+        const existingOverrideTx = await transaction.get(overrideTransactionRef);
+        if (existingOverrideTx.exists) {
+          const existingData = existingOverrideTx.data() || {};
+          if (existingData.overrideId && existingData.overrideId !== overrideId) {
+            throw new Error("Request conflict: clientRequestId already used for a different override transfer");
+          }
+
+          const userRef = db.collection("users").doc(userId);
+          const userDoc = await transaction.get(userRef);
+          if (!userDoc.exists) {
+            throw new Error("User not found");
+          }
+
+          return {
+            success: true,
+            newBalance: Number(userDoc.data().eWallet || 0),
+            overrideId,
+            deduped: true,
+          };
+        }
 
         // First try uplineRewards collection
         const uplineRewardRef = db.collection("uplineRewards").doc(overrideId);
@@ -245,12 +357,12 @@ app.post("/api/transfer-override-reward", async (req, res) => {
         });
 
         // Create override transaction record for history
-        const overrideTransactionRef = db.collection("overrideTransactions").doc();
         transaction.set(overrideTransactionRef, {
           userId,
           overrideId,
           amount: numAmount,
           status: "Credited",
+          clientRequestId: clientRequestId || null,
           createdAt: new Date(),
           fromUsername: rewardData.fromUsername || "System",
         });
@@ -265,6 +377,17 @@ app.post("/api/transfer-override-reward", async (req, res) => {
       console.info(
         `[override-transfer] user=${userId} overrideId=${overrideId} amount=${numAmount}`
       );
+
+      logTransactionEvent({
+        requestId: req.requestId || null,
+        transactionType: "override_transfer",
+        status: result.deduped ? "deduped" : "success",
+        userId,
+        amount: numAmount,
+        overrideId,
+        newBalance: result.newBalance,
+      });
+
       res.json(result);
     } catch (transactionError) {
       console.error("Override transfer transaction failed:", transactionError);
@@ -621,6 +744,17 @@ app.post("/api/paymongo-webhook", async (req, res) => {
       } else {
         console.info(`[paymongo-webhook] ✅ DEPOSIT CREATED - user=${txResult?.userId} amount=₱${txResult?.amount} checkoutId=${checkoutId} depositId=${txResult?.depositId} status=Pending (awaiting admin approval)`);
       }
+
+      logTransactionEvent({
+        requestId: req.requestId || null,
+        transactionType: "deposit_create_paymongo_webhook",
+        status: txResult?.alreadyExists ? "deduped" : "success",
+        userId: txResult?.userId || null,
+        amount: txResult?.amount || null,
+        reference: checkoutId,
+        depositId: txResult?.depositId || null,
+      });
+
       return res.json({ success: true });
     }
 
@@ -727,6 +861,16 @@ app.post("/api/verify-paymongo-payment", async (req, res) => {
     });
 
     console.info(`[verify-payment] ✅ user=${userId} amount=₱${txResult?.amount} sessionId=${sessionId} depositId=${txResult?.depositId} status=Pending (awaiting admin approval)`);
+
+    logTransactionEvent({
+      requestId: req.requestId || null,
+      transactionType: "deposit_verify_paymongo",
+      status: txResult?.alreadyExists ? "deduped" : "success",
+      userId,
+      amount: txResult?.amount || null,
+      reference: sessionId,
+      depositId: txResult?.depositId || null,
+    });
 
     res.json({
       success: true,
@@ -888,6 +1032,17 @@ app.post("/api/transfer-funds", async (req, res) => {
         `[transfer] sender=${senderId} recipient=${recipientUsername} amount=${numAmount.toFixed(2)} net=${(numAmount - numAmount * 0.02).toFixed(2)} id=${result.transferId}`
       );
 
+      logTransactionEvent({
+        requestId: req.requestId || null,
+        transactionType: "wallet_transfer",
+        status: result.deduped ? "deduped" : "success",
+        userId: senderId,
+        recipientUsername,
+        amount: numAmount,
+        transferId: result.transferId,
+        newBalance: result.newBalance,
+      });
+
       res.json(result);
     } catch (transactionError) {
       console.error("Transaction failed:", transactionError);
@@ -902,7 +1057,7 @@ app.post("/api/transfer-funds", async (req, res) => {
 // � Transfer Profit from Capital Share Endpoint
 app.post("/api/transfer-profit", async (req, res) => {
   try {
-    const { idToken, entryId, amount } = req.body;
+    const { idToken, entryId, amount, clientRequestId } = req.body;
 
     // Validate input
     if (!idToken || !entryId || !amount) {
@@ -928,6 +1083,12 @@ app.post("/api/transfer-profit", async (req, res) => {
     // Run transaction
     try {
       const result = await db.runTransaction(async (transaction) => {
+        const depositRef = clientRequestId
+          ? db.collection("deposits").doc(`profit_${userId}_${clientRequestId}`)
+          : db.collection("deposits").doc();
+
+        const existingDepositSnap = await transaction.get(depositRef);
+
         // Get capital share entry
         const entryRef = db.collection("capitalShareEntries").doc(entryId);
         const entryDoc = await transaction.get(entryRef);
@@ -969,6 +1130,15 @@ app.post("/api/transfer-profit", async (req, res) => {
         const userData = userDoc.data();
         const currentBalance = Number(userData.eWallet || 0);
 
+        if (existingDepositSnap.exists) {
+          return {
+            success: true,
+            newBalance: currentBalance,
+            transferId: depositRef.id,
+            deduped: true,
+          };
+        }
+
         // Update user eWallet (no fees for profit transfers)
         transaction.update(userRef, {
           eWallet: currentBalance + numAmount,
@@ -983,13 +1153,13 @@ app.post("/api/transfer-profit", async (req, res) => {
         });
 
         // Create deposit record for wallet history
-        const depositRef = db.collection("deposits").doc();
         transaction.set(depositRef, {
           userId: userId,
           amount: numAmount,
           status: "Approved",
           type: "Monthly Profit Transfer",
           sourceEntryId: entryId,
+          clientRequestId: clientRequestId || null,
           createdAt: new Date(),
         });
 
@@ -1003,6 +1173,17 @@ app.post("/api/transfer-profit", async (req, res) => {
       console.info(
         `[transfer-profit] user=${userId} entryId=${entryId} amount=${numAmount.toFixed(2)} newBalance=${(result.newBalance || 0).toFixed(2)}`
       );
+
+      logTransactionEvent({
+        requestId: req.requestId || null,
+        transactionType: "profit_transfer",
+        status: result.deduped ? "deduped" : "success",
+        userId,
+        amount: numAmount,
+        entryId,
+        transferId: result.transferId,
+        newBalance: result.newBalance,
+      });
 
       res.json(result);
     } catch (transactionError) {
@@ -1133,6 +1314,17 @@ app.post("/api/transfer-capital-share", async (req, res) => {
         `[transfer-capital-share] user=${userId} entryId=${entryId} amount=${numAmount.toFixed(2)} newBalance=${(result.newBalance || 0).toFixed(2)}`
       );
 
+      logTransactionEvent({
+        requestId: req.requestId || null,
+        transactionType: "capital_transfer",
+        status: result.deduped ? "deduped" : "success",
+        userId,
+        amount: numAmount,
+        entryId,
+        transferId: result.transferId,
+        newBalance: result.newBalance,
+      });
+
       res.json(result);
     } catch (transactionError) {
       console.error("Transfer capital share transaction failed:", transactionError);
@@ -1146,7 +1338,7 @@ app.post("/api/transfer-capital-share", async (req, res) => {
 // �💸 Passive Income Transfer Endpoint
 app.post("/api/transfer-passive-income", async (req, res) => {
   try {
-    const { idToken, paybackEntryId, amount } = req.body;
+    const { idToken, paybackEntryId, amount, clientRequestId } = req.body;
     if (!idToken || !paybackEntryId || !amount) {
       return res.status(400).json({ error: "Missing required fields" });
     }
@@ -1168,6 +1360,12 @@ app.post("/api/transfer-passive-income", async (req, res) => {
     // Run transaction
     try {
       const result = await db.runTransaction(async (transaction) => {
+        const transferRef = clientRequestId
+          ? db.collection("passiveTransfers").doc(`passive_${userId}_${clientRequestId}`)
+          : db.collection("passiveTransfers").doc();
+
+        const existingTransferSnap = await transaction.get(transferRef);
+
         // Get payback entry
         const paybackRef = db.collection("paybackEntries").doc(paybackEntryId);
         const paybackDoc = await transaction.get(paybackRef);
@@ -1200,6 +1398,16 @@ app.post("/api/transfer-passive-income", async (req, res) => {
         }
         const userData = userDoc.data();
 
+        if (existingTransferSnap.exists) {
+          const currentBalance = Number(userData.eWallet || 0);
+          return {
+            success: true,
+            newBalance: currentBalance,
+            transferId: transferRef.id,
+            deduped: true,
+          };
+        }
+
         // Calculate fee and net
         const fee = numAmount * 0.01;
         const net = numAmount - fee;
@@ -1217,13 +1425,13 @@ app.post("/api/transfer-passive-income", async (req, res) => {
         });
 
         // Log transfer
-        const transferRef = db.collection("passiveTransfers").doc();
         transaction.set(transferRef, {
           userId,
           paybackEntryId,
           amount: numAmount,
           fee,
           netAmount: net,
+          clientRequestId: clientRequestId || null,
           status: "Approved",
           createdAt: new Date(),
         });
@@ -1238,6 +1446,18 @@ app.post("/api/transfer-passive-income", async (req, res) => {
       console.info(
         `[passive-transfer] user=${userId} paybackEntry=${paybackEntryId} amount=${amount} net=${(numAmount - numAmount * 0.01).toFixed(2)} id=${result.transferId}`
       );
+
+      logTransactionEvent({
+        requestId: req.requestId || null,
+        transactionType: "passive_income_transfer",
+        status: result.deduped ? "deduped" : "success",
+        userId,
+        amount: numAmount,
+        paybackEntryId,
+        transferId: result.transferId,
+        newBalance: result.newBalance,
+      });
+
       res.json(result);
     } catch (transactionError) {
       console.error("Passive transfer transaction failed:", transactionError);
@@ -1253,8 +1473,8 @@ app.post("/api/transfer-passive-income", async (req, res) => {
 app.post("/api/add-capital-share", async (req, res) => {
   console.log("[capital-share] 🔄 Request received");
   try {
-    const { idToken, amount, entryDate, referredBy } = req.body;
-    console.log("[capital-share] Validating input:", { amount, entryDate, referredBy });
+    const { idToken, amount, entryDate, referredBy, clientRequestId } = req.body;
+    console.log("[capital-share] Validating input:", { amount, entryDate, referredBy, clientRequestId });
 
     // Validate input
     if (!idToken || !amount || !entryDate) {
@@ -1298,6 +1518,23 @@ app.post("/api/add-capital-share", async (req, res) => {
         const userData = userDoc.data();
         const walletBalance = Number(userData.eWallet || 0);
 
+        const entryRef = clientRequestId
+          ? db.collection("capitalShareEntries").doc(`${userId}_${clientRequestId}`)
+          : db.collection("capitalShareEntries").doc();
+
+        const existingEntrySnap = await transaction.get(entryRef);
+        if (existingEntrySnap.exists) {
+          const existingData = existingEntrySnap.data() || {};
+          return {
+            success: true,
+            entryId: entryRef.id,
+            newBalance: walletBalance,
+            deduped: true,
+            lockInPortion: existingData.lockInPortion || 0,
+            transferablePortion: existingData.transferablePortion || 0,
+          };
+        }
+
         // Check wallet balance
         if (walletBalance < numAmount) {
           throw new Error("Insufficient wallet balance");
@@ -1325,7 +1562,6 @@ app.post("/api/add-capital-share", async (req, res) => {
         transferableAfterDate.setMonth(transferableAfterDate.getMonth() + 1);
 
         // Create capital share entry
-        const entryRef = db.collection("capitalShareEntries").doc();
         transaction.set(entryRef, {
           userId,
           amount: numAmount,
@@ -1347,7 +1583,7 @@ app.post("/api/add-capital-share", async (req, res) => {
         });
 
         // Create deposit record for eWallet history
-        const depositRef = db.collection("deposits").doc();
+        const depositRef = db.collection("deposits").doc(`${entryRef.id}_deposit`);
         transaction.set(depositRef, {
           userId,
           amount: numAmount,
@@ -1370,7 +1606,7 @@ app.post("/api/add-capital-share", async (req, res) => {
             const uplineBonus = numAmount * 0.05;
             const releaseDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-            const overrideRef = db.collection("override").doc();
+            const overrideRef = db.collection("override").doc(`${entryRef.id}_override`);
             transaction.set(overrideRef, {
               uplineId,
               fromUserId: userId,
@@ -1450,6 +1686,16 @@ app.post("/api/add-capital-share", async (req, res) => {
         `[capital-share] ✅ ENTRY CREATED - user=${userId} amount=₱${numAmount} lockIn=₱${result.lockInPortion} transferable=₱${result.transferablePortion} entryId=${result.entryId}`
       );
 
+      logTransactionEvent({
+        requestId: req.requestId || null,
+        transactionType: "add_capital_share",
+        status: result.deduped ? "deduped" : "success",
+        userId,
+        amount: numAmount,
+        entryId: result.entryId,
+        newBalance: result.newBalance,
+      });
+
       res.json(result);
     } catch (transactionError) {
       console.error("[capital-share] ❌ Transaction failed:", transactionError);
@@ -1465,8 +1711,8 @@ app.post("/api/add-capital-share", async (req, res) => {
 app.post("/api/transfer-referral-reward", async (req, res) => {
   console.log("[referral-reward] 🔄 Request received");
   try {
-    const { idToken, rewardId, amount } = req.body;
-    console.log("[referral-reward] Input:", { rewardId, amount });
+    const { idToken, rewardId, amount, clientRequestId } = req.body;
+    console.log("[referral-reward] Input:", { rewardId, amount, clientRequestId });
 
     if (!idToken || !rewardId || !amount) {
       console.error("[referral-reward] ❌ Missing required fields");
@@ -1494,6 +1740,30 @@ app.post("/api/transfer-referral-reward", async (req, res) => {
     // Run transaction
     try {
       const result = await db.runTransaction(async (transaction) => {
+        const logRef = clientRequestId
+          ? db.collection("referralRewardTransferlogs").doc(`${userId}_${clientRequestId}`)
+          : db.collection("referralRewardTransferlogs").doc();
+
+        const existingLogSnap = await transaction.get(logRef);
+        if (existingLogSnap.exists) {
+          const existingData = existingLogSnap.data() || {};
+          if (existingData.rewardId && existingData.rewardId !== rewardId) {
+            throw new Error("Request conflict: clientRequestId already used for a different referral transfer");
+          }
+
+          const userRef = db.collection("users").doc(userId);
+          const userDoc = await transaction.get(userRef);
+          if (!userDoc.exists) {
+            throw new Error("User not found");
+          }
+
+          return {
+            success: true,
+            newBalance: Number(userDoc.data().eWallet || 0),
+            deduped: true,
+          };
+        }
+
         // Get referral reward document
         const rewardRef = db.collection("referralReward").doc(rewardId);
         const rewardDoc = await transaction.get(rewardRef);
@@ -1539,7 +1809,6 @@ app.post("/api/transfer-referral-reward", async (req, res) => {
         });
 
         // Create referral reward transfer log
-        const logRef = db.collection("referralRewardTransferlogs").doc();
         transaction.set(logRef, {
           userId,
           rewardId,
@@ -1547,11 +1816,14 @@ app.post("/api/transfer-referral-reward", async (req, res) => {
           transferredAmount: numAmount,
           source: rewardData.source || "Referral",
           status: "Transferred",
+          clientRequestId: clientRequestId || null,
           createdAt: new Date(),
         });
 
         // Create deposit record for eWallet history
-        const depositRef = db.collection("deposits").doc();
+        const depositRef = clientRequestId
+          ? db.collection("deposits").doc(`referral_${userId}_${clientRequestId}`)
+          : db.collection("deposits").doc();
         let depositType = "Referral Reward Transfer";
         
         // Determine the type based on the source/amount
@@ -1584,6 +1856,16 @@ app.post("/api/transfer-referral-reward", async (req, res) => {
         `[referral-reward] ✅ TRANSFER SUCCESS - user=${userId} rewardId=${rewardId} amount=₱${numAmount} newBalance=₱${result.newBalance}`
       );
 
+      logTransactionEvent({
+        requestId: req.requestId || null,
+        transactionType: "referral_reward_transfer",
+        status: result.deduped ? "deduped" : "success",
+        userId,
+        amount: numAmount,
+        rewardId,
+        newBalance: result.newBalance,
+      });
+
       res.json(result);
     } catch (transactionError) {
       console.error("[referral-reward] ❌ Transaction failed:", transactionError);
@@ -1597,8 +1879,58 @@ app.post("/api/transfer-referral-reward", async (req, res) => {
 
 // Simple health check for deployment platforms
 app.get("/health", (req, res) => {
-  res.status(200).json({ status: "ok" });
+  res.status(200).json({
+    status: "ok",
+    uptimeSeconds: Math.floor(process.uptime()),
+    startedAt: new Date(SERVER_START_TS).toISOString(),
+    service: process.env.RENDER_SERVICE_NAME || "amayan-backend",
+    host: os.hostname(),
+    env: process.env.NODE_ENV || "development",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get("/health/ready", async (req, res) => {
+  try {
+    await db.collection("users").limit(1).get();
+    res.status(200).json({
+      status: "ready",
+      firestore: "ok",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    logEvent("error", "readiness_check_failed", {
+      requestId: req.requestId || null,
+      message: error?.message || "unknown",
+    });
+    res.status(503).json({
+      status: "not_ready",
+      firestore: "error",
+      message: "Firestore readiness check failed",
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+process.on("unhandledRejection", (reason) => {
+  logEvent("error", "unhandled_rejection", {
+    message: reason?.message || String(reason),
+    stack: reason?.stack || null,
+  });
+});
+
+process.on("uncaughtException", (error) => {
+  logEvent("error", "uncaught_exception", {
+    message: error?.message || "unknown",
+    stack: error?.stack || null,
+  });
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () =>
+  logEvent("info", "server_started", {
+    port: PORT,
+    healthPath: "/health",
+    readinessPath: "/health/ready",
+  })
+);
