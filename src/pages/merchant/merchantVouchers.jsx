@@ -67,6 +67,8 @@ const MerchantVouchers = () => {
   const [merchantName, setMerchantName] = useState("Merchant");
   const [merchantEmail, setMerchantEmail] = useState("");
   const [activeVouchers, setActiveVouchers] = useState([]);
+  const [redeemedVouchers, setRedeemedVouchers] = useState([]);
+  const [showClaimed, setShowClaimed] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [manualCode, setManualCode] = useState("");
   const [scannerError, setScannerError] = useState("");
@@ -134,6 +136,31 @@ const MerchantVouchers = () => {
 
     return () => unsubVouchers();
   }, [merchantId, merchantEmail]);
+
+  useEffect(() => {
+    if (!merchantId) return undefined;
+
+    const unsubRedeemed = onSnapshot(
+      query(collection(db, "capitalShareVouchers"), where("redeemedByMerchantId", "==", merchantId)),
+      (snap) => {
+        const vouchers = snap.docs
+          .map((item) => ({ id: item.id, ...item.data() }))
+          .filter((item) => item.voucherStatus === "REDEEMED")
+          .sort((a, b) => {
+            const aTime = a.redeemedAt?.toMillis?.() || 0;
+            const bTime = b.redeemedAt?.toMillis?.() || 0;
+            return bTime - aTime;
+          });
+
+        setRedeemedVouchers(vouchers);
+      },
+      (error) => {
+        console.error("Failed loading redeemed vouchers:", error);
+      }
+    );
+
+    return () => unsubRedeemed();
+  }, [merchantId]);
 
   const closeScanner = () => {
     if (scannerIntervalRef.current) {
@@ -322,6 +349,13 @@ const MerchantVouchers = () => {
   }, [scannerOpen, redeeming, supportsBarcodeDetector]);
 
   const waitingCount = activeVouchers.length;
+  const claimedCount = redeemedVouchers.length;
+
+  const formatDateTime = (timestamp) => {
+    if (!timestamp) return "-";
+    const date = timestamp?.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleDateString() + " " + date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
 
   return (
     <Box
@@ -443,82 +477,206 @@ const MerchantVouchers = () => {
             </CardContent>
           </Card>
 
-          <Box sx={{ mb: 1.5, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <Typography sx={{ fontSize: "1.05rem", fontWeight: 700, color: "white" }}>
-              Pending Redemptions
-            </Typography>
+          <Box sx={{ mb: 2, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <Box sx={{ display: "flex", gap: 1 }}>
+              <Button
+                onClick={() => setShowClaimed(false)}
+                sx={{
+                  px: 2,
+                  py: 0.8,
+                  borderRadius: 2,
+                  textTransform: "none",
+                  fontWeight: 700,
+                  color: showClaimed ? "#94a3b8" : "white",
+                  bgcolor: showClaimed ? "transparent" : "rgba(16,185,129,0.15)",
+                  border: "1px solid",
+                  borderColor: showClaimed ? "rgba(148,163,184,0.3)" : "rgba(16,185,129,0.4)",
+                  "&:hover": { bgcolor: showClaimed ? "rgba(148,163,184,0.1)" : "rgba(16,185,129,0.25)" },
+                }}
+              >
+                Pending
+              </Button>
+              <Button
+                onClick={() => setShowClaimed(true)}
+                sx={{
+                  px: 2,
+                  py: 0.8,
+                  borderRadius: 2,
+                  textTransform: "none",
+                  fontWeight: 700,
+                  color: !showClaimed ? "#94a3b8" : "white",
+                  bgcolor: !showClaimed ? "transparent" : "rgba(59,130,246,0.15)",
+                  border: "1px solid",
+                  borderColor: !showClaimed ? "rgba(148,163,184,0.3)" : "rgba(59,130,246,0.4)",
+                  "&:hover": { bgcolor: !showClaimed ? "rgba(148,163,184,0.1)" : "rgba(59,130,246,0.25)" },
+                }}
+              >
+                Claimed
+              </Button>
+            </Box>
             <Chip
-              label={`${waitingCount} Waiting`}
+              label={showClaimed ? `${claimedCount} Claimed` : `${waitingCount} Waiting`}
               size="small"
               sx={{
                 fontWeight: 700,
-                bgcolor: "rgba(245,158,11,0.12)",
-                color: "#f59e0b",
-                border: "1px solid rgba(245,158,11,0.3)",
+                bgcolor: showClaimed ? "rgba(59,130,246,0.12)" : "rgba(245,158,11,0.12)",
+                color: showClaimed ? "#3b82f6" : "#f59e0b",
+                border: "1px solid",
+                borderColor: showClaimed ? "rgba(59,130,246,0.3)" : "rgba(245,158,11,0.3)",
               }}
             />
           </Box>
 
+          {showClaimed && claimedCount > 0 && (
+            <Card
+              sx={{
+                p: 2,
+                borderRadius: 2.5,
+                bgcolor: "rgba(59,130,246,0.08)",
+                border: "1px solid rgba(59,130,246,0.25)",
+                mb: 2,
+              }}
+            >
+              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                <Box>
+                  <Typography sx={{ color: "#94a3b8", fontSize: "0.75rem", mb: 0.5 }}>
+                    Total Claimed
+                  </Typography>
+                  <Typography sx={{ color: "white", fontWeight: 800, fontSize: "1.5rem" }}>
+                    {claimedCount}
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography sx={{ color: "#94a3b8", fontSize: "0.75rem", mb: 0.5 }}>
+                    Last Redeemed
+                  </Typography>
+                  <Typography sx={{ color: "#3b82f6", fontWeight: 700, fontSize: "0.85rem" }}>
+                    {redeemedVouchers.length > 0 ? formatDateTime(redeemedVouchers[0].redeemedAt) : "-"}
+                  </Typography>
+                </Box>
+              </Box>
+            </Card>
+          )}
+
           <Stack spacing={1.2}>
-            {activeVouchers.length === 0 ? (
-              <Paper
-                sx={{
-                  p: 3,
-                  textAlign: "center",
-                  bgcolor: "rgba(30,41,59,0.45)",
-                  border: "1px solid rgba(148,163,184,0.2)",
-                  borderRadius: 2.5,
-                }}
-              >
-                <Typography sx={{ color: "#94a3b8" }}>No pending vouchers for your branch.</Typography>
-              </Paper>
-            ) : (
-              activeVouchers.map((voucher) => (
+            {!showClaimed ? (
+              activeVouchers.length === 0 ? (
                 <Paper
-                  key={voucher.id}
                   sx={{
-                    p: 1.6,
+                    p: 3,
+                    textAlign: "center",
+                    bgcolor: "rgba(30,41,59,0.45)",
+                    border: "1px solid rgba(148,163,184,0.2)",
                     borderRadius: 2.5,
-                    bgcolor: "rgba(30,41,59,0.5)",
-                    border: "1px solid rgba(148,163,184,0.22)",
                   }}
                 >
-                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1.5 }}>
-                    <Box>
-                      <Typography sx={{ color: "#f8fafc", fontWeight: 700, fontSize: "0.95rem" }}>
-                        {voucher.branchName || "Branch Voucher"}
-                      </Typography>
-                      <Typography sx={{ color: "#cbd5e1", fontSize: "0.74rem", mt: 0.4 }}>
-                        {voucher.voucherCode || "No code"}
-                      </Typography>
-                      <Typography sx={{ color: "#94a3b8", fontSize: "0.68rem", mt: 0.3 }}>
-                        {voucher.voucherType === "OFW" ? "OFW" : "Walk-In"}
-                      </Typography>
-                    </Box>
-
-                    <Button
-                      onClick={() => {
-                        setManualCode(voucher.voucherCode || "");
-                        setScannerOpen(true);
-                      }}
-                      sx={{
-                        height: 38,
-                        px: 1.7,
-                        borderRadius: 2,
-                        textTransform: "none",
-                        fontWeight: 700,
-                        bgcolor: "white",
-                        color: "#0f172a",
-                        minWidth: "fit-content",
-                        "&:hover": { bgcolor: "#e2e8f0" },
-                      }}
-                      startIcon={<MaterialIcon name="qr_code" size={16} sx={{ color: "#0f172a" }} />}
-                    >
-                      Scan QR
-                    </Button>
-                  </Box>
+                  <Typography sx={{ color: "#94a3b8" }}>No pending vouchers for your branch.</Typography>
                 </Paper>
-              ))
+              ) : (
+                activeVouchers.map((voucher) => (
+                  <Paper
+                    key={voucher.id}
+                    sx={{
+                      p: 1.6,
+                      borderRadius: 2.5,
+                      bgcolor: "rgba(30,41,59,0.5)",
+                      border: "1px solid rgba(148,163,184,0.22)",
+                    }}
+                  >
+                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1.5 }}>
+                      <Box>
+                        <Typography sx={{ color: "#f8fafc", fontWeight: 700, fontSize: "0.95rem" }}>
+                          {voucher.branchName || "Branch Voucher"}
+                        </Typography>
+                        <Typography sx={{ color: "#cbd5e1", fontSize: "0.74rem", mt: 0.4 }}>
+                          {voucher.voucherCode || "No code"}
+                        </Typography>
+                        <Typography sx={{ color: "#94a3b8", fontSize: "0.68rem", mt: 0.3 }}>
+                          {voucher.voucherType === "OFW" ? "OFW" : "Walk-In"}
+                        </Typography>
+                      </Box>
+
+                      <Button
+                        onClick={() => {
+                          setManualCode(voucher.voucherCode || "");
+                          setScannerOpen(true);
+                        }}
+                        sx={{
+                          height: 38,
+                          px: 1.7,
+                          borderRadius: 2,
+                          textTransform: "none",
+                          fontWeight: 700,
+                          bgcolor: "white",
+                          color: "#0f172a",
+                          minWidth: "fit-content",
+                          "&:hover": { bgcolor: "#e2e8f0" },
+                        }}
+                        startIcon={<MaterialIcon name="qr_code" size={16} sx={{ color: "#0f172a" }} />}
+                      >
+                        Scan QR
+                      </Button>
+                    </Box>
+                  </Paper>
+                ))
+              )
+            ) : (
+              redeemedVouchers.length === 0 ? (
+                <Paper
+                  sx={{
+                    p: 3,
+                    textAlign: "center",
+                    bgcolor: "rgba(30,41,59,0.45)",
+                    border: "1px solid rgba(148,163,184,0.2)",
+                    borderRadius: 2.5,
+                  }}
+                >
+                  <Typography sx={{ color: "#94a3b8" }}>No claimed vouchers yet.</Typography>
+                </Paper>
+              ) : (
+                redeemedVouchers.map((voucher) => (
+                  <Paper
+                    key={voucher.id}
+                    sx={{
+                      p: 1.6,
+                      borderRadius: 2.5,
+                      bgcolor: "rgba(16,185,129,0.08)",
+                      border: "1px solid rgba(16,185,129,0.25)",
+                    }}
+                  >
+                    <Box>
+                      <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", mb: 1 }}>
+                        <Box>
+                          <Typography sx={{ color: "#f8fafc", fontWeight: 700, fontSize: "0.95rem" }}>
+                            {voucher.branchName || "Branch Voucher"}
+                          </Typography>
+                          <Typography sx={{ color: "#cbd5e1", fontSize: "0.74rem", mt: 0.4 }}>
+                            {voucher.voucherCode || "No code"}
+                          </Typography>
+                        </Box>
+                        <Chip
+                          label="Claimed"
+                          size="small"
+                          sx={{
+                            fontWeight: 600,
+                            bgcolor: "rgba(16,185,129,0.2)",
+                            color: "#10b981",
+                            border: "1px solid rgba(16,185,129,0.4)",
+                          }}
+                        />
+                      </Box>
+                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mt: 1, pt: 1, borderTop: "1px solid rgba(148,163,184,0.15)" }}>
+                        <Typography sx={{ color: "#94a3b8", fontSize: "0.7rem" }}>
+                          {formatDateTime(voucher.redeemedAt)}
+                        </Typography>
+                        <Typography sx={{ color: "#cbd5e1", fontSize: "0.7rem" }}>
+                          {voucher.voucherType === "OFW" ? "OFW" : "Walk-In"}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Paper>
+                ))
+              )
             )}
           </Stack>
         </Box>
