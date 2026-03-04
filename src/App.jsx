@@ -7,7 +7,6 @@ import {
   Navigate,
   useLocation,
 } from "react-router-dom";
-import { ParallaxProvider } from "react-scroll-parallax";
 import { LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterMoment } from "@mui/x-date-pickers/AdapterMoment";
 import Splashscreen from "./components/splashscreen";
@@ -136,31 +135,30 @@ function App() {
   };
 
   return (
-    <ParallaxProvider>
-      <LocalizationProvider dateAdapter={AdapterMoment}>
-        <Splashscreen
-          open={showSplash}
-          logo={`${appBase}/damayan.png`}
-          duration={2000}
-          onClose={() => setShowSplash(false)}
-        />
-        {!showSplash && (
-          <Router
-            basename={appBase}
-            future={{
-              v7_startTransition: true,
-              v7_relativeSplatPath: true,
-            }}
-          >
-            <AutoRedirect />
+    <LocalizationProvider dateAdapter={AdapterMoment}>
+      <Splashscreen
+        open={showSplash}
+        logo={`${appBase}/damayan.png`}
+        duration={2000}
+        onClose={() => setShowSplash(false)}
+      />
+      {!showSplash && (
+        <Router
+          basename={appBase}
+          future={{
+            v7_startTransition: true,
+            v7_relativeSplatPath: true,
+          }}
+        >
+          <AutoRedirect />
 
-            <Suspense
-              fallback={
-                <div style={{ textAlign: "center", marginTop: "20%" }}>
-                  Loading...
-                </div>
-              }
-            >
+          <Suspense
+            fallback={
+              <div style={{ textAlign: "center", marginTop: "20%" }}>
+                Loading...
+              </div>
+            }
+          >
             <Routes>
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<Login />} />
@@ -389,10 +387,9 @@ function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           </Suspense>
-          </Router>
-        )}
-      </LocalizationProvider>
-    </ParallaxProvider>
+        </Router>
+      )}
+    </LocalizationProvider>
   );
 }
 
