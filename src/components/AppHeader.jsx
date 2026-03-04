@@ -9,9 +9,10 @@ const AppHeader = ({ title }) => {
       sx={{
         background: "rgba(15,23,42,0.9)",
         backdropFilter: "blur(12px)",
+        pt: "env(safe-area-inset-top)",
       }}
     >
-      <Toolbar>
+      <Toolbar sx={{ minHeight: { xs: 56, sm: 64 } }}>
         <Typography fontWeight={700}>{title}</Typography>
       </Toolbar>
     </AppBar>

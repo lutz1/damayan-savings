@@ -615,6 +615,7 @@ const fetchPaybackAndCapital = async (uid) => {
             variant="h4"
             gutterBottom
             sx={{
+              mt: 3,
               fontWeight: 700,
               letterSpacing: 0.5,
               mb: 3,

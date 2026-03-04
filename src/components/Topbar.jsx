@@ -187,9 +187,16 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
           color: "#fff",
           boxShadow: "0 8px 32px rgba(31, 38, 135, 0.25)",
           zIndex: 1201,
+          pt: "env(safe-area-inset-top)",
         }}
       >
-        <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
+        <Toolbar
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            minHeight: { xs: 56, sm: 64 },
+          }}
+        >
           {/* Left */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             {onToggleSidebar && <IconButton color="inherit" onClick={onToggleSidebar} sx={{ display: { xs: "none", md: "inline-flex" } }}><MenuIcon /></IconButton>}
