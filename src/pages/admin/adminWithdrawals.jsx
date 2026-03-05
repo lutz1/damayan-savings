@@ -98,7 +98,7 @@ const AdminWithdrawals = () => {
       try {
         const userDoc = await getDoc(doc(db, "users", user.uid));
         if (userDoc.exists()) {
-          const role = userDoc.data().role?.toLowerCase() || "";
+          const role = userDoc.data().role?.toUpperCase() || "";
           setUserRole(role);
         }
       } catch (err) {

@@ -38,7 +38,7 @@ const AdminDashboard = () => {
   const [topUsers, setTopUsers] = useState([]);
   const [userMap, setUserMap] = useState({});
   const [roleDistribution, setRoleDistribution] = useState([]);
-    const [recentActivities, setRecentActivities] = useState([]);
+  const [recentActivities, setRecentActivities] = useState([]);
   // const [monthlyData, setMonthlyData] = useState([]);
   const [previousRevenue, setPreviousRevenue] = useState(0);
 
@@ -51,28 +51,92 @@ const AdminDashboard = () => {
   // Firestore listeners
   useEffect(() => {
     const unsubscribers = [];
-    // Fetch recent deposits and withdrawals for Recent Activity
-    const depositsQ = query(collection(db, "deposits"), orderBy("createdAt", "desc"));
-    const withdrawalsQ = query(collection(db, "withdrawals"), orderBy("createdAt", "desc"));
-    let recentDeposit = [];
-    let recentWithdrawal = [];
-    const unsubDeposits = onSnapshot(depositsQ, snapshot => {
-      recentDeposit = snapshot.docs.map(d => ({ ...d.data(), id: d.id, type: "Deposit" }));
-      updateRecentActivity();
-    });
-    const unsubWithdrawals = onSnapshot(withdrawalsQ, snapshot => {
-      recentWithdrawal = snapshot.docs.map(d => ({ ...d.data(), id: d.id, type: "Withdrawal" }));
-      updateRecentActivity();
-    });
-    function updateRecentActivity() {
-      // Merge and sort by createdAt
-      const merged = [...recentDeposit, ...recentWithdrawal]
+    
+    // Activity data storage
+    let allActivities = {
+      deposits: [],
+      withdrawals: [],
+      capitalShareEntries: [],
+      paybackEntries: [],
+      purchaseCodes: [],
+      pendingInvites: [],
+      capitalShareVouchers: [],
+      walletToWalletTransfers: [],
+    };
+
+    const updateRecentActivities = () => {
+      // Combine all activities with type field
+      const combined = [
+        ...allActivities.deposits.map(d => ({ ...d, activityType: "Deposit" })),
+        ...allActivities.withdrawals.map(d => ({ ...d, activityType: "Withdrawal" })),
+        ...allActivities.capitalShareEntries.map(d => ({ ...d, activityType: "Add Capital Share" })),
+        ...allActivities.paybackEntries.map(d => ({ ...d, activityType: "Add Payback Entry" })),
+        ...allActivities.purchaseCodes.map(d => ({ ...d, activityType: "Purchase Code" })),
+        ...allActivities.pendingInvites.map(d => ({ ...d, activityType: "Invite & Earn" })),
+        ...allActivities.capitalShareVouchers.map(d => ({ ...d, activityType: "Capital Share Voucher" })),
+        ...allActivities.walletToWalletTransfers.map(d => ({ ...d, activityType: "Send Money" })),
+      ]
         .sort((a, b) => (b.createdAt?.toDate?.() || new Date()) - (a.createdAt?.toDate?.() || new Date()))
-        .slice(0, 5);
-      setRecentActivities(merged);
-    }
+        .slice(0, 10);
+      
+      setRecentActivities(combined);
+    };
+
+    // Deposits
+    const depositsQ = query(collection(db, "deposits"), orderBy("createdAt", "desc"));
+    const unsubDeposits = onSnapshot(depositsQ, snapshot => {
+      allActivities.deposits = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+      updateRecentActivities();
+    });
     unsubscribers.push(unsubDeposits);
+
+    // Withdrawals
+    const withdrawalsQ = query(collection(db, "withdrawals"), orderBy("createdAt", "desc"));
+    const unsubWithdrawals = onSnapshot(withdrawalsQ, snapshot => {
+      allActivities.withdrawals = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+      updateRecentActivities();
+    });
     unsubscribers.push(unsubWithdrawals);
+
+    // Capital Share Entries
+    const capitalShareQ = query(collection(db, "capitalShareEntries"), orderBy("createdAt", "desc"));
+    const unsubCapitalShare = onSnapshot(capitalShareQ, snapshot => {
+      allActivities.capitalShareEntries = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+      updateRecentActivities();
+    });
+    unsubscribers.push(unsubCapitalShare);
+
+    // Payback Entries
+    const paybackQ = query(collection(db, "paybackEntries"), orderBy("createdAt", "desc"));
+    const unsubPayback = onSnapshot(paybackQ, snapshot => {
+      allActivities.paybackEntries = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+      updateRecentActivities();
+    });
+    unsubscribers.push(unsubPayback);
+
+    // Purchase Codes
+    const codesQ = query(collection(db, "purchaseCodes"), orderBy("createdAt", "desc"));
+    const unsubCodes = onSnapshot(codesQ, snapshot => {
+      allActivities.purchaseCodes = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+      updateRecentActivities();
+    });
+    unsubscribers.push(unsubCodes);
+
+    // Pending Invites
+    const invitesQ = query(collection(db, "pendingInvites"), orderBy("createdAt", "desc"));
+    const unsubInvites = onSnapshot(invitesQ, snapshot => {
+      allActivities.pendingInvites = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+      updateRecentActivities();
+    });
+    unsubscribers.push(unsubInvites);
+
+    // Capital Share Vouchers
+    const vouchersQ = query(collection(db, "capitalShareVouchers"));
+    const unsubVouchers = onSnapshot(vouchersQ, snapshot => {
+      allActivities.capitalShareVouchers = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+      updateRecentActivities();
+    });
+    unsubscribers.push(unsubVouchers);
         
 
     const roles = ["MD", "MS", "MI", "Agent"];
@@ -179,6 +243,10 @@ const AdminDashboard = () => {
       unsubscribers.push(
         onSnapshot(transfersQ, async snapshot => {
           const data = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+          
+          // Add to recent activities
+          allActivities.walletToWalletTransfers = data;
+
           const totalCharge = data.reduce((sum, d) => sum + (Number(d.charge) || 0), 0);
           setTotalRevenue(totalCharge);
           setPreviousRevenue(totalCharge * 0.85); // Simulate previous period
@@ -227,6 +295,9 @@ const AdminDashboard = () => {
             };
           });
           setRecentTransactions(recent);
+          
+          // Update recent activities to include transfers
+          updateRecentActivities();
 
           // Aggregate data for chart
           const chartMap = {};
@@ -730,6 +801,20 @@ const AdminDashboard = () => {
               displayName = userInfo?.name || userInfo?.username || act.name || act.userName || act.username || act.email || "Unknown User";
               profileUrl = userInfo?.profileUrl || userInfo?.photoURL || null;
             }
+
+            // Determine icon and color based on activity type
+            const activityConfig = {
+              "Deposit": { icon: "📥", color: "#FFB74D", emoji: "📥" },
+              "Withdrawal": { icon: "📤", color: "#E57373", emoji: "📤" },
+              "Add Capital Share": { icon: "💰", color: "#81C784", emoji: "💰" },
+              "Add Payback Entry": { icon: "📊", color: "#4FC3F7", emoji: "📊" },
+              "Purchase Code": { icon: "🎟️", color: "#BA68C8", emoji: "🎟️" },
+              "Invite & Earn": { icon: "👥", color: "#FFB300", emoji: "👥" },
+              "Capital Share Voucher": { icon: "🎫", color: "#26C6DA", emoji: "🎫" },
+              "Send Money": { icon: "💳", color: "#29B6F6", emoji: "💳" },
+            };
+            const config = activityConfig[act.activityType] || { icon: "📌", color: "#999", emoji: "📌" };
+
             return (
               <motion.div key={act.id || idx} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.08 }}>
                 <Box sx={{
@@ -746,15 +831,15 @@ const AdminDashboard = () => {
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
                     {/* Profile Avatar */}
                     {profileUrl ? (
-                      <Box component="img" src={profileUrl} alt="profile" sx={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', mr: 1, border: act.type === 'Deposit' ? '2px solid #FFB74D' : '2px solid #E57373' }} />
+                      <Box component="img" src={profileUrl} alt="profile" sx={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', mr: 1, border: `2px solid ${config.color}` }} />
                     ) : (
-                      <Box sx={{ width: 36, height: 36, borderRadius: '50%', background: act.type === 'Deposit' ? '#FFB74D' : '#E57373', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18, mr: 1 }}>
+                      <Box sx={{ width: 36, height: 36, borderRadius: '50%', background: config.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18, mr: 1 }}>
                         {displayName ? displayName[0] : 'U'}
                       </Box>
                     )}
                     <Box>
-                      <Typography variant="body2" sx={{ color: act.type === 'Deposit' ? '#FFB74D' : '#E57373', fontWeight: 700, fontSize: 15 }}>
-                        {act.type}
+                      <Typography variant="body2" sx={{ color: config.color, fontWeight: 700, fontSize: 15 }}>
+                        {act.activityType}
                       </Typography>
                       <Typography variant="caption" sx={{ color: "#fff", fontSize: 12, textShadow: '1px 1px 4px #000' }}>
                         {displayName}
@@ -763,16 +848,16 @@ const AdminDashboard = () => {
                   </Box>
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: { xs: 'flex-start', sm: 'flex-end' }, minWidth: 90, ml: { xs: 0, sm: 'auto' }, mt: { xs: 1, sm: 0 } }}>
                     <Box sx={{ display: "flex", gap: 1, alignItems: "center", mb: 0.5 }}>
-                      <Box sx={{ fontSize: "1rem" }}>{act.type === 'Deposit' ? '📥' : '📤'}</Box>
+                      <Box sx={{ fontSize: "1rem" }}>{config.emoji}</Box>
                       <Typography variant="body2" sx={{ color: "white", fontWeight: 700 }}>
-                        ₱{(act.amount || 0).toLocaleString()}
+                        ₱{(act.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                       </Typography>
                     </Box>
                     <Typography variant="caption" sx={{ color: "#fff", fontSize: "0.7rem", textShadow: '1px 1px 4px #000', textAlign: { xs: 'left', sm: 'right' } }}>
-                      {act.createdAt?.toDate?.().toLocaleDateString() || "N/A"}
+                      {act.createdAt?.toDate?.().toLocaleDateString() || act.createdAt?.seconds ? new Date(act.createdAt.seconds * 1000).toLocaleDateString() : "N/A"}
                     </Typography>
                   </Box>
-                  <Box sx={{ fontSize: "1.2rem", color: act.type === 'Deposit' ? '#FFB74D' : '#E57373', ml: { xs: 0, sm: 2 }, mt: { xs: 1, sm: 0 } }}>✓</Box>
+                  <Box sx={{ fontSize: "1.2rem", color: config.color, ml: { xs: 0, sm: 2 }, mt: { xs: 1, sm: 0 } }}>✓</Box>
                 </Box>
               </motion.div>
             );
