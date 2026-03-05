@@ -106,161 +106,42 @@ const isValidEmail = (email) => {
         throw new Error("Selected activation code is no longer available.");
       }
 
-      // 1️⃣ + 2️⃣ Atomic: create pending invite and consume activation code once
-      await runTransaction(db, async (transaction) => {
-        const codeRef = doc(db, "purchaseCodes", codeDoc.id);
-        const codeSnap = await transaction.get(codeRef);
-        if (!codeSnap.exists()) {
-          throw new Error("Activation code not found.");
+      // Get Firebase ID token
+      const idToken = await auth.currentUser.getIdToken();
+      const clientRequestId = `${auth.currentUser.uid}_${Date.now()}`;
+
+      // Call Cloud Function for atomic invite + reward creation
+      const response = await fetch(
+        "https://us-central1-amayan-savings.cloudfunctions.net/createInviteAndRewards",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            codeId: codeDoc.id,
+            inviteeEmail: newUserEmail,
+            inviteeName: newUserName,
+            inviteeUsername: newUserUsername,
+            contactNumber: newUserContact,
+            inviteeAddress: newUserAddress,
+            inviteeRole: newUserRole,
+            referralCode,
+            clientRequestId,
+          }),
         }
+      );
 
-        const codeData = codeSnap.data();
-        if (codeData.used) {
-          throw new Error("Activation code already used.");
-        }
-
-        if (codeData.userId !== auth.currentUser.uid) {
-          throw new Error("Activation code does not belong to your account.");
-        }
-
-        const pendingInviteRef = doc(collection(db, "pendingInvites"));
-        transaction.set(pendingInviteRef, {
-          inviterId: auth.currentUser.uid,
-          inviterUsername: userData.username,
-          inviterRole: userData.role,
-          inviteeName: newUserName,
-          inviteeUsername: newUserUsername,
-          inviteeEmail: newUserEmail,
-          contactNumber: newUserContact,
-          address: newUserAddress,
-          role: newUserRole,
-          code: selectedCode,
-          referralCode,
-          referredBy: userData.username,
-          referrerRole: userData.role,
-          status: "Pending Approval",
-          createdAt: new Date(),
-        });
-
-        transaction.update(codeRef, {
-          used: true,
-          usedAt: new Date(),
-          usedByInviteeEmail: newUserEmail,
-        });
-      });
-
-      // 3️⃣ Direct Invite Reward
-      const directRewardMap = {
-        MasterMD: 235,
-        MD: 210,
-        MS: 160,
-        MI: 140,
-        Agent: 120,
-      };
-
-      const inviterReward = directRewardMap[userData.role] || 0;
-      if (inviterReward > 0) {
-        await addDoc(collection(db, "referralReward"), {
-          userId: auth.currentUser.uid,
-          username: userData.username,
-          role: userData.role,
-          amount: inviterReward,
-          source: newUserUsername,
-          type: "Direct Invite Reward",
-          approved: false,
-          payoutReleased: false,
-          createdAt: serverTimestamp(),
-        });
-        console.log(`✅ Direct Reward ₱${inviterReward} → ${userData.username}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to create invite");
       }
 
-      // 4️⃣ Network Bonuses
-      let currentUplineUsername = userData?.referredBy || null;
-      let mdSlotIndex = 0;
+      const result = await response.json();
+      console.log("✅ Invite created:", result);
 
-      while (currentUplineUsername) {
-        const q = query(
-          collection(db, "users"),
-          where("username", "==", currentUplineUsername),
-          limit(1)
-        );
-        const snap = await getDocs(q);
-        if (snap.empty) break;
-
-        const uplineUser = snap.docs[0].data();
-        const uplineId = snap.docs[0].id;
-        const role = uplineUser.role;
-
-        console.log("🧭 Checking upline:", uplineUser.username, role);
-
-        if (role?.toLowerCase() === "ceo") {
-          console.log("⛔ CEO found, stopping network bonuses chain");
-          break;
-        }
-
-        // MasterMD bonus
-        if (role?.toLowerCase() === "mastermd") {
-          await addDoc(collection(db, "referralReward"), {
-            userId: uplineId,
-            username: uplineUser.username,
-            role,
-            amount: 15,
-            source: newUserUsername,
-            type: "Network Bonus",
-            approved: false,
-            payoutReleased: false,
-            createdAt: serverTimestamp(),
-          });
-          console.log(`💸 Network Bonus ₱15 → ${uplineUser.username} (MasterMD)`);
-        }
-
-        // MD bonuses (updated logic)
-if (role?.toLowerCase() === "md") {
-  if (mdSlotIndex === 0) {
-    // First MD upline → ₱10
-    await addDoc(collection(db, "referralReward"), {
-      userId: uplineId,
-      username: uplineUser.username,
-      role,
-      amount: 10,
-      source: newUserUsername,
-      type: "MD Network Bonus",
-      approved: false,
-      payoutReleased: false,
-      createdAt: serverTimestamp(),
-    });
-    console.log(`💸 MD Bonus ₱10 → ${uplineUser.username}`);
-  }
-
-  // After first MD, do NOT give any more MD bonuses
-  mdSlotIndex++;
-
-  // Stop MD bonuses completely (only 1 MD earns)
-  continue;
-}
-
-        // MI & MS fixed bonuses
-        const roleBonusMap = { mi: 20, ms: 20 };
-        if (role && roleBonusMap[role.toLowerCase()]) {
-          const bonus = roleBonusMap[role.toLowerCase()];
-          await addDoc(collection(db, "referralReward"), {
-            userId: uplineId,
-            username: uplineUser.username,
-            role,
-            amount: bonus,
-            source: newUserUsername,
-            type: "Network Bonus",
-            approved: false,
-            payoutReleased: false,
-            createdAt: serverTimestamp(),
-          });
-          console.log(`💸 Network Bonus ₱${bonus} → ${uplineUser.username} (${role})`);
-        }
-
-        currentUplineUsername = uplineUser.referredBy || null;
-      }
-
-      // 5️⃣ SPECIAL BONUSES
+      // 5️⃣ SPECIAL BONUSES (kept in frontend for flexibility)
       // ✨ Master MD gets ₱200 bonus for every invite
       const masterMDQuery = query(
         collection(db, "users"),

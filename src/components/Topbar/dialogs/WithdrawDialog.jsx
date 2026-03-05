@@ -91,6 +91,8 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
 
     try {
       const numAmount = parseFloat(amount);
+      
+      // 1️⃣ Upload QR file to Firebase Storage
       const qrRef = ref(
         storage,
         `withdrawals_qr/${auth.currentUser.uid}_${Date.now()}_${qrFile.name}`
@@ -98,46 +100,35 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
       await uploadBytes(qrRef, qrFile);
       const qrUrl = await getDownloadURL(qrRef);
 
-      const charge = numAmount * 0.05;
-      const finalAmount = numAmount - charge;
+      // 2️⃣ Call Cloud Function to process withdrawal
+      const idToken = await auth.currentUser.getIdToken();
+      const clientRequestId = `${auth.currentUser.uid}_${Date.now()}`;
 
-      // ✅ Atomic transaction: deduct wallet + create withdrawal record
-      await runTransaction(db, async (transaction) => {
-        const userRef = doc(db, "users", auth.currentUser.uid);
-        const userSnap = await transaction.get(userRef);
-        if (!userSnap.exists()) {
-          throw new Error("User account not found.");
+      const response = await fetch(
+        "https://us-central1-amayan-savings.cloudfunctions.net/createWithdrawal",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            amount: numAmount,
+            paymentMethod,
+            qrUrl,
+            clientRequestId,
+          }),
         }
+      );
 
-        const userData = userSnap.data();
-        const currentBalance = Number(userData.eWallet || 0);
-        if (currentBalance < numAmount) {
-          throw new Error("Insufficient wallet balance.");
-        }
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Withdrawal failed");
+      }
 
-        // Deduct wallet immediately
-        transaction.update(userRef, {
-          eWallet: currentBalance - numAmount,
-          updatedAt: new Date(),
-        });
-
-        // Create withdrawal record (reserved, pending approval)
-        const withdrawalRef = doc(collection(db, "withdrawals"));
-        transaction.set(withdrawalRef, {
-          userId: auth.currentUser.uid,
-          name: userData.name,
-          email: userData.email,
-          amount: numAmount,
-          paymentMethod,
-          charge,
-          netAmount: finalAmount,
-          qrUrl,
-          status: "Pending",
-          createdAt: new Date(),
-        });
-      });
-
-      if (onBalanceUpdate) onBalanceUpdate(userData.eWallet - numAmount);
+      const result = await response.json();
+      
+      if (onBalanceUpdate) onBalanceUpdate(result.newBalance);
 
       setSuccess(true);
       setAmount("");

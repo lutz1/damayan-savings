@@ -396,13 +396,40 @@ const MemberCapitalShare = () => {
 
     try {
       setSavingVoucherType(true);
-      const voucherRef = doc(db, "capitalShareVouchers", user.uid);
-      await setDoc(voucherRef, {
-        userId: user.uid,
-        voucherType: type,
-        updatedAt: serverTimestamp(),
-        ...extraFields,
-      }, { merge: true });
+      
+      // Get Firebase ID token
+      const idToken = await user.getIdToken();
+      const clientRequestId = `${user.uid}_${Date.now()}`;
+
+      // Call Cloud Function to create capital share voucher
+      const response = await fetch(
+        "https://us-central1-amayan-savings.cloudfunctions.net/createCapitalShareVoucher",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            voucherType: type,
+            voucherCode: extraFields.voucherCode || "",
+            branchId: extraFields.branchId || null,
+            branchName: extraFields.branchName || "",
+            branchAddress: extraFields.branchAddress || "",
+            branchEmail: extraFields.branchEmail || "",
+            clientRequestId,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to save voucher");
+      }
+
+      const result = await response.json();
+      console.log("✅ Voucher saved:", result);
+
       if (shouldCloseDialogs) {
         setVoucherDialogOpen(false);
         setWalkInBranchDialogOpen(false);

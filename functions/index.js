@@ -1275,3 +1275,563 @@ exports.transferPassiveIncome = functions.https.onRequest(async (req, res) => {
     }
   });
 });
+
+/**
+ * Purchase Activation Code
+ * Idempotent: Safe to retry via clientRequestId
+ */
+exports.purchaseActivationCode = functions.https.onRequest(async (req, res) => {
+  corsHandler(req, res, async () => {
+    try {
+      if (req.method !== "POST") {
+        return res.status(405).json({ error: "Method not allowed" });
+      }
+
+      const authHeader = req.headers.authorization || req.headers.Authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ error: "Unauthorized: Missing or invalid token" });
+      }
+
+      const idToken = authHeader.substring("Bearer ".length);
+      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      const userId = decodedToken.uid;
+
+      const { codeType, clientRequestId } = req.body || {};
+
+      if (!codeType) {
+        return res.status(400).json({ error: "Missing required field: codeType" });
+      }
+
+      const codePrices = { capital: 2400, downline: 600 };
+      const amount = codePrices[codeType];
+
+      const result = await db.runTransaction(async (transaction) => {
+        // Idempotency check
+        if (clientRequestId) {
+          const idempotencyRef = db.collection("purchaseCodesIdempotency").doc(`${userId}_${clientRequestId}`);
+          const existingSnap = await transaction.get(idempotencyRef);
+          if (existingSnap.exists) {
+            const data = existingSnap.data();
+            return { success: true, deduped: true, code: data.code, codeId: data.codeId };
+          }
+        }
+
+        const userRef = db.collection("users").doc(userId);
+        const userSnap = await transaction.get(userRef);
+        if (!userSnap.exists()) {
+          throw new Error("User account not found");
+        }
+
+        const userData = userSnap.data();
+        const currentBalance = Number(userData.eWallet || 0);
+        if (currentBalance < amount) {
+          throw new Error("Insufficient wallet balance");
+        }
+
+        const randomCode = "TCLC-" + Math.random().toString(36).substring(2, 10).toUpperCase();
+        const purchaseRef = db.collection("purchaseCodes").doc();
+
+        transaction.set(purchaseRef, {
+          userId,
+          name: userData.name || "",
+          email: userData.email || "",
+          code: randomCode,
+          type: codeType === "capital" ? "Activate Capital Share" : "Downline Code",
+          amount,
+          used: false,
+          status: "Success",
+          createdAt: new Date(),
+        });
+
+        transaction.update(userRef, { eWallet: currentBalance - amount });
+
+        // Store idempotency key
+        if (clientRequestId) {
+          const idempotencyRef = db.collection("purchaseCodesIdempotency").doc(`${userId}_${clientRequestId}`);
+          transaction.set(idempotencyRef, {
+            code: randomCode,
+            codeId: purchaseRef.id,
+            createdAt: new Date(),
+          });
+        }
+
+        return {
+          success: true,
+          code: randomCode,
+          codeId: purchaseRef.id,
+          newBalance: currentBalance - amount,
+        };
+      });
+
+      // Log to Render
+      try {
+        await fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            level: "info",
+            event: "activation_code_purchased",
+            data: {
+              userId,
+              codeType,
+              amount,
+              newBalance: result.newBalance,
+              deduped: result.deduped || false,
+              source: "Cloud Function",
+            },
+          }),
+        });
+      } catch (logError) {
+        console.warn("[purchase-activation-code] Warning: Failed to log to Render:", logError);
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("[purchase-activation-code] Error:", error);
+      res.status(400).json({ error: error.message || "Internal server error" });
+    }
+  });
+});
+
+/**
+ * Create Withdrawal Request
+ * Idempotent: Safe to retry via clientRequestId
+ */
+exports.createWithdrawal = functions.https.onRequest(async (req, res) => {
+  corsHandler(req, res, async () => {
+    try {
+      if (req.method !== "POST") {
+        return res.status(405).json({ error: "Method not allowed" });
+      }
+
+      const authHeader = req.headers.authorization || req.headers.Authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ error: "Unauthorized: Missing or invalid token" });
+      }
+
+      const idToken = authHeader.substring("Bearer ".length);
+      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      const userId = decodedToken.uid;
+
+      const { amount, paymentMethod, qrUrl, clientRequestId } = req.body || {};
+
+      if (!amount || !paymentMethod || !qrUrl) {
+        return res.status(400).json({ error: "Missing required fields: amount, paymentMethod, qrUrl" });
+      }
+
+      const numAmount = parseFloat(amount);
+      if (isNaN(numAmount) || numAmount < 100) {
+        return res.status(400).json({ error: "Minimum withdrawal is ₱100" });
+      }
+
+      const result = await db.runTransaction(async (transaction) => {
+        // Idempotency check
+        if (clientRequestId) {
+          const idempotencyRef = db.collection("withdrawalIdempotency").doc(`${userId}_${clientRequestId}`);
+          const existingSnap = await transaction.get(idempotencyRef);
+          if (existingSnap.exists) {
+            const data = existingSnap.data();
+            return { success: true, deduped: true, withdrawalId: data.withdrawalId };
+          }
+        }
+
+        const userRef = db.collection("users").doc(userId);
+        const userSnap = await transaction.get(userRef);
+        if (!userSnap.exists()) {
+          throw new Error("User account not found");
+        }
+
+        const userData = userSnap.data();
+        const currentBalance = Number(userData.eWallet || 0);
+        if (currentBalance < numAmount) {
+          throw new Error("Insufficient wallet balance");
+        }
+
+        const charge = numAmount * 0.05;
+        const netAmount = numAmount - charge;
+
+        const withdrawalRef = db.collection("withdrawals").doc();
+        transaction.set(withdrawalRef, {
+          userId,
+          name: userData.name || "",
+          email: userData.email || "",
+          amount: numAmount,
+          paymentMethod,
+          charge,
+          netAmount,
+          qrUrl,
+          status: "Pending",
+          createdAt: new Date(),
+        });
+
+        transaction.update(userRef, { eWallet: currentBalance - numAmount });
+
+        // Store idempotency key
+        if (clientRequestId) {
+          const idempotencyRef = db.collection("withdrawalIdempotency").doc(`${userId}_${clientRequestId}`);
+          transaction.set(idempotencyRef, {
+            withdrawalId: withdrawalRef.id,
+            createdAt: new Date(),
+          });
+        }
+
+        return {
+          success: true,
+          withdrawalId: withdrawalRef.id,
+          newBalance: currentBalance - numAmount,
+          charge,
+          netAmount,
+        };
+      });
+
+      // Log to Render
+      try {
+        await fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            level: "info",
+            event: "withdrawal_created",
+            data: {
+              userId,
+              amount: numAmount,
+              paymentMethod,
+              charge: result.charge,
+              netAmount: result.netAmount,
+              newBalance: result.newBalance,
+              deduped: result.deduped || false,
+              source: "Cloud Function",
+            },
+          }),
+        });
+      } catch (logError) {
+        console.warn("[create-withdrawal] Warning: Failed to log to Render:", logError);
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("[create-withdrawal] Error:", error);
+      res.status(400).json({ error: error.message || "Internal server error" });
+    }
+  });
+});
+
+/**
+ * Create Capital Share Voucher (WALK_IN or OFW)
+ * Idempotent: Safe to retry via clientRequestId
+ */
+exports.createCapitalShareVoucher = functions.https.onRequest(async (req, res) => {
+  corsHandler(req, res, async () => {
+    try {
+      if (req.method !== "POST") {
+        return res.status(405).json({ error: "Method not allowed" });
+      }
+
+      const authHeader = req.headers.authorization || req.headers.Authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ error: "Unauthorized: Missing or invalid token" });
+      }
+
+      const idToken = authHeader.substring("Bearer ".length);
+      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      const userId = decodedToken.uid;
+
+      const {
+        voucherType,
+        voucherCode,
+        branchId,
+        branchName,
+        branchAddress,
+        branchEmail,
+        clientRequestId,
+      } = req.body || {};
+
+      if (!voucherType || !voucherCode) {
+        return res.status(400).json({ error: "Missing required fields: voucherType, voucherCode" });
+      }
+
+      const result = await db.runTransaction(async (transaction) => {
+        // Idempotency check
+        if (clientRequestId) {
+          const idempotencyRef = db.collection("voucherIdempotency").doc(`${userId}_${clientRequestId}`);
+          const existingSnap = await transaction.get(idempotencyRef);
+          if (existingSnap.exists) {
+            const data = existingSnap.data();
+            return { success: true, deduped: true, voucherId: data.voucherId };
+          }
+        }
+
+        const voucherRef = db.collection("capitalShareVouchers").doc(userId);
+        const voucherSnap = await transaction.get(voucherRef);
+
+        let existingVouchers = [];
+        if (voucherSnap.exists()) {
+          existingVouchers = voucherSnap.data().vouchers || [];
+        }
+
+        const newVoucher = {
+          voucherType,
+          voucherCode,
+          voucherStatus: "ACTIVE",
+          branchId: branchId || null,
+          branchName: branchName || "",
+          branchAddress: branchAddress || "",
+          branchEmail: branchEmail || "",
+          createdAt: new Date(),
+        };
+
+        existingVouchers.push(newVoucher);
+
+        transaction.set(voucherRef, {
+          vouchers: existingVouchers,
+          voucherType,
+          lastUpdatedAt: new Date(),
+        });
+
+        // Store idempotency key
+        if (clientRequestId) {
+          const idempotencyRef = db.collection("voucherIdempotency").doc(`${userId}_${clientRequestId}`);
+          transaction.set(idempotencyRef, {
+            voucherId: userId,
+            createdAt: new Date(),
+          });
+        }
+
+        return {
+          success: true,
+          voucherId: userId,
+          voucherCode,
+          voucherType,
+        };
+      });
+
+      // Log to Render
+      try {
+        await fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            level: "info",
+            event: "capital_share_voucher_created",
+            data: {
+              userId,
+              voucherType,
+              voucherCode,
+              branchName,
+              deduped: result.deduped || false,
+              source: "Cloud Function",
+            },
+          }),
+        });
+      } catch (logError) {
+        console.warn("[create-capital-share-voucher] Warning: Failed to log to Render:", logError);
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("[create-capital-share-voucher] Error:", error);
+      res.status(400).json({ error: error.message || "Internal server error" });
+    }
+  });
+});
+
+/**
+ * Create Invite and Associated Rewards
+ * Complex transaction: creates pendingInvites, consumes code, creates referral rewards and network bonuses
+ * Idempotent: Safe to retry via clientRequestId
+ */
+exports.createInviteAndRewards = functions.https.onRequest(async (req, res) => {
+  corsHandler(req, res, async () => {
+    try {
+      if (req.method !== "POST") {
+        return res.status(405).json({ error: "Method not allowed" });
+      }
+
+      const authHeader = req.headers.authorization || req.headers.Authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ error: "Unauthorized: Missing or invalid token" });
+      }
+
+      const idToken = authHeader.substring("Bearer ".length);
+      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      const inviterId = decodedToken.uid;
+
+      const {
+        codeId,
+        inviteeEmail,
+        inviteeName,
+        inviteeUsername,
+        contactNumber,
+        inviteeAddress,
+        inviteeRole,
+        referralCode,
+        clientRequestId,
+      } = req.body || {};
+
+      if (!codeId || !inviteeEmail || !inviteeUsername || !inviteeRole) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const result = await db.runTransaction(async (transaction) => {
+        // Idempotency check
+        if (clientRequestId) {
+          const idempotencyRef = db.collection("inviteIdempotency").doc(`${inviterId}_${clientRequestId}`);
+          const existingSnap = await transaction.get(idempotencyRef);
+          if (existingSnap.exists) {
+            const data = existingSnap.data();
+            return { success: true, deduped: true, inviteId: data.inviteId };
+          }
+        }
+
+        // 1️⃣ Get inviter data
+        const inviterRef = db.collection("users").doc(inviterId);
+        const inviterSnap = await transaction.get(inviterRef);
+        if (!inviterSnap.exists()) {
+          throw new Error("Inviter not found");
+        }
+        const inviterData = inviterSnap.data();
+
+        // 2️⃣ Verify and consume activation code
+        const codeRef = db.collection("purchaseCodes").doc(codeId);
+        const codeSnap = await transaction.get(codeRef);
+        if (!codeSnap.exists()) {
+          throw new Error("Activation code not found");
+        }
+
+        const codeData = codeSnap.data();
+        if (codeData.used) {
+          throw new Error("Activation code already used");
+        }
+        if (codeData.userId !== inviterId) {
+          throw new Error("Activation code does not belong to your account");
+        }
+
+        // 3️⃣ Create pending invite
+        const pendingInviteRef = db.collection("pendingInvites").doc();
+        transaction.set(pendingInviteRef, {
+          inviterId,
+          inviterUsername: inviterData.username || "",
+          inviterRole: inviterData.role || "",
+          inviteeEmail,
+          inviteeName,
+          inviteeUsername,
+          contactNumber,
+          address: inviteeAddress || "",
+          role: inviteeRole,
+          code: codeData.code,
+          referralCode,
+          referredBy: inviterData.username || "",
+          referrerRole: inviterData.role || "",
+          status: "Pending Approval",
+          createdAt: new Date(),
+        });
+
+        // 4️⃣ Mark code as used
+        transaction.update(codeRef, {
+          used: true,
+          usedAt: new Date(),
+          usedByInviteeEmail: inviteeEmail,
+        });
+
+        // 5️⃣ Create direct referral reward
+        const directRewardMap = {
+          MasterMD: 235,
+          MD: 210,
+          MS: 160,
+          MI: 140,
+          Agent: 120,
+        };
+        const directReward = directRewardMap[inviterData.role] || 0;
+
+        if (directReward > 0) {
+          const referralRef = db.collection("referralReward").doc();
+          transaction.set(referralRef, {
+            userId: inviterId,
+            username: inviterData.username || "",
+            role: inviterData.role || "",
+            amount: directReward,
+            source: inviteeUsername,
+            type: "Direct Invite Reward",
+            approved: false,
+            createdAt: new Date(),
+          });
+        }
+
+        // 6️⃣ Create network/upline bonuses if applicable
+        const uplineRef = db.collection("users").doc(inviterData.uplineId || "");
+        if (inviterData.uplineId) {
+          const uplineSnap = await transaction.get(uplineRef);
+          if (uplineSnap.exists()) {
+            const uplineData = uplineSnap.data();
+            const networkBonusMap = {
+              MasterMD: 30,
+              MD: 20,
+              MS: 15,
+              MI: 10,
+              Agent: 5,
+            };
+            const networkBonus = networkBonusMap[uplineData.role] || 0;
+
+            if (networkBonus > 0) {
+              const networkRef = db.collection("referralReward").doc();
+              transaction.set(networkRef, {
+                userId: inviterData.uplineId,
+                username: uplineData.username || "",
+                role: uplineData.role || "",
+                amount: networkBonus,
+                source: inviteeUsername,
+                type: "Network Bonus",
+                approved: false,
+                createdAt: new Date(),
+              });
+            }
+          }
+        }
+
+        // Store idempotency key
+        if (clientRequestId) {
+          const idempotencyRef = db.collection("inviteIdempotency").doc(`${inviterId}_${clientRequestId}`);
+          transaction.set(idempotencyRef, {
+            inviteId: pendingInviteRef.id,
+            createdAt: new Date(),
+          });
+        }
+
+        return {
+          success: true,
+          inviteId: pendingInviteRef.id,
+          directReward,
+          inviteeUsername,
+        };
+      });
+
+      // Log to Render
+      try {
+        await fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            level: "info",
+            event: "invite_created_with_rewards",
+            data: {
+              inviterId,
+              inviteeUsername,
+              inviteeEmail,
+              inviteeRole: inviteeRole,
+              directReward: result.directReward,
+              deduped: result.deduped || false,
+              source: "Cloud Function",
+            },
+          }),
+        });
+      } catch (logError) {
+        console.warn("[create-invite-and-rewards] Warning: Failed to log to Render:", logError);
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("[create-invite-and-rewards] Error:", error);
+      res.status(400).json({ error: error.message || "Internal server error" });
+    }
+  });
+});

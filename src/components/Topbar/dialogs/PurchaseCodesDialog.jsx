@@ -95,49 +95,39 @@ const PurchaseCodesDialog = ({
     if (loading) return;
     setLoading(true);
     try {
-      const randomCode =
-        "TCLC-" + Math.random().toString(36).substring(2, 10).toUpperCase();
+      // Get Firebase ID token
+      const idToken = await auth.currentUser.getIdToken();
+      const clientRequestId = `${auth.currentUser.uid}_${Date.now()}`;
 
-      const txResult = await runTransaction(db, async (transaction) => {
-        const userRef = doc(db, "users", auth.currentUser.uid);
-        const userSnap = await transaction.get(userRef);
-
-        if (!userSnap.exists()) {
-          throw new Error("User account not found.");
+      // Call Cloud Function
+      const response = await fetch(
+        "https://us-central1-amayan-savings.cloudfunctions.net/purchaseActivationCode",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            codeType,
+            clientRequestId,
+          }),
         }
+      );
 
-        const freshUser = userSnap.data();
-        const currentBalance = Number(freshUser.eWallet || 0);
-        if (currentBalance < amount) {
-          throw new Error("Insufficient wallet balance.");
-        }
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Purchase failed");
+      }
 
-        const purchaseRef = doc(collection(db, "purchaseCodes"));
-        transaction.set(purchaseRef, {
-          userId: auth.currentUser.uid,
-          name: freshUser.name || userData.name,
-          email: freshUser.email || userData.email,
-          code: randomCode,
-          type:
-            codeType === "capital"
-              ? "Activate Capital Share"
-              : "Downline Code",
-          amount,
-          used: false,
-          status: "Success",
-          createdAt: new Date(),
-        });
-
-        transaction.update(userRef, { eWallet: currentBalance - amount });
-        return { newBalance: currentBalance - amount };
-      });
+      const result = await response.json();
 
       // Send notification for capital share activation code
       if (codeType === "capital") {
         await sendPurchaseNotification({ userId: auth.currentUser.uid, codeType: "Capital Share Activation Code" });
       }
 
-      if (onBalanceUpdate) onBalanceUpdate(txResult.newBalance);
+      if (onBalanceUpdate) onBalanceUpdate(result.newBalance);
 
       setSuccessMessage(
         codeType === "capital"
