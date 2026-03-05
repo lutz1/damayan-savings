@@ -158,11 +158,12 @@ const AdminDashboard = () => {
           }));
           setRoleDistribution(roleData);
 
-          // Build a map of username/email to user info for later display
+          // Build a map of username/email/userId to user info for later display
           const userMapObj = {};
           data.forEach(u => {
             if (u.username) userMapObj[u.username] = u;
             if (u.email) userMapObj[u.email] = u;
+            userMapObj[u.id] = u; // Map by userId
           });
           setUserMap(userMapObj);
 
@@ -854,7 +855,7 @@ const AdminDashboard = () => {
                       </Typography>
                     </Box>
                     <Typography variant="caption" sx={{ color: "#fff", fontSize: "0.7rem", textShadow: '1px 1px 4px #000', textAlign: { xs: 'left', sm: 'right' } }}>
-                      {act.createdAt?.toDate?.().toLocaleDateString() || act.createdAt?.seconds ? new Date(act.createdAt.seconds * 1000).toLocaleDateString() : "N/A"}
+                      {act.createdAt?.toDate?.().toLocaleDateString() || (act.createdAt?.seconds ? new Date(act.createdAt.seconds * 1000).toLocaleDateString() : "N/A")}
                     </Typography>
                   </Box>
                   <Box sx={{ fontSize: "1.2rem", color: config.color, ml: { xs: 0, sm: 2 }, mt: { xs: 1, sm: 0 } }}>✓</Box>
