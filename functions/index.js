@@ -1318,7 +1318,7 @@ exports.purchaseActivationCode = functions.https.onRequest(async (req, res) => {
 
         const userRef = db.collection("users").doc(userId);
         const userSnap = await transaction.get(userRef);
-        if (!userSnap.exists()) {
+        if (!userSnap.exists) {
           throw new Error("User account not found");
         }
 
@@ -1437,7 +1437,7 @@ exports.createWithdrawal = functions.https.onRequest(async (req, res) => {
 
         const userRef = db.collection("users").doc(userId);
         const userSnap = await transaction.get(userRef);
-        if (!userSnap.exists()) {
+        if (!userSnap.exists) {
           throw new Error("User account not found");
         }
 
@@ -1539,6 +1539,7 @@ exports.createCapitalShareVoucher = functions.https.onRequest(async (req, res) =
       const {
         voucherType,
         voucherCode,
+        voucherIssuedAt,
         branchId,
         branchName,
         branchAddress,
@@ -1551,6 +1552,23 @@ exports.createCapitalShareVoucher = functions.https.onRequest(async (req, res) =
       }
 
       const result = await db.runTransaction(async (transaction) => {
+        // Check user's capital activation date (vouchers only for activations >= Mar 4, 2026)
+        const userRef = admin.firestore().collection("users").doc(userId);
+        const userSnap = await transaction.get(userRef);
+        
+        if (!userSnap.exists) {
+          throw new Error("User not found");
+        }
+        
+        const userData = userSnap.data();
+        const capitalActivatedAt = userData.capitalActivatedAt?.toDate?.() || (userData.capitalActivatedAt ? new Date(userData.capitalActivatedAt) : null);
+        const voucherCutoffDate = new Date("2026-03-04"); // Implementation date
+        
+        // Vouchers only eligible for new activations (after Mar 4, 2026)
+        if (!capitalActivatedAt || capitalActivatedAt < voucherCutoffDate) {
+          throw new Error("Vouchers are only available for capital share activated after March 4, 2026. Please renew or reactivate your capital share to be eligible for vouchers.");
+        }
+        
         // Idempotency check
         if (clientRequestId) {
           const idempotencyRef = db.collection("voucherIdempotency").doc(`${userId}_${clientRequestId}`);
@@ -1565,10 +1583,11 @@ exports.createCapitalShareVoucher = functions.https.onRequest(async (req, res) =
         const voucherSnap = await transaction.get(voucherRef);
 
         let existingVouchers = [];
-        if (voucherSnap.exists()) {
+        if (voucherSnap.exists) {
           existingVouchers = voucherSnap.data().vouchers || [];
         }
 
+        const parsedIssuedAt = voucherIssuedAt ? new Date(voucherIssuedAt) : new Date();
         const newVoucher = {
           voucherType,
           voucherCode,
@@ -1577,6 +1596,7 @@ exports.createCapitalShareVoucher = functions.https.onRequest(async (req, res) =
           branchName: branchName || "",
           branchAddress: branchAddress || "",
           branchEmail: branchEmail || "",
+          voucherIssuedAt: parsedIssuedAt,
           createdAt: new Date(),
         };
 
@@ -1585,6 +1605,8 @@ exports.createCapitalShareVoucher = functions.https.onRequest(async (req, res) =
         transaction.set(voucherRef, {
           vouchers: existingVouchers,
           voucherType,
+          voucherCode,
+          voucherIssuedAt: parsedIssuedAt,
           lastUpdatedAt: new Date(),
         });
 
@@ -1686,7 +1708,7 @@ exports.createInviteAndRewards = functions.https.onRequest(async (req, res) => {
         // 1️⃣ Get inviter data
         const inviterRef = db.collection("users").doc(inviterId);
         const inviterSnap = await transaction.get(inviterRef);
-        if (!inviterSnap.exists()) {
+        if (!inviterSnap.exists) {
           throw new Error("Inviter not found");
         }
         const inviterData = inviterSnap.data();
@@ -1694,7 +1716,7 @@ exports.createInviteAndRewards = functions.https.onRequest(async (req, res) => {
         // 2️⃣ Verify and consume activation code
         const codeRef = db.collection("purchaseCodes").doc(codeId);
         const codeSnap = await transaction.get(codeRef);
-        if (!codeSnap.exists()) {
+        if (!codeSnap.exists) {
           throw new Error("Activation code not found");
         }
 
@@ -1761,7 +1783,7 @@ exports.createInviteAndRewards = functions.https.onRequest(async (req, res) => {
         const uplineRef = db.collection("users").doc(inviterData.uplineId || "");
         if (inviterData.uplineId) {
           const uplineSnap = await transaction.get(uplineRef);
-          if (uplineSnap.exists()) {
+          if (uplineSnap.exists) {
             const uplineData = uplineSnap.data();
             const networkBonusMap = {
               MasterMD: 30,

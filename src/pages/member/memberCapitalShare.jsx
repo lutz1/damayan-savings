@@ -40,6 +40,7 @@ import AddCapitalShareDialog from "./components/dialogs/AddCapitalShareDialog";
 import EntryDetailsDialog from "./components/dialogs/EntryDetailsDialog";
 import CapitalShareVoucherDialog from "./components/dialogs/CapitalShareVoucherDialog";
 import WalkInBranchDialog from "./components/dialogs/WalkInBranchDialog";
+import OFWRewardsDialog from "./components/dialogs/OFWRewardsDialog";
 import CapitalShareTransactions from "./components/CapitalShareTransactions";
 
 
@@ -76,6 +77,7 @@ const MemberCapitalShare = () => {
   const [addingEntry, setAddingEntry] = useState(false);
   const [voucherDialogOpen, setVoucherDialogOpen] = useState(false);
   const [walkInBranchDialogOpen, setWalkInBranchDialogOpen] = useState(false);
+  const [ofwRewardsDialogOpen, setOfwRewardsDialogOpen] = useState(false);
   const [voucherType, setVoucherType] = useState("WALK_IN");
   const [savingVoucherType, setSavingVoucherType] = useState(false);
 
@@ -95,25 +97,35 @@ const MemberCapitalShare = () => {
         
         // ✅ CHECK: Validate if activation has expired after 1 year
         let activationExpired = false;
+        let voucherEligible = false; // Only true if activated after Mar 4, 2026
+        
         if (data.capitalShareActive && data.capitalActivatedAt) {
           const activatedAt = data.capitalActivatedAt.toDate ? data.capitalActivatedAt.toDate() : new Date(data.capitalActivatedAt);
           const expirationDate = new Date(activatedAt);
           expirationDate.setFullYear(expirationDate.getFullYear() + 1);
           
           const now = new Date();
+          const voucherCutoffDate = new Date("2026-03-04"); // Implementation date
+          
+          // Check if activation is expired
           if (now > expirationDate) {
-            // Activation expired - need to reactivate to ADD NEW ENTRIES
             activationExpired = true;
+          }
+          
+          // Check if activated after voucher implementation date
+          if (activatedAt >= voucherCutoffDate) {
+            voucherEligible = true;
           }
         }
         
-        setUserData({ ...data, activationExpired, voucherData: voucherData || null });
+        setUserData({ ...data, activationExpired, voucherEligible, voucherData: voucherData || null });
 
         if (hasConfirmedVoucherType) {
           setVoucherType(savedVoucherType);
           setVoucherDialogOpen(false);
           setWalkInBranchDialogOpen(false);
-        } else if (data.capitalShareActive && !activationExpired) {
+        } else if (data.capitalShareActive && !activationExpired && voucherEligible && !hasConfirmedVoucherType) {
+          // Only show voucher dialog for NEW activations (after Mar 4, 2026) that haven't confirmed yet
           setVoucherType("WALK_IN");
           setVoucherDialogOpen(true);
         } else {
@@ -396,6 +408,8 @@ const MemberCapitalShare = () => {
 
     try {
       setSavingVoucherType(true);
+      const fallbackVoucherCode = `VCR-${Date.now()}-${type === "OFW" ? "OFW" : "WALK"}-X`;
+      const resolvedVoucherCode = extraFields.voucherCode || fallbackVoucherCode;
       
       // Get Firebase ID token
       const idToken = await user.getIdToken();
@@ -412,7 +426,8 @@ const MemberCapitalShare = () => {
           },
           body: JSON.stringify({
             voucherType: type,
-            voucherCode: extraFields.voucherCode || "",
+            voucherCode: resolvedVoucherCode,
+            voucherIssuedAt: extraFields.voucherIssuedAt ? extraFields.voucherIssuedAt.toISOString() : new Date().toISOString(),
             branchId: extraFields.branchId || null,
             branchName: extraFields.branchName || "",
             branchAddress: extraFields.branchAddress || "",
@@ -450,9 +465,10 @@ const MemberCapitalShare = () => {
     }
   }, [fetchUserData, user]);
 
-  const handleOfwSelect = async () => {
+  const handleOfwSelect = () => {
     setVoucherType("OFW");
-    await saveVoucherType("OFW");
+    setOfwRewardsDialogOpen(true);
+    setVoucherDialogOpen(false);
   };
 
   const handleWalkInBranchConfirm = async (branch) => {
@@ -460,11 +476,9 @@ const MemberCapitalShare = () => {
     return true;
   };
 
-  const handleWalkInVoucherDone = async (voucherPayload) => {
-    setVoucherType("WALK_IN");
-    return await saveVoucherType("WALK_IN", {
-      ...voucherPayload,
-    }, {
+  const handleVoucherDone = async (voucherPayload) => {
+    if (!voucherPayload?.voucherType) return false;
+    return await saveVoucherType(voucherPayload.voucherType, voucherPayload, {
       closeDialogs: true,
       showAlert: false,
       refreshUserData: true,
@@ -743,6 +757,30 @@ const MemberCapitalShare = () => {
                     })()}
                   </Box>
                 )}
+                {userData?.capitalShareActive && (
+                  <Box sx={{ mt: 2, p: 1.5, bgcolor: 'rgba(79, 195, 247, 0.1)', borderRadius: 1, border: '1px solid rgba(79, 195, 247, 0.3)' }}>
+                    {(() => {
+                      const activatedAt = userData?.capitalActivatedAt?.toDate?.() || (userData?.capitalActivatedAt ? new Date(userData.capitalActivatedAt) : null);
+                      if (!activatedAt) return null;
+                      const expirationDate = new Date(activatedAt);
+                      expirationDate.setFullYear(expirationDate.getFullYear() + 1);
+                      const now = new Date();
+                      const daysRemaining = Math.ceil((expirationDate - now) / (1000 * 60 * 60 * 24));
+                      const isExpired = now > expirationDate;
+                      
+                      return (
+                        <>
+                          <Typography variant="body2" sx={{ color: '#FFB74D', fontWeight: 600, fontSize: 12, mb: 0.5 }}>
+                            ⏰ Activation Status
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: isExpired ? '#EF5350' : '#81C784', fontWeight: 600, fontSize: 12 }}>
+                            {isExpired ? '❌ Expired' : `✅ Active (${daysRemaining} days remaining)`}
+                          </Typography>
+                        </>
+                      );
+                    })()}
+                  </Box>
+                )}
               </Box>
             </Card>
           </Grid>
@@ -927,9 +965,23 @@ const MemberCapitalShare = () => {
         }}>
           <DialogTitle sx={{ bgcolor: "rgba(31, 150, 243, 0.15)", color: "#4FC3F7", fontWeight: 700, borderBottom: "1px solid rgba(79, 195, 247, 0.15)" }}>Activate Capital Share</DialogTitle>
           <DialogContent sx={{ bgcolor: "transparent", mt: 2 }}>
-            <Typography variant="body2" sx={{ mb: 2, color: "#FFB74D", fontWeight: 600 }}>
-              ℹ️ Activation is valid for 1 year. After 1 year, you'll need to activate a new code to continue.
-            </Typography>
+            <Box sx={{ mb: 2, p: 1.5, bgcolor: 'rgba(255, 193, 7, 0.1)', border: '1px solid rgba(255, 193, 7, 0.3)', borderRadius: 1 }}>
+              <Typography variant="body2" sx={{ mb: 1, color: "#FFB74D", fontWeight: 600 }}>
+                ⏰ Activation Valid for 1 Year
+              </Typography>
+              <Typography variant="body2" sx={{ color: "#b0bec5", fontWeight: 500, fontSize: 12, lineHeight: 1.6 }}>
+                • Your activation will be valid for 1 year from the activation date
+              </Typography>
+              <Typography variant="body2" sx={{ color: "#b0bec5", fontWeight: 500, fontSize: 12, lineHeight: 1.6 }}>
+                • You can add capital share entries during this 1-year period
+              </Typography>
+              <Typography variant="body2" sx={{ color: "#b0bec5", fontWeight: 500, fontSize: 12, lineHeight: 1.6 }}>
+                • To continue after 1 year, activate a new code to renew
+              </Typography>
+              <Typography variant="body2" sx={{ color: "#b0bec5", fontWeight: 500, fontSize: 12, lineHeight: 1.6, mt: 1 }}>
+                • When you renew, you'll get a new capital share voucher
+              </Typography>
+            </Box>
             <TextField
               select
               fullWidth
@@ -973,7 +1025,7 @@ const MemberCapitalShare = () => {
             setWalkInBranchDialogOpen(false);
             setVoucherDialogOpen(true);
           }}
-          onConfirmDone={handleWalkInVoucherDone}
+          onConfirmDone={handleVoucherDone}
           saving={savingVoucherType}
           onDone={() => {
             setWalkInBranchDialogOpen(false);
@@ -981,6 +1033,25 @@ const MemberCapitalShare = () => {
           }}
           onViewVouchers={() => {
             setWalkInBranchDialogOpen(false);
+            setVoucherDialogOpen(false);
+            navigate("/member/vouchers");
+          }}
+        />
+
+        <OFWRewardsDialog
+          open={ofwRewardsDialogOpen}
+          onClose={() => {
+            setOfwRewardsDialogOpen(false);
+            setVoucherDialogOpen(true);
+          }}
+          onConfirmDone={handleVoucherDone}
+          saving={savingVoucherType}
+          onDone={() => {
+            setOfwRewardsDialogOpen(false);
+            setVoucherDialogOpen(false);
+          }}
+          onViewVouchers={() => {
+            setOfwRewardsDialogOpen(false);
             setVoucherDialogOpen(false);
             navigate("/member/vouchers");
           }}

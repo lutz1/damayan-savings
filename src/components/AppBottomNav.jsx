@@ -36,6 +36,7 @@ import {
   Receipt as TransactionIcon,
   AccountBalance as DepositsIcon,
   FactCheck as ProductApprovalIcon,
+  CardGiftcard as VoucherIcon,
 } from "@mui/icons-material";
 
 const AppBottomNav = ({ open, onToggleSidebar, layout = "bottom" }) => {
@@ -101,6 +102,7 @@ const AppBottomNav = ({ open, onToggleSidebar, layout = "bottom" }) => {
       { label: "Users", value: "/admin/user-management", icon: <PieChartIcon /> },
       { label: "Merchants", value: "merchants-menu", icon: <MerchantIcon />, isMenu: true },
       { label: "Product Management", value: "/admin/products", icon: <ProductApprovalIcon /> },
+      { label: "Voucher Records", value: "/admin/voucher-records", icon: <VoucherIcon /> },
       { label: "Transactions", value: "transactions-menu", icon: <TransactionIcon />, isMenu: true },
       { label: "Account", value: "/admin/profile", icon: <AccountCircleIcon /> },
     ];

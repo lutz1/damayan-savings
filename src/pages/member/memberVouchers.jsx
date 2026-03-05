@@ -4,6 +4,45 @@ import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../../firebase";
 import { useNavigate } from "react-router-dom";
 
+const OFW_PERKS = [
+  {
+    id: "perk_remittance",
+    title: "Remittance Rewards",
+    description: "Earn points on every remittance transaction",
+    icon: "account_balance_wallet",
+    color: "bg-blue-100",
+    borderColor: "border-blue-300",
+    textColor: "text-blue-700",
+  },
+  {
+    id: "perk_insurance",
+    title: "Insurance Coverage",
+    description: "Comprehensive health and life insurance benefits",
+    icon: "health_and_safety",
+    color: "bg-green-100",
+    borderColor: "border-green-300",
+    textColor: "text-green-700",
+  },
+  {
+    id: "perk_investment",
+    title: "Investment Options",
+    description: "Grow your savings with profitable investment vehicles",
+    icon: "trending_up",
+    color: "bg-amber-100",
+    borderColor: "border-amber-300",
+    textColor: "text-amber-700",
+  },
+  {
+    id: "perk_credit",
+    title: "Credit Access",
+    description: "Easy access to loans and credit facilities",
+    icon: "credit_card",
+    color: "bg-purple-100",
+    borderColor: "border-purple-300",
+    textColor: "text-purple-700",
+  },
+];
+
 const formatDate = (date) => {
   if (!date) return "N/A";
   return new Intl.DateTimeFormat("en-US", {
@@ -167,8 +206,10 @@ const MemberVouchers = () => {
                     onClick={() => qrUrl && setQrPreviewOpen(true)}
                     className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#111827] hover:bg-[#1f2937] text-white text-xs font-bold uppercase tracking-wide transition-colors"
                   >
-                    View QR
-                    <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_2</span>
+                    {voucher?.voucherType === "OFW" ? "View Rewards" : "View QR"}
+                    <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                      {voucher?.voucherType === "OFW" ? "card_giftcard" : "qr_code_2"}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -198,7 +239,7 @@ const MemberVouchers = () => {
           <div className="absolute inset-0 z-40">
             <button
               type="button"
-              aria-label="Close QR preview"
+              aria-label="Close preview"
               onClick={() => setQrPreviewOpen(false)}
               className="absolute inset-0 bg-black/45"
             />
@@ -207,7 +248,9 @@ const MemberVouchers = () => {
               <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-300" />
 
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-slate-900 font-bold text-base">Voucher QR</h2>
+                <h2 className="text-slate-900 font-bold text-base">
+                  {voucher?.voucherType === "OFW" ? "OFW Rewards" : "Voucher QR"}
+                </h2>
                 <button
                   type="button"
                   onClick={() => setQrPreviewOpen(false)}
@@ -217,13 +260,35 @@ const MemberVouchers = () => {
                 </button>
               </div>
 
-              <div className="bg-white rounded-2xl p-4 mx-auto w-fit">
-                <img
-                  alt="Voucher QR Code"
-                  className="w-64 h-64"
-                  src={qrUrl}
-                />
-              </div>
+              {voucher?.voucherType === "OFW" ? (
+                <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+                  <p className="text-slate-700 font-bold text-sm mb-3">Your OFW Perks</p>
+                  {OFW_PERKS.map((perk) => (
+                    <div
+                      key={perk.id}
+                      className={`p-3 rounded-xl border-2 ${perk.color} ${perk.borderColor} backdrop-blur-sm`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-lg ${perk.color} border ${perk.borderColor}`}>
+                          <span className={`material-symbols-outlined text-lg ${perk.textColor}`}>{perk.icon}</span>
+                        </div>
+                        <div className="flex-1 text-left">
+                          <p className={`font-bold text-xs text-slate-900`}>{perk.title}</p>
+                          <p className="text-slate-600 text-[11px] mt-0.5">{perk.description}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl p-4 mx-auto w-fit">
+                  <img
+                    alt="Voucher QR Code"
+                    className="w-64 h-64"
+                    src={qrUrl}
+                  />
+                </div>
+              )}
 
               <p className="text-center text-slate-700 text-xs mt-4 font-semibold tracking-wide uppercase">
                 {voucher?.voucherCode || "N/A"}

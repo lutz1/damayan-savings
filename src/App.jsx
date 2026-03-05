@@ -25,6 +25,7 @@ const AdminDeposits = lazy(() => import("./pages/admin/adminDeposits"));
 const AdminCategoryManagement = lazy(() => import("./pages/admin/adminCategoryManagement"));
 const AdminProductManagement = lazy(() => import("./pages/admin/adminProductManagement"));
 const AdminPaybackEntries = lazy(() => import("./pages/admin/adminPaybackEntries"));
+const AdminVoucherRecords = lazy(() => import("./pages/admin/adminVoucherRecords"));
 const MerchantDashboard = lazy(() => import("./pages/merchant/merchantDashboard"));
 const MerchantOrders = lazy(() => import("./pages/merchant/merchantOrders"));
 const MerchantProducts = lazy(() => import("./pages/merchant/merchantProducts"));
@@ -256,6 +257,14 @@ function App() {
               element={
                 <AdminRoute>
                   <AdminProductManagement />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/voucher-records"
+              element={
+                <AdminRoute>
+                  <AdminVoucherRecords />
                 </AdminRoute>
               }
             />

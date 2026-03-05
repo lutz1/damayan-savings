@@ -57,6 +57,7 @@ const WalkInBranchDialog = ({ open, onClose, onConfirmDone, saving = false, onDo
   const [selectedBranchId, setSelectedBranchId] = useState(FALLBACK_BRANCHES[0].id);
   const [loadingBranches, setLoadingBranches] = useState(false);
   const [showSuccessScreen, setShowSuccessScreen] = useState(false);
+  const [submittingAction, setSubmittingAction] = useState(false);
   const [confirmedStatusLabel, setConfirmedStatusLabel] = useState("WALK-IN");
   const [generatedVoucherCode, setGeneratedVoucherCode] = useState("VCR-0000-0000-WALK-X");
   const [voucherIssuedAt, setVoucherIssuedAt] = useState(new Date());
@@ -157,12 +158,12 @@ const WalkInBranchDialog = ({ open, onClose, onConfirmDone, saving = false, onDo
     setGeneratedVoucherCode(voucherCode);
     setVoucherIssuedAt(issuedAt);
     setPendingVoucherPayload({
-      voucherType: "WALK_IN",
       branchId: selectedBranch?.merchantId || null,
       branchName: selectedBranch?.name || "",
       branchAddress: selectedBranch?.address || "",
       branchEmail: selectedBranch?.email || "",
       voucherCode,
+      voucherType: "WALK_IN",
       voucherIssuedAt: issuedAt,
       voucherStatus: "ACTIVE",
     });
@@ -170,29 +171,46 @@ const WalkInBranchDialog = ({ open, onClose, onConfirmDone, saving = false, onDo
   };
 
   const handleDone = async () => {
-    if (pendingVoucherPayload && onConfirmDone) {
-      const success = await onConfirmDone(pendingVoucherPayload);
-      if (!success) return;
+    if (submittingAction) return;
+    setSubmittingAction(true);
+    try {
+      if (pendingVoucherPayload && onConfirmDone) {
+        const success = await onConfirmDone(pendingVoucherPayload);
+        if (!success) return;
+      }
+      if (onDone) onDone();
+    } finally {
+      setSubmittingAction(false);
     }
-    if (onDone) onDone();
   };
 
   const handleViewVouchers = async () => {
-    if (pendingVoucherPayload && onConfirmDone) {
-      const success = await onConfirmDone(pendingVoucherPayload);
-      if (!success) return;
+    if (submittingAction) return;
+    setSubmittingAction(true);
+    try {
+      if (pendingVoucherPayload && onConfirmDone) {
+        const success = await onConfirmDone(pendingVoucherPayload);
+        if (!success) return;
+      }
+      if (onViewVouchers) {
+        onViewVouchers();
+        return;
+      }
+      if (onDone) onDone();
+    } finally {
+      setSubmittingAction(false);
     }
-    if (onViewVouchers) {
-      onViewVouchers();
-      return;
-    }
-    if (onDone) onDone();
+  };
+
+  const handleDialogClose = () => {
+    if (submittingAction) return;
+    if (onClose) onClose();
   };
 
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={handleDialogClose}
       fullScreen={isMobile}
       fullWidth
       maxWidth="sm"
@@ -206,7 +224,7 @@ const WalkInBranchDialog = ({ open, onClose, onConfirmDone, saving = false, onDo
         },
       }}
     >
-      <div className="font-display text-slate-900 min-h-screen flex flex-col relative overflow-hidden">
+      <div className="font-display text-slate-900 h-full flex flex-col relative overflow-hidden">
         <div className="absolute -top-24 -right-20 h-64 w-64 rounded-full bg-sky-200/40 blur-3xl pointer-events-none" />
         <div className="absolute -bottom-28 -left-16 h-64 w-64 rounded-full bg-emerald-200/40 blur-3xl pointer-events-none" />
         {showSuccessScreen ? (
@@ -215,11 +233,13 @@ const WalkInBranchDialog = ({ open, onClose, onConfirmDone, saving = false, onDo
             voucherCode={generatedVoucherCode}
             issuedAt={voucherIssuedAt}
             onClose={() => {
+              if (submittingAction) return;
               setShowSuccessScreen(false);
               setPendingVoucherPayload(null);
             }}
             onDone={handleDone}
             onViewVouchers={handleViewVouchers}
+            isProcessing={submittingAction || saving}
           />
         ) : (
           <>
@@ -227,7 +247,8 @@ const WalkInBranchDialog = ({ open, onClose, onConfirmDone, saving = false, onDo
           <div className="flex items-center p-4 justify-between">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleDialogClose}
+              disabled={submittingAction}
               className="text-slate-700 flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
             >
               <span className="material-symbols-outlined">arrow_back</span>
@@ -355,10 +376,10 @@ const WalkInBranchDialog = ({ open, onClose, onConfirmDone, saving = false, onDo
             </>
         </main>
 
-        <div className="p-4 border-t border-slate-200 bg-white/80 backdrop-blur-md">
+        <div className="sticky bottom-0 z-20 p-4 border-t border-slate-200 bg-white/90 backdrop-blur-md pb-[max(env(safe-area-inset-bottom),1rem)]">
           <button
             type="button"
-            disabled={!selectedBranch || saving}
+            disabled={!selectedBranch || saving || submittingAction}
             onClick={handleConfirmWalkIn}
             className="w-full h-12 rounded-2xl bg-[#111827] text-white font-semibold text-sm hover:bg-[#1f2937] transition-colors shadow-[0_8px_20px_rgba(17,24,39,0.2)]"
           >
