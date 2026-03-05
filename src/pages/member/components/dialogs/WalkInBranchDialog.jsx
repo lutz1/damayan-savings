@@ -255,7 +255,7 @@ const WalkInBranchDialog = ({ open, onClose, onConfirmDone, saving = false, onDo
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto hide-scrollbar pb-20 relative z-10">
+        <main className="flex-1 overflow-y-auto hide-scrollbar pb-40 relative z-10">
             <>
               <div className="px-4 py-2">
                 <div className="relative w-full aspect-[4/3] rounded-3xl overflow-hidden bg-slate-100 border border-white shadow-[0_10px_30px_rgba(15,23,42,0.12)]">
