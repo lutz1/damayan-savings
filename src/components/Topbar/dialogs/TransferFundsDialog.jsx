@@ -128,15 +128,14 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
       // Get user's ID token for authentication
       const idToken = await auth.currentUser.getIdToken();
 
-      // Call secure backend endpoint
-      const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
-      const response = await fetch(`${API_BASE}/api/transfer-funds`, {
+      // Call Cloud Function (secure, idempotent)
+      const response = await fetch("https://us-central1-amayan-savings.cloudfunctions.net/transferFunds", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${idToken}`,
         },
         body: JSON.stringify({
-          idToken,
           recipientUsername,
           amount: numAmount,
           clientRequestId: requestId,

@@ -619,3 +619,659 @@ exports.addCapitalShare = functions.https.onRequest(async (req, res) => {
     }
   });
 });
+
+/**
+ * Add Payback Entry
+ * Idempotent: Uses clientRequestId to prevent duplicates
+ * Secure: Requires Bearer token authentication
+ */
+exports.addPaybackEntry = functions.https.onRequest(async (req, res) => {
+  corsHandler(req, res, async () => {
+    try {
+      console.log("[payback-entry] 🔄 Request received");
+
+      if (req.method !== "POST") {
+        return res.status(405).json({ error: "Method not allowed" });
+      }
+
+      const authHeader = req.headers.authorization || req.headers.Authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const idToken = authHeader.substring("Bearer ".length);
+      const { uplineUsername, amount, entryDate, clientRequestId } = req.body || {};
+
+      if (!uplineUsername || !amount || !entryDate) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const numAmount = parseFloat(amount);
+      if (isNaN(numAmount) || numAmount < 300) {
+        return res.status(400).json({ error: "Minimum payback entry is ₱300" });
+      }
+
+      let decodedToken;
+      try {
+        decodedToken = await admin.auth().verifyIdToken(idToken);
+      } catch (error) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const userId = decodedToken.uid;
+
+      const result = await db.runTransaction(async (transaction) => {
+        const userRef = db.collection("users").doc(userId);
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists) throw new Error("User not found");
+
+        const userData = userDoc.data();
+        const walletBalance = userData.eWallet || 0;
+
+        const paybackRef = clientRequestId
+          ? db.collection("paybackEntries").doc(`${userId}_${clientRequestId}`)
+          : db.collection("paybackEntries").doc();
+
+        const existingSnap = await transaction.get(paybackRef);
+        if (existingSnap.exists) {
+          return {
+            success: true,
+            paybackEntryId: paybackRef.id,
+            newBalance: walletBalance,
+            deduped: true,
+          };
+        }
+
+        if (walletBalance < numAmount) throw new Error("Insufficient wallet balance");
+
+        const uplineQuery = await db
+          .collection("users")
+          .where("username", "==", uplineUsername)
+          .limit(1)
+          .get();
+
+        if (uplineQuery.empty) throw new Error("Upline not found");
+
+        const uplineData = uplineQuery.docs[0].data();
+        const uplineId = uplineQuery.docs[0].id;
+
+        transaction.update(userRef, {
+          eWallet: walletBalance - numAmount,
+          updatedAt: new Date(),
+        });
+
+        const expirationDate = new Date(new Date(entryDate).getTime() + 30 * 24 * 60 * 60 * 1000);
+        transaction.set(paybackRef, {
+          userId,
+          uplineUsername,
+          amount: numAmount,
+          date: new Date(entryDate),
+          expirationDate,
+          status: "Approved",
+          createdAt: new Date(),
+        });
+
+        const uplineRewardRef = db.collection("uplineRewards").doc(`${paybackRef.id}_upline`);
+        transaction.set(uplineRewardRef, {
+          uplineId,
+          uplineUsername,
+          fromUserId: userId,
+          amount: 65,
+          status: "Pending",
+          dueDate: expirationDate,
+          claimed: false,
+          createdAt: new Date(),
+        });
+
+        return {
+          success: true,
+          paybackEntryId: paybackRef.id,
+          newBalance: walletBalance - numAmount,
+          uplineReward: 65,
+        };
+      });
+
+      console.info(`[payback-entry] ✅ SUCCESS - user=${userId} upline=${uplineUsername} amount=₱${numAmount}`);
+
+      // 📊 Log to Render
+      try {
+        await fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            level: "info",
+            event: "payback_entry_created",
+            data: {
+              userId,
+              uplineUsername,
+              amount: numAmount,
+              entryId: result.paybackEntryId,
+              newBalance: result.newBalance,
+              deduped: result.deduped || false,
+              source: "Cloud Function",
+            },
+          }),
+        });
+      } catch (logError) {
+        console.warn("[payback-entry] Warning: Failed to log to Render:", logError);
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("[payback-entry] ❌ Error:", error);
+      res.status(400).json({ error: error.message || "Internal server error" });
+    }
+  });
+});
+
+/**
+ * Transfer Funds (Send Money)
+ * Idempotent: Uses clientRequestId to prevent duplicates
+ */
+exports.transferFunds = functions.https.onRequest(async (req, res) => {
+  corsHandler(req, res, async () => {
+    try {
+      console.log("[transfer-funds] 🔄 Request received");
+
+      if (req.method !== "POST") {
+        return res.status(405).json({ error: "Method not allowed" });
+      }
+
+      const authHeader = req.headers.authorization || req.headers.Authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const idToken = authHeader.substring("Bearer ".length);
+      const { recipientUsername, amount, clientRequestId } = req.body || {};
+
+      if (!recipientUsername || !amount) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const numAmount = parseFloat(amount);
+      if (isNaN(numAmount) || numAmount < 50) {
+        return res.status(400).json({ error: "Minimum transfer is ₱50" });
+      }
+
+      let decodedToken;
+      try {
+        decodedToken = await admin.auth().verifyIdToken(idToken);
+      } catch (error) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const senderId = decodedToken.uid;
+      const charge = numAmount * 0.02;
+      const netTransfer = numAmount - charge;
+
+      const result = await db.runTransaction(async (transaction) => {
+        const senderRef = db.collection("users").doc(senderId);
+        const senderDoc = await transaction.get(senderRef);
+        if (!senderDoc.exists) throw new Error("Sender not found");
+
+        const senderData = senderDoc.data();
+        const currentBalance = Number(senderData.eWallet || 0);
+
+        const transferRef = clientRequestId
+          ? db.collection("transferFunds").doc(`${senderId}_${clientRequestId}`)
+          : db.collection("transferFunds").doc();
+
+        const existingSnap = await transaction.get(transferRef);
+        if (existingSnap.exists) {
+          return {
+            success: true,
+            newBalance: currentBalance,
+            transferId: transferRef.id,
+            deduped: true,
+          };
+        }
+
+        if (currentBalance < numAmount) throw new Error("Insufficient wallet balance");
+
+        const recipientQuery = await db
+          .collection("users")
+          .where("username", "==", recipientUsername)
+          .limit(1)
+          .get();
+
+        if (recipientQuery.empty) throw new Error("Recipient not found");
+
+        const recipientDoc = recipientQuery.docs[0];
+        if (senderId === recipientDoc.id) throw new Error("Cannot transfer to yourself");
+
+        const recipientRef = db.collection("users").doc(recipientDoc.id);
+        const recipientData = recipientDoc.data();
+
+        transaction.update(senderRef, {
+          eWallet: Number(currentBalance - numAmount),
+        });
+
+        const recipientBalance = Number(recipientData.eWallet || 0);
+        transaction.update(recipientRef, {
+          eWallet: Number(recipientBalance + netTransfer),
+        });
+
+        transaction.set(transferRef, {
+          senderId,
+          senderName: senderData.name || senderData.username,
+          recipientUsername,
+          recipientId: recipientDoc.id,
+          amount: numAmount,
+          charge,
+          netAmount: netTransfer,
+          status: "Approved",
+          createdAt: new Date(),
+        });
+
+        return {
+          success: true,
+          newBalance: currentBalance - numAmount,
+          transferId: transferRef.id,
+        };
+      });
+
+      console.info(`[transfer-funds] ✅ SUCCESS - sender=${senderId} recipient=${recipientUsername} amount=₱${numAmount}`);
+
+      // 📊 Log to Render
+      try {
+        await fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            level: "info",
+            event: "wallet_transfer_completed",
+            data: {
+              senderId,
+              recipientUsername,
+              amount: numAmount,
+              netAmount: netTransfer,
+              transferId: result.transferId,
+              newBalance: result.newBalance,
+              deduped: result.deduped || false,
+              source: "Cloud Function",
+            },
+          }),
+        });
+      } catch (logError) {
+        console.warn("[transfer-funds] Warning: Failed to log to Render:", logError);
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("[transfer-funds] ❌ Error:", error);
+      res.status(400).json({ error: error.message || "Internal server error" });
+    }
+  });
+});
+
+/**
+ * Transfer Monthly Profit
+ * Idempotent: Uses clientRequestId to prevent duplicates
+ */
+exports.transferProfit = functions.https.onRequest(async (req, res) => {
+  corsHandler(req, res, async () => {
+    try {
+      console.log("[transfer-profit] 🔄 Request received");
+
+      if (req.method !== "POST") {
+        return res.status(405).json({ error: "Method not allowed" });
+      }
+
+      const authHeader = req.headers.authorization || req.headers.Authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const idToken = authHeader.substring("Bearer ".length);
+      const { entryId, amount, clientRequestId } = req.body || {};
+
+      if (!entryId || !amount) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const numAmount = parseFloat(amount);
+      if (isNaN(numAmount) || numAmount <= 0) {
+        return res.status(400).json({ error: "Invalid amount" });
+      }
+
+      let decodedToken;
+      try {
+        decodedToken = await admin.auth().verifyIdToken(idToken);
+      } catch (error) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const userId = decodedToken.uid;
+
+      const result = await db.runTransaction(async (transaction) => {
+        const depositRef = clientRequestId
+          ? db.collection("deposits").doc(`profit_${userId}_${clientRequestId}`)
+          : db.collection("deposits").doc();
+
+        const existingSnap = await transaction.get(depositRef);
+        if (existingSnap.exists && existingSnap.data().status === "Approved") {
+          return {
+            success: true,
+            newBalance: 0,
+            deduped: true,
+          };
+        }
+
+        const entryRef = db.collection("capitalShareEntries").doc(entryId);
+        const entryDoc = await transaction.get(entryRef);
+        if (!entryDoc.exists) throw new Error("Entry not found");
+
+        const entryData = entryDoc.data();
+        if (entryData.userId !== userId) throw new Error("Not your entry");
+        if (!entryData.profit || entryData.profitStatus === "Claimed") throw new Error("Profit unavailable");
+
+        const userRef = db.collection("users").doc(userId);
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists) throw new Error("User not found");
+
+        const userData = userDoc.data();
+        const currentBalance = Number(userData.eWallet || 0);
+
+        transaction.update(userRef, {
+          eWallet: currentBalance + numAmount,
+          updatedAt: new Date(),
+        });
+
+        transaction.update(entryRef, {
+          profitStatus: "Claimed",
+          profitClaimedAmount: numAmount,
+          profitClaimedAt: new Date(),
+        });
+
+        transaction.set(depositRef, {
+          userId,
+          amount: numAmount,
+          status: "Approved",
+          type: "Monthly Profit Transfer",
+          sourceEntryId: entryId,
+          createdAt: new Date(),
+        });
+
+        return {
+          success: true,
+          newBalance: currentBalance + numAmount,
+          transferId: depositRef.id,
+        };
+      });
+
+      console.info(`[transfer-profit] ✅ SUCCESS - user=${userId} entryId=${entryId} amount=₱${numAmount}`);
+
+      // 📊 Log to Render
+      try {
+        await fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            level: "info",
+            event: "monthly_profit_transfer_completed",
+            data: {
+              userId,
+              entryId,
+              amount: numAmount,
+              newBalance: result.newBalance,
+              deduped: result.deduped || false,
+              source: "Cloud Function",
+            },
+          }),
+        });
+      } catch (logError) {
+        console.warn("[transfer-profit] Warning: Failed to log to Render:", logError);
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("[transfer-profit] ❌ Error:", error);
+      res.status(400).json({ error: error.message || "Internal server error" });
+    }
+  });
+});
+
+/**
+ * Transfer Capital Share
+ * Idempotent: Uses clientRequestId to prevent duplicates
+ */
+exports.transferCapitalShare = functions.https.onRequest(async (req, res) => {
+  corsHandler(req, res, async () => {
+    try {
+      console.log("[transfer-capital-share] 🔄 Request received");
+
+      if (req.method !== "POST") {
+        return res.status(405).json({ error: "Method not allowed" });
+      }
+
+      const authHeader = req.headers.authorization || req.headers.Authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const idToken = authHeader.substring("Bearer ".length);
+      const { entryId, amount, clientRequestId } = req.body || {};
+
+      if (!entryId || !amount) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const numAmount = parseFloat(amount);
+      if (isNaN(numAmount) || numAmount <= 0) {
+        return res.status(400).json({ error: "Invalid amount" });
+      }
+
+      let decodedToken;
+      try {
+        decodedToken = await admin.auth().verifyIdToken(idToken);
+      } catch (error) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const userId = decodedToken.uid;
+
+      const result = await db.runTransaction(async (transaction) => {
+        const depositRef = clientRequestId
+          ? db.collection("deposits").doc(`capshare_${userId}_${clientRequestId}`)
+          : db.collection("deposits").doc();
+
+        const existingSnap = await transaction.get(depositRef);
+        if (existingSnap.exists && existingSnap.data().sourceEntryId === entryId) {
+          return {
+            success: true,
+            newBalance: 0,
+            deduped: true,
+          };
+        }
+
+        const entryRef = db.collection("capitalShareEntries").doc(entryId);
+        const entryDoc = await transaction.get(entryRef);
+        if (!entryDoc.exists) throw new Error("Entry not found");
+
+        const entryData = entryDoc.data();
+        if (entryData.userId !== userId) throw new Error("Not your entry");
+
+        const userRef = db.collection("users").doc(userId);
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists) throw new Error("User not found");
+
+        const userData = userDoc.data();
+        const currentBalance = Number(userData.eWallet || 0);
+
+        transaction.update(userRef, {
+          eWallet: currentBalance + numAmount,
+          updatedAt: new Date(),
+        });
+
+        transaction.update(entryRef, {
+          transferredAmount: (entryData.transferredAmount || 0) + numAmount,
+          transferredAt: new Date(),
+        });
+
+        transaction.set(depositRef, {
+          userId,
+          amount: numAmount,
+          status: "Approved",
+          type: "Capital Share Transfer",
+          sourceEntryId: entryId,
+          createdAt: new Date(),
+        });
+
+        return {
+          success: true,
+          newBalance: currentBalance + numAmount,
+          transferId: depositRef.id,
+        };
+      });
+
+      console.info(`[transfer-capital-share] ✅ SUCCESS - user=${userId} entryId=${entryId} amount=₱${numAmount}`);
+
+      // 📊 Log to Render
+      try {
+        await fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            level: "info",
+            event: "capital_share_transfer_completed",
+            data: {
+              userId,
+              entryId,
+              amount: numAmount,
+              newBalance: result.newBalance,
+              deduped: result.deduped || false,
+              source: "Cloud Function",
+            },
+          }),
+        });
+      } catch (logError) {
+        console.warn("[transfer-capital-share] Warning: Failed to log to Render:", logError);
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("[transfer-capital-share] ❌ Error:", error);
+      res.status(400).json({ error: error.message || "Internal server error" });
+    }
+  });
+});
+
+/**
+ * Transfer Passive Income (Payback Entry Transfer)
+ * Idempotent: Uses clientRequestId to prevent duplicates
+ */
+exports.transferPassiveIncome = functions.https.onRequest(async (req, res) => {
+  corsHandler(req, res, async () => {
+    try {
+      console.log("[transfer-passive-income] 🔄 Request received");
+
+      if (req.method !== "POST") {
+        return res.status(405).json({ error: "Method not allowed" });
+      }
+
+      const authHeader = req.headers.authorization || req.headers.Authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const idToken = authHeader.substring("Bearer ".length);
+      const { paybackEntryId, amount, clientRequestId } = req.body || {};
+
+      if (!paybackEntryId || !amount) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const numAmount = parseFloat(amount);
+      if (isNaN(numAmount) || numAmount <= 0) {
+        return res.status(400).json({ error: "Invalid amount" });
+      }
+
+      let decodedToken;
+      try {
+        decodedToken = await admin.auth().verifyIdToken(idToken);
+      } catch (error) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const userId = decodedToken.uid;
+      const fee = numAmount * 0.01;
+      const net = numAmount - fee;
+
+      const result = await db.runTransaction(async (transaction) => {
+        const transferRef = clientRequestId
+          ? db.collection("passiveIncomeTransfers").doc(`${userId}_${clientRequestId}`)
+          : db.collection("passiveIncomeTransfers").doc();
+
+        const existingSnap = await transaction.get(transferRef);
+        if (existingSnap.exists) {
+          const userRef = db.collection("users").doc(userId);
+          const userDoc = await transaction.get(userRef);
+          return {
+            success: true,
+            newBalance: Number(userDoc.data()?.eWallet || 0),
+            transferId: transferRef.id,
+            deduped: true,
+          };
+        }
+
+        const userRef = db.collection("users").doc(userId);
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists) throw new Error("User not found");
+
+        const userData = userDoc.data();
+        const userBalance = Number(userData.eWallet || 0);
+
+        transaction.update(userRef, {
+          eWallet: isNaN(userBalance) ? net : Number(userBalance + net),
+        });
+
+        transaction.set(transferRef, {
+          userId,
+          paybackEntryId,
+          amount: numAmount,
+          fee,
+          netAmount: net,
+          status: "Approved",
+          createdAt: new Date(),
+        });
+
+        return {
+          success: true,
+          newBalance: (userData.eWallet || 0) + net,
+          transferId: transferRef.id,
+        };
+      });
+
+      console.info(`[transfer-passive-income] ✅ SUCCESS - user=${userId} paybackId=${paybackEntryId} amount=₱${numAmount} net=₱${net}`);
+
+      // 📊 Log to Render
+      try {
+        await fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            level: "info",
+            event: "passive_income_transfer_completed",
+            data: {
+              userId,
+              paybackEntryId,
+              amount: numAmount,
+              netAmount: net,
+              newBalance: result.newBalance,
+              deduped: result.deduped || false,
+              source: "Cloud Function",
+            },
+          }),
+        });
+      } catch (logError) {
+        console.warn("[transfer-passive-income] Warning: Failed to log to Render:", logError);
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("[transfer-passive-income] ❌ Error:", error);
+      res.status(400).json({ error: error.message || "Internal server error" });
+    }
+  });
+});

@@ -501,13 +501,14 @@ const MemberCapitalShare = () => {
     if (entry.profitStatus === "Claimed") return alert("This profit was already claimed.");
 
     try {
-      const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "https://damayan-savings-backend.onrender.com";
       const idToken = await user.getIdToken();
-      const response = await fetch(`${API_BASE}/api/transfer-profit`, {
+      const response = await fetch("https://us-central1-amayan-savings.cloudfunctions.net/transferProfit", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${idToken}`,
+        },
         body: JSON.stringify({
-          idToken,
           entryId: entry.id,
           amount: entry.profit,
           clientRequestId: `profit_${entry.id}`,
@@ -553,15 +554,17 @@ const MemberCapitalShare = () => {
     const transferAmount = entry.transferablePortion - (entry.transferredAmount || 0);
 
     try {
-      const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "https://damayan-savings-backend.onrender.com";
       const idToken = await user.getIdToken();
-      const response = await fetch(`${API_BASE}/api/transfer-capital-share`, {
+      const response = await fetch("https://us-central1-amayan-savings.cloudfunctions.net/transferCapitalShare", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${idToken}`,
+        },
         body: JSON.stringify({
-          idToken,
           entryId: entry.id,
           amount: transferAmount,
+          clientRequestId: `capshare_${entry.id}`,
         }),
       });
 

@@ -246,10 +246,9 @@ const fetchPaybackData = useCallback(async (userId) => {
         return;
       }
 
-      // Call backend endpoint to create payback entry securely
+      // Call Cloud Function to create payback entry securely (idempotent)
       const entryDate = new Date(selectedDate || new Date()).toISOString();
       const idToken = await user.getIdToken();
-      const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
       const clientRequestId = `pb_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
       let response;
@@ -258,11 +257,13 @@ const fetchPaybackData = useCallback(async (userId) => {
 
       while (retries < maxRetries && !paybackEntryId) {
         try {
-          response = await fetch(`${API_BASE}/api/add-payback-entry`, {
+          response = await fetch("https://us-central1-amayan-savings.cloudfunctions.net/addPaybackEntry", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${idToken}`,
+            },
             body: JSON.stringify({
-              idToken,
               uplineUsername,
               amount: amountNum,
               entryDate,
@@ -392,14 +393,13 @@ const fetchPaybackData = useCallback(async (userId) => {
       setLoadingTransfer(maturedEntry.id);
 
       const idToken = await user.getIdToken();
-      const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
-      const response = await fetch(`${API_BASE}/api/transfer-passive-income`, {
+      const response = await fetch("https://us-central1-amayan-savings.cloudfunctions.net/transferPassiveIncome", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${idToken}`,
         },
         body: JSON.stringify({
-          idToken,
           paybackEntryId: maturedEntry.id,
           amount: amountNum,
           clientRequestId: `passive_${maturedEntry.id}`,
