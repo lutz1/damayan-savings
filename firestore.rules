@@ -19,6 +19,23 @@ service cloud.firestore {
         : "";
     }
 
+    function isAdminOrCEO() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role is string &&
+        (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role.lower().matches('^\\s*admin\\s*$') ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role.lower().matches('^\\s*ceo\\s*$')
+        );
+    }
+
+    function isMerchant() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role is string &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role.lower().matches('^\\s*merchant\\s*$');
+    }
+
     // ==========================================
     // 👤 USERS
     match /users/{userId} {
@@ -88,7 +105,7 @@ service cloud.firestore {
     // 🎟️ CAPITAL SHARE VOUCHERS
     match /capitalShareVouchers/{userId} {
       allow read: if request.auth != null &&
-        (request.auth.uid == userId || userRole() in ["admin", "ceo", "merchant"]);
+        (request.auth.uid == userId || isAdminOrCEO() || isMerchant());
 
       allow create, update: if
         request.auth == null ||
@@ -96,9 +113,9 @@ service cloud.firestore {
           request.auth != null &&
           (
             request.auth.uid == userId ||
-            userRole() in ["admin", "ceo"] ||
+            isAdminOrCEO() ||
             (
-              userRole() == "merchant" &&
+              isMerchant() &&
               resource.data.voucherStatus == "ACTIVE" &&
               resource.data.voucherType == "WALK_IN" &&
               (
@@ -120,7 +137,7 @@ service cloud.firestore {
         );
 
       allow delete: if request.auth != null &&
-        (request.auth.uid == userId || userRole() in ["admin", "ceo"]);
+        (request.auth.uid == userId || isAdminOrCEO());
     }
 
     // ==========================================
@@ -273,19 +290,19 @@ service cloud.firestore {
     // 🧾 PURCHASE CODES
     match /purchaseCodes/{docId} {
       allow read: if request.auth != null &&
-        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo"]);
+        (resource.data.userId == request.auth.uid || isAdminOrCEO());
 
       allow list: if request.auth != null && (
-        userRole() in ["admin", "ceo"] ||
+        isAdminOrCEO() ||
         request.query.where("userId", "==", request.auth.uid)
       );
 
       allow create: if request.auth != null &&
-        (request.resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo"]);
+        (request.resource.data.userId == request.auth.uid || isAdminOrCEO());
 
       allow update: if request.auth != null &&
         (
-          userRole() in ["admin", "ceo"] ||
+          isAdminOrCEO() ||
           (
             resource.data.userId == request.auth.uid &&
             resource.data.used == false &&
@@ -293,7 +310,7 @@ service cloud.firestore {
           )
         );
 
-      allow delete: if request.auth != null && userRole() in ["admin", "ceo"];
+      allow delete: if request.auth != null && isAdminOrCEO();
     }
 
     // ==========================================

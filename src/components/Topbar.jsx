@@ -98,9 +98,9 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
       const userRef = doc(db, "users", currentUser.uid);
     
       unsubscribeUser = onSnapshot(userRef, (docSnap) => {
-;
         if (docSnap.exists()) {
           const data = docSnap.data();
+          const normalizedUserRole = String(data.role || "").trim().toUpperCase();
           setUserData({
             username: data.username || "UnknownUser",
             email: data.email || currentUser.email || "No email",
@@ -108,20 +108,41 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
             role: data.role || "member",
             profilePicture: data.profilePicture || "", // ✅ added
           });
-         
 
-          const codesRef = collection(db, "purchaseCodes");
-          const q = query(
-            codesRef,
-            where("userId", "==", currentUser.uid),
-            where("used", "==", false)
-          );
+          if (unsubscribeCodes) {
+            unsubscribeCodes();
+            unsubscribeCodes = null;
+          }
 
-          if (unsubscribeCodes) unsubscribeCodes();
-          unsubscribeCodes = listenCollection(q, (snap) => {
-            const codes = snap.docs.map((d) => d.data());
-            setAvailableCodes(codes);
-          });
+          // Admin/CEO do not use purchase codes in Topbar; avoid unnecessary listeners.
+          if (!["ADMIN", "CEO"].includes(normalizedUserRole)) {
+            const codesRef = collection(db, "purchaseCodes");
+            const q = query(
+              codesRef,
+              where("userId", "==", currentUser.uid),
+              where("used", "==", false)
+            );
+
+            unsubscribeCodes = listenCollection(
+              q,
+              (snap) => {
+                const codes = snap.docs.map((d) => d.data());
+                setAvailableCodes(codes);
+              },
+              (error) => {
+                if (error?.code !== "permission-denied") {
+                  console.error("Topbar purchase codes listener error:", error);
+                }
+                setAvailableCodes([]);
+              }
+            );
+          } else {
+            setAvailableCodes([]);
+          }
+        }
+      }, (error) => {
+        if (error?.code !== "permission-denied") {
+          console.error("Topbar user listener error:", error);
         }
       });
     });
@@ -494,12 +515,24 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
       )}
 
       {/* 🔹 Dialogs */}
-      <PurchaseCodesDialog open={dialog === "purchase"} onClose={handleCloseDialog} userData={userData} availableCodes={availableCodes} db={db} auth={auth} />
-      <WithdrawDialog open={dialog === "withdraw"} onClose={handleCloseDialog} userData={userData} db={db} auth={auth} />
-      <DepositDialog open={dialog === "deposit"} onClose={handleCloseDialog} userData={userData} db={db} auth={auth} />
-      <TransferFundsDialog open={dialog === "transfer"} onClose={handleCloseDialog} userData={userData} db={db} auth={auth} />
-      <InviteEarnDialog open={dialog === "invite"} onClose={handleCloseDialog} userData={userData} availableCodes={availableCodes} db={db} auth={auth} />
-      <EwalletHistoryDialog open={dialog === "walletHistory"} onClose={handleCloseDialog} db={db} auth={auth} />
+      {dialog === "purchase" && (
+        <PurchaseCodesDialog open onClose={handleCloseDialog} userData={userData} availableCodes={availableCodes} db={db} auth={auth} />
+      )}
+      {dialog === "withdraw" && (
+        <WithdrawDialog open onClose={handleCloseDialog} userData={userData} db={db} auth={auth} />
+      )}
+      {dialog === "deposit" && (
+        <DepositDialog open onClose={handleCloseDialog} userData={userData} db={db} auth={auth} />
+      )}
+      {dialog === "transfer" && (
+        <TransferFundsDialog open onClose={handleCloseDialog} userData={userData} db={db} auth={auth} />
+      )}
+      {dialog === "invite" && (
+        <InviteEarnDialog open onClose={handleCloseDialog} userData={userData} availableCodes={availableCodes} db={db} auth={auth} />
+      )}
+      {dialog === "walletHistory" && (
+        <EwalletHistoryDialog open onClose={handleCloseDialog} db={db} auth={auth} />
+      )}
 
       {/* 🔹 Logout Confirmation Dialog */}
       <Dialog open={logoutDialogOpen} onClose={handleCloseLogoutDialog}>

@@ -25,7 +25,8 @@ import {
 import SearchIcon from "@mui/icons-material/Search";
 import CardGiftcardIcon from "@mui/icons-material/CardGiftcard";
 import { collection, query, onSnapshot, doc, getDoc } from "firebase/firestore";
-import { db } from "../../firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth, db } from "../../firebase";
 import { motion } from "framer-motion";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
@@ -39,6 +40,7 @@ const AdminVoucherRecords = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
+  const [accessDenied, setAccessDenied] = useState(false);
 
   const isMobile = useMediaQuery("(max-width:900px)");
   useEffect(() => setSidebarOpen(!isMobile), [isMobile]);
@@ -47,65 +49,93 @@ const AdminVoucherRecords = () => {
 
   // Fetch all voucher records from capitalShareVouchers collection
   useEffect(() => {
-    const q = query(collection(db, "capitalShareVouchers"));
-    const unsub = onSnapshot(
-      q,
-      async (snap) => {
-        const tempData = [];
-        
-        for (const docRef of snap.docs) {
-          const userId = docRef.id;
-          const voucherData = docRef.data();
-          
-          // Fetch user info to get merchant/user details
-          const userSnap = await getDoc(doc(db, "users", userId));
-          const userData = userSnap.exists() ? userSnap.data() : {};
+    let unsubscribeVouchers = null;
 
-          // Flatten voucher records with user info
-          if (voucherData.vouchers && Array.isArray(voucherData.vouchers)) {
-            voucherData.vouchers.forEach((voucher, index) => {
-              // Safely convert Firestore timestamps to Date objects
-              const convertToDate = (value) => {
-                if (!value) return null;
-                if (value instanceof Date) return value;
-                if (typeof value.toDate === "function") return value.toDate();
-                try {
-                  const date = new Date(value);
-                  return isNaN(date.getTime()) ? null : date;
-                } catch {
-                  return null;
-                }
-              };
-
-              tempData.push({
-                id: `${userId}_${index}`,
-                userId,
-                voucherId: voucher.voucherCode,
-                voucherType: voucher.voucherType,
-                voucherStatus: voucher.voucherStatus,
-                branchName: voucher.branchName || "N/A",
-                branchAddress: voucher.branchAddress || "N/A",
-                branchEmail: voucher.branchEmail || "N/A",
-                issuedAt: convertToDate(voucher.voucherIssuedAt),
-                createdAt: convertToDate(voucher.createdAt),
-                userName: userData.name || "Unknown",
-                userEmail: userData.email || "Unknown",
-                userRole: userData.role || "MEMBER",
-              });
-            });
-          }
-        }
-
-        setVoucherData(tempData);
+    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+      if (!currentUser) {
+        setVoucherData([]);
+        setAccessDenied(true);
         setLoading(false);
-      },
-      (err) => {
-        console.error("Error fetching voucher records:", err);
-        setLoading(false);
+        return;
       }
-    );
 
-    return () => unsub();
+      const role = String(localStorage.getItem("userRole") || "").trim().toUpperCase();
+      if (!["ADMIN", "CEO"].includes(role)) {
+        setVoucherData([]);
+        setAccessDenied(true);
+        setLoading(false);
+        return;
+      }
+
+      setAccessDenied(false);
+      setLoading(true);
+
+      const q = query(collection(db, "capitalShareVouchers"));
+      unsubscribeVouchers = onSnapshot(
+        q,
+        async (snap) => {
+          const tempData = [];
+
+          // Safely convert Firestore timestamps to Date objects
+          const convertToDate = (value) => {
+            if (!value) return null;
+            if (value instanceof Date) return value;
+            if (typeof value.toDate === "function") return value.toDate();
+            try {
+              const date = new Date(value);
+              return isNaN(date.getTime()) ? null : date;
+            } catch {
+              return null;
+            }
+          };
+
+          for (const docRef of snap.docs) {
+            const userId = docRef.id;
+            const voucherData = docRef.data();
+
+            // Fetch user info to get merchant/user details
+            const userSnap = await getDoc(doc(db, "users", userId));
+            const userData = userSnap.exists() ? userSnap.data() : {};
+
+            // Flatten voucher records with user info
+            if (voucherData.vouchers && Array.isArray(voucherData.vouchers)) {
+              voucherData.vouchers.forEach((voucher, index) => {
+                tempData.push({
+                  id: `${userId}_${index}`,
+                  userId,
+                  voucherId: voucher.voucherCode,
+                  voucherType: voucher.voucherType,
+                  voucherStatus: voucher.voucherStatus,
+                  branchName: voucher.branchName || "N/A",
+                  branchAddress: voucher.branchAddress || "N/A",
+                  branchEmail: voucher.branchEmail || "N/A",
+                  issuedAt: convertToDate(voucher.voucherIssuedAt),
+                  createdAt: convertToDate(voucher.createdAt),
+                  userName: userData.name || "Unknown",
+                  userEmail: userData.email || "Unknown",
+                  userRole: userData.role || "MEMBER",
+                });
+              });
+            }
+          }
+
+          setVoucherData(tempData);
+          setLoading(false);
+        },
+        (err) => {
+          console.error("Error fetching voucher records:", err);
+          if (err?.code === "permission-denied") {
+            setAccessDenied(true);
+          }
+          setLoading(false);
+        }
+      );
+    });
+
+    return () => {
+      if (unsubscribeVouchers) unsubscribeVouchers();
+      unsubscribeAuth();
+    };
   }, []);
 
   // Filter and paginate data
@@ -308,6 +338,17 @@ const AdminVoucherRecords = () => {
           <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
             <CircularProgress />
           </Box>
+        ) : accessDenied ? (
+          <Card sx={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.35)", borderRadius: 2 }}>
+            <CardContent>
+              <Typography variant="h6" sx={{ color: "#fecaca", fontWeight: 700, mb: 1 }}>
+                Access Denied
+              </Typography>
+              <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.85)" }}>
+                Your account does not have permission to view voucher records. Ensure your Firestore role is set to ADMIN or CEO.
+              </Typography>
+            </CardContent>
+          </Card>
         ) : (
           <>
             <TableContainer
