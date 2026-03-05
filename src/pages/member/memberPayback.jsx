@@ -477,7 +477,7 @@ const fetchPaybackData = useCallback(async (userId) => {
         sx={{
           flexGrow: 1,
           p: { xs: 2, sm: 4 },
-          mt: 0,
+          mt: 5,
           pb: { xs: 12, sm: 12, md: 12 },
           color: "#f5f7fa",
           zIndex: 1,

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useRef } from "react";
 import {
   Slide,
   Dialog,
@@ -22,10 +22,43 @@ const CapitalShareVoucherDialog = ({
   onWalkInClick,
   onOfwClick,
 }) => {
+  const [touchStart, setTouchStart] = useState(null);
+  const [translateY, setTranslateY] = useState(0);
+  const dialogRef = useRef(null);
+  const SWIPE_THRESHOLD = 80; // pixels
+
+  const handleTouchStart = (e) => {
+    setTouchStart(e.touches[0].clientY);
+    setTranslateY(0);
+  };
+
+  const handleTouchMove = (e) => {
+    if (!touchStart) return;
+    const currentY = e.touches[0].clientY;
+    const diff = currentY - touchStart;
+    
+    // Only allow downward swipe (positive diff)
+    if (diff > 0) {
+      setTranslateY(diff);
+    }
+  };
+
+  const handleTouchEnd = (e) => {
+    const currentY = e.changedTouches[0].clientY;
+    const diff = currentY - touchStart;
+
+    if (diff > SWIPE_THRESHOLD) {
+      onClose();
+    }
+    
+    setTranslateY(0);
+    setTouchStart(null);
+  };
   return (
     <Dialog
       open={open}
       TransitionComponent={Transition}
+      ref={dialogRef}
       sx={{
         '& .MuiDialog-container': {
           alignItems: { xs: 'flex-end', sm: 'center' },
@@ -60,10 +93,17 @@ const CapitalShareVoucherDialog = ({
           borderBottomLeftRadius: { xs: 0, sm: 32 },
           borderBottomRightRadius: { xs: 0, sm: 32 },
           boxShadow: "0 20px 50px rgba(15,23,42,0.28)",
+          transform: `translateY(${translateY}px)`,
+          transition: translateY === 0 ? "transform 0.3s ease-out" : "none",
         },
       }}
     >
-      <div className="flex flex-col items-center pt-4 pb-2">
+      <div 
+        className="flex flex-col items-center pt-4 pb-2 cursor-grab active:cursor-grabbing touch-none"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         <div className="h-1.5 w-12 rounded-full bg-slate-300"></div>
       </div>
 

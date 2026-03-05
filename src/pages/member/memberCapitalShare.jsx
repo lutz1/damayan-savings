@@ -457,21 +457,25 @@ const MemberCapitalShare = () => {
       setAddingEntry(true);
       // 🔹 Get ID token
       const idToken = await user.getIdToken();
-      const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "https://damayan-savings-backend.onrender.com";
       const clientRequestId = `cs_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
-      // 🔹 Call backend to create capital share entry
-      const response = await fetch(`${API_BASE}/api/add-capital-share`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          idToken,
-          amount: entryAmount,
-          entryDate: selectedDate.toISOString(),
-          referredBy: userData?.referredBy || null,
-          clientRequestId,
-        }),
-      });
+      // 🔹 Call Cloud Function to create capital share entry (secure, idempotent)
+      const response = await fetch(
+        "https://us-central1-amayan-savings.cloudfunctions.net/addCapitalShare",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            amount: entryAmount,
+            entryDate: selectedDate.toISOString(),
+            referredBy: userData?.referredBy || null,
+            clientRequestId,
+          }),
+        }
+      );
 
       const result = await response.json();
 
@@ -622,7 +626,7 @@ const MemberCapitalShare = () => {
         sx={{
           flexGrow: 1,
           p: { xs: 2, sm: 4 },
-          mt: 0,
+          mt: 5,
           pb: { xs: 12, sm: 12, md: 12 },
           color: "white",
           overflowY: "auto",

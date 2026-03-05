@@ -234,6 +234,27 @@ app.post("/api/add-payback-entry", async (req, res) => {
         newBalance: result.newBalance,
       });
 
+      // 📊 Log to Render backend for monitoring
+      try {
+        const logUrl = process.env.RENDER_BACKEND_URL || "https://damayan-savings-backend.onrender.com";
+        await axios.post(`${logUrl}/api/log-event`, {
+          level: "info",
+          event: "payback_entry_created",
+          data: {
+            userId,
+            uplineUsername,
+            amount: numAmount,
+            paybackEntryId: result.paybackEntryId,
+            uplineReward: 65,
+            newBalance: result.newBalance,
+            deduped: result.deduped || false,
+            source: "backend",
+          },
+        });
+      } catch (logError) {
+        console.warn("[payback-entry] Warning: Failed to log to Render:", logError);
+      }
+
       res.json(result);
     } catch (transactionError) {
       console.error("[payback-entry] ❌ Transaction failed:", transactionError);
@@ -387,6 +408,25 @@ app.post("/api/transfer-override-reward", async (req, res) => {
         overrideId,
         newBalance: result.newBalance,
       });
+
+      // 📊 Log to Render backend for monitoring
+      try {
+        const logUrl = process.env.RENDER_BACKEND_URL || "https://damayan-savings-backend.onrender.com";
+        await axios.post(`${logUrl}/api/log-event`, {
+          level: "info",
+          event: "override_earnings_transfer_completed",
+          data: {
+            userId,
+            overrideId,
+            amount: numAmount,
+            newBalance: result.newBalance,
+            deduped: result.deduped || false,
+            source: "backend",
+          },
+        });
+      } catch (logError) {
+        console.warn("[override-transfer] Warning: Failed to log to Render:", logError);
+      }
 
       res.json(result);
     } catch (transactionError) {
@@ -1043,6 +1083,27 @@ app.post("/api/transfer-funds", async (req, res) => {
         newBalance: result.newBalance,
       });
 
+      // 📊 Log to Render backend for monitoring
+      try {
+        const logUrl = process.env.RENDER_BACKEND_URL || "https://damayan-savings-backend.onrender.com";
+        await axios.post(`${logUrl}/api/log-event`, {
+          level: "info",
+          event: "wallet_transfer_completed",
+          data: {
+            senderId,
+            recipientUsername,
+            amount: numAmount,
+            netAmount: numAmount - numAmount * 0.02,
+            transferId: result.transferId,
+            newBalance: result.newBalance,
+            deduped: result.deduped || false,
+            source: "backend",
+          },
+        });
+      } catch (logError) {
+        console.warn("[transfer] Warning: Failed to log to Render:", logError);
+      }
+
       res.json(result);
     } catch (transactionError) {
       console.error("Transaction failed:", transactionError);
@@ -1185,6 +1246,25 @@ app.post("/api/transfer-profit", async (req, res) => {
         newBalance: result.newBalance,
       });
 
+      // 📊 Log to Render backend for monitoring
+      try {
+        const logUrl = process.env.RENDER_BACKEND_URL || "https://damayan-savings-backend.onrender.com";
+        await axios.post(`${logUrl}/api/log-event`, {
+          level: "info",
+          event: "monthly_profit_transfer_completed",
+          data: {
+            userId,
+            entryId,
+            amount: numAmount,
+            newBalance: result.newBalance,
+            deduped: result.deduped || false,
+            source: "backend",
+          },
+        });
+      } catch (logError) {
+        console.warn("[transfer-profit] Warning: Failed to log to Render:", logError);
+      }
+
       res.json(result);
     } catch (transactionError) {
       console.error("Transfer profit transaction failed:", transactionError);
@@ -1325,6 +1405,25 @@ app.post("/api/transfer-capital-share", async (req, res) => {
         newBalance: result.newBalance,
       });
 
+      // 📊 Log to Render backend for monitoring
+      try {
+        const logUrl = process.env.RENDER_BACKEND_URL || "https://damayan-savings-backend.onrender.com";
+        await axios.post(`${logUrl}/api/log-event`, {
+          level: "info",
+          event: "capital_share_transfer_completed",
+          data: {
+            userId,
+            entryId,
+            amount: numAmount,
+            newBalance: result.newBalance,
+            deduped: result.deduped || false,
+            source: "backend",
+          },
+        });
+      } catch (logError) {
+        console.warn("[transfer-capital-share] Warning: Failed to log to Render:", logError);
+      }
+
       res.json(result);
     } catch (transactionError) {
       console.error("Transfer capital share transaction failed:", transactionError);
@@ -1457,6 +1556,26 @@ app.post("/api/transfer-passive-income", async (req, res) => {
         transferId: result.transferId,
         newBalance: result.newBalance,
       });
+
+      // 📊 Log to Render backend for monitoring
+      try {
+        const logUrl = process.env.RENDER_BACKEND_URL || "https://damayan-savings-backend.onrender.com";
+        await axios.post(`${logUrl}/api/log-event`, {
+          level: "info",
+          event: "passive_income_transfer_completed",
+          data: {
+            userId,
+            paybackEntryId,
+            amount: numAmount,
+            netAmount: numAmount - numAmount * 0.01,
+            newBalance: result.newBalance,
+            deduped: result.deduped || false,
+            source: "backend",
+          },
+        });
+      } catch (logError) {
+        console.warn("[passive-transfer] Warning: Failed to log to Render:", logError);
+      }
 
       res.json(result);
     } catch (transactionError) {
@@ -1866,6 +1985,25 @@ app.post("/api/transfer-referral-reward", async (req, res) => {
         newBalance: result.newBalance,
       });
 
+      // 📊 Log to Render backend for monitoring
+      try {
+        const logUrl = process.env.RENDER_BACKEND_URL || "https://damayan-savings-backend.onrender.com";
+        await axios.post(`${logUrl}/api/log-event`, {
+          level: "info",
+          event: "referral_earnings_transfer_completed",
+          data: {
+            userId,
+            rewardId,
+            amount: numAmount,
+            newBalance: result.newBalance,
+            deduped: result.deduped || false,
+            source: "backend",
+          },
+        });
+      } catch (logError) {
+        console.warn("[referral-reward] Warning: Failed to log to Render:", logError);
+      }
+
       res.json(result);
     } catch (transactionError) {
       console.error("[referral-reward] ❌ Transaction failed:", transactionError);
@@ -1909,6 +2047,27 @@ app.get("/health/ready", async (req, res) => {
       message: "Firestore readiness check failed",
       timestamp: new Date().toISOString(),
     });
+  }
+});
+
+// 📊 Logging endpoint for Cloud Functions to log events to Render.com
+app.post("/api/log-event", (req, res) => {
+  try {
+    const { level = "info", event, data = {} } = req.body;
+
+    if (!event) {
+      return res.status(400).json({ error: "Missing event name" });
+    }
+
+    logEvent(level, event, {
+      source: "cloud-function",
+      ...data,
+    });
+
+    res.json({ success: true, message: `Event '${event}' logged` });
+  } catch (error) {
+    console.error("[log-event] Error:", error);
+    res.status(500).json({ error: "Failed to log event" });
   }
 });
 
