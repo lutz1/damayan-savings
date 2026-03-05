@@ -125,9 +125,9 @@ const OverrideUplineRewardsDialog = ({
                     // Get user's ID token
                     const idToken = await user.getIdToken();
                     
-                    // Call backend endpoint (Render)
-                    const endpoint = `${API_BASE}/api/transfer-override-reward`;
-                    console.log("[OverrideTransfer] Calling endpoint:", endpoint);
+                    // Call Cloud Function (secure, idempotent)
+                    const endpoint = "https://us-central1-amayan-savings.cloudfunctions.net/transferOverrideReward";
+                    console.log("[OverrideTransfer] Calling Cloud Function:", endpoint);
                     
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
@@ -136,9 +136,9 @@ const OverrideUplineRewardsDialog = ({
                       method: "POST",
                       headers: {
                         "Content-Type": "application/json",
+                        "Authorization": `Bearer ${idToken}`,
                       },
                       body: JSON.stringify({
-                        idToken,
                         overrideId: o.id,
                         amount: o.amount,
                         clientRequestId: `override-${o.id}-${user.uid}`,

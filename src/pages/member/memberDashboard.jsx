@@ -187,15 +187,16 @@ const handleTransferToWallet = async ({ amount, type, rewardId = null }) => {
 
     if (type === "referral") {
       if (rewardId) {
-        // Single reward transfer via backend
+        // Single reward transfer via Cloud Function
         const idToken = await user.getIdToken();
-        const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "https://damayan-savings-backend.onrender.com";
         
-        const response = await fetch(`${API_BASE}/api/transfer-referral-reward`, {
+        const response = await fetch("https://us-central1-amayan-savings.cloudfunctions.net/transferReferralReward", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${idToken}`,
+          },
           body: JSON.stringify({
-            idToken,
             rewardId,
             amount: rewardHistory.find(r => r.id === rewardId)?.amount || amount,
             clientRequestId: `referral_${rewardId}`,
@@ -205,20 +206,21 @@ const handleTransferToWallet = async ({ amount, type, rewardId = null }) => {
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "Transfer failed");
       } else {
-        // Bulk transfer for all approved rewards
+        // Bulk transfer for all approved rewards via Cloud Function
         const userRef = doc(db, "users", user.uid);
         const idToken = await user.getIdToken();
-        const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "https://damayan-savings-backend.onrender.com";
 
         let totalAmount = 0;
         const approvedRewards = rewardHistory.filter(r => r.payoutReleased && !r.transferredAmount);
 
         for (const reward of approvedRewards) {
-          const response = await fetch(`${API_BASE}/api/transfer-referral-reward`, {
+          const response = await fetch("https://us-central1-amayan-savings.cloudfunctions.net/transferReferralReward", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${idToken}`,
+            },
             body: JSON.stringify({
-              idToken,
               rewardId: reward.id,
               amount: reward.amount,
               clientRequestId: `referral_${reward.id}`,
@@ -235,12 +237,18 @@ const handleTransferToWallet = async ({ amount, type, rewardId = null }) => {
     } else if (type === "override") {
       if (rewardId) {
         const idToken = await user.getIdToken();
-        const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "https://damayan-savings-backend.onrender.com";
         
-        const response = await fetch(`${API_BASE}/api/transfer-override-reward`, {
+        const response = await fetch("https://us-central1-amayan-savings.cloudfunctions.net/transferOverrideReward", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ idToken, overrideId: rewardId, amount: amount || overrideList.find(o => o.id === rewardId)?.amount, clientRequestId: `override_${rewardId}` }),
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({ 
+            overrideId: rewardId, 
+            amount: amount || overrideList.find(o => o.id === rewardId)?.amount, 
+            clientRequestId: `override_${rewardId}` 
+          }),
         });
 
         const result = await response.json();

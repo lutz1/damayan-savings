@@ -108,9 +108,9 @@ const RewardHistoryDialog = ({
                     // Get user's ID token
                     const idToken = await user.getIdToken();
                     
-                    // Call backend endpoint (Render)
-                    const endpoint = `${API_BASE}/api/transfer-referral-reward`;
-                    console.log("[RewardTransfer] Calling endpoint:", endpoint);
+                    // Call Cloud Function (secure, idempotent)
+                    const endpoint = "https://us-central1-amayan-savings.cloudfunctions.net/transferReferralReward";
+                    console.log("[RewardTransfer] Calling Cloud Function:", endpoint);
                     
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
@@ -119,9 +119,9 @@ const RewardHistoryDialog = ({
                       method: "POST",
                       headers: {
                         "Content-Type": "application/json",
+                        "Authorization": `Bearer ${idToken}`,
                       },
                       body: JSON.stringify({
-                        idToken,
                         rewardId: reward.id,
                         amount: reward.amount,
                         clientRequestId: `reward-${reward.id}-${user.uid}`,

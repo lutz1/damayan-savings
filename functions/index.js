@@ -168,6 +168,29 @@ exports.transferReferralReward = functions.https.onRequest(async (req, res) => {
           `[transferReferralReward] ✅ SUCCESS - user=${userId} reward=${rewardId} amount=₱${numAmount} newBalance=₱${result.newBalance}`
         );
 
+        // 📊 Log to Render backend for monitoring
+        try {
+          const logUrl = process.env.RENDER_BACKEND_URL || "https://damayan-savings-backend.onrender.com";
+          await fetch(`${logUrl}/api/log-event`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              level: "info",
+              event: "referral_earnings_transfer_completed",
+              data: {
+                userId,
+                rewardId,
+                amount: numAmount,
+                newBalance: result.newBalance,
+                alreadyTransferred: result.alreadyTransferred || false,
+                source: "Cloud Function",
+              },
+            }),
+          });
+        } catch (logError) {
+          console.warn("[transferReferralReward] Warning: Failed to log to Render:", logError);
+        }
+
         res.json(result);
       } catch (transactionError) {
         console.error("[transferReferralReward] ❌ Transaction failed:", transactionError);
@@ -338,6 +361,29 @@ exports.transferOverrideReward = functions.https.onRequest(async (req, res) => {
         console.log(
           `[transferOverrideReward] ✅ SUCCESS - user=${userId} override=${overrideId} amount=₱${numAmount} newBalance=₱${result.newBalance}`
         );
+
+        // 📊 Log to Render backend for monitoring
+        try {
+          const logUrl = process.env.RENDER_BACKEND_URL || "https://damayan-savings-backend.onrender.com";
+          await fetch(`${logUrl}/api/log-event`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              level: "info",
+              event: "override_earnings_transfer_completed",
+              data: {
+                userId,
+                overrideId,
+                amount: numAmount,
+                newBalance: result.newBalance,
+                alreadyTransferred: result.alreadyTransferred || false,
+                source: "Cloud Function",
+              },
+            }),
+          });
+        } catch (logError) {
+          console.warn("[transferOverrideReward] Warning: Failed to log to Render:", logError);
+        }
 
         res.json(result);
       } catch (transactionError) {
