@@ -29,7 +29,7 @@ import { db } from "../../firebase";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
 import AdminSidebarToggle from "../../components/AdminSidebarToggle";
-import bgImage from "../../assets/bg.jpg";
+import bgImage from "../../assets/bownersbg.png";
 
 const statusConfig = {
   PENDING: { label: "Pending Review", color: "warning", icon: <ScheduleIcon fontSize="small" /> },
@@ -184,6 +184,7 @@ const AdminProductManagement = () => {
     <Box
       sx={{
         display: "flex",
+        flexDirection: isMobile ? "column" : "row",
         minHeight: "100vh",
         backgroundImage: `url(${bgImage})`,
         backgroundSize: "cover",
@@ -196,7 +197,7 @@ const AdminProductManagement = () => {
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: "rgba(0,0,0,0.1)",
+          backgroundColor: "rgba(0,0,0,0.25)",
           zIndex: 0,
         },
       }}

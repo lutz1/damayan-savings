@@ -4,6 +4,7 @@ import {
   Container,
   Paper,
   Typography,
+  CircularProgress,
   Card,
   CardContent,
   Button,
@@ -16,6 +17,7 @@ import {
   Alert,
 } from "@mui/material";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 import { db, auth } from "../../firebase";
 import { useNavigate } from "react-router-dom";
 import EditIcon from "@mui/icons-material/Edit";
@@ -37,15 +39,30 @@ const RiderProfile = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    loadRiderProfile();
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        setRiderData(null);
+        setEditData({});
+        setLoading(false);
+        navigate("/login", { replace: true });
+        return;
+      }
+
+      loadRiderProfile(user.uid);
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  const loadRiderProfile = async () => {
+  const loadRiderProfile = async (uid) => {
     try {
-      const user = auth.currentUser;
-      if (!user) return;
+      setLoading(true);
+      if (!uid) {
+        setLoading(false);
+        return;
+      }
 
-      const userRef = doc(db, "users", user.uid);
+      const userRef = doc(db, "users", uid);
       const userSnap = await getDoc(userRef);
 
       if (userSnap.exists()) {
@@ -95,9 +112,25 @@ const RiderProfile = () => {
     return (
       <>
         <Navbar />
-        <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
-          <Typography>Loading...</Typography>
-        </Box>
+        <Container maxWidth="sm" sx={{ py: 8 }}>
+          <Paper
+            elevation={3}
+            sx={{
+              p: 4,
+              borderRadius: 3,
+              textAlign: "center",
+              background: "rgba(255,255,255,0.95)",
+            }}
+          >
+            <CircularProgress size={38} sx={{ mb: 2 }} />
+            <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
+              Loading Rider Profile
+            </Typography>
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              Getting your account information...
+            </Typography>
+          </Paper>
+        </Container>
       </>
     );
   }

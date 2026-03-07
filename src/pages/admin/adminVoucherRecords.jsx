@@ -31,7 +31,7 @@ import { motion } from "framer-motion";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
 import AdminSidebarToggle from "../../components/AdminSidebarToggle";
-import bgImage from "../../assets/bg.jpg";
+import bgImage from "../../assets/bownersbg.png";
 
 const AdminVoucherRecords = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -231,6 +231,7 @@ const AdminVoucherRecords = () => {
             PaperProps={{
               sx: {
                 background: "transparent",
+                boxShadow: "none",
               },
             }}
           >
@@ -241,19 +242,18 @@ const AdminVoucherRecords = () => {
 
       {/* Main Content */}
       <Box
-        component={motion.div}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.5 }}
+        component="main"
         sx={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          pt: 8,
-          pb: 4,
-          px: { xs: 1, sm: 2, md: 4 },
-          position: "relative",
+          flexGrow: 1,
+          p: isMobile ? 1.5 : 4,
+          mt: 0,
+          pb: { xs: 3, sm: 12, md: 12 },
+          color: "white",
           zIndex: 1,
+          width: "100%",
+          paddingLeft: 0,
+          transition: "all 0.3s ease",
+          position: "relative",
         }}
       >
         <Toolbar />
@@ -271,14 +271,14 @@ const AdminVoucherRecords = () => {
             borderRadius: 3,
           }}
         >
-          <CardContent sx={{ pb: 2 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-              <CardGiftcardIcon sx={{ fontSize: 32, color: "#10b981" }} />
+          <CardContent sx={{ pb: 2, px: isMobile ? 1.5 : 2 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: isMobile ? 1 : 2, mb: 2, flexDirection: isMobile ? "column" : "row", textAlign: isMobile ? "center" : "left" }}>
+              <CardGiftcardIcon sx={{ fontSize: isMobile ? 24 : 32, color: "#10b981" }} />
               <Box>
-                <Typography variant="h5" sx={{ fontWeight: 700, color: "#fff" }}>
+                <Typography variant={isMobile ? "h6" : "h5"} sx={{ fontWeight: 700, color: "#fff" }}>
                   Voucher Record Management
                 </Typography>
-                <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.7)" }}>
+                <Typography variant={isMobile ? "caption" : "body2"} sx={{ color: "rgba(255,255,255,0.7)" }}>
                   Audit voucher records issued to members for capital share rewards
                 </Typography>
               </Box>
@@ -351,102 +351,199 @@ const AdminVoucherRecords = () => {
           </Card>
         ) : (
           <>
-            <TableContainer
-              component={Paper}
-              sx={{
-                background: "rgba(255, 255, 255, 0.05)",
-                border: "1px solid rgba(255, 255, 255, 0.1)",
-                borderRadius: 2,
-                mb: 3,
-                overflow: "auto",
-              }}
-            >
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ background: "rgba(255,255,255,0.08)" }}>
-                    <TableCell sx={{ color: "#fff", fontWeight: 700 }}>Voucher ID</TableCell>
-                    <TableCell sx={{ color: "#fff", fontWeight: 700 }}>User Name</TableCell>
-                    <TableCell sx={{ color: "#fff", fontWeight: 700 }}>Email</TableCell>
-                    <TableCell sx={{ color: "#fff", fontWeight: 700 }}>Type</TableCell>
-                    <TableCell sx={{ color: "#fff", fontWeight: 700 }}>Status</TableCell>
-                    <TableCell sx={{ color: "#fff", fontWeight: 700 }}>Branch / Details</TableCell>
-                    <TableCell sx={{ color: "#fff", fontWeight: 700 }}>Issued Date</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {paginatedData.length > 0 ? (
-                    paginatedData.map((record, idx) => (
-                      <TableRow
-                        key={record.id}
-                        sx={{
-                          background: idx % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent",
-                          borderBottom: "1px solid rgba(255,255,255,0.08)",
-                          "&:hover": {
-                            background: "rgba(255,255,255,0.06)",
-                          },
-                        }}
-                      >
-                        <TableCell sx={{ color: "rgba(255,255,255,0.9)" }}>
-                          <Tooltip title={record.voucherId}>
-                            <Typography variant="body2" sx={{ fontWeight: 600, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis" }}>
-                              {record.voucherId}
-                            </Typography>
-                          </Tooltip>
+            {/* Desktop Table View */}
+            {!isMobile && (
+              <TableContainer
+                component={Paper}
+                sx={{
+                  background: "rgba(255, 255, 255, 0.05)",
+                  border: "1px solid rgba(255, 255, 255, 0.1)",
+                  borderRadius: 2,
+                  mb: 3,
+                  overflow: "auto",
+                }}
+              >
+                <Table>
+                  <TableHead>
+                    <TableRow sx={{ background: "rgba(255,255,255,0.08)" }}>
+                      <TableCell sx={{ color: "#fff", fontWeight: 700 }}>Voucher ID</TableCell>
+                      <TableCell sx={{ color: "#fff", fontWeight: 700 }}>User Name</TableCell>
+                      <TableCell sx={{ color: "#fff", fontWeight: 700 }}>Email</TableCell>
+                      <TableCell sx={{ color: "#fff", fontWeight: 700 }}>Type</TableCell>
+                      <TableCell sx={{ color: "#fff", fontWeight: 700 }}>Status</TableCell>
+                      <TableCell sx={{ color: "#fff", fontWeight: 700 }}>Branch / Details</TableCell>
+                      <TableCell sx={{ color: "#fff", fontWeight: 700 }}>Issued Date</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {paginatedData.length > 0 ? (
+                      paginatedData.map((record, idx) => (
+                        <TableRow
+                          key={record.id}
+                          sx={{
+                            background: idx % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent",
+                            borderBottom: "1px solid rgba(255,255,255,0.08)",
+                            "&:hover": {
+                              background: "rgba(255,255,255,0.06)",
+                            },
+                          }}
+                        >
+                          <TableCell sx={{ color: "rgba(255,255,255,0.9)" }}>
+                            <Tooltip title={record.voucherId}>
+                              <Typography variant="body2" sx={{ fontWeight: 600, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {record.voucherId}
+                              </Typography>
+                            </Tooltip>
+                          </TableCell>
+                          <TableCell sx={{ color: "rgba(255,255,255,0.9)" }}>
+                            <Typography variant="body2">{record.userName}</Typography>
+                          </TableCell>
+                          <TableCell sx={{ color: "rgba(255,255,255,0.8)", fontSize: "0.85rem" }}>
+                            <Tooltip title={record.userEmail}>
+                              <Typography variant="caption" sx={{ maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", display: "block" }}>
+                                {record.userEmail}
+                              </Typography>
+                            </Tooltip>
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={record.voucherType === "OFW" ? "OFW" : "Walk-In"}
+                              sx={{
+                                background: getVoucherTypeColor(record.voucherType),
+                                color: "#fff",
+                                fontWeight: 600,
+                                fontSize: "0.75rem",
+                              }}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={record.voucherStatus}
+                              sx={{
+                                background: getStatusColor(record.voucherStatus),
+                                color: "#fff",
+                                fontWeight: 600,
+                                fontSize: "0.75rem",
+                              }}
+                            />
+                          </TableCell>
+                          <TableCell sx={{ color: "rgba(255,255,255,0.8)", fontSize: "0.85rem" }}>
+                            <Tooltip title={`Address: ${record.branchAddress}\nEmail: ${record.branchEmail}`}>
+                              <Typography variant="caption" sx={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", display: "block" }}>
+                                {record.branchName || "(Remote / OFW)"}
+                              </Typography>
+                            </Tooltip>
+                          </TableCell>
+                          <TableCell sx={{ color: "rgba(255,255,255,0.8)", fontSize: "0.85rem" }}>
+                            {formatDate(record.issuedAt)}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={7} sx={{ textAlign: "center", py: 4, color: "rgba(255,255,255,0.5)" }}>
+                          <Typography variant="body2">No voucher records found</Typography>
                         </TableCell>
-                        <TableCell sx={{ color: "rgba(255,255,255,0.9)" }}>
-                          <Typography variant="body2">{record.userName}</Typography>
-                        </TableCell>
-                        <TableCell sx={{ color: "rgba(255,255,255,0.8)", fontSize: "0.85rem" }}>
-                          <Tooltip title={record.userEmail}>
-                            <Typography variant="caption" sx={{ maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", display: "block" }}>
-                              {record.userEmail}
-                            </Typography>
-                          </Tooltip>
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={record.voucherType === "OFW" ? "OFW" : "Walk-In"}
-                            sx={{
-                              background: getVoucherTypeColor(record.voucherType),
-                              color: "#fff",
-                              fontWeight: 600,
-                              fontSize: "0.75rem",
-                            }}
-                          />
-                        </TableCell>
-                        <TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+
+            {/* Mobile Card View */}
+            {isMobile && (
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mb: 3 }}>
+                {paginatedData.length > 0 ? (
+                  paginatedData.map((record) => (
+                    <Card
+                      key={record.id}
+                      sx={{
+                        background: "rgba(255, 255, 255, 0.08)",
+                        border: "1px solid rgba(255, 255, 255, 0.12)",
+                        borderRadius: 2,
+                        p: 1.5,
+                      }}
+                    >
+                      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                        {/* Voucher ID and Status */}
+                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 1 }}>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.6)" }}>Voucher ID</Typography>
+                            <Tooltip title={record.voucherId}>
+                              <Typography variant="body2" sx={{ fontWeight: 600, color: "#fff", wordBreak: "break-word" }}>
+                                {record.voucherId}
+                              </Typography>
+                            </Tooltip>
+                          </Box>
                           <Chip
                             label={record.voucherStatus}
                             sx={{
                               background: getStatusColor(record.voucherStatus),
                               color: "#fff",
                               fontWeight: 600,
-                              fontSize: "0.75rem",
+                              fontSize: "0.65rem",
+                              height: 20,
                             }}
                           />
-                        </TableCell>
-                        <TableCell sx={{ color: "rgba(255,255,255,0.8)", fontSize: "0.85rem" }}>
-                          <Tooltip title={`Address: ${record.branchAddress}\nEmail: ${record.branchEmail}`}>
-                            <Typography variant="caption" sx={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", display: "block" }}>
-                              {record.branchName || "(Remote / OFW)"}
+                        </Box>
+
+                        {/* User Info */}
+                        <Box>
+                          <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.6)" }}>User</Typography>
+                          <Typography variant="body2" sx={{ color: "#fff" }}>{record.userName}</Typography>
+                          <Tooltip title={record.userEmail}>
+                            <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.7)", display: "block", wordBreak: "break-word" }}>
+                              {record.userEmail}
                             </Typography>
                           </Tooltip>
-                        </TableCell>
-                        <TableCell sx={{ color: "rgba(255,255,255,0.8)", fontSize: "0.85rem" }}>
-                          {formatDate(record.issuedAt)}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={7} sx={{ textAlign: "center", py: 4, color: "rgba(255,255,255,0.5)" }}>
-                        <Typography variant="body2">No voucher records found</Typography>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                        </Box>
+
+                        {/* Type and Branch */}
+                        <Box sx={{ display: "flex", gap: 2 }}>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.6)" }}>Type</Typography>
+                            <Chip
+                              label={record.voucherType === "OFW" ? "OFW" : "Walk-In"}
+                              sx={{
+                                background: getVoucherTypeColor(record.voucherType),
+                                color: "#fff",
+                                fontWeight: 600,
+                                fontSize: "0.65rem",
+                                height: 20,
+                                display: "block",
+                                width: "fit-content",
+                                mt: 0.5,
+                              }}
+                            />
+                          </Box>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.6)" }}>Branch</Typography>
+                            <Tooltip title={`Address: ${record.branchAddress}\nEmail: ${record.branchEmail}`}>
+                              <Typography variant="caption" sx={{ color: "#fff", display: "block", wordBreak: "break-word" }}>
+                                {record.branchName || "(Remote / OFW)"}
+                              </Typography>
+                            </Tooltip>
+                          </Box>
+                        </Box>
+
+                        {/* Issued Date */}
+                        <Box>
+                          <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.6)" }}>Issued Date</Typography>
+                          <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.8)", display: "block" }}>
+                            {formatDate(record.issuedAt)}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Card>
+                  ))
+                ) : (
+                  <Card sx={{ background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(255, 255, 255, 0.12)", borderRadius: 2, p: 3, textAlign: "center" }}>
+                    <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.5)" }}>No voucher records found</Typography>
+                  </Card>
+                )}
+              </Box>
+            )}
 
             {/* Pagination */}
             {filteredData.length > itemsPerPage && (

@@ -224,7 +224,19 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
         >
           {/* Left */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            {onToggleSidebar && <IconButton color="inherit" onClick={onToggleSidebar} sx={{ display: { xs: "none", md: "inline-flex" } }}><MenuIcon /></IconButton>}
+            {onToggleSidebar && (
+              <IconButton
+                color="inherit"
+                onClick={onToggleSidebar}
+                sx={{
+                  display: ["ADMIN", "CEO"].includes(normalizedRole)
+                    ? { xs: "inline-flex", md: "inline-flex" }
+                    : { xs: "none", md: "inline-flex" },
+                }}
+              >
+                <MenuIcon />
+              </IconButton>
+            )}
             <Box
               component="img"
               src={appLogo}

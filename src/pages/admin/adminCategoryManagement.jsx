@@ -35,7 +35,7 @@ import AppHeader from "../../components/AppHeader";
 import AppBottomNav from "../../components/AppBottomNav";
 import Topbar from "../../components/Topbar";
 import AdminSidebarToggle from "../../components/AdminSidebarToggle";
-import bgImage from "../../assets/bg.jpg";
+import bgImage from "../../assets/bownersbg.png";
 
 export default function AdminCategoryManagement() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -253,10 +253,10 @@ export default function AdminCategoryManagement() {
   };
 
   return (
-    <Box sx={{ 
-      minHeight: "100vh", 
-      bgcolor: "#f5f5f5", 
-      pb: { xs: 12, sm: 12, md: 12 },
+    <Box sx={{
+      display: "flex",
+      flexDirection: isMobile ? "column" : "row",
+      minHeight: "100vh",
       backgroundImage: `url(${bgImage})`,
       backgroundSize: "cover",
       backgroundPosition: "center",
@@ -268,7 +268,7 @@ export default function AdminCategoryManagement() {
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: "rgba(0,0,0,0.1)",
+        backgroundColor: "rgba(0,0,0,0.25)",
         zIndex: 0,
       },
     }}>

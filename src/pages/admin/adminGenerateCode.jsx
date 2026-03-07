@@ -28,7 +28,7 @@ import { db } from "../../firebase";
 import AppBottomNav from "../../components/AppBottomNav";
 import AdminSidebarToggle from "../../components/AdminSidebarToggle";
 import Topbar from "../../components/Topbar";
-import bgImage from "../../assets/bg.jpg";
+import bgImage from "../../assets/bownersbg.png";
 import {
   ResponsiveContainer,
   Tooltip as RechartsTooltip,
@@ -250,27 +250,21 @@ const filteredDownlineCodes = useMemo(() => {
   return (
     <Box
       sx={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        minHeight: '100vh',
-        minWidth: '100vw',
-        overflow: 'hidden',
-        display: 'flex',
-        backgroundImage: `linear-gradient(120deg, rgba(30, 41, 59, 0.92) 60%, rgba(33, 150, 243, 0.25)), url(${bgImage})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        zIndex: 0,
-        '&::before': {
+        display: "flex",
+        flexDirection: isMobile ? "column" : "row",
+        minHeight: "100vh",
+        backgroundImage: `url(${bgImage})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        position: "relative",
+        "&::before": {
           content: '""',
-          position: 'absolute',
+          position: "absolute",
           top: 0,
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'linear-gradient(120deg, rgba(30, 41, 59, 0.92) 60%, rgba(33, 150, 243, 0.25))',
+          backgroundColor: "rgba(0,0,0,0.25)",
           zIndex: 0,
         },
       }}

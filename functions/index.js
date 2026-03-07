@@ -5,6 +5,12 @@ const admin = require("firebase-admin");
 admin.initializeApp();
 const db = admin.firestore();
 
+// Support both Firestore snapshot APIs (exists boolean vs exists() method).
+const docExists = (snap) => {
+  if (!snap) return false;
+  return typeof snap.exists === "function" ? snap.exists() : !!snap.exists;
+};
+
 // Initialize CORS middleware
 const corsHandler = cors({ origin: true });
 
@@ -1310,7 +1316,7 @@ exports.purchaseActivationCode = functions.https.onRequest(async (req, res) => {
         if (clientRequestId) {
           const idempotencyRef = db.collection("purchaseCodesIdempotency").doc(`${userId}_${clientRequestId}`);
           const existingSnap = await transaction.get(idempotencyRef);
-          if (existingSnap.exists) {
+          if (docExists(existingSnap)) {
             const data = existingSnap.data();
             return { success: true, deduped: true, code: data.code, codeId: data.codeId };
           }
@@ -1318,7 +1324,7 @@ exports.purchaseActivationCode = functions.https.onRequest(async (req, res) => {
 
         const userRef = db.collection("users").doc(userId);
         const userSnap = await transaction.get(userRef);
-        if (!userSnap.exists) {
+        if (!docExists(userSnap)) {
           throw new Error("User account not found");
         }
 
@@ -1429,7 +1435,7 @@ exports.createWithdrawal = functions.https.onRequest(async (req, res) => {
         if (clientRequestId) {
           const idempotencyRef = db.collection("withdrawalIdempotency").doc(`${userId}_${clientRequestId}`);
           const existingSnap = await transaction.get(idempotencyRef);
-          if (existingSnap.exists) {
+          if (docExists(existingSnap)) {
             const data = existingSnap.data();
             return { success: true, deduped: true, withdrawalId: data.withdrawalId };
           }
@@ -1437,7 +1443,7 @@ exports.createWithdrawal = functions.https.onRequest(async (req, res) => {
 
         const userRef = db.collection("users").doc(userId);
         const userSnap = await transaction.get(userRef);
-        if (!userSnap.exists) {
+        if (!docExists(userSnap)) {
           throw new Error("User account not found");
         }
 
@@ -1556,7 +1562,7 @@ exports.createCapitalShareVoucher = functions.https.onRequest(async (req, res) =
         const userRef = admin.firestore().collection("users").doc(userId);
         const userSnap = await transaction.get(userRef);
         
-        if (!userSnap.exists) {
+        if (!docExists(userSnap)) {
           throw new Error("User not found");
         }
         

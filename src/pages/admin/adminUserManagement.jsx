@@ -53,7 +53,7 @@ import { auth, db, secondaryAuth } from "../../firebase";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
 import AdminSidebarToggle from "../../components/AdminSidebarToggle";
-import bgImage from "../../assets/bg.jpg";
+import bgImage from "../../assets/bownersbg.png";
 
 const AdminUserManagement = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -494,27 +494,21 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
   return (
     <Box
       sx={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        minHeight: '100vh',
-        minWidth: '100vw',
-        overflow: 'hidden',
-        display: 'flex',
+        display: "flex",
+        flexDirection: isMobile ? "column" : "row",
+        minHeight: "100vh",
         backgroundImage: `url(${bgImage})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        zIndex: 0,
-        '&::before': {
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        position: "relative",
+        "&::before": {
           content: '""',
-          position: 'absolute',
+          position: "absolute",
           top: 0,
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.15)',
+          backgroundColor: "rgba(0,0,0,0.25)",
           zIndex: 0,
         },
       }}

@@ -24,7 +24,7 @@ import { motion } from "framer-motion";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
 import AdminSidebarToggle from "../../components/AdminSidebarToggle";
-import bgImage from "../../assets/bg.jpg";
+import bgImage from "../../assets/bownersbg.png";
 
 const AdminMerchantManagement = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -107,7 +107,7 @@ const AdminMerchantManagement = () => {
         </>
       )}
 
-      {/* Main content */}
+      {/* Main Content */}
       <Box
         component="main"
         sx={{

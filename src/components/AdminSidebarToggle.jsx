@@ -1,8 +1,18 @@
 import React from "react";
 import { IconButton } from "@mui/material";
+import { useMediaQuery } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 
 const AdminSidebarToggle = ({ onClick, sx }) => {
+  const isMobile = useMediaQuery("(max-width:900px)");
+  const normalizedRole = String(localStorage.getItem("userRole") || "")
+    .trim()
+    .toUpperCase();
+
+  if (isMobile && ["ADMIN", "CEO"].includes(normalizedRole)) {
+    return null;
+  }
+
   return (
     <IconButton
       aria-label="Open navigation"

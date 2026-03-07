@@ -9,7 +9,7 @@ import { motion } from "framer-motion";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
 import AdminSidebarToggle from "../../components/AdminSidebarToggle";
-import bgImage from "../../assets/bg.jpg";
+import bgImage from "../../assets/bownersbg.png";
 import { PieChart, Pie, Cell, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts";
 import { useTheme } from "@mui/material/styles";
 
@@ -369,20 +369,20 @@ const AdminDashboard = () => {
     <Box
       sx={{
         display: "flex",
+        flexDirection: isMobile ? "column" : "row",
         minHeight: "100vh",
-        backgroundImage: `linear-gradient(120deg, rgba(30, 41, 59, 0.92) 60%, rgba(33, 150, 243, 0.25)), url(${bgImage})`,
+        backgroundImage: `url(${bgImage})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
-        backgroundAttachment: "fixed",
         position: "relative",
-        '&::before': {
+        "&::before": {
           content: '""',
           position: "absolute",
           top: 0,
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'linear-gradient(120deg, rgba(30, 41, 59, 0.92) 60%, rgba(33, 150, 243, 0.25))',
+          backgroundColor: "rgba(0,0,0,0.25)",
           zIndex: 0,
         },
       }}

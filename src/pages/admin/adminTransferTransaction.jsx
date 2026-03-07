@@ -24,7 +24,7 @@ import { db } from "../../firebase";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
 import AdminSidebarToggle from "../../components/AdminSidebarToggle";
-import bgImage from "../../assets/bg.jpg";
+import bgImage from "../../assets/bownersbg.png";
 
 const AdminTransferTransaction = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -56,6 +56,7 @@ const AdminTransferTransaction = () => {
     <Box
       sx={{
         display: "flex",
+        flexDirection: isMobile ? "column" : "row",
         minHeight: "100vh",
         backgroundImage: `url(${bgImage})`,
         backgroundSize: "cover",

@@ -44,6 +44,26 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
   const [confirmOpen, setConfirmOpen] = useState(false); // ✅ Permission dialog
   const storage = getStorage();
 
+  const getFriendlyWithdrawError = (rawMessage) => {
+    const msg = String(rawMessage || "").toLowerCase();
+
+    if (msg.includes("minimum withdrawal")) return "Minimum withdrawal is P100.";
+    if (msg.includes("insufficient wallet") || msg.includes("insufficient balance")) {
+      return "Insufficient wallet balance.";
+    }
+    if (msg.includes("unauthorized") || msg.includes("invalid token") || msg.includes("expired token")) {
+      return "Your session has expired. Please log in again and retry.";
+    }
+    if (msg.includes("failed to fetch") || msg.includes("networkerror") || msg.includes("network request failed")) {
+      return "Network issue detected. Please check your connection and try again.";
+    }
+    if (msg.includes("exists is not a function") || msg.includes("internal server error")) {
+      return "Withdrawal service is temporarily unavailable. Please try again in a few minutes.";
+    }
+
+    return "Unable to process your withdrawal right now. Please try again later.";
+  };
+
   // ✅ Live fetch withdrawal logs
   useEffect(() => {
     if (!open || !auth?.currentUser) return;
@@ -122,8 +142,14 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
       );
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Withdrawal failed");
+        let serverMessage = "Withdrawal failed";
+        try {
+          const errorData = await response.json();
+          serverMessage = errorData?.error || errorData?.message || serverMessage;
+        } catch (_parseErr) {
+          // Non-JSON error body from server; keep fallback message.
+        }
+        throw new Error(serverMessage);
       }
 
       const result = await response.json();
@@ -137,7 +163,7 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
       setQrPreview("");
     } catch (err) {
       console.error("Withdraw failed:", err);
-      setError(err?.message || "Something went wrong. Please try again.");
+      setError(getFriendlyWithdrawError(err?.message));
     } finally {
       setLoading(false);
     }

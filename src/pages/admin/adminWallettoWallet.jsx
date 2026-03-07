@@ -36,7 +36,7 @@ import { db } from "../../firebase";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
 import AdminSidebarToggle from "../../components/AdminSidebarToggle";
-import bgImage from "../../assets/bg.jpg";
+import bgImage from "../../assets/bownersbg.png";
 import { useTheme } from "@mui/material/styles";
 import {
   ResponsiveContainer,

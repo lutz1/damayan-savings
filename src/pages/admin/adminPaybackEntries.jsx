@@ -19,7 +19,7 @@ import { collection, getDocs, doc, getDoc } from "firebase/firestore";
 import AppBottomNav from "../../components/AppBottomNav";
 import Topbar from "../../components/Topbar";
 import AdminSidebarToggle from "../../components/AdminSidebarToggle";
-import bgImage from "../../assets/bg.jpg";
+import bgImage from "../../assets/bownersbg.png";
 
 const getStatusColor = (expirationDate) => {
   const now = new Date();
@@ -131,13 +131,22 @@ const AdminPaybackEntries = () => {
     <Box
       sx={{
         display: "flex",
+        flexDirection: isMobile ? "column" : "row",
         minHeight: "100vh",
-        backgroundImage: `linear-gradient(120deg, rgba(30, 41, 59, 0.92) 60%, rgba(33, 150, 243, 0.25)), url(${bgImage})`,
+        backgroundImage: `url(${bgImage})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
-        backgroundAttachment: "fixed",
         position: "relative",
-        flexDirection: "column",
+        "&::before": {
+          content: '""',
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.25)",
+          zIndex: 0,
+        },
       }}
     >
       <Box sx={{ position: "fixed", width: "100%", zIndex: 1200 }}>
