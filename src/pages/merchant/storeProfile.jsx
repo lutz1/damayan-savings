@@ -7,6 +7,9 @@ import {
   TextField,
   Button,
   IconButton,
+  Chip,
+  Switch,
+  FormControlLabel,
   Snackbar,
   Alert,
   Container,
@@ -19,6 +22,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import BottomNav from "../../components/BottomNav";
+import { MERCHANT_STATUS } from "../../utils/merchantOrderFlow";
 
 const MaterialIcon = ({ name, size = 24, filled = false }) => (
   <span
@@ -45,11 +49,17 @@ export default function StoreProfilePage() {
   
   const [storeData, setStoreData] = useState({
     storeName: "",
+    ownerName: "",
     storeDescription: "",
     contactNumber: "",
     emailAddress: "",
     address: "",
     city: "",
+    lat: "",
+    lng: "",
+    businessPermitUrl: "",
+    open: true,
+    merchantStatus: MERCHANT_STATUS.PENDING_APPROVAL,
     coverImage: "",
     logo: "",
   });
@@ -74,11 +84,17 @@ export default function StoreProfilePage() {
           const data = docSnap.data();
           setStoreData({
             storeName: data.storeName || "",
+            ownerName: data.ownerName || data.name || "",
             storeDescription: data.storeDescription || "",
             contactNumber: data.phone || "",
             emailAddress: data.email || "",
             address: data.address || "",
             city: data.city || "",
+            lat: data.lat ?? "",
+            lng: data.lng ?? "",
+            businessPermitUrl: data.businessPermitUrl || "",
+            open: typeof data.open === "boolean" ? data.open : true,
+            merchantStatus: data.merchantStatus || MERCHANT_STATUS.PENDING_APPROVAL,
             coverImage: data.coverImage || "",
             logo: data.logo || "",
           });
@@ -188,13 +204,37 @@ export default function StoreProfilePage() {
         doc(db, "users", merchantId),
         {
           storeName: storeData.storeName.trim(),
+          ownerName: storeData.ownerName.trim(),
           storeDescription: storeData.storeDescription.trim(),
           phone: storeData.contactNumber.trim(),
           email: storeData.emailAddress.trim(),
           address: storeData.address.trim(),
           city: storeData.city.trim(),
+          lat: Number(storeData.lat) || 0,
+          lng: Number(storeData.lng) || 0,
+          businessPermitUrl: storeData.businessPermitUrl.trim(),
+          open: Boolean(storeData.open),
           coverImage: storeData.coverImage,
           logo: storeData.logo,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      await setDoc(
+        doc(db, "merchants", merchantId),
+        {
+          name: storeData.storeName.trim(),
+          owner: storeData.ownerName.trim(),
+          phone: storeData.contactNumber.trim(),
+          email: storeData.emailAddress.trim(),
+          address: storeData.address.trim(),
+          lat: Number(storeData.lat) || 0,
+          lng: Number(storeData.lng) || 0,
+          open: Boolean(storeData.open),
+          status: storeData.merchantStatus || MERCHANT_STATUS.PENDING_APPROVAL,
+          rating: Number(storeData.rating || 0),
+          businessPermitUrl: storeData.businessPermitUrl.trim(),
           updatedAt: serverTimestamp(),
         },
         { merge: true }
@@ -389,8 +429,34 @@ export default function StoreProfilePage() {
                 {storeData.storeName || "Your Store"}
               </Typography>
               <Typography sx={{ fontSize: "0.75rem", color: "#94a3b8", fontWeight: 500 }}>
-                Store ID: #{Math.random().toString(36).substr(2, 6).toUpperCase()}
+                Store ID: #{String(merchantId || "").slice(-6).toUpperCase() || "N/A"}
               </Typography>
+              <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                <Chip
+                  size="small"
+                  label={storeData.merchantStatus || MERCHANT_STATUS.PENDING_APPROVAL}
+                  sx={{
+                    fontWeight: 700,
+                    bgcolor:
+                      storeData.merchantStatus === MERCHANT_STATUS.APPROVED
+                        ? "#dcfce7"
+                        : storeData.merchantStatus === MERCHANT_STATUS.REJECTED
+                          ? "#fee2e2"
+                          : "#fef3c7",
+                    color:
+                      storeData.merchantStatus === MERCHANT_STATUS.APPROVED
+                        ? "#166534"
+                        : storeData.merchantStatus === MERCHANT_STATUS.REJECTED
+                          ? "#b91c1c"
+                          : "#92400e",
+                  }}
+                />
+                <Chip
+                  size="small"
+                  label={storeData.open ? "OPEN" : "CLOSED"}
+                  sx={{ fontWeight: 700, bgcolor: storeData.open ? "#dbeafe" : "#e2e8f0", color: storeData.open ? "#1d4ed8" : "#475569" }}
+                />
+              </Stack>
             </Box>
           </Box>
         </Box>
@@ -412,6 +478,23 @@ export default function StoreProfilePage() {
                 fullWidth
                 value={storeData.storeName}
                 onChange={(e) => setStoreData({ ...storeData, storeName: e.target.value })}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: 2,
+                    bgcolor: "#f8fafc",
+                  },
+                }}
+              />
+            </Box>
+
+            <Box>
+              <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, color: "#64748b", mb: 0.75 }}>
+                Owner Name
+              </Typography>
+              <TextField
+                fullWidth
+                value={storeData.ownerName}
+                onChange={(e) => setStoreData({ ...storeData, ownerName: e.target.value })}
                 sx={{
                   "& .MuiOutlinedInput-root": {
                     borderRadius: 2,
@@ -476,6 +559,39 @@ export default function StoreProfilePage() {
                 />
               </Box>
             </Box>
+
+            <Box>
+              <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, color: "#64748b", mb: 0.75 }}>
+                Business Permit URL (optional)
+              </Typography>
+              <TextField
+                fullWidth
+                value={storeData.businessPermitUrl}
+                onChange={(e) => setStoreData({ ...storeData, businessPermitUrl: e.target.value })}
+                placeholder="https://..."
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: 2,
+                    bgcolor: "#f8fafc",
+                  },
+                }}
+              />
+            </Box>
+
+            <FormControlLabel
+              sx={{ ml: 0 }}
+              control={
+                <Switch
+                  checked={Boolean(storeData.open)}
+                  onChange={(e) => setStoreData({ ...storeData, open: e.target.checked })}
+                />
+              }
+              label={
+                <Typography sx={{ fontSize: "0.8rem", fontWeight: 700, color: "#334155" }}>
+                  Store Status: {storeData.open ? "OPEN" : "CLOSED"}
+                </Typography>
+              }
+            />
           </Stack>
 
           {/* Store Location */}
@@ -533,6 +649,35 @@ export default function StoreProfilePage() {
                   },
                 }}
               />
+            </Box>
+
+            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+              <Box>
+                <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, color: "#64748b", mb: 0.75 }}>
+                  Latitude
+                </Typography>
+                <TextField
+                  fullWidth
+                  type="number"
+                  value={storeData.lat}
+                  onChange={(e) => setStoreData({ ...storeData, lat: e.target.value })}
+                  placeholder="14.5995"
+                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2, bgcolor: "#f8fafc" } }}
+                />
+              </Box>
+              <Box>
+                <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, color: "#64748b", mb: 0.75 }}>
+                  Longitude
+                </Typography>
+                <TextField
+                  fullWidth
+                  type="number"
+                  value={storeData.lng}
+                  onChange={(e) => setStoreData({ ...storeData, lng: e.target.value })}
+                  placeholder="120.9842"
+                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2, bgcolor: "#f8fafc" } }}
+                />
+              </Box>
             </Box>
 
             {/* Map Placeholder */}

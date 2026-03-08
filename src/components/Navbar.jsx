@@ -7,8 +7,6 @@ import { useTheme } from "@mui/material/styles";
 import appLogo from "../assets/newlogo.png";
 import damayanLogo from "../assets/damayan.png";
 
-const sections = ["home", "about", "leadership", "stats", "contact"];
-
 const Navbar = () => {
   const [elevate, setElevate] = useState(false);
   const [activeSection, setActiveSection] = useState("home");
@@ -79,7 +77,7 @@ const Navbar = () => {
       gap: isMobile ? 0.3 : 1,
     }}
   >
-    {sections.map((section) => (
+    {[].map((section) => (
       <Link
         key={section}
         to={section}

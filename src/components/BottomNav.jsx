@@ -29,6 +29,7 @@ const BottomNav = () => {
     { label: 'Dashboard', value: '/merchant/dashboard', icon: 'dashboard' },
     { label: 'Orders', value: '/merchant/orders', icon: 'receipt_long' },
     { label: 'Products', value: '/merchant/products', icon: 'inventory' },
+    { label: 'Reports', value: '/merchant/reports', icon: 'bar_chart' },
     { label: 'My Store', value: '/merchant/store-profile', icon: 'storefront' },
     { label: 'Account', value: '/merchant/profile', icon: 'account_circle' },
   ];

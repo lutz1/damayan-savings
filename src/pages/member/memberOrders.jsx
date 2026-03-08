@@ -68,7 +68,7 @@ export default function MemberOrders() {
     }
 
     const unsub = onSnapshot(
-      query(collection(db, "sales"), where("customerId", "==", uid)),
+      query(collection(db, "orders"), where("customerId", "==", uid)),
       (snap) => {
         const mapped = snap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
         mapped.sort((a, b) => {

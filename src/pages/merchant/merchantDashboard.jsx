@@ -26,6 +26,11 @@ import {
   doc, 
 } from "firebase/firestore";
 import { db } from "../../firebase";
+import {
+  isMerchantOrderNew,
+  isMerchantOrderPreparing,
+  isMerchantOrderCompleted,
+} from "../../utils/merchantOrderFlow";
 import BottomNav from "../../components/BottomNav";
 
 // Material Symbols Icon Component
@@ -100,7 +105,7 @@ useEffect(() => {
 
     const unsubSales = onSnapshot(
       query(
-        collection(db, "sales"),
+        collection(db, "orders"),
         where("merchantId", "==", merchantId),
         orderBy("createdAt", "desc")
       ),
@@ -189,6 +194,17 @@ useEffect(() => {
       totalOrders: sales.length,
     };
   }, [sales, totalSales]);
+
+  const orderFlowMetrics = useMemo(() => {
+    const newOrders = sales.filter((s) => isMerchantOrderNew(s.status)).length;
+    const preparingOrders = sales.filter((s) => isMerchantOrderPreparing(s.status)).length;
+    const completedOrders = sales.filter((s) => isMerchantOrderCompleted(s.status)).length;
+    return {
+      newOrders,
+      preparingOrders,
+      completedOrders,
+    };
+  }, [sales]);
 
   // Customer Insights
   const customerInsights = useMemo(() => {
@@ -455,10 +471,10 @@ useEffect(() => {
                     <MaterialIcon name="shopping_cart" size={20} sx={{ color: '#3b82f6' }} />
                   </Box>
                   <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 500, fontSize: '0.75rem' }}>
-                    Active Orders
+                    New Orders
                   </Typography>
                   <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mt: 0.5 }}>
-                    {revenueInsights.totalOrders}
+                    {orderFlowMetrics.newOrders}
                   </Typography>
                 </CardContent>
               </Card>
@@ -480,10 +496,60 @@ useEffect(() => {
                     <MaterialIcon name="local_shipping" size={20} sx={{ color: '#f97316' }} />
                   </Box>
                   <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 500, fontSize: '0.75rem' }}>
-                    Pending Deliveries
+                    Preparing
                   </Typography>
                   <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mt: 0.5 }}>
-                    {sales.filter(s => s.status === 'pending' || s.status === 'processing').length}
+                    {orderFlowMetrics.preparingOrders}
+                  </Typography>
+                </CardContent>
+              </Card>
+
+              <Card sx={{ border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+                <CardContent sx={{ p: 2 }}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      width: 32,
+                      height: 32,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: '8px',
+                      bgcolor: '#dcfce7',
+                      mb: 1
+                    }}
+                  >
+                    <MaterialIcon name="done_all" size={20} sx={{ color: '#16a34a' }} />
+                  </Box>
+                  <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 500, fontSize: '0.75rem' }}>
+                    Completed
+                  </Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mt: 0.5 }}>
+                    {orderFlowMetrics.completedOrders}
+                  </Typography>
+                </CardContent>
+              </Card>
+
+              <Card sx={{ border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+                <CardContent sx={{ p: 2 }}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      width: 32,
+                      height: 32,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: '8px',
+                      bgcolor: '#ecfeff',
+                      mb: 1
+                    }}
+                  >
+                    <MaterialIcon name="sell" size={20} sx={{ color: '#0891b2' }} />
+                  </Box>
+                  <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 500, fontSize: '0.75rem' }}>
+                    Orders Today
+                  </Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mt: 0.5 }}>
+                    {revenueInsights.totalOrders}
                   </Typography>
                 </CardContent>
               </Card>

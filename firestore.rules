@@ -7,7 +7,7 @@ service cloud.firestore {
     function userRole() {
       return request.auth != null &&
         exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role.lower()
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get("role", "").lower()
         : "";
     }
 
@@ -36,7 +36,25 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role.lower().matches('^\\s*merchant\\s*$');
     }
 
-    // ==========================================
+    function isRider() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role is string &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role.lower().matches('^\\s*rider\\s*$');
+    }
+
+    function merchantCanReceiveOrders(merchantId) {
+      return (
+        exists(/databases/$(database)/documents/users/$(merchantId)) &&
+        get(/databases/$(database)/documents/users/$(merchantId)).data.get("merchantStatus", "PENDING_APPROVAL") == "APPROVED" &&
+        get(/databases/$(database)/documents/users/$(merchantId)).data.get("open", false) == true
+      ) || (
+        exists(/databases/$(database)/documents/merchants/$(merchantId)) &&
+        get(/databases/$(database)/documents/merchants/$(merchantId)).data.get("status", "PENDING_APPROVAL") == "APPROVED" &&
+        get(/databases/$(database)/documents/merchants/$(merchantId)).data.get("open", false) == true
+      );
+    }
+
     // 👤 USERS
     match /users/{userId} {
 
@@ -76,6 +94,11 @@ service cloud.firestore {
             "notificationsSeen",
             "profilePicture",
             "onlineStatus",
+            "availability",
+            "lat",
+            "lng",
+            "currentLocation",
+            "lastLocationUpdate",
             "name",
             "contactNumber",
             "address",
@@ -83,9 +106,12 @@ service cloud.firestore {
             "updatedAt",
             "storeName",
             "storeDescription",
+            "ownerName",
             "phone",
             "email",
             "city",
+            "open",
+            "businessPermitUrl",
             "coverImage",
             "logo",
             "capitalShareVoucherType",
@@ -458,6 +484,8 @@ service cloud.firestore {
         userRole() in ["admin", "ceo"] ||
         (
           request.resource.data.customerId == request.auth.uid &&
+          request.resource.data.merchantId is string &&
+          merchantCanReceiveOrders(request.resource.data.merchantId) &&
           request.resource.data.status == "PENDING" &&
           request.resource.data.keys().hasAll([
             "merchantId",
@@ -477,6 +505,89 @@ service cloud.firestore {
       allow update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
     }
 
+    // 🧾 ORDERS (canonical)
+    match /orders/{orderId} {
+      allow read: if request.auth != null && (
+        resource.data.customerId == request.auth.uid ||
+        resource.data.merchantId == request.auth.uid ||
+        resource.data.riderId == request.auth.uid ||
+        userRole() in ["admin", "ceo"]
+      );
+
+      allow create: if request.auth != null && (
+        userRole() in ["admin", "ceo"] ||
+        (
+          request.resource.data.customerId == request.auth.uid &&
+          request.resource.data.merchantId is string &&
+          merchantCanReceiveOrders(request.resource.data.merchantId) &&
+          request.resource.data.status == "NEW" &&
+          request.resource.data.keys().hasAll([
+            "customerId",
+            "merchantId",
+            "total",
+            "deliveryFee",
+            "paymentMethod",
+            "paymentStatus",
+            "status",
+            "createdAt",
+            "pickupLocation",
+            "dropoffLocation"
+          ])
+        )
+      );
+
+      allow update: if request.auth != null && (
+        userRole() in ["admin", "ceo"] ||
+        (resource.data.customerId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "dropoffLocation", "updatedAt"
+          ])
+        ) ||
+        (resource.data.merchantId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "status", "updatedAt", "riderId", "paymentStatus"
+          ])
+        ) ||
+        (resource.data.riderId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "status", "updatedAt", "riderId"
+          ])
+        )
+      );
+
+      allow delete: if request.auth != null && userRole() in ["admin", "ceo"];
+
+      match /items/{itemId} {
+        allow read: if request.auth != null && (
+          get(/databases/$(database)/documents/orders/$(orderId)).data.customerId == request.auth.uid ||
+          get(/databases/$(database)/documents/orders/$(orderId)).data.merchantId == request.auth.uid ||
+          get(/databases/$(database)/documents/orders/$(orderId)).data.riderId == request.auth.uid ||
+          userRole() in ["admin", "ceo"]
+        );
+
+        allow create: if request.auth != null && (
+          userRole() in ["admin", "ceo"] ||
+          get(/databases/$(database)/documents/orders/$(orderId)).data.customerId == request.auth.uid
+        );
+
+        allow update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
+      }
+    }
+
+    // 📦 ORDER ITEMS (flat analytics copy)
+    match /orderItems/{itemId} {
+      allow read: if request.auth != null && (
+        resource.data.customerId == request.auth.uid ||
+        resource.data.merchantId == request.auth.uid ||
+        userRole() in ["admin", "ceo"]
+      );
+      allow create: if request.auth != null && (
+        userRole() in ["admin", "ceo"] ||
+        request.resource.data.customerId == request.auth.uid
+      );
+      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
+    }
+
     // 💬 FEEDBACK
     match /feedback/{feedbackId} {
       allow read: if request.auth != null &&
@@ -492,6 +603,48 @@ service cloud.firestore {
       allow create, update: if request.auth != null &&
         (request.auth.uid == merchantId || userRole() in ["admin", "ceo"]);
       allow delete: if request.auth != null && userRole() in ["admin", "ceo"];
+    }
+
+    // 🛵 RIDERS
+    match /riders/{riderId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null &&
+        (request.auth.uid == riderId || userRole() in ["admin", "ceo"]);
+      allow delete: if request.auth != null && userRole() in ["admin", "ceo"];
+    }
+
+    // 🍔 MENUS
+    match /menus/{menuId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null &&
+        (request.resource.data.merchantId == request.auth.uid || userRole() in ["admin", "ceo"]);
+      allow delete: if request.auth != null &&
+        (resource.data.merchantId == request.auth.uid || userRole() in ["admin", "ceo"]);
+    }
+
+    // 💸 EARNINGS (rider earnings)
+    match /earnings/{earningId} {
+      allow read: if request.auth != null &&
+        (resource.data.riderId == request.auth.uid || userRole() in ["admin", "ceo"]);
+      allow create, update: if request.auth == null ||
+        (request.auth != null && userRole() in ["admin", "ceo"]);
+      allow delete: if request.auth != null && userRole() in ["admin", "ceo"];
+    }
+
+    // 💰 MERCHANT EARNINGS
+    match /merchantEarnings/{recordId} {
+      allow read: if request.auth != null &&
+        (resource.data.merchantId == request.auth.uid || userRole() in ["admin", "ceo"]);
+      allow create, update: if request.auth == null ||
+        (request.auth != null && userRole() in ["admin", "ceo"]);
+      allow delete: if request.auth != null && userRole() in ["admin", "ceo"];
+    }
+
+    // ⭐ REVIEWS
+    match /reviews/{reviewId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.customerId == request.auth.uid;
+      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
     }
     
     // ==========================================
@@ -530,22 +683,31 @@ service cloud.firestore {
     // � DELIVERIES
     match /deliveries/{deliveryId} {
       allow read: if request.auth != null &&
-        (resource.data.riderId == request.auth.uid || userRole() in ["admin", "ceo"]);
+        (
+          resource.data.riderId == request.auth.uid ||
+          resource.data.customerId == request.auth.uid ||
+          resource.data.merchantId == request.auth.uid ||
+          userRole() in ["admin", "ceo"]
+        );
 
       allow list: if request.auth != null && (
         userRole() in ["admin", "ceo"] ||
-        request.query.where("riderId", "==", request.auth.uid)
+        request.query.where("riderId", "==", request.auth.uid) ||
+        request.query.where("customerId", "==", request.auth.uid) ||
+        request.query.where("merchantId", "==", request.auth.uid)
       );
 
-      allow create: if request.auth != null && userRole() in ["admin", "ceo"];
+      allow create: if request.auth == null || (request.auth != null && userRole() in ["admin", "ceo"]);
 
       allow update: if request.auth != null &&
         (
+          // Rider can update deliveries with location and status
           (resource.data.riderId == request.auth.uid &&
             request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-              "status", "lastUpdated", "notes"
+              "status", "lastUpdated", "notes", "lat", "lng", "currentLocation", "lastLocationUpdate"
             ])
           ) ||
+          // Admin/CEO can update anything
           userRole() in ["admin", "ceo"]
         );
 

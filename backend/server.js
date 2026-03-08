@@ -1767,6 +1767,8 @@ app.post("/api/add-capital-share", async (req, res) => {
           "eliskie40@gmail.com": 100,
           "gedeongipulankjv1611@gmail.com": 100,
           "monares.cyriljay@gmail.com": 50,
+          "gumaodjimmyjr@gmail.com": 100,
+          "donmalintad@gmail.com": 100
         };
 
         for (const [specialEmail, bonusAmount] of Object.entries(specialEmails)) {
@@ -2012,6 +2014,197 @@ app.post("/api/transfer-referral-reward", async (req, res) => {
   } catch (error) {
     console.error("[referral-reward] ❌ Error:", error);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+const normalizeStatus = (value) => String(value || "").trim().toUpperCase();
+
+async function verifyMerchantFromToken(idToken) {
+  if (!idToken) {
+    throw new Error("Missing idToken");
+  }
+
+  const decoded = await auth.verifyIdToken(idToken);
+  const userRef = db.collection("users").doc(decoded.uid);
+  const userSnap = await userRef.get();
+  if (!userSnap.exists) {
+    throw new Error("User not found");
+  }
+
+  const userData = userSnap.data() || {};
+  const role = normalizeStatus(userData.role);
+  if (role !== "MERCHANT" && role !== "ADMIN" && role !== "CEO") {
+    throw new Error("Only merchants can perform this action");
+  }
+
+  return {
+    uid: decoded.uid,
+    role,
+    userData,
+  };
+}
+
+app.post("/api/v1/merchant/register", async (req, res) => {
+  try {
+    const {
+      idToken,
+      storeName,
+      ownerName,
+      phone,
+      email,
+      address,
+      lat,
+      lng,
+      businessPermitUrl,
+    } = req.body || {};
+
+    if (!storeName || !ownerName || !phone || !email || !address) {
+      return res.status(400).json({ error: "Missing required merchant registration fields" });
+    }
+
+    const actor = await verifyMerchantFromToken(idToken);
+    const merchantId = actor.uid;
+    const now = new Date();
+
+    await db.collection("merchants").doc(merchantId).set(
+      {
+        name: String(storeName || "").trim(),
+        owner: String(ownerName || "").trim(),
+        phone: String(phone || "").trim(),
+        email: String(email || "").trim(),
+        address: String(address || "").trim(),
+        lat: Number(lat) || 0,
+        lng: Number(lng) || 0,
+        businessPermitUrl: String(businessPermitUrl || "").trim(),
+        status: "PENDING_APPROVAL",
+        open: false,
+        createdAt: now,
+        updatedAt: now,
+      },
+      { merge: true }
+    );
+
+    await db.collection("users").doc(merchantId).set(
+      {
+        storeName: String(storeName || "").trim(),
+        ownerName: String(ownerName || "").trim(),
+        phone: String(phone || "").trim(),
+        email: String(email || "").trim(),
+        address: String(address || "").trim(),
+        lat: Number(lat) || 0,
+        lng: Number(lng) || 0,
+        businessPermitUrl: String(businessPermitUrl || "").trim(),
+        merchantStatus: "PENDING_APPROVAL",
+        open: false,
+        updatedAt: now,
+      },
+      { merge: true }
+    );
+
+    return res.json({
+      success: true,
+      merchantId,
+      status: "PENDING_APPROVAL",
+      message: "Merchant registration submitted for approval",
+    });
+  } catch (error) {
+    console.error("[merchant-register] error:", error);
+    return res.status(400).json({ error: error?.message || "Failed to register merchant" });
+  }
+});
+
+app.patch("/api/v1/merchant/orders/:orderId/:action", async (req, res) => {
+  try {
+    const { orderId, action } = req.params;
+    const { idToken } = req.body || {};
+
+    if (!orderId || !action) {
+      return res.status(400).json({ error: "orderId and action are required" });
+    }
+
+    const actor = await verifyMerchantFromToken(idToken);
+    const actionKey = normalizeStatus(action);
+    const primaryOrderRef = db.collection("orders").doc(orderId);
+    const primaryOrderSnap = await primaryOrderRef.get();
+
+    const legacyOrderRef = db.collection("sales").doc(orderId);
+    const legacyOrderSnap = await legacyOrderRef.get();
+
+    const orderRef = primaryOrderSnap.exists ? primaryOrderRef : legacyOrderRef;
+    const orderSnap = primaryOrderSnap.exists ? primaryOrderSnap : legacyOrderSnap;
+
+    if (!orderSnap.exists) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    const order = orderSnap.data() || {};
+    const currentStatus = normalizeStatus(order.status);
+    const merchantOwned = order.merchantId === actor.uid;
+    const isAdmin = actor.role === "ADMIN" || actor.role === "CEO";
+
+    if (!merchantOwned && !isAdmin) {
+      return res.status(403).json({ error: "You are not allowed to update this order" });
+    }
+
+    let nextStatus = currentStatus;
+    if (actionKey === "ACCEPT") {
+      if (!["NEW", "PENDING"].includes(currentStatus)) {
+        return res.status(400).json({ error: `Cannot accept order from status ${currentStatus || "UNKNOWN"}` });
+      }
+      nextStatus = "ACCEPTED";
+    } else if (actionKey === "REJECT") {
+      if (["DELIVERED", "CANCELLED"].includes(currentStatus)) {
+        return res.status(400).json({ error: `Cannot reject order from status ${currentStatus}` });
+      }
+      nextStatus = "CANCELLED";
+    } else if (actionKey === "PREPARE") {
+      if (!["ACCEPTED", "PREPARING"].includes(currentStatus)) {
+        return res.status(400).json({ error: `Cannot prepare order from status ${currentStatus || "UNKNOWN"}` });
+      }
+      nextStatus = "PREPARING";
+    } else if (actionKey === "READY") {
+      if (!["ACCEPTED", "PREPARING"].includes(currentStatus)) {
+        return res.status(400).json({ error: `Cannot mark ready from status ${currentStatus || "UNKNOWN"}` });
+      }
+      nextStatus = "READY_FOR_PICKUP";
+    } else {
+      return res.status(400).json({ error: "Unsupported action. Use accept, reject, prepare, ready" });
+    }
+
+    const now = new Date();
+    const orderPatch = {
+      status: nextStatus,
+      updatedAt: now,
+      merchantUpdatedBy: actor.uid,
+      [`status_${String(nextStatus).toLowerCase()}_at`]: now.toISOString(),
+    };
+    await orderRef.set(orderPatch, { merge: true });
+
+    const deliveryId = order.deliveryId || null;
+    const linkedDeliveryId = String(deliveryId || "").trim();
+    if (linkedDeliveryId) {
+      const deliveryRef = db.collection("deliveries").doc(linkedDeliveryId);
+      const deliveryPatch = {
+        lastUpdated: now.toISOString(),
+        updatedAt: now,
+      };
+
+      if (nextStatus === "CANCELLED") deliveryPatch.status = "CANCELLED";
+      if (nextStatus === "ACCEPTED" || nextStatus === "PREPARING") deliveryPatch.status = "ACCEPTED";
+      if (nextStatus === "READY_FOR_PICKUP") deliveryPatch.status = "RIDER_PICKUP";
+
+      await deliveryRef.set(deliveryPatch, { merge: true });
+    }
+
+    return res.json({
+      success: true,
+      orderId,
+      status: nextStatus,
+      message: `Order moved to ${nextStatus}`,
+    });
+  } catch (error) {
+    console.error("[merchant-order-action] error:", error);
+    return res.status(400).json({ error: error?.message || "Failed to update order" });
   }
 });
 

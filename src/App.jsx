@@ -29,6 +29,7 @@ const AdminVoucherRecords = lazy(() => import("./pages/admin/adminVoucherRecords
 const MerchantDashboard = lazy(() => import("./pages/merchant/merchantDashboard"));
 const MerchantOrders = lazy(() => import("./pages/merchant/merchantOrders"));
 const MerchantProducts = lazy(() => import("./pages/merchant/merchantProducts"));
+const MerchantReports = lazy(() => import("./pages/merchant/merchantReports"));
 const MerchantVouchers = lazy(() => import("./pages/merchant/merchantVouchers"));
 const AddProductPage = lazy(() => import("./pages/merchant/addProduct"));
 const EditProductPage = lazy(() => import("./pages/merchant/editProduct"));
@@ -50,6 +51,8 @@ const DepositSuccess = lazy(() => import("./pages/depositSuccess"));
 const DepositCancel = lazy(() => import("./pages/depositCancel"));
 const RiderDashboard = lazy(() => import("./pages/rider/riderDashboard"));
 const RiderProfile = lazy(() => import("./pages/rider/riderProfile"));
+const RiderOrders = lazy(() => import("./pages/rider/riderOrders"));
+const RiderWallet = lazy(() => import("./pages/rider/riderWallet"));
 
 
 function App() {
@@ -310,6 +313,14 @@ function App() {
               }
             />
             <Route
+              path="/merchant/reports"
+              element={
+                <MerchantRoute>
+                  <MerchantReports />
+                </MerchantRoute>
+              }
+            />
+            <Route
               path="/merchant/vouchers"
               element={
                 <MerchantRoute>
@@ -402,6 +413,22 @@ function App() {
               element={
                 <RiderRoute>
                   <RiderProfile />
+                </RiderRoute>
+              }
+            />
+            <Route
+              path="/rider/orders"
+              element={
+                <RiderRoute>
+                  <RiderOrders />
+                </RiderRoute>
+              }
+            />
+            <Route
+              path="/rider/wallet"
+              element={
+                <RiderRoute>
+                  <RiderWallet />
                 </RiderRoute>
               }
             />

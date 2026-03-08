@@ -4,6 +4,195 @@ const admin = require("firebase-admin");
 
 admin.initializeApp();
 const db = admin.firestore();
+const deliveryDispatch = require("./deliveryDispatch");
+
+exports.onSaleCreatedDispatchRider = deliveryDispatch.onSaleCreatedDispatchRider;
+exports.onOrderCreatedDispatchRider = deliveryDispatch.onOrderCreatedDispatchRider;
+exports.respondToDeliveryRequest = deliveryDispatch.respondToDeliveryRequest;
+exports.reassignExpiredDeliveries = deliveryDispatch.reassignExpiredDeliveries;
+
+const normalizeStatus = (value) => String(value || "").trim().toUpperCase();
+
+const collectTokensFromUser = (userData = {}) => {
+  const raw = [
+    userData.fcmToken,
+    userData.pushToken,
+    userData.notificationToken,
+    ...(Array.isArray(userData.fcmTokens) ? userData.fcmTokens : []),
+  ];
+
+  return [...new Set(raw.filter((token) => typeof token === "string" && token.trim()))];
+};
+
+const sendPushToUsers = async ({ userIds = [], title, body, data = {} }) => {
+  const uniqueUserIds = [...new Set((userIds || []).filter(Boolean))];
+  if (!uniqueUserIds.length || !title || !body) return { sent: 0, users: 0 };
+
+  const userSnaps = await Promise.all(uniqueUserIds.map((uid) => db.collection("users").doc(uid).get()));
+  const tokens = userSnaps.flatMap((snap) => (snap.exists ? collectTokensFromUser(snap.data() || {}) : []));
+  if (!tokens.length) return { sent: 0, users: uniqueUserIds.length };
+
+  const message = {
+    notification: { title, body },
+    data: Object.entries(data).reduce((acc, [key, value]) => {
+      acc[key] = String(value ?? "");
+      return acc;
+    }, {}),
+  };
+
+  const chunks = [];
+  for (let i = 0; i < tokens.length; i += 500) {
+    chunks.push(tokens.slice(i, i + 500));
+  }
+
+  let sent = 0;
+  for (const chunk of chunks) {
+    const result = await admin.messaging().sendEachForMulticast({ ...message, tokens: chunk });
+    sent += Number(result.successCount || 0);
+  }
+
+  return { sent, users: uniqueUserIds.length };
+};
+
+exports.notifyMerchantOnNewOrder = functions.firestore
+  .document("sales/{saleId}")
+  .onCreate(async (snap, context) => {
+    const sale = snap.data() || {};
+    const status = normalizeStatus(sale.status);
+    if (!["NEW", "PENDING"].includes(status)) return null;
+
+    const merchantId = sale.merchantId;
+    if (!merchantId) return null;
+
+    await sendPushToUsers({
+      userIds: [merchantId],
+      title: "New Order",
+      body: `You received a new order${sale.total ? ` (P${Number(sale.total).toFixed(2)})` : ""}.`,
+      data: {
+        type: "MERCHANT_NEW_ORDER",
+        saleId: context.params.saleId,
+      },
+    });
+
+    return null;
+  });
+
+exports.notifyMerchantOnNewOrderV2 = functions.firestore
+  .document("orders/{orderId}")
+  .onCreate(async (snap, context) => {
+    const order = snap.data() || {};
+    const status = normalizeStatus(order.status);
+    if (!["NEW", "PENDING"].includes(status)) return null;
+
+    const merchantId = order.merchantId;
+    if (!merchantId) return null;
+
+    await sendPushToUsers({
+      userIds: [merchantId],
+      title: "New Order",
+      body: `You received a new order${order.total ? ` (P${Number(order.total).toFixed(2)})` : ""}.`,
+      data: {
+        type: "MERCHANT_NEW_ORDER",
+        orderId: context.params.orderId,
+      },
+    });
+
+    return null;
+  });
+
+exports.notifyOrderCancelled = functions.firestore
+  .document("sales/{saleId}")
+  .onUpdate(async (change, context) => {
+    const before = change.before.data() || {};
+    const after = change.after.data() || {};
+
+    const beforeStatus = normalizeStatus(before.status);
+    const afterStatus = normalizeStatus(after.status);
+    if (beforeStatus === afterStatus || afterStatus !== "CANCELLED") return null;
+
+    const recipients = [after.merchantId, after.customerId].filter(Boolean);
+    if (!recipients.length) return null;
+
+    await sendPushToUsers({
+      userIds: recipients,
+      title: "Order Cancelled",
+      body: `Order #${String(context.params.saleId).slice(-6)} has been cancelled.`,
+      data: {
+        type: "ORDER_CANCELLED",
+        saleId: context.params.saleId,
+      },
+    });
+
+    return null;
+  });
+
+exports.notifyOrderCancelledV2 = functions.firestore
+  .document("orders/{orderId}")
+  .onUpdate(async (change, context) => {
+    const before = change.before.data() || {};
+    const after = change.after.data() || {};
+
+    const beforeStatus = normalizeStatus(before.status);
+    const afterStatus = normalizeStatus(after.status);
+    if (beforeStatus === afterStatus || afterStatus !== "CANCELLED") return null;
+
+    const recipients = [after.merchantId, after.customerId].filter(Boolean);
+    if (!recipients.length) return null;
+
+    await sendPushToUsers({
+      userIds: recipients,
+      title: "Order Cancelled",
+      body: `Order #${String(context.params.orderId).slice(-6)} has been cancelled.`,
+      data: {
+        type: "ORDER_CANCELLED",
+        orderId: context.params.orderId,
+      },
+    });
+
+    return null;
+  });
+
+exports.notifyDeliveryLifecycle = functions.firestore
+  .document("deliveries/{deliveryId}")
+  .onUpdate(async (change, context) => {
+    const before = change.before.data() || {};
+    const after = change.after.data() || {};
+
+    const beforeStatus = normalizeStatus(before.status);
+    const afterStatus = normalizeStatus(after.status);
+    if (!afterStatus || beforeStatus === afterStatus) return null;
+
+    if (afterStatus === "ARRIVED_MERCHANT") {
+      await sendPushToUsers({
+        userIds: [after.merchantId].filter(Boolean),
+        title: "Rider Arrived",
+        body: "Your rider has arrived for pickup.",
+        data: {
+          type: "RIDER_ARRIVED",
+          deliveryId: context.params.deliveryId,
+          orderId: after.orderId || "",
+          saleId: after.saleId || "",
+        },
+      });
+      return null;
+    }
+
+    if (afterStatus === "DELIVERED") {
+      await sendPushToUsers({
+        userIds: [after.merchantId, after.customerId].filter(Boolean),
+        title: "Order Delivered",
+        body: "The order has been delivered successfully.",
+        data: {
+          type: "ORDER_DELIVERED",
+          deliveryId: context.params.deliveryId,
+          orderId: after.orderId || "",
+          saleId: after.saleId || "",
+        },
+      });
+    }
+
+    return null;
+  });
 
 // Support both Firestore snapshot APIs (exists boolean vs exists() method).
 const docExists = (snap) => {

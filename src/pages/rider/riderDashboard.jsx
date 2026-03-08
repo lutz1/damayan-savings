@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { GoogleMap, PolylineF, useJsApiLoader } from "@react-google-maps/api";
 import {
   Box,
   Paper,
@@ -15,7 +16,7 @@ import {
   TextField,
   Switch,
 } from "@mui/material";
-import { collection, query, where, getDocs, doc, getDoc, updateDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, setDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { db, auth } from "../../firebase";
 import AssignmentIcon from "@mui/icons-material/Assignment";
@@ -26,8 +27,42 @@ import ExploreIcon from "@mui/icons-material/Explore";
 import PersonIcon from "@mui/icons-material/Person";
 import RadioButtonCheckedIcon from "@mui/icons-material/RadioButtonChecked";
 import { useNavigate } from "react-router-dom";
+import { DELIVERY_STATUS, normalizeDeliveryStatus } from "../../utils/deliveryStatus";
+import plezzIcon from "../../assets/plezzicon.png";
+
+const AdvancedMarker = ({ map, position, title, makeContent }) => {
+  useEffect(() => {
+    if (!map || !position || !window.google?.maps?.marker?.AdvancedMarkerElement) {
+      return undefined;
+    }
+
+    const marker = new window.google.maps.marker.AdvancedMarkerElement({
+      map,
+      position,
+      title,
+      content: typeof makeContent === "function" ? makeContent() : undefined,
+    });
+
+    return () => {
+      marker.map = null;
+    };
+  }, [map, position?.lat, position?.lng, title, makeContent]);
+
+  return null;
+};
 
 const RiderDashboard = () => {
+  // Google Maps integration
+  const googleMapsApiKey = import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY || "";
+  const googleMapId = import.meta.env.REACT_APP_GOOGLE_MAP_ID || "DEMO_MAP_ID";
+  const mapContainerStyle = { width: "100%", height: "220px", borderRadius: "14px" };
+  const [isMapLoaded, setIsMapLoaded] = useState(false);
+  const { isLoaded } = useJsApiLoader({
+    id: "rider-dashboard-map-script",
+    googleMapsApiKey,
+    libraries: ["marker"],
+  });
+  const [mapRef, setMapRef] = useState(null);
   const [riderData, setRiderData] = useState(null);
   const [deliveries, setDeliveries] = useState([]);
   const [stats, setStats] = useState({
@@ -41,11 +76,60 @@ const RiderDashboard = () => {
   const [selectedDelivery, setSelectedDelivery] = useState(null);
   const [updateNote, setUpdateNote] = useState("");
   const [isOnline, setIsOnline] = useState(true);
+  const [riderUid, setRiderUid] = useState("");
   const navigate = useNavigate();
+
+  // Derived values for Google Maps
+  useEffect(() => { setIsMapLoaded(isLoaded); }, [isLoaded]);
+  const riderCoords = riderData && typeof riderData.lat === "number" && typeof riderData.lng === "number" ? { lat: riderData.lat, lng: riderData.lng } : null;
+  const activeDelivery = deliveries.find((d) => normalizeDeliveryStatus(d.status) !== DELIVERY_STATUS.DELIVERED && normalizeDeliveryStatus(d.status) !== DELIVERY_STATUS.CANCELLED);
+  const destinationCoords = activeDelivery && activeDelivery.dropoffLocation && typeof activeDelivery.dropoffLocation.lat === "number" && typeof activeDelivery.dropoffLocation.lng === "number" ? { lat: activeDelivery.dropoffLocation.lat, lng: activeDelivery.dropoffLocation.lng } : null;
+  const routePath = riderCoords && destinationCoords ? [riderCoords, destinationCoords] : [];
+  const mapCenter = riderCoords || destinationCoords || { lat: 13.0827, lng: 80.2707 };
+
+  const createRiderMarkerContent = () => {
+    const wrap = document.createElement("div");
+    wrap.style.width = "76px";
+    wrap.style.height = "76px";
+    wrap.style.display = "flex";
+    wrap.style.alignItems = "center";
+    wrap.style.justifyContent = "center";
+
+    const img = document.createElement("img");
+    img.src = plezzIcon;
+    img.alt = "Rider";
+    img.width = 76;
+    img.height = 76;
+    img.style.objectFit = "contain";
+    img.style.filter = "drop-shadow(0 3px 8px rgba(0,0,0,0.3))";
+
+    wrap.appendChild(img);
+    return wrap;
+  };
+
+  const createDestinationMarkerContent = () => {
+    if (window.google?.maps?.marker?.PinElement) {
+      const pin = new window.google.maps.marker.PinElement({
+        background: "#ef4444",
+        borderColor: "#ffffff",
+        glyphColor: "#ffffff",
+      });
+      return pin.element;
+    }
+
+    const dot = document.createElement("div");
+    dot.style.width = "18px";
+    dot.style.height = "18px";
+    dot.style.borderRadius = "50%";
+    dot.style.background = "#ef4444";
+    dot.style.border = "2px solid #ffffff";
+    return dot;
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (!user) {
+        setRiderUid("");
         setRiderData(null);
         setDeliveries([]);
         setStats({
@@ -58,6 +142,7 @@ const RiderDashboard = () => {
         return;
       }
 
+      setRiderUid(user.uid);
       loadRiderData(user.uid);
     });
 
@@ -76,7 +161,11 @@ const RiderDashboard = () => {
       const userRef = doc(db, "users", uid);
       const userSnap = await getDoc(userRef);
       if (userSnap.exists()) {
-        setRiderData(userSnap.data());
+        const riderProfile = userSnap.data();
+        setRiderData(riderProfile);
+        if (typeof riderProfile.onlineStatus === "boolean") {
+          setIsOnline(riderProfile.onlineStatus);
+        }
       }
 
       // Get rider's deliveries
@@ -94,10 +183,15 @@ const RiderDashboard = () => {
       setDeliveries(deliveriesList);
 
       // Calculate stats
-      const completed = deliveriesList.filter((d) => d.status === "completed").length;
-      const pending = deliveriesList.filter((d) => d.status === "pending" || d.status === "assigned").length;
+      const completed = deliveriesList.filter(
+        (d) => normalizeDeliveryStatus(d.status) === DELIVERY_STATUS.DELIVERED
+      ).length;
+      const pending = deliveriesList.filter((d) => {
+        const status = normalizeDeliveryStatus(d.status);
+        return status && status !== DELIVERY_STATUS.DELIVERED && status !== DELIVERY_STATUS.CANCELLED;
+      }).length;
       const totalEarnings = deliveriesList
-        .filter((d) => d.status === "completed")
+        .filter((d) => normalizeDeliveryStatus(d.status) === DELIVERY_STATUS.DELIVERED)
         .reduce((sum, d) => sum + (d.deliveryFee || 0), 0);
 
       setStats({
@@ -113,6 +207,118 @@ const RiderDashboard = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const uid = riderUid || auth.currentUser?.uid;
+    if (!uid) return;
+
+    const syncOnlineState = async () => {
+      try {
+        const payload = {
+          onlineStatus: isOnline,
+          availability: isOnline ? "AVAILABLE" : "OFFLINE",
+          updatedAt: new Date().toISOString(),
+        };
+
+        await updateDoc(doc(db, "users", uid), payload);
+        await setDoc(doc(db, "riders", uid), payload, { merge: true });
+      } catch (error) {
+        console.error("Error syncing online state:", error);
+      }
+    };
+
+    syncOnlineState();
+  }, [isOnline, riderUid]);
+
+  useEffect(() => {
+    const uid = riderUid || auth.currentUser?.uid;
+    if (!uid || !isOnline) return;
+
+    let active = true;
+
+    const pushLocation = () => {
+      if (!navigator.geolocation) return;
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          if (!active) return;
+
+          const lat = Number(position.coords.latitude);
+          const lng = Number(position.coords.longitude);
+          const isoNow = new Date().toISOString();
+
+          try {
+            const riderPayload = {
+              name: riderData?.name || "Rider",
+              phone: riderData?.phone || riderData?.contactNumber || "",
+              onlineStatus: true,
+              status: "ONLINE",
+              availability: "AVAILABLE",
+              lat,
+              lng,
+              currentLocation: { lat, lng },
+              currentOrder: activeDelivery?.id || null,
+              earningsToday: Number(stats?.totalEarnings || 0),
+              lastLocationUpdate: isoNow,
+              lastActive: isoNow,
+              updatedAt: isoNow,
+            };
+
+            const userPayload = {
+              name: riderPayload.name,
+              phone: riderPayload.phone,
+              onlineStatus: riderPayload.onlineStatus,
+              availability: riderPayload.availability,
+              lat,
+              lng,
+              currentLocation: { lat, lng },
+              lastLocationUpdate: isoNow,
+              lastActive: isoNow,
+              updatedAt: isoNow,
+            };
+
+            await updateDoc(doc(db, "users", uid), userPayload);
+            await setDoc(doc(db, "riders", uid), riderPayload, { merge: true });
+
+            const riderDeliveriesSnap = await getDocs(
+              query(collection(db, "deliveries"), where("riderId", "==", uid))
+            );
+
+            const activeDeliveries = riderDeliveriesSnap.docs.filter((snap) => {
+              const status = normalizeDeliveryStatus(snap.data()?.status);
+              return status && status !== DELIVERY_STATUS.DELIVERED && status !== DELIVERY_STATUS.CANCELLED;
+            });
+
+            await Promise.all(
+              activeDeliveries.map((snap) =>
+                updateDoc(doc(db, "deliveries", snap.id), {
+                  lat,
+                  lng,
+                  currentLocation: { lat, lng },
+                  lastLocationUpdate: isoNow,
+                  lastUpdated: isoNow,
+                })
+              )
+            );
+          } catch (error) {
+            console.error("Error pushing rider location:", error);
+          }
+        },
+        (error) => {
+          console.error("Geolocation error:", error?.message || error);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 4000 }
+      );
+    };
+
+    pushLocation();
+    const intervalId = window.setInterval(pushLocation, 5000);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [riderUid, isOnline]);
 
   const handleDeliveryClick = (delivery) => {
     setSelectedDelivery(delivery);
@@ -140,14 +346,20 @@ const RiderDashboard = () => {
   };
 
   const getStatusColor = (status) => {
-    switch (status) {
-      case "completed":
+    const normalizedStatus = normalizeDeliveryStatus(status);
+
+    switch (normalizedStatus) {
+      case DELIVERY_STATUS.DELIVERED:
         return "success";
-      case "in_transit":
+      case DELIVERY_STATUS.IN_DELIVERY:
+      case DELIVERY_STATUS.ORDER_PICKED_UP:
         return "info";
-      case "assigned":
+      case DELIVERY_STATUS.ASSIGNED:
+      case DELIVERY_STATUS.ACCEPTED:
+      case DELIVERY_STATUS.RIDER_PICKUP:
+      case DELIVERY_STATUS.ARRIVED_MERCHANT:
         return "warning";
-      case "pending":
+      case DELIVERY_STATUS.NEW:
         return "secondary";
       default:
         return "default";
@@ -252,7 +464,7 @@ const RiderDashboard = () => {
                 </Box>
                 <Box sx={{ display: "flex", alignItems: "end", justifyContent: "space-between" }}>
                   <Typography sx={{ fontSize: 36, fontWeight: 800, lineHeight: 1.1 }}>{formatCurrency(stats.totalEarnings)}</Typography>
-                  <Button sx={{ bgcolor: "#5bec13", color: "#0f172a", fontWeight: 800, borderRadius: 2, px: 2, py: 1, "&:hover": { bgcolor: "#4dd90f" } }}>
+                  <Button onClick={() => navigate("/rider/wallet")} sx={{ bgcolor: "#5bec13", color: "#0f172a", fontWeight: 800, borderRadius: 2, px: 2, py: 1, "&:hover": { bgcolor: "#4dd90f" } }}>
                     Cash Out
                   </Button>
                 </Box>
@@ -270,22 +482,58 @@ const RiderDashboard = () => {
 
             <Box sx={{ mb: 2.5 }}>
               <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
-                <Typography sx={{ fontSize: 16, fontWeight: 800 }}>Demand Map</Typography>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.7, bgcolor: "#ffedd5", px: 1.2, py: 0.5, borderRadius: 1.2 }}>
-                  <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#f97316" }} />
-                  <Typography sx={{ fontSize: 10, fontWeight: 800, color: "#c2410c" }}>HOT ZONES</Typography>
+                <Typography sx={{ fontSize: 16, fontWeight: 800 }}>Live Tracking Map</Typography>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.7, bgcolor: "#e0f2fe", px: 1.2, py: 0.5, borderRadius: 1.2 }}>
+                  <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#38bdf8" }} />
+                  <Typography sx={{ fontSize: 10, fontWeight: 800, color: "#0369a1" }}>LIVE</Typography>
                 </Box>
               </Box>
-              <Box sx={{ height: 240, borderRadius: 3, overflow: "hidden", position: "relative", border: "1px solid #e2e8f0", bgcolor: "#cbd5e1" }}>
-                <Box sx={{ position: "absolute", inset: 0, backgroundImage: "url('https://images.unsplash.com/photo-1524661135-423995f22d0b?q=80&w=430&h=300&auto=format&fit=crop')", backgroundSize: "cover", backgroundPosition: "center", opacity: 0.58, filter: "grayscale(1)" }} />
-                <Box sx={{ position: "absolute", inset: 0, background: "radial-gradient(circle at 30% 40%, rgba(255,165,0,0.4) 0%, transparent 40%), radial-gradient(circle at 70% 60%, rgba(255,165,0,0.28) 0%, transparent 35%)" }} />
-                <Box sx={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)" }}>
-                  <Box sx={{ width: 12, height: 12, borderRadius: "50%", bgcolor: "#5bec13", boxShadow: "0 0 0 10px rgba(91,236,19,0.25), 0 0 0 22px rgba(91,236,19,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <NavigationIcon sx={{ fontSize: 14, color: "#0f172a" }} />
+              <Box sx={{ height: 220, borderRadius: 3, overflow: "hidden", position: "relative", border: "1px solid #e2e8f0", bgcolor: "#cbd5e1" }}>
+                {!googleMapsApiKey ? (
+                  <Box sx={{ p: 2, textAlign: "center", color: "#b45309", fontSize: 13, bgcolor: "#fef3c7", borderRadius: 2 }}>
+                    Google Maps API key is missing. Set <b>REACT_APP_GOOGLE_MAPS_API_KEY</b> to enable live map tracking.
                   </Box>
-                </Box>
-                <Chip label="High Demand" size="small" sx={{ position: "absolute", top: 52, left: 16, bgcolor: "#f97316", color: "#fff", fontWeight: 700, fontSize: 11 }} />
-                <Chip label="Surge +P2.00" size="small" sx={{ position: "absolute", right: 16, bottom: 32, bgcolor: "#f97316", color: "#fff", fontWeight: 700, fontSize: 11 }} />
+                ) : !riderCoords ? (
+                  <Box sx={{ p: 2, textAlign: "center", color: "#334155", fontSize: 13, bgcolor: "#f1f5f9", borderRadius: 2 }}>
+                    Waiting for your GPS location...
+                  </Box>
+                ) : isMapLoaded ? (
+                  <GoogleMap
+                    mapContainerStyle={mapContainerStyle}
+                    center={mapCenter}
+                    zoom={15}
+                    onLoad={(map) => setMapRef(map)}
+                    onUnmount={() => setMapRef(null)}
+                    options={{ mapTypeControl: false, streetViewControl: false, fullscreenControl: false, clickableIcons: false, mapId: googleMapId }}
+                  >
+                    {riderCoords && (
+                      <AdvancedMarker
+                        map={mapRef}
+                        position={riderCoords}
+                        title="Your Location"
+                        makeContent={createRiderMarkerContent}
+                      />
+                    )}
+                    {destinationCoords && (
+                      <AdvancedMarker
+                        map={mapRef}
+                        position={destinationCoords}
+                        title="Delivery Destination"
+                        makeContent={createDestinationMarkerContent}
+                      />
+                    )}
+                    {routePath.length === 2 && (
+                      <PolylineF
+                        path={routePath}
+                        options={{ strokeColor: "#3b82f6", strokeOpacity: 0.9, strokeWeight: 4 }}
+                      />
+                    )}
+                  </GoogleMap>
+                ) : (
+                  <Box sx={{ p: 2, textAlign: "center", color: "#334155", fontSize: 13, bgcolor: "#f1f5f9", borderRadius: 2 }}>
+                    Loading map...
+                  </Box>
+                )}
               </Box>
             </Box>
 
@@ -320,7 +568,7 @@ const RiderDashboard = () => {
                           </Typography>
                         </Box>
                         <Box sx={{ textAlign: "right", flexShrink: 0 }}>
-                          <Chip label={delivery.status?.toUpperCase() || "PENDING"} color={getStatusColor(delivery.status)} size="small" sx={{ mb: 0.8 }} />
+                          <Chip label={normalizeDeliveryStatus(delivery.status) || DELIVERY_STATUS.NEW} color={getStatusColor(delivery.status)} size="small" sx={{ mb: 0.8 }} />
                           <Typography variant="body2" sx={{ fontWeight: 700 }}>
                             {formatCurrency(delivery.deliveryFee)}
                           </Typography>
@@ -351,13 +599,13 @@ const RiderDashboard = () => {
                 <HomeIcon sx={{ fontSize: 28 }} />
                 <Typography sx={{ fontSize: 10, fontWeight: 800, textTransform: "none" }}>Home</Typography>
               </Button>
-              <Button sx={{ minWidth: 0, color: "#94a3b8", display: "flex", flexDirection: "column", gap: 0.2 }}>
-                <ExploreIcon sx={{ fontSize: 28 }} />
-                <Typography sx={{ fontSize: 10, fontWeight: 600, textTransform: "none" }}>Explore</Typography>
+              <Button onClick={() => navigate("/rider/orders")} sx={{ minWidth: 0, color: "#94a3b8", display: "flex", flexDirection: "column", gap: 0.2 }}>
+                <AssignmentIcon sx={{ fontSize: 28 }} />
+                <Typography sx={{ fontSize: 10, fontWeight: 600, textTransform: "none" }}>Orders</Typography>
               </Button>
-              <Button sx={{ minWidth: 0, color: "#94a3b8", display: "flex", flexDirection: "column", gap: 0.2 }}>
+              <Button onClick={() => navigate("/rider/wallet")} sx={{ minWidth: 0, color: "#94a3b8", display: "flex", flexDirection: "column", gap: 0.2 }}>
                 <AccountBalanceWalletIcon sx={{ fontSize: 28 }} />
-                <Typography sx={{ fontSize: 10, fontWeight: 600, textTransform: "none" }}>Earnings</Typography>
+                <Typography sx={{ fontSize: 10, fontWeight: 600, textTransform: "none" }}>Wallet</Typography>
               </Button>
               <Button onClick={() => navigate("/rider/profile")} sx={{ minWidth: 0, color: "#94a3b8", display: "flex", flexDirection: "column", gap: 0.2 }}>
                 <PersonIcon sx={{ fontSize: 28 }} />
@@ -377,7 +625,7 @@ const RiderDashboard = () => {
           {selectedDelivery && (
             <>
               <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                Status: <Chip label={selectedDelivery.status?.toUpperCase() || "PENDING"} size="small" />
+                Status: <Chip label={normalizeDeliveryStatus(selectedDelivery.status) || DELIVERY_STATUS.NEW} size="small" />
               </Typography>
               <Typography variant="body2" sx={{ mb: 2 }}>
                 <strong>Pickup:</strong> {selectedDelivery.pickupLocation?.address || "N/A"}
@@ -404,16 +652,19 @@ const RiderDashboard = () => {
           <Button onClick={() => setDeliveryDialog(false)}>Cancel</Button>
           <Button
             variant="contained"
-            onClick={() => handleUpdateDelivery("in_transit")}
-            disabled={selectedDelivery?.status === "in_transit" || selectedDelivery?.status === "completed"}
+            onClick={() => handleUpdateDelivery(DELIVERY_STATUS.IN_DELIVERY)}
+            disabled={
+              normalizeDeliveryStatus(selectedDelivery?.status) === DELIVERY_STATUS.IN_DELIVERY ||
+              normalizeDeliveryStatus(selectedDelivery?.status) === DELIVERY_STATUS.DELIVERED
+            }
           >
             Mark In Transit
           </Button>
           <Button
             variant="contained"
             color="success"
-            onClick={() => handleUpdateDelivery("completed")}
-            disabled={selectedDelivery?.status === "completed"}
+            onClick={() => handleUpdateDelivery(DELIVERY_STATUS.DELIVERED)}
+            disabled={normalizeDeliveryStatus(selectedDelivery?.status) === DELIVERY_STATUS.DELIVERED}
           >
             Complete
           </Button>

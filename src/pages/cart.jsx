@@ -150,6 +150,23 @@ export default function CartPage() {
         return;
       }
 
+      for (const merchantId of merchantIds) {
+        const merchantUserSnap = await getDoc(doc(db, "users", merchantId));
+        const merchantUser = merchantUserSnap.exists() ? merchantUserSnap.data() || {} : {};
+        const merchantApproved = String(merchantUser.merchantStatus || "PENDING_APPROVAL").toUpperCase() === "APPROVED";
+        const merchantOpen = Boolean(merchantUser.open === true);
+
+        if (!merchantApproved || !merchantOpen) {
+          setToast({
+            open: true,
+            severity: "error",
+            message: `Store ${merchantUser.storeName || merchantUser.name || merchantId.slice(0, 6)} is currently unavailable`,
+          });
+          setPlacingOrder(false);
+          return;
+        }
+      }
+
       const createdOrderIds = [];
       for (const merchantId of merchantIds) {
         const merchantItems = groupedByMerchant[merchantId] || [];
@@ -160,32 +177,52 @@ export default function CartPage() {
         const merchantDeliveryFee = 39;
         const merchantTotal = merchantSubtotal + merchantDeliveryFee;
 
-        const salesDoc = await addDoc(collection(db, "sales"), {
+        const orderDoc = await addDoc(collection(db, "orders"), {
           merchantId,
           customerId: user.uid,
+          riderId: null,
           customerName,
           customerEmail,
-          items: merchantItems.map((entry) => ({
-            productId: entry.id,
-            name: entry.name || "Product",
-            image: entry.image || "",
-            price: Number(entry.price || 0),
-            quantity: Number(entry.qty || 1),
-            total: Number(entry.price || 0) * Number(entry.qty || 1),
-          })),
           subtotal: merchantSubtotal,
           deliveryFee: merchantDeliveryFee,
           total: merchantTotal,
-          status: "PENDING",
-          deliveryAddress: currentLocation,
-          cityProvince: currentCityProvince || "",
+          status: "NEW",
           paymentMethod: "COD",
-          source: "cart-checkout",
+          paymentStatus: "UNPAID",
+          pickupLocation: {
+            merchantId,
+          },
+          dropoffLocation: {
+            address: currentLocation,
+            cityProvince: currentCityProvince || "",
+          },
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
 
-        createdOrderIds.push(salesDoc.id);
+        await Promise.all(
+          merchantItems.map((entry) => {
+            const payload = {
+              orderId: orderDoc.id,
+              merchantId,
+              customerId: user.uid,
+              productId: entry.id,
+              name: entry.name || "Product",
+              image: entry.image || "",
+              price: Number(entry.price || 0),
+              quantity: Number(entry.qty || 1),
+              total: Number(entry.price || 0) * Number(entry.qty || 1),
+              createdAt: serverTimestamp(),
+            };
+
+            return Promise.all([
+              addDoc(collection(db, "orders", orderDoc.id, "items"), payload),
+              addDoc(collection(db, "orderItems"), payload),
+            ]);
+          })
+        );
+
+        createdOrderIds.push(orderDoc.id);
       }
 
       const orderDraft = {
@@ -198,7 +235,7 @@ export default function CartPage() {
         total,
         deliveryAddress: currentLocation,
         cityProvince: currentCityProvince,
-        saleIds: createdOrderIds,
+        orderIds: createdOrderIds,
       };
 
       try {

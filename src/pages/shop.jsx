@@ -1,13 +1,49 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { collection, query, where, onSnapshot, doc, getDoc } from "firebase/firestore";
-import { db } from "../firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import { GoogleMap, MarkerF, PolylineF, useJsApiLoader } from "@react-google-maps/api";
+import { db, auth } from "../firebase";
 import ShopLocationDialog from "../components/ShopLocationDialog";
+import { DELIVERY_STATUS, normalizeDeliveryStatus } from "../utils/deliveryStatus";
+import plezzIcon from "../assets/plezzicon.png";
 
 const currency = (n) =>
   typeof n === "number"
     ? `₱${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     : "₱0.00";
+
+const mapContainerStyle = {
+  width: "100%",
+  height: "220px",
+  borderRadius: "14px",
+};
+
+const toNumber = (value) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+};
+
+const extractCoords = (payload) => {
+  if (!payload || typeof payload !== "object") return null;
+
+  const lat = toNumber(payload.lat);
+  const lng = toNumber(payload.lng);
+  if (lat != null && lng != null) {
+    return { lat, lng };
+  }
+
+  const nested = payload.location || payload.currentLocation || payload.coordinates;
+  if (nested && typeof nested === "object") {
+    const nestedLat = toNumber(nested.lat);
+    const nestedLng = toNumber(nested.lng);
+    if (nestedLat != null && nestedLng != null) {
+      return { lat: nestedLat, lng: nestedLng };
+    }
+  }
+
+  return null;
+};
 
 export default function ShopPage() {
   const navigate = useNavigate();
@@ -50,8 +86,125 @@ export default function ShopPage() {
     }
   });
   const [shopCategories, setShopCategories] = useState([]);
+  const [customerUid, setCustomerUid] = useState("");
+  const [activeDelivery, setActiveDelivery] = useState(null);
+  const [trackingRider, setTrackingRider] = useState(null);
   const fetchedMerchants = useRef(new Set());
   const normalizeText = (value) => (value || "").toString().trim().toLowerCase();
+  const googleMapsApiKey = import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY || "";
+
+  const { isLoaded: isMapLoaded } = useJsApiLoader({
+    id: "shop-tracking-map-script",
+    googleMapsApiKey,
+  });
+
+  const riderCoords = useMemo(
+    () => extractCoords(trackingRider) || extractCoords(activeDelivery),
+    [trackingRider, activeDelivery]
+  );
+
+  const customerCoords = useMemo(
+    () => extractCoords(activeDelivery?.deliveryAddress) || extractCoords(activeDelivery),
+    [activeDelivery]
+  );
+
+  const mapCenter = riderCoords || customerCoords || null;
+  const routePath = riderCoords && customerCoords ? [riderCoords, customerCoords] : [];
+
+  // Custom marker icons for delivery tracking
+  const riderIcon = isMapLoaded && window.google ? {
+    url: plezzIcon,
+    scaledSize: new window.google.maps.Size(80, 80),
+    origin: new window.google.maps.Point(0, 0),
+    anchor: new window.google.maps.Point(40, 80),
+  } : null;
+
+  const customerIcon = isMapLoaded && window.google ? {
+    path: "M12 2C8.13 2 5 5.13 5 9C5 14.25 12 22 12 22S19 14.25 19 9C19 5.13 15.87 2 12 2M12 11.5C10.62 11.5 9.5 10.38 9.5 9C9.5 7.62 10.62 6.5 12 6.5S14.5 7.62 14.5 9 13.38 11.5 12 11.5Z",
+    fillColor: "#3b82f6",
+    fillOpacity: 1,
+    strokeColor: "#fff",
+    strokeWeight: 2,
+    scale: 1.8,
+    anchor: new window.google.maps.Point(12, 22),
+  } : null;
+
+  const toMillis = (value) => {
+    if (!value) return 0;
+    if (typeof value?.toMillis === "function") return value.toMillis();
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const formatLastSeen = (value) => {
+    const millis = toMillis(value);
+    if (!millis) return "No update yet";
+    const diffSec = Math.floor((Date.now() - millis) / 1000);
+    if (diffSec < 5) return "just now";
+    if (diffSec < 60) return `${diffSec}s ago`;
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    return `${diffHr}h ago`;
+  };
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      setCustomerUid(user?.uid || "");
+    });
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    if (!customerUid) {
+      setActiveDelivery(null);
+      return;
+    }
+
+    const unsub = onSnapshot(
+      query(collection(db, "deliveries"), where("customerId", "==", customerUid)),
+      (snapshot) => {
+        const deliveries = snapshot.docs.map((snap) => ({ id: snap.id, ...snap.data() }));
+
+        const candidate = deliveries
+          .filter((delivery) => {
+            const status = normalizeDeliveryStatus(delivery.status);
+            return status && status !== DELIVERY_STATUS.DELIVERED && status !== DELIVERY_STATUS.CANCELLED;
+          })
+          .sort((a, b) => {
+            const aUpdated = toMillis(a.updatedAt) || toMillis(a.createdAt);
+            const bUpdated = toMillis(b.updatedAt) || toMillis(b.createdAt);
+            return bUpdated - aUpdated;
+          })[0];
+
+        setActiveDelivery(candidate || null);
+      },
+      (error) => {
+        console.error("Error tracking deliveries:", error);
+      }
+    );
+
+    return unsub;
+  }, [customerUid]);
+
+  useEffect(() => {
+    if (!activeDelivery?.riderId) {
+      setTrackingRider(null);
+      return;
+    }
+
+    const unsub = onSnapshot(
+      doc(db, "users", activeDelivery.riderId),
+      (snap) => {
+        setTrackingRider(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+      },
+      (error) => {
+        console.error("Error tracking rider:", error);
+      }
+    );
+
+    return unsub;
+  }, [activeDelivery?.riderId]);
 
   // Load shop categories
   useEffect(() => {
@@ -366,6 +519,113 @@ export default function ShopPage() {
             </div>
           </div>
         </div>
+
+        {activeDelivery && (
+          <section className="mb-6">
+            <div className="bg-white dark:bg-slate-800 rounded-3xl p-4 border border-emerald-200 dark:border-emerald-900 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                    Live Tracking
+                  </p>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    Order {(activeDelivery.orderId || activeDelivery.saleId)
+                      ? `#${String(activeDelivery.orderId || activeDelivery.saleId).slice(0, 8)}`
+                      : "In Progress"}
+                  </h3>
+                </div>
+                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
+                  {normalizeDeliveryStatus(activeDelivery.status) || DELIVERY_STATUS.NEW}
+                </span>
+              </div>
+
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div className="rounded-xl bg-slate-50 dark:bg-slate-700/40 p-2.5 border border-slate-100 dark:border-slate-700">
+                  <p className="text-[10px] uppercase font-semibold text-slate-500">Merchant</p>
+                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+                    {activeDelivery.merchantId ? `ID ${String(activeDelivery.merchantId).slice(0, 8)}` : "Not set"}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-slate-50 dark:bg-slate-700/40 p-2.5 border border-slate-100 dark:border-slate-700">
+                  <p className="text-[10px] uppercase font-semibold text-slate-500">Rider</p>
+                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+                    {trackingRider?.name || (activeDelivery.riderId ? `ID ${String(activeDelivery.riderId).slice(0, 8)}` : "Looking for rider")}
+                  </p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    {trackingRider?.lat && trackingRider?.lng
+                      ? `${Number(trackingRider.lat).toFixed(5)}, ${Number(trackingRider.lng).toFixed(5)}`
+                      : activeDelivery?.lat && activeDelivery?.lng
+                        ? `${Number(activeDelivery.lat).toFixed(5)}, ${Number(activeDelivery.lng).toFixed(5)}`
+                        : "No GPS yet"}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-slate-50 dark:bg-slate-700/40 p-2.5 border border-slate-100 dark:border-slate-700">
+                  <p className="text-[10px] uppercase font-semibold text-slate-500">Drop-off</p>
+                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+                    {currentLocationCityProvince || currentLocation || activeDelivery.deliveryAddress || "Not set"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-3">
+                {!googleMapsApiKey ? (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
+                    Google Maps API key is missing. Set `REACT_APP_GOOGLE_MAPS_API_KEY` to enable live map tracking.
+                  </div>
+                ) : !mapCenter ? (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 dark:bg-slate-700/40 px-3 py-2 text-[12px] text-slate-600 dark:text-slate-300">
+                    Waiting for live GPS coordinates from rider and delivery points.
+                  </div>
+                ) : isMapLoaded ? (
+                  <GoogleMap
+                    mapContainerStyle={mapContainerStyle}
+                    center={mapCenter}
+                    zoom={15}
+                    options={{
+                      mapTypeControl: false,
+                      streetViewControl: false,
+                      fullscreenControl: false,
+                      clickableIcons: false,
+                    }}
+                  >
+                    {riderCoords && (
+                      <MarkerF 
+                        position={riderCoords} 
+                        icon={riderIcon}
+                        title="Delivery Rider"
+                      />
+                    )}
+                    {customerCoords && (
+                      <MarkerF 
+                        position={customerCoords} 
+                        icon={customerIcon}
+                        title="Your Delivery Location"
+                      />
+                    )}
+                    {routePath.length === 2 && (
+                      <PolylineF
+                        path={routePath}
+                        options={{
+                          strokeColor: "#16a34a",
+                          strokeOpacity: 0.9,
+                          strokeWeight: 4,
+                        }}
+                      />
+                    )}
+                  </GoogleMap>
+                ) : (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 dark:bg-slate-700/40 px-3 py-2 text-[12px] text-slate-600 dark:text-slate-300">
+                    Loading Google Map...
+                  </div>
+                )}
+              </div>
+
+              <p className="text-[11px] text-slate-500 mt-2.5">
+                Rider update: {formatLastSeen(trackingRider?.lastLocationUpdate || activeDelivery.lastLocationUpdate)}
+              </p>
+            </div>
+          </section>
+        )}
 
         {/* Categories */}
         {!loading && shopCategories.length > 0 && (
