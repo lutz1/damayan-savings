@@ -1,24 +1,42 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { auth, db } from "../lib/firebase";
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState([]);
+  const [userId, setUserId] = useState("");
 
   useEffect(() => {
-    const ordersQuery = query(collection(db, "orders"), orderBy("createdAt", "desc"), limit(20));
+    const unsubscribe = onAuthStateChanged(auth, (user) => setUserId(user?.uid || ""));
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!userId) {
+      setOrders([]);
+      return () => {};
+    }
+
+    const ordersQuery = query(collection(db, "orders"), where("customerId", "==", userId));
     const unsubscribe = onSnapshot(ordersQuery, (snap) => {
-      setOrders(
-        snap.docs.map((doc) => ({
+      const list = snap.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
-        }))
-      );
+        }));
+
+      list.sort((a, b) => {
+        const aMs = a.createdAt?.toMillis?.() || 0;
+        const bMs = b.createdAt?.toMillis?.() || 0;
+        return bMs - aMs;
+      });
+
+      setOrders(list);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [userId]);
 
   return (
     <main style={styles.page}>

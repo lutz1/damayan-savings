@@ -18,6 +18,20 @@ export function createFirebaseClients(appName = "default") {
     appId: envValue("FIREBASE_APP_ID"),
   };
 
+  const requiredKeys = [
+    "apiKey",
+    "authDomain",
+    "projectId",
+    "storageBucket",
+    "messagingSenderId",
+  ];
+  const missing = requiredKeys.filter((key) => !firebaseConfig[key]);
+  if (missing.length) {
+    throw new Error(
+      `Missing Firebase env values (${missing.join(", ")}). Set VITE_FIREBASE_* or REACT_APP_FIREBASE_* in root .env.`
+    );
+  }
+
   const secondaryConfig = {
     ...firebaseConfig,
     apiKey: envValue("FIREBASE_SECONDARY_API_KEY") || firebaseConfig.apiKey,

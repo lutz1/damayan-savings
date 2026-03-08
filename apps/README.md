@@ -63,5 +63,6 @@ Recommended use:
 - `/dashboard`: member overview + shop preview card only
 - `/shop`: dedicated merchant browsing/order creation entry
 - `/orders`: dedicated order tracking view
+- `/cart`: dedicated checkout flow
 
 This keeps the dashboard lightweight while shop/order tasks stay in focused pages.

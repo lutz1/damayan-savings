@@ -1,11 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { collection, limit, onSnapshot, query, where } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth, db } from "../lib/firebase";
 
 export default function ShopPreviewCard() {
   const [merchantCount, setMerchantCount] = useState(0);
   const [activeOrders, setActiveOrders] = useState(0);
+  const [userId, setUserId] = useState("");
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => setUserId(user?.uid || ""));
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     const merchantQuery = query(collection(db, "users"), where("role", "==", "MERCHANT"), limit(30));
@@ -17,19 +24,25 @@ export default function ShopPreviewCard() {
   }, []);
 
   useEffect(() => {
+    if (!userId) {
+      setActiveOrders(0);
+      return () => {};
+    }
+
     const activeOrderQuery = query(
       collection(db, "orders"),
-      where("status", "in", ["Pending", "Accepted", "Preparing", "For Delivery"]),
-      orderBy("createdAt", "desc"),
+      where("customerId", "==", userId),
       limit(20)
     );
 
     const unsubscribe = onSnapshot(activeOrderQuery, (snap) => {
-      setActiveOrders(snap.size || 0);
+      const activeStatuses = new Set(["Pending", "Accepted", "Preparing", "For Delivery", "NEW"]);
+      const count = snap.docs.filter((doc) => activeStatuses.has(String(doc.data()?.status || ""))).length;
+      setActiveOrders(count);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [userId]);
 
   const subtitle = useMemo(() => {
     if (!merchantCount && !activeOrders) return "No shop activity yet.";
