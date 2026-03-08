@@ -11,6 +11,8 @@ import {
   Checkbox,
   FormControlLabel,
   Container,
+  ToggleButton,
+  ToggleButtonGroup,
 } from "@mui/material";
 import { motion } from "framer-motion";
 import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
@@ -42,6 +44,7 @@ const Login = () => {
   const [splashLogo, setSplashLogo] = useState(newlogo);
   const [postSplashTarget, setPostSplashTarget] = useState(null);
   const [redirecting, setRedirecting] = useState(false);
+  const [loginMode, setLoginMode] = useState("ALL");
 
   // ✅ Redirect users based on role
   const handleRedirect = (role) => { 
@@ -130,6 +133,17 @@ const Login = () => {
 
       const userData = userSnap.data();
       const role = (userData.role || "Member").toUpperCase();
+
+      if (loginMode === "MERCHANT" && role !== "MERCHANT") {
+        setError("This account is not a Merchant account. Switch to Rider login if needed.");
+        return;
+      }
+
+      if (loginMode === "RIDER" && role !== "RIDER") {
+        setError("This account is not a Rider account. Switch to All Roles or Merchant login if needed.");
+        return;
+      }
+
       localStorage.setItem("userRole", role);
       handleRedirect(role);
     } catch (err) {
@@ -153,8 +167,9 @@ const Login = () => {
 
   return (
     <Box className="login-page-container">
-      <Container maxWidth="sm" sx={{ py: { xs: 2, md: 2 }, px: { xs: 2, md: 3 } }}>
+      <Container maxWidth="sm" sx={{ py: 0, px: { xs: 1.5, sm: 2, md: 3 } }}>
         <motion.div
+          className="login-content-wrap"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
@@ -197,6 +212,35 @@ const Login = () => {
                 </Typography>
               </Box>
             </Alert>
+
+            {/* Login Mode Toggle */}
+            <Box sx={{ mb: { xs: 1.75, sm: 2.25, md: 2.5 } }}>
+              <Typography sx={{ fontSize: { xs: "0.72rem", sm: "0.8rem" }, fontWeight: 700, color: "#B8C4E0", mb: 0.8, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                Login As
+              </Typography>
+              <ToggleButtonGroup
+                exclusive
+                value={loginMode}
+                onChange={(_, value) => {
+                  if (value) {
+                    setLoginMode(value);
+                    setError("");
+                  }
+                }}
+                fullWidth
+                className="login-mode-toggle"
+              >
+                <ToggleButton value="ALL" className="login-mode-toggle-btn">
+                  All Roles
+                </ToggleButton>
+                <ToggleButton value="MERCHANT" className="login-mode-toggle-btn">
+                  Merchant
+                </ToggleButton>
+                <ToggleButton value="RIDER" className="login-mode-toggle-btn">
+                  Rider
+                </ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
 
             {error && (
               <Alert severity="error" sx={{ mb: 2 }}>
@@ -393,7 +437,7 @@ const Login = () => {
           </Paper>
 
           {/* Bottom Badges */}
-          <Box sx={{ display: "flex", justifyContent: "center", gap: { xs: 2, sm: 3, md: 4 }, mt: { xs: 2, sm: 3, md: 4 }, opacity: 0.6, "&:hover": { opacity: 1 }, transition: "opacity 0.3s", flexWrap: "wrap" }}>
+          <Box className="login-bottom-badges" sx={{ display: "flex", justifyContent: "center", gap: { xs: 2, sm: 3, md: 4 }, mt: { xs: 2, sm: 3, md: 4 }, opacity: 0.6, "&:hover": { opacity: 1 }, transition: "opacity 0.3s", flexWrap: "wrap" }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 0.5, sm: 1 }, color: "#B0B8D4" }}>
               <VerifiedUser sx={{ fontSize: { xs: 14, sm: 18 } }} />
               <Typography sx={{ fontSize: { xs: "0.55rem", sm: "0.65rem" }, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>

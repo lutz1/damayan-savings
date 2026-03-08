@@ -4,16 +4,71 @@
 
 /* Page Container */
 .login-page-container {
-  height: 100vh;
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
   background-image: url('../assets/bownersbg.png');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
   background-attachment: fixed;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  overflow: hidden;
+  padding: clamp(12px, 2vh, 24px) 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.login-content-wrap {
+  width: 100%;
+}
+
+.login-mode-toggle {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 12px;
+  padding: 3px;
+}
+
+.login-mode-toggle .login-mode-toggle-btn {
+  border: 0;
+  border-radius: 9px;
+  color: #b9c4de;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  font-size: 0.72rem;
+  padding: 8px 10px;
+}
+
+.login-mode-toggle .login-mode-toggle-btn.Mui-selected {
+  color: #ffffff;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.35);
+}
+
+.login-mode-toggle .login-mode-toggle-btn.Mui-selected:hover {
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+}
+
+@media (max-width: 600px) {
+  .login-mode-toggle .login-mode-toggle-btn {
+    font-size: 0.68rem;
+    padding: 8px 8px;
+  }
+}
+
+@media (min-height: 780px) {
+  .login-page-container {
+    align-items: center;
+  }
+}
+
+@media (max-width: 1024px) {
+  .login-page-container {
+    background-attachment: scroll;
+  }
 }
 
 /* Card Styling */
@@ -33,6 +88,10 @@
 
 /* Mobile - Extra Small (320px to 480px) */
 @media (max-width: 480px) {
+  .login-page-container {
+    padding: 10px 0;
+  }
+
   .login-card-new {
     padding: 16px;
     border-radius: 14px !important;
@@ -510,5 +569,18 @@
     width: 44px;
     height: 44px;
     font-size: 1.2rem;
+  }
+}
+
+@media (max-height: 760px) {
+  .login-bottom-badges {
+    margin-top: 12px;
+    opacity: 0.45;
+  }
+}
+
+@media (max-height: 680px) {
+  .login-bottom-badges {
+    display: none !important;
   }
 }

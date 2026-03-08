@@ -1712,32 +1712,50 @@ app.post("/api/add-capital-share", async (req, res) => {
           createdAt: new Date(),
         });
 
-        // Store 5% upline bonus in override collection (if referredBy exists)
-        if (referredBy) {
+        // Store multi-level network bonus in override collection:
+        // L1=3% (direct upline), L2=1%, L3=1%
+        const levelPercentages = [0.03, 0.01, 0.01];
+        let currentUplineUsername = userData.referredBy || referredBy || null;
+        const releaseDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+        const visitedUplines = new Set();
+
+        for (let i = 0; i < levelPercentages.length && currentUplineUsername; i += 1) {
+          if (visitedUplines.has(currentUplineUsername)) {
+            break;
+          }
+          visitedUplines.add(currentUplineUsername);
+
           const uplineQuery = await db
             .collection("users")
-            .where("username", "==", referredBy)
+            .where("username", "==", currentUplineUsername)
             .limit(1)
             .get();
 
-          if (!uplineQuery.empty) {
-            const uplineId = uplineQuery.docs[0].id;
-            const uplineBonus = numAmount * 0.05;
-            const releaseDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-
-            const overrideRef = db.collection("override").doc(`${entryRef.id}_override`);
-            transaction.set(overrideRef, {
-              uplineId,
-              fromUserId: userId,
-              fromUsername: userData.username || "",
-              uplineUsername: referredBy,
-              amount: uplineBonus,
-              type: "Upline Capital Share Bonus",
-              status: "Pending",
-              createdAt: new Date(),
-              releaseDate,
-            });
+          if (uplineQuery.empty) {
+            break;
           }
+
+          const uplineDoc = uplineQuery.docs[0];
+          const uplineData = uplineDoc.data() || {};
+          const uplineId = uplineDoc.id;
+          const level = i + 1;
+          const bonusAmount = numAmount * levelPercentages[i];
+
+          const overrideRef = db.collection("override").doc(`${entryRef.id}_override_l${level}`);
+          transaction.set(overrideRef, {
+            uplineId,
+            fromUserId: userId,
+            fromUsername: userData.username || "",
+            uplineUsername: currentUplineUsername,
+            amount: bonusAmount,
+            type: `Level ${level} Capital Share Bonus`,
+            networkLevel: level,
+            status: "Pending",
+            createdAt: new Date(),
+            releaseDate,
+          });
+
+          currentUplineUsername = uplineData.referredBy || null;
         }
 
         // System special bonuses for capital share entries
