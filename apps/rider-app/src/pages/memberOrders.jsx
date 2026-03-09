@@ -15,7 +15,7 @@ import {
 import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
-import { createFirebaseClients } from "../../../shared/firebase/firebaseClient";
+import { createFirebaseClients } from "../../../../shared/firebase/firebaseClient";
 import Topbar from "../components/Topbar";
 import AppBottomNav from "../components/AppBottomNav";
 import bgImage from "../assets/bg.jpg";

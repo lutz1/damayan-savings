@@ -1,6 +1,6 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { clearIndexedDbPersistence, initializeFirestore } from "firebase/firestore";
+import { initializeFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 function envValue(key) {
@@ -43,10 +43,7 @@ export function createFirebaseClients(appName = "default") {
   const db = initializeFirestore(app, {
     ignoreUndefinedProperties: true,
     experimentalForceLongPolling: true,
-  });
-
-  clearIndexedDbPersistence(db).catch(() => {
-    // Persistence can already be enabled by another tab/app; this is safe to ignore.
+    cacheSizeBytes: 1048576, // Minimum allowed: 1 MB
   });
 
   const secondaryName = `${appName}-Secondary`;

@@ -21,20 +21,20 @@ import { GoogleMap, PolylineF, useJsApiLoader } from "@react-google-maps/api";
 import { collection, doc, getDocs, getDoc, query, setDoc, updateDoc, where } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import {
-  AssignmentIcon,
-  NavigationIcon,
-  AccountBalanceWalletIcon,
-  HomeIcon,
-  ExploreIcon,
-  PersonIcon,
-  RadioButtonCheckedIcon,
+  Assignment,
+  Navigation,
+  AccountBalanceWallet,
+  Home,
+  Explore,
+  Person,
+  RadioButtonChecked,
 } from "@mui/icons-material";
-import { createFirebaseClients } from "../../../shared/firebase/firebaseClient";
+import { createFirebaseClients } from "../../../../shared/firebase/firebaseClient";
 import { DELIVERY_STATUS, normalizeDeliveryStatus } from "../utils/deliveryStatus";
+import plezzIcon from "../assets/plezzicon.png";
 
 const { auth, db } = createFirebaseClients("RiderApp");
-
-const plezzIcon = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%235bec13'/%3E%3C/svg%3E";
+const MAP_LIBRARIES = ["marker"];
 
 const AdvancedMarker = ({ map, position, title, makeContent }) => {
   useEffect(() => {
@@ -57,18 +57,83 @@ const AdvancedMarker = ({ map, position, title, makeContent }) => {
   return null;
 };
 
-const RiderDashboard = () => {
-  const navigate = useNavigate();
-  const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
-  const googleMapId = import.meta.env.VITE_GOOGLE_MAP_ID || "DEMO_MAP_ID";
-  const mapContainerStyle = { width: "100%", height: "220px", borderRadius: "14px" };
-  const [isMapLoaded, setIsMapLoaded] = useState(false);
+const RiderLiveMap = ({
+  googleMapsApiKey,
+  googleMapId,
+  mapContainerStyle,
+  mapCenter,
+  riderCoords,
+  destinationCoords,
+  routePath,
+  createRiderMarkerContent,
+  createDestinationMarkerContent,
+}) => {
+  const [mapRef, setMapRef] = useState(null);
   const { isLoaded } = useJsApiLoader({
     id: "rider-dashboard-map-script",
     googleMapsApiKey,
-    libraries: ["marker"],
+    libraries: MAP_LIBRARIES,
   });
-  const [mapRef, setMapRef] = useState(null);
+
+  if (!riderCoords) {
+    return (
+      <Box sx={{ p: 2, textAlign: "center", color: "#334155", fontSize: 13, bgcolor: "#f1f5f9", borderRadius: 2 }}>
+        Waiting for your GPS location...
+      </Box>
+    );
+  }
+
+  if (!isLoaded) {
+    return (
+      <Box sx={{ p: 2, textAlign: "center", color: "#334155", fontSize: 13, bgcolor: "#f1f5f9", borderRadius: 2 }}>
+        Loading map...
+      </Box>
+    );
+  }
+
+  return (
+    <GoogleMap
+      mapContainerStyle={mapContainerStyle}
+      center={mapCenter}
+      zoom={15}
+      onLoad={(map) => setMapRef(map)}
+      onUnmount={() => setMapRef(null)}
+      options={{ mapTypeControl: false, streetViewControl: false, fullscreenControl: false, clickableIcons: false, mapId: googleMapId }}
+    >
+      {riderCoords && (
+        <AdvancedMarker
+          map={mapRef}
+          position={riderCoords}
+          title="Your Location"
+          makeContent={createRiderMarkerContent}
+        />
+      )}
+      {destinationCoords && (
+        <AdvancedMarker
+          map={mapRef}
+          position={destinationCoords}
+          title="Delivery Destination"
+          makeContent={createDestinationMarkerContent}
+        />
+      )}
+      {routePath.length === 2 && (
+        <PolylineF
+          path={routePath}
+          options={{ strokeColor: "#3b82f6", strokeOpacity: 0.9, strokeWeight: 4 }}
+        />
+      )}
+    </GoogleMap>
+  );
+};
+
+const RiderDashboard = () => {
+  const navigate = useNavigate();
+  const googleMapsApiKey =
+    import.meta.env.VITE_GOOGLE_MAPS_API_KEY ||
+    import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY ||
+    "";
+  const googleMapId = import.meta.env.VITE_GOOGLE_MAP_ID || "DEMO_MAP_ID";
+  const mapContainerStyle = { width: "100%", height: "220px", borderRadius: "14px" };
   const [riderData, setRiderData] = useState(null);
   const [deliveries, setDeliveries] = useState([]);
   const [stats, setStats] = useState({
@@ -83,10 +148,6 @@ const RiderDashboard = () => {
   const [updateNote, setUpdateNote] = useState("");
   const [isOnline, setIsOnline] = useState(true);
   const [riderUid, setRiderUid] = useState("");
-
-  useEffect(() => {
-    setIsMapLoaded(isLoaded);
-  }, [isLoaded]);
 
   const riderCoords = riderData && typeof riderData.lat === "number" && typeof riderData.lng === "number" ? { lat: riderData.lat, lng: riderData.lng } : null;
   const activeDelivery = deliveries.find((d) => normalizeDeliveryStatus(d.status) !== DELIVERY_STATUS.DELIVERED && normalizeDeliveryStatus(d.status) !== DELIVERY_STATUS.CANCELLED);
@@ -458,7 +519,7 @@ const RiderDashboard = () => {
               <Box sx={{ position: "absolute", right: -18, top: -18, opacity: 0.08, fontSize: 120, fontWeight: 700 }}>$</Box>
               <Box sx={{ position: "relative", zIndex: 1 }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
-                  <AccountBalanceWalletIcon sx={{ color: "#5bec13", fontSize: 20 }} />
+                  <AccountBalanceWallet sx={{ color: "#5bec13", fontSize: 20 }} />
                   <Typography sx={{ fontSize: 13, color: "#94a3b8", fontWeight: 600 }}>Wallet Balance</Typography>
                 </Box>
                 <Box sx={{ display: "flex", alignItems: "end", justifyContent: "space-between" }}>
@@ -490,55 +551,27 @@ const RiderDashboard = () => {
               <Box sx={{ height: 220, borderRadius: 3, overflow: "hidden", position: "relative", border: "1px solid #e2e8f0", bgcolor: "#cbd5e1" }}>
                 {!googleMapsApiKey ? (
                   <Box sx={{ p: 2, textAlign: "center", color: "#b45309", fontSize: 13, bgcolor: "#fef3c7", borderRadius: 2 }}>
-                    Google Maps API key is missing. Set <b>VITE_GOOGLE_MAPS_API_KEY</b> to enable live map tracking.
+                    Google Maps API key is missing. Set <b>VITE_GOOGLE_MAPS_API_KEY</b> or <b>REACT_APP_GOOGLE_MAPS_API_KEY</b> to enable live map tracking.
                   </Box>
-                ) : !riderCoords ? (
-                  <Box sx={{ p: 2, textAlign: "center", color: "#334155", fontSize: 13, bgcolor: "#f1f5f9", borderRadius: 2 }}>
-                    Waiting for your GPS location...
-                  </Box>
-                ) : isMapLoaded ? (
-                  <GoogleMap
-                    mapContainerStyle={mapContainerStyle}
-                    center={mapCenter}
-                    zoom={15}
-                    onLoad={(map) => setMapRef(map)}
-                    onUnmount={() => setMapRef(null)}
-                    options={{ mapTypeControl: false, streetViewControl: false, fullscreenControl: false, clickableIcons: false, mapId: googleMapId }}
-                  >
-                    {riderCoords && (
-                      <AdvancedMarker
-                        map={mapRef}
-                        position={riderCoords}
-                        title="Your Location"
-                        makeContent={createRiderMarkerContent}
-                      />
-                    )}
-                    {destinationCoords && (
-                      <AdvancedMarker
-                        map={mapRef}
-                        position={destinationCoords}
-                        title="Delivery Destination"
-                        makeContent={createDestinationMarkerContent}
-                      />
-                    )}
-                    {routePath.length === 2 && (
-                      <PolylineF
-                        path={routePath}
-                        options={{ strokeColor: "#3b82f6", strokeOpacity: 0.9, strokeWeight: 4 }}
-                      />
-                    )}
-                  </GoogleMap>
                 ) : (
-                  <Box sx={{ p: 2, textAlign: "center", color: "#334155", fontSize: 13, bgcolor: "#f1f5f9", borderRadius: 2 }}>
-                    Loading map...
-                  </Box>
+                  <RiderLiveMap
+                    googleMapsApiKey={googleMapsApiKey}
+                    googleMapId={googleMapId}
+                    mapContainerStyle={mapContainerStyle}
+                    mapCenter={mapCenter}
+                    riderCoords={riderCoords}
+                    destinationCoords={destinationCoords}
+                    routePath={routePath}
+                    createRiderMarkerContent={createRiderMarkerContent}
+                    createDestinationMarkerContent={createDestinationMarkerContent}
+                  />
                 )}
               </Box>
             </Box>
 
             <Paper sx={{ p: 2, borderRadius: 3 }}>
               <Box sx={{ display: "flex", alignItems: "center", mb: 1.5 }}>
-                <AssignmentIcon sx={{ mr: 1, color: "#334155" }} />
+                <Assignment sx={{ mr: 1, color: "#334155" }} />
                 <Typography sx={{ fontSize: 16, fontWeight: 800 }}>Recent Deliveries</Typography>
               </Box>
 
@@ -583,31 +616,31 @@ const RiderDashboard = () => {
           <Box sx={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 88, width: "90%", maxWidth: 380, zIndex: 35 }}>
             <Box sx={{ bgcolor: "rgba(91,236,19,0.95)", borderRadius: 2.5, px: 2, py: 1.2, display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 8px 22px rgba(91,236,19,0.28)", border: "1px solid rgba(255,255,255,0.4)" }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <RadioButtonCheckedIcon sx={{ fontSize: 12, color: "#0f172a" }} />
+                <RadioButtonChecked sx={{ fontSize: 12, color: "#0f172a" }} />
                 <Typography sx={{ color: "#0f172a", fontSize: 13, fontWeight: 800 }}>
                   {isOnline ? "Ready for orders" : "Currently offline"}
                 </Typography>
               </Box>
-              <ExploreIcon sx={{ color: "#0f172a", fontSize: 20 }} />
+              <Explore sx={{ color: "#0f172a", fontSize: 20 }} />
             </Box>
           </Box>
 
           <Box sx={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 0, width: "100%", maxWidth: 430, bgcolor: "rgba(255,255,255,0.96)", borderTop: "1px solid #e2e8f0", px: 1.5, pt: 1, pb: 2, zIndex: 30 }}>
             <Box sx={{ display: "flex", justifyContent: "space-around" }}>
               <Button onClick={() => navigate("/dashboard")} sx={{ minWidth: 0, color: "#5bec13", display: "flex", flexDirection: "column", gap: 0.2 }}>
-                <HomeIcon sx={{ fontSize: 28 }} />
+                <Home sx={{ fontSize: 28 }} />
                 <Typography sx={{ fontSize: 10, fontWeight: 800, textTransform: "none" }}>Home</Typography>
               </Button>
               <Button onClick={() => navigate("/orders")} sx={{ minWidth: 0, color: "#94a3b8", display: "flex", flexDirection: "column", gap: 0.2 }}>
-                <AssignmentIcon sx={{ fontSize: 28 }} />
+                <Assignment sx={{ fontSize: 28 }} />
                 <Typography sx={{ fontSize: 10, fontWeight: 600, textTransform: "none" }}>Orders</Typography>
               </Button>
               <Button onClick={() => navigate("/wallet")} sx={{ minWidth: 0, color: "#94a3b8", display: "flex", flexDirection: "column", gap: 0.2 }}>
-                <AccountBalanceWalletIcon sx={{ fontSize: 28 }} />
+                <AccountBalanceWallet sx={{ fontSize: 28 }} />
                 <Typography sx={{ fontSize: 10, fontWeight: 600, textTransform: "none" }}>Wallet</Typography>
               </Button>
               <Button onClick={() => navigate("/profile")} sx={{ minWidth: 0, color: "#94a3b8", display: "flex", flexDirection: "column", gap: 0.2 }}>
-                <PersonIcon sx={{ fontSize: 28 }} />
+                <Person sx={{ fontSize: 28 }} />
                 <Typography sx={{ fontSize: 10, fontWeight: 600, textTransform: "none" }}>Profile</Typography>
               </Button>
             </Box>

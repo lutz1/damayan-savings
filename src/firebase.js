@@ -1,6 +1,6 @@
 // ✅ firebase.js
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { initializeFirestore, clearIndexedDbPersistence } from "firebase/firestore";
+import { initializeFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 
@@ -24,14 +24,12 @@ const secondaryConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const storage = getStorage(app);
+
+// Initialize Firestore
 const db = initializeFirestore(app, { 
   ignoreUndefinedProperties: true,
   experimentalForceLongPolling: true, // Avoid WebSocket issues
-});
-
-// Disable persistence to avoid state conflicts
-clearIndexedDbPersistence(db).catch((err) => {
-  console.warn("Firestore persistence notice:", err?.code);
+  cacheSizeBytes: 1048576, // Minimum allowed: 1 MB
 });
 
 // Secondary app init (isolated session)

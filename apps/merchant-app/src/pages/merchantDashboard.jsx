@@ -1,5 +1,5 @@
 // src/pages/merchant/merchantDashboard.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import {
   Box,
   Typography,
@@ -25,13 +25,14 @@ import {
   orderBy,
   doc, 
 } from "firebase/firestore";
-import { createFirebaseClients } from "../../../shared/firebase/firebaseClient";
+import { createFirebaseClients } from "../../../../shared/firebase/firebaseClient";
 const { auth, db, storage } = createFirebaseClients("MerchantApp");
 import {
   isMerchantOrderNew,
   isMerchantOrderPreparing,
   isMerchantOrderCompleted,
 } from "../merchantOrderFlow";
+import MerchantBottomNav from "../components/MerchantBottomNav";
 
 // Material Symbols Icon Component
 const MaterialIcon = ({ name, filled = false, weight = 400, size = 24, sx = {} }) => (
@@ -49,6 +50,7 @@ const MaterialIcon = ({ name, filled = false, weight = 400, size = 24, sx = {} }
 
 const MerchantDashboard = () => {
   const navigate = useNavigate();
+  const isMountedRef = useRef(true);
   const merchantId = auth.currentUser?.uid || null;
 
   const [merchantName, setMerchantName] = useState("");
@@ -57,6 +59,20 @@ const MerchantDashboard = () => {
   const [feedbacks, setFeedbacks] = useState([]);
   const [period, setPeriod] = useState("monthly");
   const [snack, setSnack] = useState({ open: false, severity: "error", message: "" });
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // Safe snack setter
+  const showSnack = (severity, message) => {
+    if (isMountedRef.current) {
+      setSnack({ open: true, severity, message });
+    }
+  };
 
  /* ======================
    LOAD MERCHANT NAME
@@ -80,7 +96,7 @@ useEffect(() => {
     },
     (err) => {
       console.error("User snapshot error:", err);
-      setSnack({ open: true, severity: "error", message: "Failed to load merchant profile." });
+      showSnack("error", "Failed to load merchant profile.");
     }
   );
 
@@ -99,7 +115,10 @@ useEffect(() => {
         setProducts(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
       (err) => {
         console.error("Products listener error:", err);
-        setSnack({ open: true, severity: "error", message: "Unable to load products." });
+        // Only show error if it's not an index building error
+        if (!err.message?.includes("currently building")) {
+          showSnack("error", "Unable to load products.");
+        }
       }
     );
 
@@ -113,7 +132,10 @@ useEffect(() => {
         setSales(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
       (err) => {
         console.error("Sales listener error:", err);
-        setSnack({ open: true, severity: "error", message: "Unable to load orders/sales." });
+        // Only show error if it's not an index building error
+        if (!err.message?.includes("currently building")) {
+          showSnack("error", "Unable to load orders/sales.");
+        }
       }
     );
 
@@ -127,7 +149,10 @@ useEffect(() => {
         setFeedbacks(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
       (err) => {
         console.error("Feedback listener error:", err);
-        setSnack({ open: true, severity: "error", message: "Unable to load feedback." });
+        // Only show error if it's not an index building error
+        if (!err.message?.includes("currently building")) {
+          showSnack("error", "Unable to load feedback.");
+        }
       }
     );
 
@@ -661,13 +686,15 @@ useEffect(() => {
         <Snackbar
           open={snack.open}
           autoHideDuration={3500}
-          onClose={() => setSnack({ ...snack, open: false })}
+          onClose={() => setSnack({ open: false })}
           anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
         >
           <Alert severity={snack.severity} variant="filled">
             {snack.message}
           </Alert>
         </Snackbar>
+
+        <MerchantBottomNav activePath="/dashboard" />
       </Container>
     </Box>
   );

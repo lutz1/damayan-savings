@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Container, Stack, Typography, Button, Box, Paper, IconButton } from "@mui/material";
 import { motion } from "framer-motion";
-import { createFirebaseClients } from "../../../shared/firebase/firebaseClient";
+import { createFirebaseClients } from "../../../../shared/firebase/firebaseClient";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { useNavigate } from 'react-router-dom';

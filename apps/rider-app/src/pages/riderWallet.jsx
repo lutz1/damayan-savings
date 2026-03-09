@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { doc, getDoc, onSnapshot, query, collection, where } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
-import { Box, Button, Card, CardContent, Chip, CircularProgress, Container, Paper, Stack, Typography, PaidIcon } from "@mui/material";
-import { HomeIcon, ReceiptLongIcon, AccountBalanceWalletIcon, PersonIcon } from "@mui/icons-material";
-import { createFirebaseClients } from "../../../shared/firebase/firebaseClient";
+import { Box, Button, Card, CardContent, Chip, CircularProgress, Container, Paper, Stack, Typography } from "@mui/material";
+import { Home, ReceiptLong, AccountBalanceWallet, Person, Paid } from "@mui/icons-material";
+import { createFirebaseClients } from "../../../../shared/firebase/firebaseClient";
 
 const { auth, db } = createFirebaseClients("RiderApp");
 
@@ -161,10 +161,10 @@ export default function RiderWallet() {
 
         <Box sx={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 0, width: "100%", maxWidth: 600, borderTop: "1px solid rgba(91,236,19,0.15)", bgcolor: "#fff", px: 1, pt: 1, pb: 1.8, zIndex: 30 }}>
           <Stack direction="row" spacing={0.3}>
-            <Button onClick={() => navigate("/dashboard")} sx={{ flex: 1, minWidth: 0, color: "#94a3b8", display: "flex", flexDirection: "column", gap: 0.2, textTransform: "none" }}><HomeIcon sx={{ fontSize: 23 }} /><Typography sx={{ fontSize: 10, fontWeight: 700 }}>Home</Typography></Button>
-            <Button onClick={() => navigate("/orders")} sx={{ flex: 1, minWidth: 0, color: "#94a3b8", display: "flex", flexDirection: "column", gap: 0.2, textTransform: "none" }}><ReceiptLongIcon sx={{ fontSize: 23 }} /><Typography sx={{ fontSize: 10, fontWeight: 700 }}>Orders</Typography></Button>
-            <Button onClick={() => navigate("/wallet")} sx={{ flex: 1, minWidth: 0, color: "#5bec13", display: "flex", flexDirection: "column", gap: 0.2, textTransform: "none" }}><AccountBalanceWalletIcon sx={{ fontSize: 23 }} /><Typography sx={{ fontSize: 10, fontWeight: 900 }}>Wallet</Typography></Button>
-            <Button onClick={() => navigate("/profile")} sx={{ flex: 1, minWidth: 0, color: "#94a3b8", display: "flex", flexDirection: "column", gap: 0.2, textTransform: "none" }}><PersonIcon sx={{ fontSize: 23 }} /><Typography sx={{ fontSize: 10, fontWeight: 700 }}>Profile</Typography></Button>
+            <Button onClick={() => navigate("/dashboard")} sx={{ flex: 1, minWidth: 0, color: "#94a3b8", display: "flex", flexDirection: "column", gap: 0.2, textTransform: "none" }}><Home sx={{ fontSize: 23 }} /><Typography sx={{ fontSize: 10, fontWeight: 700 }}>Home</Typography></Button>
+            <Button onClick={() => navigate("/orders")} sx={{ flex: 1, minWidth: 0, color: "#94a3b8", display: "flex", flexDirection: "column", gap: 0.2, textTransform: "none" }}><ReceiptLong sx={{ fontSize: 23 }} /><Typography sx={{ fontSize: 10, fontWeight: 700 }}>Orders</Typography></Button>
+            <Button onClick={() => navigate("/wallet")} sx={{ flex: 1, minWidth: 0, color: "#5bec13", display: "flex", flexDirection: "column", gap: 0.2, textTransform: "none" }}><AccountBalanceWallet sx={{ fontSize: 23 }} /><Typography sx={{ fontSize: 10, fontWeight: 900 }}>Wallet</Typography></Button>
+            <Button onClick={() => navigate("/profile")} sx={{ flex: 1, minWidth: 0, color: "#94a3b8", display: "flex", flexDirection: "column", gap: 0.2, textTransform: "none" }}><Person sx={{ fontSize: 23 }} /><Typography sx={{ fontSize: 10, fontWeight: 700 }}>Profile</Typography></Button>
           </Stack>
         </Box>
       </Container>

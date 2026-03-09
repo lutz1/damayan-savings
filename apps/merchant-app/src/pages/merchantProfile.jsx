@@ -18,10 +18,11 @@ import {
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { createFirebaseClients } from "../../../shared/firebase/firebaseClient";
+import { createFirebaseClients } from "../../../../shared/firebase/firebaseClient";
 const { auth, db, storage } = createFirebaseClients("MerchantApp");
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { onAuthStateChanged, signOut } from "firebase/auth";
+import MerchantBottomNav from "../components/MerchantBottomNav";
 
 const MaterialIcon = ({ name, size = 24, filled = false }) => (
   <span
@@ -421,6 +422,8 @@ const MerchantProfile = () => {
           {snack.message}
         </Alert>
       </Snackbar>
+
+      <MerchantBottomNav activePath="/profile" />
     </Box>
   );
 };

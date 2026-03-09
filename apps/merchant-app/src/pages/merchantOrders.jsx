@@ -19,7 +19,7 @@ import {
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore";
-import { createFirebaseClients } from "../../../shared/firebase/firebaseClient";
+import { createFirebaseClients } from "../../../../shared/firebase/firebaseClient";
 const { auth, db, storage } = createFirebaseClients("MerchantApp");
 import {
   MERCHANT_ORDER_STATUS,
@@ -30,6 +30,7 @@ import {
   isMerchantOrderInDelivery,
   isMerchantOrderCompleted,
 } from "../merchantOrderFlow";
+import MerchantBottomNav from "../components/MerchantBottomNav";
 
 // Material Symbols Icon Component
 const MaterialIcon = ({ name, filled = false, weight = 400, size = 24, sx = {} }) => (
@@ -793,6 +794,8 @@ const MerchantOrders = () => {
             {snack.message}
           </Alert>
         </Snackbar>
+
+        <MerchantBottomNav activePath="/orders" />
       </Container>
     </Box>
   );

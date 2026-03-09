@@ -13,7 +13,6 @@ import {
   Container,
 } from "@mui/material";
 import { motion } from "framer-motion";
-import { useLocation, useNavigate } from "react-router-dom";
 import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
@@ -44,25 +43,23 @@ const Login = () => {
   const [postSplashTarget, setPostSplashTarget] = useState(null);
   const [redirecting, setRedirecting] = useState(false);
   const [switchingRole, setSwitchingRole] = useState(null);
-  const location = useLocation();
-  const navigate = useNavigate();
-  const loginPath = location.pathname.toLowerCase();
-  const loginScope = loginPath.endsWith("/login/merchant")
-    ? "MERCHANT"
-    : loginPath.endsWith("/login/rider")
-      ? "RIDER"
-      : "ALL";
 
   const goToLoginScope = (scope) => {
-    const targetPath = scope === "ALL" ? "/login" : `/login/${scope.toLowerCase()}`;
-    if (location.pathname === targetPath) return;
+    if (scope === "RIDER") {
+      const riderUrl = window.location.hostname === "localhost"
+        ? "http://localhost:3003"
+        : `${window.location.origin}/damayan-savings/rider`;
+      window.location.href = `${riderUrl}/login`;
+      return;
+    }
 
-    setError("");
-    setSwitchingRole(scope);
-    setTimeout(() => {
-      navigate(targetPath);
-      setSwitchingRole(null);
-    }, 220);
+    if (scope === "MERCHANT") {
+      const merchantUrl = window.location.hostname === "localhost"
+        ? "http://localhost:3002"
+        : `${window.location.origin}/damayan-savings/merchant`;
+      window.location.href = `${merchantUrl}/dashboard`;
+      return;
+    }
   };
 
   // ✅ Redirect users based on role
@@ -81,7 +78,10 @@ const Login = () => {
     // Show splash for merchants before redirecting
     if (upper === "MERCHANT") {
       setSplashLogo(merchantLogo);
-      setPostSplashTarget("/location-access");
+      const merchantUrl = window.location.hostname === "localhost"
+        ? "http://localhost:3002"
+        : `${window.location.origin}/damayan-savings/merchant`;
+      setPostSplashTarget(`${merchantUrl}/dashboard`);
       setShowSplash(true);
       return;
     }
@@ -100,7 +100,10 @@ const Login = () => {
         goTo("/member/dashboard");
         break;
       case "RIDER":
-        goTo("/rider/dashboard");
+        const riderUrl = window.location.hostname === "localhost"
+          ? "http://localhost:3003"
+          : `${window.location.origin}/damayan-savings/rider`;
+        window.location.href = `${riderUrl}/login`;
         break;
       default:
         goTo("/");
@@ -152,16 +155,6 @@ const Login = () => {
 
       const userData = userSnap.data();
       const role = (userData.role || "Member").toUpperCase();
-
-      if (loginScope === "MERCHANT" && role !== "MERCHANT") {
-        setError("This account is not a Merchant account. Please use Merchant credentials.");
-        return;
-      }
-
-      if (loginScope === "RIDER" && role !== "RIDER") {
-        setError("This account is not a Rider account. Please use Rider credentials.");
-        return;
-      }
 
       localStorage.setItem("userRole", role);
       handleRedirect(role);
@@ -233,11 +226,11 @@ const Login = () => {
             </Alert>
 
             <motion.div
-              key={loginScope}
+              key="role-selection"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, ease: "easeOut" }}
-              className={`role-login-section ${switchingRole ? "is-switching" : ""}`}
+              className="role-login-section"
             >
               <Typography className="role-login-title">
                 Are you a Rider or Merchant? Login here.
@@ -246,9 +239,8 @@ const Login = () => {
                 <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }}>
                   <Button
                     type="button"
-                    className={`role-login-btn ${loginScope === "RIDER" ? "active rider" : "rider"}`}
+                    className="role-login-btn rider"
                     onClick={() => goToLoginScope("RIDER")}
-                    disabled={!!switchingRole}
                   >
                     Rider Login
                   </Button>
@@ -256,25 +248,12 @@ const Login = () => {
                 <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }}>
                   <Button
                     type="button"
-                    className={`role-login-btn ${loginScope === "MERCHANT" ? "active merchant" : "merchant"}`}
+                    className="role-login-btn merchant"
                     onClick={() => goToLoginScope("MERCHANT")}
-                    disabled={!!switchingRole}
                   >
                     Merchant Login
                   </Button>
                 </motion.div>
-                {loginScope !== "ALL" && (
-                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                    <Button
-                      type="button"
-                      className="role-login-btn neutral"
-                      onClick={() => goToLoginScope("ALL")}
-                      disabled={!!switchingRole}
-                    >
-                      All Roles Login
-                    </Button>
-                  </motion.div>
-                )}
               </Box>
             </motion.div>
 
@@ -284,7 +263,7 @@ const Login = () => {
               </Alert>
             )}
 
-            {/* Form */}
+            {/* Form - Always visible for Member/Admin login */}
             <Box component="form" onSubmit={handleLogin} sx={{ mt: 2 }}>
               {/* Email Field */}
               <Box sx={{ mb: { xs: 1.5, sm: 2, md: 2.5 } }}>
@@ -510,7 +489,9 @@ const Login = () => {
             const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
             sessionStorage.setItem("skipAppSplash", "true");
             if (postSplashTarget) {
-              window.location.replace(`${base}${postSplashTarget}`);
+              // postSplashTarget might be a full URL or a path
+              const target = postSplashTarget.startsWith("http") ? postSplashTarget : `${base}${postSplashTarget}`;
+              window.location.replace(target);
             } else {
               window.location.replace(`${base}/merchant/dashboard`);
             }
