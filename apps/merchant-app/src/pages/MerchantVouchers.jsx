@@ -33,6 +33,7 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
+import QrScanner from "qr-scanner";
 import { useNavigate } from "react-router-dom";
 import { createFirebaseClients } from "../../../../shared/firebase/firebaseClient";
 import MerchantBottomNav from "../components/MerchantBottomNav";
@@ -75,9 +76,10 @@ const MerchantVouchers = () => {
   const [redeemingVoucher, setRedeemingVoucher] = useState(false);
 
   const scannerVideoRef = useRef(null);
-  const scannerStreamRef = useRef(null);
-  const scannerTimerRef = useRef(null);
-  const scannerProcessingRef = useRef(false);
+  const qrScannerRef = useRef(null);
+
+  // Detect iOS for browser-specific fallback messaging.
+  const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent);
 
   const showSnack = (severity, message) => {
     if (!isMountedRef.current) return;
@@ -85,21 +87,13 @@ const MerchantVouchers = () => {
   };
 
   const stopQrScanner = () => {
-    if (scannerTimerRef.current) {
-      clearInterval(scannerTimerRef.current);
-      scannerTimerRef.current = null;
-    }
-
-    if (scannerStreamRef.current) {
-      scannerStreamRef.current.getTracks().forEach((track) => track.stop());
-      scannerStreamRef.current = null;
-    }
+    qrScannerRef.current?.stop();
+    qrScannerRef.current?.destroy();
+    qrScannerRef.current = null;
 
     if (scannerVideoRef.current) {
       scannerVideoRef.current.srcObject = null;
     }
-
-    scannerProcessingRef.current = false;
     setScannerActive(false);
   };
 
@@ -360,51 +354,50 @@ const MerchantVouchers = () => {
   const startQrScanner = async () => {
     if (scannerActive) return;
 
-    if (!("BarcodeDetector" in window)) {
-      setScannerSupported(false);
-      setScannerStatus("QR scanning is not supported on this browser. Use manual paste/input.");
-      return;
-    }
-
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
-        audio: false,
-      });
-
-      scannerStreamRef.current = stream;
-      if (scannerVideoRef.current) {
-        scannerVideoRef.current.srcObject = stream;
-        await scannerVideoRef.current.play();
+      if (!scannerVideoRef.current) {
+        setScannerStatus("Scanner is not ready. Please reopen the dialog.");
+        return;
       }
 
-      const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+      const hasCamera = await QrScanner.hasCamera();
+      if (!hasCamera) {
+        setScannerSupported(false);
+        setScannerStatus("No camera detected. Use manual input below.");
+        return;
+      }
+
+      const scanner = new QrScanner(
+        scannerVideoRef.current,
+        async (result) => {
+          const rawValue = typeof result === "string" ? result : result?.data || "";
+          if (!rawValue) return;
+          stopQrScanner();
+          await handleRedeemCapitalShareVoucher(rawValue);
+        },
+        {
+          preferredCamera: "environment",
+          returnDetailedScanResult: true,
+          highlightScanRegion: false,
+          highlightCodeOutline: false,
+        }
+      );
+
+      qrScannerRef.current = scanner;
+      await scanner.start();
       setScannerSupported(true);
       setScannerStatus("Point camera to voucher QR code.");
       setScannerActive(true);
-
-      scannerTimerRef.current = setInterval(async () => {
-        try {
-          if (scannerProcessingRef.current || !scannerVideoRef.current) return;
-          scannerProcessingRef.current = true;
-
-          const barcodes = await detector.detect(scannerVideoRef.current);
-          if (barcodes?.length) {
-            const rawValue = barcodes[0]?.rawValue || "";
-            if (rawValue) {
-              stopQrScanner();
-              await handleRedeemCapitalShareVoucher(rawValue);
-            }
-          }
-        } catch {
-          // Ignore transient scan errors while camera stream is active.
-        } finally {
-          scannerProcessingRef.current = false;
-        }
-      }, 600);
     } catch (err) {
       console.error("Failed to start scanner:", err);
-      setScannerStatus("Unable to access camera. Please allow camera permission.");
+      setScannerSupported(false);
+      if (isIOS()) {
+        setScannerStatus(
+          "Camera access denied or not available. Please check your iOS privacy settings or use manual input below."
+        );
+      } else {
+        setScannerStatus("Unable to access camera. Please allow camera permission.");
+      }
       setScannerActive(false);
     }
   };
@@ -952,52 +945,93 @@ const MerchantVouchers = () => {
       >
         <DialogTitle sx={{ fontWeight: 700 }}>Redeem Voucher (QR Scan)</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 2 }}>
-          <Box
-            sx={{
-              width: "100%",
-              aspectRatio: "4/3",
-              bgcolor: "#0f172a",
-              borderRadius: 2,
-              overflow: "hidden",
-              position: "relative",
-            }}
-          >
-            <video
-              ref={scannerVideoRef}
-              autoPlay
-              playsInline
-              muted
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-            />
-            {!scannerActive && (
-              <Box
-                sx={{
-                  position: "absolute",
-                  inset: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#cbd5e1",
-                  fontSize: "0.85rem",
-                  textAlign: "center",
-                  p: 2,
-                }}
-              >
-                {scannerSupported
-                  ? "Camera is off. Tap Start Camera to scan QR."
-                  : "Scanner unsupported in this browser. Use manual input below."}
-              </Box>
-            )}
-          </Box>
+          {scannerSupported ? (
+            <Box
+              sx={{
+                width: "100%",
+                aspectRatio: "4/3",
+                bgcolor: "#0f172a",
+                borderRadius: 2,
+                overflow: "hidden",
+                position: "relative",
+              }}
+            >
+              <video
+                ref={scannerVideoRef}
+                autoPlay
+                playsInline
+                muted
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+              {!scannerActive && (
+                <Box
+                  sx={{
+                    position: "absolute",
+                    inset: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#cbd5e1",
+                    fontSize: "0.85rem",
+                    textAlign: "center",
+                    p: 2,
+                  }}
+                >
+                  Camera is off. Tap Start Camera to scan QR.
+                </Box>
+              )}
+            </Box>
+          ) : (
+            <Box
+              sx={{
+                width: "100%",
+                bgcolor: "rgba(59, 130, 246, 0.1)",
+                border: "1px solid rgba(59, 130, 246, 0.3)",
+                borderRadius: 2,
+                p: 2.5,
+                textAlign: "center",
+              }}
+            >
+              <MaterialIcon 
+                name={isIOS() ? "info" : "videocam_off"} 
+                size={32} 
+                sx={{ color: "#3b82f6", mb: 1 }} 
+              />
+              <Typography sx={{ fontWeight: 700, color: "#3b82f6", mb: 0.5, fontSize: "1rem" }}>
+                {isIOS() ? "Camera Scanning Not Available" : "Scanner Not Supported"}
+              </Typography>
+              <Typography sx={{ color: "#64748b", fontSize: "0.9rem", lineHeight: 1.5 }}>
+                {isIOS()
+                  ? "iOS doesn't support automatic QR scanning. Please use the manual input below to enter your voucher code."
+                  : "Your browser doesn't support QR scanning. Please use the manual input below instead."}
+              </Typography>
+            </Box>
+          )}
 
-          <TextField
-            label="QR payload or Voucher Code"
-            placeholder="Paste DAMAYAN_VOUCHER payload or code"
-            value={scannerInput}
-            onChange={(e) => setScannerInput(e.target.value)}
-            fullWidth
-            size="small"
-          />
+          <Box sx={{ py: 1 }}>
+            <Typography sx={{ fontSize: "0.85rem", fontWeight: 600, color: "#94a3b8", mb: 1 }}>
+              {scannerSupported && scannerActive ? "Or paste code here:" : "Enter Voucher Code"}
+            </Typography>
+            <TextField
+              label={scannerSupported ? "QR payload or Code" : "Voucher Code"}
+              placeholder={
+                isIOS()
+                  ? "Paste the code from your voucher QR"
+                  : "Paste DAMAYAN_VOUCHER payload or code"
+              }
+              value={scannerInput}
+              onChange={(e) => setScannerInput(e.target.value)}
+              fullWidth
+              size="small"
+              autoFocus={!scannerSupported}
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  bgcolor: "rgba(30,41,59,0.7)",
+                  color: "#e2e8f0",
+                },
+              }}
+            />
+          </Box>
 
           {scannerStatus ? (
             <Alert severity="info" variant="outlined">
@@ -1007,21 +1041,30 @@ const MerchantVouchers = () => {
         </DialogContent>
 
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button
-            onClick={async () => {
-              if (scannerActive) {
-                stopQrScanner();
-              } else {
-                await startQrScanner();
-              }
-            }}
-          >
-            {scannerActive ? "Stop Camera" : "Start Camera"}
-          </Button>
+          {scannerSupported && (
+            <Button
+              onClick={async () => {
+                if (scannerActive) {
+                  stopQrScanner();
+                } else {
+                  await startQrScanner();
+                }
+              }}
+              sx={{ textTransform: "none" }}
+            >
+              {scannerActive ? "Stop Camera" : "Start Camera"}
+            </Button>
+          )}
           <Button
             onClick={() => handleRedeemCapitalShareVoucher(scannerInput)}
             variant="contained"
             disabled={redeemingVoucher || !scannerInput.trim()}
+            sx={{
+              bgcolor: "#10b981",
+              "&:hover": { bgcolor: "#059669" },
+              textTransform: "none",
+              fontWeight: 700,
+            }}
           >
             {redeemingVoucher ? <CircularProgress size={18} sx={{ color: "white" }} /> : "Redeem"}
           </Button>
@@ -1030,6 +1073,7 @@ const MerchantVouchers = () => {
               stopQrScanner();
               setScannerDialogOpen(false);
             }}
+            sx={{ textTransform: "none" }}
           >
             Close
           </Button>
