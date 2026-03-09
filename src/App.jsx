@@ -87,9 +87,15 @@ function App() {
         if (["ADMIN", "CEO"].includes(userRole)) {
           navigate("/admin/dashboard", { replace: true });
         } else if (userRole === "MERCHANT") {
-          window.location.href = "http://localhost:3002";
+          const merchantUrl = window.location.hostname === "localhost"
+            ? "http://localhost:3002"
+            : `${window.location.origin}/damayan-savings/merchant`;
+          window.location.href = `${merchantUrl}/`;
         } else if (userRole === "RIDER") {
-          window.location.href = "http://localhost:3000";
+          const riderUrl = window.location.hostname === "localhost"
+            ? "http://localhost:3003"
+            : `${window.location.origin}/damayan-savings/rider`;
+          window.location.href = `${riderUrl}/`;
         } else if (
           ["MASTERMD", "MD", "MS", "MI", "AGENT", "MEMBER"].includes(userRole)
         ) {

@@ -46,6 +46,7 @@ function ProtectedPageRoute({ isLoggedIn, PageComponent }) {
 }
 
 export default function App() {
+  const routerBase = (import.meta.env.BASE_URL || "/").replace(/\/$/, "") || "/";
   const [checkingSession, setCheckingSession] = useState(true);
   const [riderName, setRiderName] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -96,7 +97,10 @@ export default function App() {
   };
 
   return (
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <BrowserRouter
+      basename={routerBase}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <Routes>
         <Route
           path="/"

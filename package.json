@@ -59,7 +59,7 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:run": "vitest run",
-    "predeploy": "npm run build",
+    "predeploy": "npm run build && npm run build:merchant && npm run build:rider && node scripts/prepare-gh-pages.mjs",
     "deploy": "gh-pages -d dist --add"
   },
   "browserslist": {

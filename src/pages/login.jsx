@@ -49,7 +49,7 @@ const Login = () => {
       const riderUrl = window.location.hostname === "localhost"
         ? "http://localhost:3003"
         : `${window.location.origin}/damayan-savings/rider`;
-      window.location.href = `${riderUrl}/login`;
+      window.location.href = `${riderUrl}/`;
       return;
     }
 
@@ -57,7 +57,7 @@ const Login = () => {
       const merchantUrl = window.location.hostname === "localhost"
         ? "http://localhost:3002"
         : `${window.location.origin}/damayan-savings/merchant`;
-      window.location.href = `${merchantUrl}/dashboard`;
+      window.location.href = `${merchantUrl}/`;
       return;
     }
   };
@@ -81,7 +81,7 @@ const Login = () => {
       const merchantUrl = window.location.hostname === "localhost"
         ? "http://localhost:3002"
         : `${window.location.origin}/damayan-savings/merchant`;
-      setPostSplashTarget(`${merchantUrl}/dashboard`);
+      setPostSplashTarget(`${merchantUrl}/`);
       setShowSplash(true);
       return;
     }
@@ -103,7 +103,7 @@ const Login = () => {
         const riderUrl = window.location.hostname === "localhost"
           ? "http://localhost:3003"
           : `${window.location.origin}/damayan-savings/rider`;
-        window.location.href = `${riderUrl}/login`;
+        window.location.href = `${riderUrl}/`;
         break;
       default:
         goTo("/");
