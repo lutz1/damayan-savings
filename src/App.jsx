@@ -26,33 +26,13 @@ const AdminCategoryManagement = lazy(() => import("./pages/admin/adminCategoryMa
 const AdminProductManagement = lazy(() => import("./pages/admin/adminProductManagement"));
 const AdminPaybackEntries = lazy(() => import("./pages/admin/adminPaybackEntries"));
 const AdminVoucherRecords = lazy(() => import("./pages/admin/adminVoucherRecords"));
-const MerchantDashboard = lazy(() => import("./pages/merchant/merchantDashboard"));
-const MerchantOrders = lazy(() => import("./pages/merchant/merchantOrders"));
-const MerchantProducts = lazy(() => import("./pages/merchant/merchantProducts"));
-const MerchantReports = lazy(() => import("./pages/merchant/merchantReports"));
-const MerchantVouchers = lazy(() => import("./pages/merchant/merchantVouchers"));
-const AddProductPage = lazy(() => import("./pages/merchant/addProduct"));
-const EditProductPage = lazy(() => import("./pages/merchant/editProduct"));
-const StoreProfilePage = lazy(() => import("./pages/merchant/storeProfile"));
-const MerchantProfile = lazy(() => import("./pages/merchant/merchantProfile"));
-const LocationAccess = lazy(() => import("./pages/LocationAccess"));
-const ShopPage = lazy(() => import("./pages/shop"));
-const StoreDetailsPage = lazy(() => import("./pages/storeDetails"));
-const AllStoresPage = lazy(() => import("./pages/allStores"));
-const AddAddress = lazy(() => import("./pages/addAddress"));
-const CartPage = lazy(() => import("./pages/cart"));
 const MemberDashboard = lazy(() => import("./pages/member/memberDashboard"));
 const MemberPayback = lazy(() => import("./pages/member/memberPayback"));
 const MemberCapitalShare = lazy(() => import("./pages/member/memberCapitalShare"));
-const MemberOrders = lazy(() => import("./pages/member/memberOrders"));
 const MemberProfile = lazy(() => import("./pages/member/memberProfile"));
 const MemberVouchers = lazy(() => import("./pages/member/memberVouchers"));
 const DepositSuccess = lazy(() => import("./pages/depositSuccess"));
 const DepositCancel = lazy(() => import("./pages/depositCancel"));
-const RiderDashboard = lazy(() => import("./pages/rider/riderDashboard"));
-const RiderProfile = lazy(() => import("./pages/rider/riderProfile"));
-const RiderOrders = lazy(() => import("./pages/rider/riderOrders"));
-const RiderWallet = lazy(() => import("./pages/rider/riderWallet"));
 
 
 function App() {
@@ -85,20 +65,10 @@ function App() {
       ? children
       : <Navigate to="/login" replace />;
 
-  const MerchantRoute = ({ children }) =>
-    role?.toUpperCase() === "MERCHANT"
-      ? children
-      : <Navigate to="/login" replace />;
-
   const MemberRoute = ({ children }) =>
     ["MASTERMD", "MD", "MS", "MI", "AGENT", "MEMBER"].includes(
       role?.toUpperCase()
     )
-      ? children
-      : <Navigate to="/login" replace />;
-
-  const RiderRoute = ({ children }) =>
-    role?.toUpperCase() === "RIDER"
       ? children
       : <Navigate to="/login" replace />;
 
@@ -113,17 +83,13 @@ function App() {
 
       if (!userRole) return;
 
-      if (path === "/" || path === "/login") {
+      if (path === "/" || path === "/login" || path === "/login/merchant" || path === "/login/rider") {
         if (["ADMIN", "CEO"].includes(userRole)) {
           navigate("/admin/dashboard", { replace: true });
         } else if (userRole === "MERCHANT") {
-          if (locationCompleted) {
-            navigate("/merchant/dashboard", { replace: true });
-          } else {
-            navigate("/location-access", { replace: true });
-          }
+          window.location.href = "http://localhost:3002";
         } else if (userRole === "RIDER") {
-          navigate("/rider/dashboard", { replace: true });
+          window.location.href = "http://localhost:3000";
         } else if (
           ["MASTERMD", "MD", "MS", "MI", "AGENT", "MEMBER"].includes(userRole)
         ) {
@@ -163,7 +129,8 @@ function App() {
             <Routes>
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<Login />} />
-            <Route path="/location-access" element={<LocationAccess />} />
+            <Route path="/login/merchant" element={<Login />} />
+            <Route path="/login/rider" element={<Login />} />
             <Route path="/deposit-success" element={<DepositSuccess />} />
             <Route path="/deposit-cancel" element={<DepositCancel />} />
 
@@ -272,84 +239,7 @@ function App() {
               }
             />
 
-           <Route
-              path="/merchant/dashboard"
-              element={
-                <MerchantRoute>
-                  <MerchantDashboard /> 
-                </MerchantRoute>
-              }
-            />
-            <Route
-              path="/merchant/orders"
-              element={
-                <MerchantRoute>
-                  <MerchantOrders />
-                </MerchantRoute>
-              }
-            />
-            <Route
-              path="/merchant/add-product"
-              element={
-                <MerchantRoute>
-                  <AddProductPage />
-                </MerchantRoute>
-              }
-            />
-            <Route
-              path="/merchant/edit-product/:productId"
-              element={
-                <MerchantRoute>
-                  <EditProductPage />
-                </MerchantRoute>
-              }
-            />
-            <Route
-              path="/merchant/products"
-              element={
-                <MerchantRoute>
-                  <MerchantProducts />
-                </MerchantRoute>
-              }
-            />
-            <Route
-              path="/merchant/reports"
-              element={
-                <MerchantRoute>
-                  <MerchantReports />
-                </MerchantRoute>
-              }
-            />
-            <Route
-              path="/merchant/vouchers"
-              element={
-                <MerchantRoute>
-                  <MerchantVouchers />
-                </MerchantRoute>
-              }
-            />
-            <Route
-              path="/merchant/store-profile"
-              element={
-                <MerchantRoute>
-                  <StoreProfilePage />
-                </MerchantRoute>
-              }
-            />
-            <Route
-              path="/merchant/profile"
-              element={
-                <MerchantRoute>
-                  <MerchantProfile />
-                </MerchantRoute>
-              }
-            />
 
-            <Route path="/shop" element={<ShopPage />} />
-            <Route path="/store/:id" element={<StoreDetailsPage />} />
-            <Route path="/all-stores" element={<AllStoresPage />} />
-            <Route path="/shop/add-address" element={<AddAddress />} />
-            <Route path="/cart" element={<CartPage />} />
 
             <Route
               path="/member/dashboard"
@@ -376,14 +266,6 @@ function App() {
               }
             />
             <Route
-              path="/member/orders"
-              element={
-                <MemberRoute>
-                  <MemberOrders />
-                </MemberRoute>
-              }
-            />
-            <Route
               path="/member/profile"
               element={
                 <MemberRoute>
@@ -400,38 +282,7 @@ function App() {
               }
             />
 
-            <Route
-              path="/rider/dashboard"
-              element={
-                <RiderRoute>
-                  <RiderDashboard />
-                </RiderRoute>
-              }
-            />
-            <Route
-              path="/rider/profile"
-              element={
-                <RiderRoute>
-                  <RiderProfile />
-                </RiderRoute>
-              }
-            />
-            <Route
-              path="/rider/orders"
-              element={
-                <RiderRoute>
-                  <RiderOrders />
-                </RiderRoute>
-              }
-            />
-            <Route
-              path="/rider/wallet"
-              element={
-                <RiderRoute>
-                  <RiderWallet />
-                </RiderRoute>
-              }
-            />
+
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

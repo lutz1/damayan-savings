@@ -11,10 +11,9 @@ import {
   Checkbox,
   FormControlLabel,
   Container,
-  ToggleButton,
-  ToggleButtonGroup,
 } from "@mui/material";
 import { motion } from "framer-motion";
+import { useLocation, useNavigate } from "react-router-dom";
 import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
@@ -44,7 +43,27 @@ const Login = () => {
   const [splashLogo, setSplashLogo] = useState(newlogo);
   const [postSplashTarget, setPostSplashTarget] = useState(null);
   const [redirecting, setRedirecting] = useState(false);
-  const [loginMode, setLoginMode] = useState("ALL");
+  const [switchingRole, setSwitchingRole] = useState(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const loginPath = location.pathname.toLowerCase();
+  const loginScope = loginPath.endsWith("/login/merchant")
+    ? "MERCHANT"
+    : loginPath.endsWith("/login/rider")
+      ? "RIDER"
+      : "ALL";
+
+  const goToLoginScope = (scope) => {
+    const targetPath = scope === "ALL" ? "/login" : `/login/${scope.toLowerCase()}`;
+    if (location.pathname === targetPath) return;
+
+    setError("");
+    setSwitchingRole(scope);
+    setTimeout(() => {
+      navigate(targetPath);
+      setSwitchingRole(null);
+    }, 220);
+  };
 
   // ✅ Redirect users based on role
   const handleRedirect = (role) => { 
@@ -134,13 +153,13 @@ const Login = () => {
       const userData = userSnap.data();
       const role = (userData.role || "Member").toUpperCase();
 
-      if (loginMode === "MERCHANT" && role !== "MERCHANT") {
-        setError("This account is not a Merchant account. Switch to Rider login if needed.");
+      if (loginScope === "MERCHANT" && role !== "MERCHANT") {
+        setError("This account is not a Merchant account. Please use Merchant credentials.");
         return;
       }
 
-      if (loginMode === "RIDER" && role !== "RIDER") {
-        setError("This account is not a Rider account. Switch to All Roles or Merchant login if needed.");
+      if (loginScope === "RIDER" && role !== "RIDER") {
+        setError("This account is not a Rider account. Please use Rider credentials.");
         return;
       }
 
@@ -213,34 +232,51 @@ const Login = () => {
               </Box>
             </Alert>
 
-            {/* Login Mode Toggle */}
-            <Box sx={{ mb: { xs: 1.75, sm: 2.25, md: 2.5 } }}>
-              <Typography sx={{ fontSize: { xs: "0.72rem", sm: "0.8rem" }, fontWeight: 700, color: "#B8C4E0", mb: 0.8, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                Login As
+            <motion.div
+              key={loginScope}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, ease: "easeOut" }}
+              className={`role-login-section ${switchingRole ? "is-switching" : ""}`}
+            >
+              <Typography className="role-login-title">
+                Are you a Rider or Merchant? Login here.
               </Typography>
-              <ToggleButtonGroup
-                exclusive
-                value={loginMode}
-                onChange={(_, value) => {
-                  if (value) {
-                    setLoginMode(value);
-                    setError("");
-                  }
-                }}
-                fullWidth
-                className="login-mode-toggle"
-              >
-                <ToggleButton value="ALL" className="login-mode-toggle-btn">
-                  All Roles
-                </ToggleButton>
-                <ToggleButton value="MERCHANT" className="login-mode-toggle-btn">
-                  Merchant
-                </ToggleButton>
-                <ToggleButton value="RIDER" className="login-mode-toggle-btn">
-                  Rider
-                </ToggleButton>
-              </ToggleButtonGroup>
-            </Box>
+              <Box className="role-login-actions">
+                <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }}>
+                  <Button
+                    type="button"
+                    className={`role-login-btn ${loginScope === "RIDER" ? "active rider" : "rider"}`}
+                    onClick={() => goToLoginScope("RIDER")}
+                    disabled={!!switchingRole}
+                  >
+                    Rider Login
+                  </Button>
+                </motion.div>
+                <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }}>
+                  <Button
+                    type="button"
+                    className={`role-login-btn ${loginScope === "MERCHANT" ? "active merchant" : "merchant"}`}
+                    onClick={() => goToLoginScope("MERCHANT")}
+                    disabled={!!switchingRole}
+                  >
+                    Merchant Login
+                  </Button>
+                </motion.div>
+                {loginScope !== "ALL" && (
+                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                    <Button
+                      type="button"
+                      className="role-login-btn neutral"
+                      onClick={() => goToLoginScope("ALL")}
+                      disabled={!!switchingRole}
+                    >
+                      All Roles Login
+                    </Button>
+                  </motion.div>
+                )}
+              </Box>
+            </motion.div>
 
             {error && (
               <Alert severity="error" sx={{ mb: 2 }}>
