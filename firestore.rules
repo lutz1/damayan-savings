@@ -111,6 +111,8 @@ service cloud.firestore {
             "email",
             "city",
             "open",
+            "latitude",
+            "longitude",
             "businessPermitUrl",
             "coverImage",
             "logo",
@@ -141,6 +143,7 @@ service cloud.firestore {
             request.auth.uid == userId ||
             isAdminOrCEO() ||
             (
+              // Legacy top-level voucher shape.
               isMerchant() &&
               resource.data.voucherStatus == "ACTIVE" &&
               resource.data.voucherType == "WALK_IN" &&
@@ -158,6 +161,22 @@ service cloud.firestore {
               ]) &&
               request.resource.data.voucherStatus == "REDEEMED" &&
               request.resource.data.redeemedByMerchantId == request.auth.uid
+            ) ||
+            (
+              // Current voucher-list shape used by merchant app redemption.
+              isMerchant() &&
+              resource.data.vouchers is list &&
+              request.resource.data.vouchers is list &&
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                "vouchers",
+                "lastUpdatedAt",
+                "lastRedeemedVoucherCode",
+                "lastRedeemedAt",
+                "lastRedeemedByMerchantId",
+                "lastRedeemedByMerchantEmail",
+                "voucherStatus"
+              ]) &&
+              request.resource.data.lastRedeemedByMerchantId == request.auth.uid
             )
           )
         );

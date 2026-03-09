@@ -77,6 +77,7 @@ const MerchantVouchers = () => {
 
   const scannerVideoRef = useRef(null);
   const qrScannerRef = useRef(null);
+  const scannerRedeemLockRef = useRef(false);
 
   // Detect iOS for browser-specific fallback messaging.
   const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -90,6 +91,7 @@ const MerchantVouchers = () => {
     qrScannerRef.current?.stop();
     qrScannerRef.current?.destroy();
     qrScannerRef.current = null;
+    scannerRedeemLockRef.current = false;
 
     if (scannerVideoRef.current) {
       scannerVideoRef.current.srcObject = null;
@@ -221,21 +223,49 @@ const MerchantVouchers = () => {
     return () => unsubCapital();
   }, [merchantUid, merchantEmail]);
 
+  const normalizeVoucherCode = (value) => String(value || "").trim().replace(/^"|"$/g, "").toUpperCase();
+
   const extractVoucherCode = (value) => {
     const raw = String(value || "").trim();
     if (!raw) return "";
 
-    if (raw.includes("DAMAYAN_VOUCHER|")) {
-      const codeMatch = raw.match(/CODE:([^|\n\r]+)/i);
-      return codeMatch?.[1]?.trim()?.toUpperCase() || "";
+    const decoded = (() => {
+      try {
+        return decodeURIComponent(raw);
+      } catch {
+        return raw;
+      }
+    })();
+
+    const paramMatch = decoded.match(/[?&](voucherCode|voucher|code)=([^&#]+)/i);
+    if (paramMatch?.[2]) {
+      return normalizeVoucherCode(paramMatch[2]);
     }
 
-    if (raw.includes("CODE:")) {
-      const codeMatch = raw.match(/CODE:([^|\n\r]+)/i);
-      return codeMatch?.[1]?.trim()?.toUpperCase() || "";
+    if (decoded.includes("DAMAYAN_VOUCHER|")) {
+      const codeMatch = decoded.match(/CODE:([^|\n\r]+)/i);
+      return normalizeVoucherCode(codeMatch?.[1] || "");
     }
 
-    return raw.toUpperCase();
+    if (decoded.includes("CODE:")) {
+      const codeMatch = decoded.match(/CODE:([^|\n\r]+)/i);
+      return normalizeVoucherCode(codeMatch?.[1] || "");
+    }
+
+    if ((decoded.startsWith("{") && decoded.endsWith("}")) || (decoded.startsWith("[") && decoded.endsWith("]"))) {
+      try {
+        const parsed = JSON.parse(decoded);
+        const fromJson =
+          parsed?.voucherCode || parsed?.code || parsed?.voucher || parsed?.payload?.voucherCode || "";
+        if (fromJson) {
+          return normalizeVoucherCode(fromJson);
+        }
+      } catch {
+        // Keep fallback behavior for non-JSON payloads.
+      }
+    }
+
+    return normalizeVoucherCode(decoded);
   };
 
   const findVoucherRecordByCode = async (voucherCode) => {
@@ -269,6 +299,10 @@ const MerchantVouchers = () => {
   };
 
   const handleRedeemCapitalShareVoucher = async (sourceValue) => {
+    if (redeemingVoucher) {
+      return;
+    }
+
     const voucherCode = extractVoucherCode(sourceValue);
     if (!voucherCode) {
       showSnack("error", "No voucher code found in QR content.");
@@ -344,8 +378,15 @@ const MerchantVouchers = () => {
       setScannerInput("");
     } catch (err) {
       console.error("Failed to redeem voucher:", err);
-      setScannerStatus("Failed to redeem voucher.");
-      showSnack("error", "Failed to redeem voucher.");
+      const errMsg = String(err?.message || err || "");
+      if (/permission|insufficient permissions|permission-denied/i.test(errMsg)) {
+        setScannerStatus("Permission denied while redeeming voucher. Check Firestore rules for merchant updates.");
+        showSnack("error", "Permission denied while redeeming voucher.");
+      } else {
+        const friendly = errMsg ? `Failed to redeem voucher: ${errMsg}` : "Failed to redeem voucher.";
+        setScannerStatus(friendly);
+        showSnack("error", friendly);
+      }
     } finally {
       setRedeemingVoucher(false);
     }
@@ -370,8 +411,11 @@ const MerchantVouchers = () => {
       const scanner = new QrScanner(
         scannerVideoRef.current,
         async (result) => {
+          if (scannerRedeemLockRef.current) return;
           const rawValue = typeof result === "string" ? result : result?.data || "";
           if (!rawValue) return;
+
+          scannerRedeemLockRef.current = true;
           stopQrScanner();
           await handleRedeemCapitalShareVoucher(rawValue);
         },

@@ -16,6 +16,15 @@ export default function MerchantLoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const handleBackToMainLogin = () => {
+    const isProduction = window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1";
+    if (isProduction) {
+      window.location.href = "/damayan-savings/";
+    } else {
+      window.location.href = "/";
+    }
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -103,7 +112,7 @@ export default function MerchantLoginPage() {
           }}
         >
           <button
-            onClick={() => navigate(-1)}
+            onClick={handleBackToMainLogin}
             style={{
               display: "flex",
               alignItems: "center",

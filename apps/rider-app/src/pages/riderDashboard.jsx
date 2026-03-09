@@ -17,7 +17,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { GoogleMap, PolylineF, useJsApiLoader } from "@react-google-maps/api";
+import { GoogleMap, MarkerF, PolylineF, useJsApiLoader } from "@react-google-maps/api";
 import { collection, doc, getDocs, getDoc, query, setDoc, updateDoc, where } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import {
@@ -35,6 +35,15 @@ import plezzIcon from "../assets/plezzicon.png";
 
 const { auth, db } = createFirebaseClients("RiderApp");
 const MAP_LIBRARIES = ["marker"];
+
+const isValidGoogleMapId = (value) => {
+  const mapId = String(value || "").trim();
+  if (!mapId) return false;
+  if (mapId === "DEMO_MAP_ID") return false;
+  if (mapId === "your_real_map_id_here") return false;
+  if (mapId === "YOUR_GOOGLE_MAPS_MAP_ID_HERE") return false;
+  return mapId.length >= 8;
+};
 
 const AdvancedMarker = ({ map, position, title, makeContent }) => {
   useEffect(() => {
@@ -60,6 +69,7 @@ const AdvancedMarker = ({ map, position, title, makeContent }) => {
 const RiderLiveMap = ({
   googleMapsApiKey,
   googleMapId,
+  useAdvancedMarkers,
   mapContainerStyle,
   mapCenter,
   riderCoords,
@@ -98,9 +108,15 @@ const RiderLiveMap = ({
       zoom={15}
       onLoad={(map) => setMapRef(map)}
       onUnmount={() => setMapRef(null)}
-      options={{ mapTypeControl: false, streetViewControl: false, fullscreenControl: false, clickableIcons: false, mapId: googleMapId }}
+      options={{
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        clickableIcons: false,
+        mapId: useAdvancedMarkers ? googleMapId : undefined,
+      }}
     >
-      {riderCoords && (
+      {useAdvancedMarkers && riderCoords && (
         <AdvancedMarker
           map={mapRef}
           position={riderCoords}
@@ -108,13 +124,26 @@ const RiderLiveMap = ({
           makeContent={createRiderMarkerContent}
         />
       )}
-      {destinationCoords && (
+      {useAdvancedMarkers && destinationCoords && (
         <AdvancedMarker
           map={mapRef}
           position={destinationCoords}
           title="Delivery Destination"
           makeContent={createDestinationMarkerContent}
         />
+      )}
+      {!useAdvancedMarkers && riderCoords && (
+        <MarkerF
+          position={riderCoords}
+          title="Your Location"
+          icon={{
+            url: plezzIcon,
+            scaledSize: window.google ? new window.google.maps.Size(44, 44) : undefined,
+          }}
+        />
+      )}
+      {!useAdvancedMarkers && destinationCoords && (
+        <MarkerF position={destinationCoords} title="Delivery Destination" />
       )}
       {routePath.length === 2 && (
         <PolylineF
@@ -132,7 +161,13 @@ const RiderDashboard = () => {
     import.meta.env.VITE_GOOGLE_MAPS_API_KEY ||
     import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY ||
     "";
-  const googleMapId = import.meta.env.VITE_GOOGLE_MAP_ID || "DEMO_MAP_ID";
+  const rawGoogleMapId =
+    import.meta.env.REACT_APP_GOOGLE_MAPS_MAP_ID ||
+    import.meta.env.VITE_GOOGLE_MAPS_MAP_ID ||
+    import.meta.env.VITE_GOOGLE_MAP_ID ||
+    "";
+  const useAdvancedMarkers = isValidGoogleMapId(rawGoogleMapId);
+  const googleMapId = useAdvancedMarkers ? rawGoogleMapId : "";
   const mapContainerStyle = { width: "100%", height: "220px", borderRadius: "14px" };
   const [riderData, setRiderData] = useState(null);
   const [deliveries, setDeliveries] = useState([]);
@@ -557,6 +592,7 @@ const RiderDashboard = () => {
                   <RiderLiveMap
                     googleMapsApiKey={googleMapsApiKey}
                     googleMapId={googleMapId}
+                    useAdvancedMarkers={useAdvancedMarkers}
                     mapContainerStyle={mapContainerStyle}
                     mapCenter={mapCenter}
                     riderCoords={riderCoords}

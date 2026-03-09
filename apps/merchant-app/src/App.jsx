@@ -8,6 +8,7 @@ import MerchantDashboard from "./pages/merchantDashboard";
 import MerchantOrders from "./pages/merchantOrders";
 import MerchantProducts from "./pages/merchantProducts";
 import MerchantProfile from "./pages/merchantProfile";
+import MerchantStoreSettings from "./pages/MerchantStoreSettings";
 import MerchantVouchers from "./pages/MerchantVouchers";
 import "./App.css";
 
@@ -137,6 +138,10 @@ export default function App() {
         <Route
           path="/profile"
           element={<ProtectedPageRoute isLoggedIn={isLoggedIn} PageComponent={MerchantProfile} />}
+        />
+        <Route
+          path="/store-profile"
+          element={<ProtectedPageRoute isLoggedIn={isLoggedIn} PageComponent={MerchantStoreSettings} />}
         />
         <Route
           path="/vouchers"
