@@ -11,6 +11,7 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [emailError, setEmailError] = useState(""); // Track email-specific errors
   const [newUserUsername, setNewUserUsername] = useState("");
   const [newUserName, setNewUserName] = useState("");
   const [newUserEmail, setNewUserEmail] = useState("");
@@ -214,6 +215,7 @@ const isValidEmail = (email) => {
 
   const handleClose = () => {
     setError("");
+    setEmailError("");
     setSuccess(false);
     setNewUserName("");
     setNewUserUsername("");
@@ -353,16 +355,26 @@ const isValidEmail = (email) => {
         label="Email"
         value={newUserEmail}
         onChange={async (e) => {
-          setNewUserEmail(e.target.value);
-          if (isValidEmail(e.target.value)) {
-            const exists = await isEmailInUse(e.target.value);
-            setError(exists ? "This email is already in use." : "");
-          } else {
-            setError("Invalid email format (no spaces allowed)");
+          const email = e.target.value;
+          setNewUserEmail(email);
+          
+          // Clear error while typing
+          setEmailError("");
+          
+          // Validate after a short delay to avoid too many checks while typing
+          if (email && email.trim().length > 0) {
+            if (!isValidEmail(email)) {
+              setEmailError("Invalid email format (no spaces allowed)");
+            } else {
+              const exists = await isEmailInUse(email);
+              if (exists) {
+                setEmailError("This email is already in use. Please use another email.");
+              }
+            }
           }
         }}
-        error={Boolean(error)}
-        helperText={error}
+        error={Boolean(emailError)}
+        helperText={emailError}
         InputProps={{ sx: { color: "#fff" } }}
         InputLabelProps={{ sx: { color: "rgba(255,255,255,0.7)" } }}
         sx={{ mb: 2 }}
@@ -415,8 +427,8 @@ const isValidEmail = (email) => {
         <Button
         onClick={() => setConfirmOpen(true)}
         variant="contained"
-        disabled={loading}
-        sx={{ bgcolor: "#FFD54F", color: "#000", "&:hover": { bgcolor: "#FFCA28" } }}
+        disabled={loading || Boolean(emailError) || !newUserEmail || !newUserUsername || !newUserName || !newUserContact || !newUserAddress}
+        sx={{ bgcolor: "#FFD54F", color: "#000", "&:hover": { bgcolor: "#FFCA28" }, "&:disabled": { bgcolor: "rgba(255,213,79,0.5)", color: "rgba(0,0,0,0.6)" } }}
       >
         {loading ? <CircularProgress size={24} sx={{ color: "#000" }} /> : "Invite"}
       </Button>
