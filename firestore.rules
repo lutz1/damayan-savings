@@ -673,6 +673,13 @@ service cloud.firestore {
       allow create, update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
     }
 
+    // ==========================================
+    // 🎟️ VOUCHER REWARD CONFIGS
+    match /voucherRewardConfigs/{configId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if request.auth != null && isAdminOrCEO();
+    }
+
         // ==========================================
     // � OVERRIDE TRANSACTIONS
     match /overrideTransactions/{docId} {

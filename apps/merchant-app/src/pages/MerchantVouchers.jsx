@@ -53,6 +53,23 @@ const MaterialIcon = ({ name, size = 24, sx = {} }) => (
   </span>
 );
 
+const prettifyVoucherKind = (kind) => {
+  const normalized = String(kind || "").trim().toUpperCase();
+  if (!normalized) return "Voucher";
+  return normalized.charAt(0) + normalized.slice(1).toLowerCase();
+};
+
+const getSplitVoucherSummary = (voucher) => {
+  const claimablePercent = Number(voucher?.claimablePercent || 100);
+  const pointsConvertPercent = Number(voucher?.pointsConvertPercent || 0);
+
+  if (claimablePercent >= 100 && pointsConvertPercent <= 0) {
+    return "";
+  }
+
+  return `${claimablePercent}% ${prettifyVoucherKind(voucher?.voucherKind)} voucher QR • ${pointsConvertPercent}% points converted`;
+};
+
 const MerchantVouchers = () => {
   const navigate = useNavigate();
   const isMountedRef = useRef(true);
@@ -189,11 +206,18 @@ const MerchantVouchers = () => {
               docId: docSnap.id,
               voucherIndex,
               code: voucher?.voucherCode || data.voucherCode || "",
-              description: voucher?.branchName
-                ? `${voucher.branchName} Capital Share Voucher`
-                : "Capital Share Voucher",
+              description: voucher?.sourceRewardLabel
+                ? `${voucher.sourceRewardLabel}${voucher?.branchName ? ` • ${voucher.branchName}` : ""}`
+                : voucher?.branchName
+                  ? `${voucher.branchName} Capital Share Voucher`
+                  : "Capital Share Voucher",
               voucherType: voucher?.voucherType || data.voucherType || "WALK_IN",
               voucherStatus: voucher?.voucherStatus || "ACTIVE",
+              voucherKind: voucher?.voucherKind || "",
+              claimablePercent: Number(voucher?.claimablePercent || 100),
+              pointsConvertPercent: Number(voucher?.pointsConvertPercent || 0),
+              holdReason: voucher?.holdReason || "",
+              sourceRewardLabel: voucher?.sourceRewardLabel || "",
               branchName: voucher?.branchName || "",
               branchEmail,
               issuedAt: voucher?.voucherIssuedAt || data.voucherIssuedAt || null,
@@ -334,7 +358,7 @@ const MerchantVouchers = () => {
 
       const voucher = vouchersList[voucherIndex] || {};
       const voucherStatus = String(voucher.voucherStatus || "ACTIVE").toUpperCase();
-      if (voucherStatus !== "ACTIVE") {
+      if (!["ACTIVE", "HOLD"].includes(voucherStatus)) {
         setScannerStatus(`Voucher is already ${voucherStatus}.`);
         showSnack("error", `Voucher is already ${voucherStatus}.`);
         return;
@@ -450,9 +474,15 @@ const MerchantVouchers = () => {
     let filtered = [...capitalShareVouchers];
 
     if (filterStatus === "active") {
-      filtered = filtered.filter((v) => String(v.voucherStatus || "ACTIVE").toUpperCase() === "ACTIVE");
+      filtered = filtered.filter((v) => {
+        const status = String(v.voucherStatus || "ACTIVE").toUpperCase();
+        return status === "ACTIVE" || status === "HOLD";
+      });
     } else if (filterStatus === "expired") {
-      filtered = filtered.filter((v) => String(v.voucherStatus || "ACTIVE").toUpperCase() !== "ACTIVE");
+      filtered = filtered.filter((v) => {
+        const status = String(v.voucherStatus || "ACTIVE").toUpperCase();
+        return status !== "ACTIVE" && status !== "HOLD";
+      });
     }
 
     if (searchQuery.trim()) {
@@ -473,13 +503,19 @@ const MerchantVouchers = () => {
   const pendingRows = useMemo(
     () =>
       capitalShareVouchers
-        .filter((v) => String(v.voucherStatus || "ACTIVE").toUpperCase() === "ACTIVE")
+        .filter((v) => {
+          const status = String(v.voucherStatus || "ACTIVE").toUpperCase();
+          return status === "ACTIVE" || status === "HOLD";
+        })
         .slice(0, 4),
     [capitalShareVouchers]
   );
 
   const activeCount = capitalShareVouchers.filter(
-    (v) => String(v.voucherStatus || "ACTIVE").toUpperCase() === "ACTIVE"
+    (v) => {
+      const status = String(v.voucherStatus || "ACTIVE").toUpperCase();
+      return status === "ACTIVE" || status === "HOLD";
+    }
   ).length;
 
   const redeemedToday = capitalShareVouchers.filter((v) => {
@@ -763,6 +799,11 @@ const MerchantVouchers = () => {
                         <Typography sx={{ color: "#f1f5f9", fontWeight: 700 }} noWrap>
                           {voucher.branchName || "Member Voucher"}
                         </Typography>
+                        {!!getSplitVoucherSummary(voucher) ? (
+                          <Typography sx={{ fontSize: "0.72rem", color: "#fbbf24", mt: 0.15 }} noWrap>
+                            {getSplitVoucherSummary(voucher)}
+                          </Typography>
+                        ) : null}
                         <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mt: 0.25 }}>
                           <Chip
                             size="small"
@@ -915,6 +956,22 @@ const MerchantVouchers = () => {
                         <Typography sx={{ color: "#94a3b8" }}>Type:</Typography>
                         <Typography sx={{ fontWeight: 700, color: "#f8fafc" }}>{voucher.voucherType || "WALK_IN"}</Typography>
                       </Box>
+                      {(voucher.claimablePercent < 100 || voucher.pointsConvertPercent > 0) && (
+                        <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: "0.875rem" }}>
+                          <Typography sx={{ color: "#94a3b8" }}>Split:</Typography>
+                          <Typography sx={{ fontWeight: 700, color: "#f8fafc", textAlign: "right" }}>
+                            {getSplitVoucherSummary(voucher)}
+                          </Typography>
+                        </Box>
+                      )}
+                      {voucher.holdReason ? (
+                        <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: "0.875rem", gap: 2 }}>
+                          <Typography sx={{ color: "#94a3b8" }}>Note:</Typography>
+                          <Typography sx={{ fontWeight: 600, color: "#fbbf24", textAlign: "right" }}>
+                            {voucher.holdReason}
+                          </Typography>
+                        </Box>
+                      ) : null}
                       <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: "0.875rem" }}>
                         <Typography sx={{ color: "#94a3b8" }}>Redemption:</Typography>
                         <Typography sx={{ fontWeight: 700, color: "#f8fafc" }}>

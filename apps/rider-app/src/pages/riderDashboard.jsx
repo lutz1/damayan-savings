@@ -31,7 +31,7 @@ import {
 } from "@mui/icons-material";
 import { createFirebaseClients } from "../../../../shared/firebase/firebaseClient";
 import { DELIVERY_STATUS, normalizeDeliveryStatus } from "../utils/deliveryStatus";
-import plezzIcon from "../assets/plezzicon.png";
+import plezzIcon from "../../../../src/assets/plezzicon.png";
 
 const { auth, db } = createFirebaseClients("RiderApp");
 const MAP_LIBRARIES = ["marker"];
@@ -192,8 +192,8 @@ const RiderDashboard = () => {
 
   const createRiderMarkerContent = () => {
     const wrap = document.createElement("div");
-    wrap.style.width = "76px";
-    wrap.style.height = "76px";
+    wrap.style.width = "500px";
+    wrap.style.height = "500px";
     wrap.style.display = "flex";
     wrap.style.alignItems = "center";
     wrap.style.justifyContent = "center";
@@ -201,8 +201,8 @@ const RiderDashboard = () => {
     const img = document.createElement("img");
     img.src = plezzIcon;
     img.alt = "Rider";
-    img.width = 76;
-    img.height = 76;
+    img.width = 500;
+    img.height = 500;
     img.style.objectFit = "contain";
     img.style.filter = "drop-shadow(0 3px 8px rgba(0,0,0,0.3))";
 

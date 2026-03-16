@@ -1757,6 +1757,14 @@ exports.createCapitalShareVoucher = functions.https.onRequest(async (req, res) =
         branchName,
         branchAddress,
         branchEmail,
+        voucherKind,
+        voucherStatus,
+        claimablePercent,
+        pointsConvertPercent,
+        holdReason,
+        sourceRewardLabel,
+        splitGroupId,
+        rewardConfigId,
         clientRequestId,
       } = req.body || {};
 
@@ -1784,7 +1792,8 @@ exports.createCapitalShareVoucher = functions.https.onRequest(async (req, res) =
         
         // Idempotency check
         if (clientRequestId) {
-          const idempotencyRef = db.collection("voucherIdempotency").doc(`${userId}_${clientRequestId}`);
+          const idempotencyKey = voucherKind ? `${userId}_${clientRequestId}_${voucherKind}` : `${userId}_${clientRequestId}`;
+          const idempotencyRef = db.collection("voucherIdempotency").doc(idempotencyKey);
           const existingSnap = await transaction.get(idempotencyRef);
           if (existingSnap.exists) {
             const data = existingSnap.data();
@@ -1804,7 +1813,14 @@ exports.createCapitalShareVoucher = functions.https.onRequest(async (req, res) =
         const newVoucher = {
           voucherType,
           voucherCode,
-          voucherStatus: "ACTIVE",
+          voucherStatus: voucherStatus || "ACTIVE",
+          voucherKind: voucherKind || null, // Track voucher kind (RICE, MEAT, POINTS, etc.)
+          claimablePercent: Number(claimablePercent || 100),
+          pointsConvertPercent: Number(pointsConvertPercent || 0),
+          holdReason: holdReason || "",
+          sourceRewardLabel: sourceRewardLabel || "",
+          splitGroupId: splitGroupId || null,
+          rewardConfigId: rewardConfigId || null,
           branchId: branchId || null,
           branchName: branchName || "",
           branchAddress: branchAddress || "",
@@ -1825,7 +1841,8 @@ exports.createCapitalShareVoucher = functions.https.onRequest(async (req, res) =
 
         // Store idempotency key
         if (clientRequestId) {
-          const idempotencyRef = db.collection("voucherIdempotency").doc(`${userId}_${clientRequestId}`);
+          const idempotencyKey = voucherKind ? `${userId}_${clientRequestId}_${voucherKind}` : `${userId}_${clientRequestId}`;
+          const idempotencyRef = db.collection("voucherIdempotency").doc(idempotencyKey);
           transaction.set(idempotencyRef, {
             voucherId: userId,
             createdAt: new Date(),
@@ -1993,8 +2010,8 @@ exports.createInviteAndRewards = functions.https.onRequest(async (req, res) => {
         }
 
         // 6️⃣ Create network/upline bonuses if applicable
-        const uplineRef = db.collection("users").doc(inviterData.uplineId || "");
         if (inviterData.uplineId) {
+          const uplineRef = db.collection("users").doc(inviterData.uplineId);
           const uplineSnap = await transaction.get(uplineRef);
           if (uplineSnap.exists) {
             const uplineData = uplineSnap.data();

@@ -21,10 +21,16 @@ import {
   Chip,
   Pagination,
   TableContainer,
+  Button,
+  MenuItem,
+  FormControlLabel,
+  Switch,
+  IconButton,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import CardGiftcardIcon from "@mui/icons-material/CardGiftcard";
-import { collection, query, onSnapshot, doc, getDoc } from "firebase/firestore";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import { collection, query, onSnapshot, doc, getDoc, addDoc, deleteDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "../../firebase";
 import { motion } from "framer-motion";
@@ -41,6 +47,19 @@ const AdminVoucherRecords = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [accessDenied, setAccessDenied] = useState(false);
+  const [rewardConfigs, setRewardConfigs] = useState([]);
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [newConfig, setNewConfig] = useState({
+    label: "",
+    rewardType: "VOUCHER",
+    voucherKind: "RICE",
+    branchName: "",
+    branchAddress: "",
+    branchEmail: "",
+    active: true,
+    splitRicePointsPercent: 50,
+    splitMeatPointsPercent: 50,
+  });
 
   const isMobile = useMediaQuery("(max-width:900px)");
   useEffect(() => setSidebarOpen(!isMobile), [isMobile]);
@@ -50,6 +69,7 @@ const AdminVoucherRecords = () => {
   // Fetch all voucher records from capitalShareVouchers collection
   useEffect(() => {
     let unsubscribeVouchers = null;
+    let unsubscribeConfigs = null;
 
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       if (!currentUser) {
@@ -71,6 +91,7 @@ const AdminVoucherRecords = () => {
       setLoading(true);
 
       const q = query(collection(db, "capitalShareVouchers"));
+      const configQ = query(collection(db, "voucherRewardConfigs"));
       unsubscribeVouchers = onSnapshot(
         q,
         async (snap) => {
@@ -106,6 +127,9 @@ const AdminVoucherRecords = () => {
                   voucherId: voucher.voucherCode,
                   voucherType: voucher.voucherType,
                   voucherStatus: voucher.voucherStatus,
+                  voucherKind: voucher.voucherKind || "",
+                  claimablePercent: Number(voucher.claimablePercent || 100),
+                  holdReason: voucher.holdReason || "",
                   branchName: voucher.branchName || "N/A",
                   branchAddress: voucher.branchAddress || "N/A",
                   branchEmail: voucher.branchEmail || "N/A",
@@ -130,13 +154,239 @@ const AdminVoucherRecords = () => {
           setLoading(false);
         }
       );
+
+      unsubscribeConfigs = onSnapshot(
+        configQ,
+        (snap) => {
+          const configs = snap.docs
+            .map((configDoc) => ({ id: configDoc.id, ...configDoc.data() }))
+            .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
+          setRewardConfigs(configs);
+        },
+        (err) => {
+          console.error("Error fetching voucher reward configs:", err);
+        }
+      );
     });
 
     return () => {
       if (unsubscribeVouchers) unsubscribeVouchers();
+      if (unsubscribeConfigs) unsubscribeConfigs();
       unsubscribeAuth();
     };
   }, []);
+
+  const parsePercent = (value) => {
+    const num = Number(value);
+    if (Number.isNaN(num)) return 0;
+    if (num < 0) return 0;
+    if (num > 100) return 100;
+    return num;
+  };
+
+  const buildDefaultSplitTargets = () => {
+    const ricePointsPercent = parsePercent(newConfig.splitRicePointsPercent);
+    const meatPointsPercent = parsePercent(newConfig.splitMeatPointsPercent);
+    return [
+      {
+        voucherKind: "RICE",
+        claimablePercent: 100 - ricePointsPercent,
+        pointsConvertPercent: ricePointsPercent,
+        voucherStatus: "HOLD",
+      },
+      {
+        voucherKind: "MEAT",
+        claimablePercent: 100 - meatPointsPercent,
+        pointsConvertPercent: meatPointsPercent,
+        voucherStatus: "HOLD",
+      },
+    ].filter((target) => target.claimablePercent > 0);
+  };
+
+  const resetConfigForm = () => {
+    setNewConfig({
+      label: "",
+      rewardType: "VOUCHER",
+      voucherKind: "RICE",
+      branchName: "",
+      branchAddress: "",
+      branchEmail: "",
+      active: true,
+      splitRicePointsPercent: 50,
+      splitMeatPointsPercent: 50,
+    });
+  };
+
+  const validateSplitTargets = (splitTargets) => {
+    if (!splitTargets.length) {
+      return "Please configure at least one split target above 0%.";
+    }
+
+    const hasInvalidTarget = splitTargets.some((target) => {
+      const claimablePercent = Number(target.claimablePercent || 0);
+      const pointsConvertPercent = Number(target.pointsConvertPercent || 0);
+      return claimablePercent + pointsConvertPercent !== 100;
+    });
+
+    if (hasInvalidTarget) {
+      return "Each split target must total exactly 100% between points and voucher.";
+    }
+
+    return "";
+  };
+
+  const handleCreateConfig = async () => {
+    try {
+      setSavingConfig(true);
+      const role = String(localStorage.getItem("userRole") || "").trim().toUpperCase();
+      if (!["ADMIN", "CEO"].includes(role)) {
+        alert("Only ADMIN/CEO can create voucher reward configs.");
+        return;
+      }
+
+      const label = String(newConfig.label || "").trim();
+      if (!label) {
+        alert("Please enter a reward label.");
+        return;
+      }
+
+      const rewardType = String(newConfig.rewardType || "VOUCHER").toUpperCase();
+      const payload = {
+        label,
+        rewardType,
+        active: newConfig.active !== false,
+        sortOrder: rewardConfigs.length,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      if (rewardType === "VOUCHER") {
+        payload.voucherKind = String(newConfig.voucherKind || "").toUpperCase();
+        payload.branchName = String(newConfig.branchName || "").trim();
+        payload.branchAddress = String(newConfig.branchAddress || "").trim();
+        payload.branchEmail = String(newConfig.branchEmail || "").trim().toLowerCase();
+      } else {
+        const splitTargets = buildDefaultSplitTargets();
+        const splitValidationError = validateSplitTargets(splitTargets);
+        if (splitValidationError) {
+          alert(splitValidationError);
+          return;
+        }
+        payload.splitTargets = splitTargets;
+      }
+
+      await addDoc(collection(db, "voucherRewardConfigs"), payload);
+      resetConfigForm();
+    } catch (err) {
+      console.error("Failed to create voucher reward config:", err);
+      alert("Failed to create voucher reward config.");
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
+  const handleCreateDefaultRewardSet = async () => {
+    try {
+      setSavingConfig(true);
+      const role = String(localStorage.getItem("userRole") || "").trim().toUpperCase();
+      if (!["ADMIN", "CEO"].includes(role)) {
+        alert("Only ADMIN/CEO can create voucher reward configs.");
+        return;
+      }
+
+      const existingKeys = new Set(
+        rewardConfigs.map((cfg) => {
+          const type = String(cfg.rewardType || "VOUCHER").toUpperCase();
+          const label = String(cfg.label || "").trim().toLowerCase();
+          return `${type}::${label}`;
+        })
+      );
+
+      const defaults = [
+        {
+          label: "Rice Voucher",
+          rewardType: "VOUCHER",
+          voucherKind: "RICE",
+          branchName: "",
+          branchAddress: "",
+          branchEmail: "",
+          active: true,
+        },
+        {
+          label: "Meat Voucher",
+          rewardType: "VOUCHER",
+          voucherKind: "MEAT",
+          branchName: "",
+          branchAddress: "",
+          branchEmail: "",
+          active: true,
+        },
+        {
+          label: "Points Reward",
+          rewardType: "POINTS_SPLIT",
+          splitTargets: buildDefaultSplitTargets(),
+          active: true,
+        },
+      ];
+
+      const splitValidationError = validateSplitTargets(buildDefaultSplitTargets());
+      if (splitValidationError) {
+        alert(splitValidationError);
+        return;
+      }
+
+      let created = 0;
+      let skipped = 0;
+
+      for (let i = 0; i < defaults.length; i += 1) {
+        const item = defaults[i];
+        const key = `${item.rewardType}::${String(item.label || "").trim().toLowerCase()}`;
+        if (existingKeys.has(key)) {
+          skipped += 1;
+          continue;
+        }
+
+        await addDoc(collection(db, "voucherRewardConfigs"), {
+          ...item,
+          sortOrder: rewardConfigs.length + created,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        created += 1;
+      }
+
+      if (created > 0) {
+        resetConfigForm();
+      }
+      alert(`Default reward set created: ${created}. Skipped existing: ${skipped}.`);
+    } catch (err) {
+      console.error("Failed to create default reward set:", err);
+      alert("Failed to create default reward set.");
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
+  const handleToggleConfigActive = async (configItem) => {
+    try {
+      await updateDoc(doc(db, "voucherRewardConfigs", configItem.id), {
+        active: !(configItem.active !== false),
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error("Failed to toggle reward config:", err);
+      alert("Failed to update reward config status.");
+    }
+  };
+
+  const handleDeleteConfig = async (configId) => {
+    try {
+      await deleteDoc(doc(db, "voucherRewardConfigs", configId));
+    } catch (err) {
+      console.error("Failed to delete reward config:", err);
+      alert("Failed to delete reward config.");
+    }
+  };
 
   // Filter and paginate data
   const filteredData = voucherData.filter((item) => {
@@ -182,7 +432,9 @@ const AdminVoucherRecords = () => {
 
   const getStatusColor = (status) => {
     if (status === "ACTIVE") return "#22c55e";
+    if (status === "HOLD") return "#f59e0b";
     if (status === "REDEEMED") return "#f59e0b";
+    if (status === "USED") return "#f59e0b";
     if (status === "EXPIRED") return "#ef4444";
     return "#6b7280";
   };
@@ -290,6 +542,233 @@ const AdminVoucherRecords = () => {
         </Card>
 
         {/* Search Bar */}
+        {!accessDenied && (
+          <Card
+            component={motion.div}
+            initial={{ y: 10, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.25 }}
+            sx={{
+              mb: 3,
+              background: "rgba(255, 255, 255, 0.08)",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+              borderRadius: 2,
+            }}
+          >
+            <CardContent>
+              <Typography variant="h6" sx={{ color: "#fff", fontWeight: 700, mb: 2 }}>
+                Reward Config Builder
+              </Typography>
+              <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.75)", mb: 2 }}>
+                Create vouchers that appear in member "Select Your Rewards" after selecting status.
+              </Typography>
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" }, gap: 2 }}>
+                <TextField
+                  label="Reward Label"
+                  value={newConfig.label}
+                  onChange={(e) => setNewConfig((prev) => ({ ...prev, label: e.target.value }))}
+                  fullWidth
+                  InputLabelProps={{ sx: { color: "rgba(255,255,255,0.7)" } }}
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      color: "#fff",
+                      "& fieldset": { borderColor: "rgba(255,255,255,0.2)" },
+                    },
+                  }}
+                />
+                <TextField
+                  select
+                  label="Reward Type"
+                  value={newConfig.rewardType}
+                  onChange={(e) => setNewConfig((prev) => ({ ...prev, rewardType: e.target.value }))}
+                  fullWidth
+                  InputLabelProps={{ sx: { color: "rgba(255,255,255,0.7)" } }}
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      color: "#fff",
+                      "& fieldset": { borderColor: "rgba(255,255,255,0.2)" },
+                    },
+                  }}
+                >
+                  <MenuItem value="VOUCHER">Voucher</MenuItem>
+                  <MenuItem value="POINTS_SPLIT">Points Reward Split</MenuItem>
+                </TextField>
+
+                {newConfig.rewardType === "VOUCHER" ? (
+                  <>
+                    <TextField
+                      select
+                      label="Voucher Kind"
+                      value={newConfig.voucherKind}
+                      onChange={(e) => setNewConfig((prev) => ({ ...prev, voucherKind: e.target.value }))}
+                      fullWidth
+                      InputLabelProps={{ sx: { color: "rgba(255,255,255,0.7)" } }}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          color: "#fff",
+                          "& fieldset": { borderColor: "rgba(255,255,255,0.2)" },
+                        },
+                      }}
+                    >
+                      <MenuItem value="RICE">Rice</MenuItem>
+                      <MenuItem value="MEAT">Meat</MenuItem>
+                    </TextField>
+                    <TextField
+                      label="Branch Name"
+                      value={newConfig.branchName}
+                      onChange={(e) => setNewConfig((prev) => ({ ...prev, branchName: e.target.value }))}
+                      fullWidth
+                      InputLabelProps={{ sx: { color: "rgba(255,255,255,0.7)" } }}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          color: "#fff",
+                          "& fieldset": { borderColor: "rgba(255,255,255,0.2)" },
+                        },
+                      }}
+                    />
+                    <TextField
+                      label="Branch Address"
+                      value={newConfig.branchAddress}
+                      onChange={(e) => setNewConfig((prev) => ({ ...prev, branchAddress: e.target.value }))}
+                      fullWidth
+                      InputLabelProps={{ sx: { color: "rgba(255,255,255,0.7)" } }}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          color: "#fff",
+                          "& fieldset": { borderColor: "rgba(255,255,255,0.2)" },
+                        },
+                      }}
+                    />
+                    <TextField
+                      label="Branch Email"
+                      value={newConfig.branchEmail}
+                      onChange={(e) => setNewConfig((prev) => ({ ...prev, branchEmail: e.target.value }))}
+                      fullWidth
+                      InputLabelProps={{ sx: { color: "rgba(255,255,255,0.7)" } }}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          color: "#fff",
+                          "& fieldset": { borderColor: "rgba(255,255,255,0.2)" },
+                        },
+                      }}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <TextField
+                      label="Rice Points %"
+                      type="number"
+                      value={newConfig.splitRicePointsPercent}
+                      onChange={(e) => setNewConfig((prev) => ({ ...prev, splitRicePointsPercent: e.target.value }))}
+                      fullWidth
+                      InputLabelProps={{ sx: { color: "rgba(255,255,255,0.7)" } }}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          color: "#fff",
+                          "& fieldset": { borderColor: "rgba(255,255,255,0.2)" },
+                        },
+                      }}
+                    />
+                    <TextField
+                      label="Meat Points %"
+                      type="number"
+                      value={newConfig.splitMeatPointsPercent}
+                      onChange={(e) => setNewConfig((prev) => ({ ...prev, splitMeatPointsPercent: e.target.value }))}
+                      fullWidth
+                      InputLabelProps={{ sx: { color: "rgba(255,255,255,0.7)" } }}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          color: "#fff",
+                          "& fieldset": { borderColor: "rgba(255,255,255,0.2)" },
+                        },
+                      }}
+                    />
+                    <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.7)", gridColumn: { xs: "1", md: "1 / -1" } }}>
+                      Voucher claimable value is computed automatically as 100% minus the points value.
+                    </Typography>
+                  </>
+                )}
+              </Box>
+
+              <Box sx={{ mt: 2, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={newConfig.active !== false}
+                      onChange={(e) => setNewConfig((prev) => ({ ...prev, active: e.target.checked }))}
+                    />
+                  }
+                  label={<Typography sx={{ color: "rgba(255,255,255,0.8)" }}>Active</Typography>}
+                />
+                <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                  <Button variant="outlined" disabled={savingConfig} onClick={handleCreateDefaultRewardSet}>
+                    {savingConfig ? "Saving..." : "Create Default Reward Set"}
+                  </Button>
+                  <Button variant="contained" disabled={savingConfig} onClick={handleCreateConfig}>
+                    {savingConfig ? "Saving..." : "Create Reward Config"}
+                  </Button>
+                </Box>
+              </Box>
+
+              <Box sx={{ mt: 2, display: "flex", flexDirection: "column", gap: 1 }}>
+                {rewardConfigs.length === 0 ? (
+                  <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.6)" }}>
+                    No reward config yet.
+                  </Typography>
+                ) : (
+                  rewardConfigs.map((configItem) => (
+                    <Box
+                      key={configItem.id}
+                      sx={{
+                        p: 1.5,
+                        borderRadius: 1.5,
+                        border: "1px solid rgba(255,255,255,0.14)",
+                        background: "rgba(255,255,255,0.04)",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: 1,
+                      }}
+                    >
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography sx={{ color: "#fff", fontWeight: 700 }}>
+                          {configItem.label}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.72)", display: "block" }}>
+                          {String(configItem.rewardType || "VOUCHER").toUpperCase() === "POINTS_SPLIT"
+                            ? (configItem.splitTargets || [])
+                                .map((target) => {
+                                  const claimable = Number(target.claimablePercent || 0);
+                                  const pointsConvert = Number(target.pointsConvertPercent ?? 100 - claimable);
+                                  return `${pointsConvert}% points + ${claimable}% ${String(target.voucherKind || "").toUpperCase()} voucher`;
+                                })
+                                .join(" + ")
+                            : `${String(configItem.voucherKind || "").toUpperCase()} Voucher`}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <Chip
+                          label={configItem.active === false ? "INACTIVE" : "ACTIVE"}
+                          onClick={() => handleToggleConfigActive(configItem)}
+                          sx={{
+                            cursor: "pointer",
+                            background: configItem.active === false ? "#6b7280" : "#22c55e",
+                            color: "#fff",
+                            fontWeight: 700,
+                          }}
+                        />
+                        <IconButton onClick={() => handleDeleteConfig(configItem.id)} sx={{ color: "#fecaca" }}>
+                          <DeleteOutlineIcon />
+                        </IconButton>
+                      </Box>
+                    </Box>
+                  ))
+                )}
+              </Box>
+            </CardContent>
+          </Card>
+        )}
+
         <Card
           component={motion.div}
           initial={{ y: 10, opacity: 0 }}
@@ -371,6 +850,7 @@ const AdminVoucherRecords = () => {
                       <TableCell sx={{ color: "#fff", fontWeight: 700 }}>Email</TableCell>
                       <TableCell sx={{ color: "#fff", fontWeight: 700 }}>Type</TableCell>
                       <TableCell sx={{ color: "#fff", fontWeight: 700 }}>Status</TableCell>
+                      <TableCell sx={{ color: "#fff", fontWeight: 700 }}>Claim</TableCell>
                       <TableCell sx={{ color: "#fff", fontWeight: 700 }}>Branch / Details</TableCell>
                       <TableCell sx={{ color: "#fff", fontWeight: 700 }}>Issued Date</TableCell>
                     </TableRow>
@@ -427,6 +907,16 @@ const AdminVoucherRecords = () => {
                               }}
                             />
                           </TableCell>
+                          <TableCell sx={{ color: "rgba(255,255,255,0.8)", fontSize: "0.82rem" }}>
+                            <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.9)", display: "block" }}>
+                              {record.claimablePercent}% {record.voucherKind ? String(record.voucherKind).toUpperCase() : ""}
+                            </Typography>
+                            {record.holdReason ? (
+                              <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.6)", display: "block" }}>
+                                {record.holdReason}
+                              </Typography>
+                            ) : null}
+                          </TableCell>
                           <TableCell sx={{ color: "rgba(255,255,255,0.8)", fontSize: "0.85rem" }}>
                             <Tooltip title={`Address: ${record.branchAddress}\nEmail: ${record.branchEmail}`}>
                               <Typography variant="caption" sx={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", display: "block" }}>
@@ -441,7 +931,7 @@ const AdminVoucherRecords = () => {
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={7} sx={{ textAlign: "center", py: 4, color: "rgba(255,255,255,0.5)" }}>
+                        <TableCell colSpan={8} sx={{ textAlign: "center", py: 4, color: "rgba(255,255,255,0.5)" }}>
                           <Typography variant="body2">No voucher records found</Typography>
                         </TableCell>
                       </TableRow>
@@ -593,7 +1083,7 @@ const AdminVoucherRecords = () => {
                   <Box sx={{ p: 2, background: "rgba(59,130,246,0.1)", borderRadius: 1, border: "1px solid rgba(59,130,246,0.2)" }}>
                     <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.7)" }}>Walk-In Vouchers</Typography>
                     <Typography variant="h6" sx={{ fontWeight: 700, color: "#3b82f6" }}>
-                      {voucherData.filter(v => v.voucherType === "WALK_IN").length}
+                      {voucherData.filter(v => String(v.voucherType || "").startsWith("WALK_IN")).length}
                     </Typography>
                   </Box>
                   <Box sx={{ p: 2, background: "rgba(34,197,94,0.1)", borderRadius: 1, border: "1px solid rgba(34,197,94,0.2)" }}>

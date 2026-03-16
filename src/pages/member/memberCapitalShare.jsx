@@ -80,6 +80,7 @@ const MemberCapitalShare = () => {
   const [ofwRewardsDialogOpen, setOfwRewardsDialogOpen] = useState(false);
   const [voucherType, setVoucherType] = useState("WALK_IN");
   const [savingVoucherType, setSavingVoucherType] = useState(false);
+  const [voucherRewardConfigs, setVoucherRewardConfigs] = useState([]);
 
 
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
@@ -361,17 +362,34 @@ const MemberCapitalShare = () => {
   }
 }, [user, processMonthlyProfit]);
 
+  const fetchVoucherRewardConfigs = useCallback(async () => {
+    try {
+      const configSnap = await getDocs(collection(db, "voucherRewardConfigs"));
+      const configs = configSnap.docs
+        .map((configDoc) => ({ id: configDoc.id, ...configDoc.data() }))
+        .filter((cfg) => cfg.active !== false)
+        .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
+      setVoucherRewardConfigs(configs);
+    } catch (err) {
+      console.error("Error fetching voucher reward configs:", err);
+      setVoucherRewardConfigs([]);
+    }
+  }, []);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
-        await fetchUserData(currentUser);
-        await fetchTransactionHistory();
+        await Promise.all([
+          fetchUserData(currentUser),
+          fetchTransactionHistory(),
+          fetchVoucherRewardConfigs(),
+        ]);
       }
       setLoading(false);
     });
     return () => unsubscribe();
-  }, [fetchUserData, fetchTransactionHistory]);
+  }, [fetchUserData, fetchTransactionHistory, fetchVoucherRewardConfigs]);
 
   const handleActivate = async () => {
     if (!selectedCode) return alert("Please select a code to activate Capital Share.");
@@ -413,7 +431,9 @@ const MemberCapitalShare = () => {
       
       // Get Firebase ID token
       const idToken = await user.getIdToken();
-      const clientRequestId = `${user.uid}_${Date.now()}`;
+      // Include typeKey for unique idempotency across multiple vouchers
+      const typeKeySuffix = extraFields.selectedVoucherTypeKey ? `_${extraFields.selectedVoucherTypeKey}` : "";
+      const clientRequestId = `${user.uid}_${Date.now()}${typeKeySuffix}_${Math.random().toString(36).slice(2, 8)}`;
 
       // Call Cloud Function to create capital share voucher
       const response = await fetch(
@@ -432,6 +452,14 @@ const MemberCapitalShare = () => {
             branchName: extraFields.branchName || "",
             branchAddress: extraFields.branchAddress || "",
             branchEmail: extraFields.branchEmail || "",
+            voucherKind: extraFields.voucherKind || null, // Track voucher kind (RICE, MEAT, POINTS, etc.)
+            voucherStatus: extraFields.voucherStatus || "ACTIVE",
+            claimablePercent: Number(extraFields.claimablePercent || 100),
+            pointsConvertPercent: Number(extraFields.pointsConvertPercent || 0),
+            holdReason: extraFields.holdReason || "",
+            sourceRewardLabel: extraFields.sourceRewardLabel || "",
+            splitGroupId: extraFields.splitGroupId || null,
+            rewardConfigId: extraFields.rewardConfigId || null,
             clientRequestId,
           }),
         }
@@ -478,6 +506,108 @@ const MemberCapitalShare = () => {
 
   const handleVoucherDone = async (voucherPayload) => {
     if (!voucherPayload?.voucherType) return false;
+
+    if (voucherPayload.selectedRewards && Array.isArray(voucherPayload.selectedRewards)) {
+      const splitGroupId = `split_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+      for (let rewardIndex = 0; rewardIndex < voucherPayload.selectedRewards.length; rewardIndex += 1) {
+        const reward = voucherPayload.selectedRewards[rewardIndex];
+
+        if (reward.rewardType === "POINTS_SPLIT" && Array.isArray(reward.splitTargets)) {
+          for (let targetIndex = 0; targetIndex < reward.splitTargets.length; targetIndex += 1) {
+            const target = reward.splitTargets[targetIndex];
+            const targetKind = String(target.voucherKind || "POINTS").toUpperCase();
+            const voucherCode = target.voucherCode || `VCR-${Date.now()}-WALK-${targetKind.slice(0, 1)}`;
+
+            const success = await saveVoucherType("WALK_IN", {
+              ...voucherPayload,
+              voucherCode,
+              voucherKind: targetKind,
+              voucherStatus: target.voucherStatus || "HOLD",
+              claimablePercent: Number(target.claimablePercent || 0),
+              pointsConvertPercent: Number(target.pointsConvertPercent ?? 0),
+              holdReason: target.holdReason || `${reward.label || "Points Reward"} split hold`,
+              sourceRewardLabel: reward.label || "Points Reward",
+              splitGroupId,
+              rewardConfigId: reward.configId || null,
+              branchId: target.branchId || null,
+              branchName: target.branchName || "",
+              branchAddress: target.branchAddress || "",
+              branchEmail: target.branchEmail || "",
+              selectedVoucherTypeKey: `${reward.configId || rewardIndex}_${targetKind}_${targetIndex}`,
+            }, {
+              closeDialogs: false,
+              showAlert: false,
+              refreshUserData: false,
+            });
+
+            if (!success) return false;
+          }
+          continue;
+        }
+
+        const rewardKind = String(reward.voucherKind || "GEN").toUpperCase();
+        const success = await saveVoucherType("WALK_IN", {
+          ...voucherPayload,
+          voucherCode: reward.voucherCode,
+          voucherKind: rewardKind,
+          voucherStatus: reward.voucherStatus || "ACTIVE",
+          claimablePercent: Number(reward.claimablePercent || 100),
+          holdReason: reward.holdReason || "",
+          sourceRewardLabel: reward.label || "Voucher Reward",
+          rewardConfigId: reward.configId || null,
+          branchId: reward.branchId || null,
+          branchName: reward.branchName || "",
+          branchAddress: reward.branchAddress || "",
+          branchEmail: reward.branchEmail || "",
+          selectedVoucherTypeKey: `${reward.configId || rewardIndex}_${rewardKind}`,
+        }, {
+          closeDialogs: false,
+          showAlert: false,
+          refreshUserData: false,
+        });
+
+        if (!success) return false;
+      }
+
+      setWalkInBranchDialogOpen(false);
+      await fetchUserData(user);
+      return true;
+    }
+    
+    // Check if there are multiple selected vouchers (for Walk-In with voucher selection)
+    if (voucherPayload.selectedVoucherTypes && Array.isArray(voucherPayload.selectedVoucherTypes)) {
+      // Create a voucher for each selected type
+      for (const voucherTypeKey of voucherPayload.selectedVoucherTypes) {
+        // Determine the display type and kind
+        let typeToSave = voucherPayload.voucherType;
+        let kindLabel = voucherTypeKey;
+        
+        // For points rewards, extract the kind
+        if (voucherTypeKey.includes("POINTS")) {
+          kindLabel = "POINTS";
+        }
+        
+        const success = await saveVoucherType(typeToSave, {
+          ...voucherPayload,
+          voucherKind: kindLabel,
+          selectedVoucherTypeKey: voucherTypeKey,
+        }, {
+          closeDialogs: false,
+          showAlert: false,
+          refreshUserData: false,
+        });
+        
+        if (!success) return false;
+      }
+      
+      // After all vouchers are saved, refresh data and close dialogs
+      setWalkInBranchDialogOpen(false);
+      await fetchUserData(user);
+      return true;
+    }
+    
+    // Original single voucher flow
     return await saveVoucherType(voucherPayload.voucherType, voucherPayload, {
       closeDialogs: true,
       showAlert: false,
@@ -1021,6 +1151,7 @@ const MemberCapitalShare = () => {
 
         <WalkInBranchDialog
           open={walkInBranchDialogOpen}
+          adminRewardConfigs={voucherRewardConfigs}
           onClose={() => {
             setWalkInBranchDialogOpen(false);
             setVoucherDialogOpen(true);
