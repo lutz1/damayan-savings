@@ -7,7 +7,19 @@ service cloud.firestore {
     function userRole() {
       return request.auth != null &&
         exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get("role", "").lower()
+        ? (
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get("role", "").lower().matches('^\\s*superadmin\\s*$')
+              ? "superadmin"
+              : (
+                  get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get("role", "").lower().matches('^\\s*admin\\s*$')
+                    ? "admin"
+                    : (
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get("role", "").lower().matches('^\\s*ceo\\s*$')
+                          ? "ceo"
+                          : get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get("role", "").lower()
+                      )
+                )
+          )
         : "";
     }
 
@@ -25,7 +37,8 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role is string &&
         (
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role.lower().matches('^\\s*admin\\s*$') ||
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role.lower().matches('^\\s*ceo\\s*$')
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role.lower().matches('^\\s*ceo\\s*$') ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role.lower().matches('^\\s*superadmin\\s*$')
         );
     }
 
@@ -66,7 +79,7 @@ service cloud.firestore {
       // - Admin/CEO can list for management screens
       // - Others can only run bounded username-prefix search
       allow list: if request.auth != null && (
-        userRole() in ["admin", "ceo"] ||
+        userRole() in ["admin", "ceo", "superadmin"] ||
         (
           request.query.limit <= 10 &&
           request.query.where("username", ">=") &&
@@ -75,7 +88,7 @@ service cloud.firestore {
       );
 
       // CREATE
-      allow create: if request.auth != null && userRole() in ["admin", "ceo"];
+      allow create: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
 
       // UPDATE - Allow admin SDK (no auth context) OR user updating their own OR admin/ceo (including merchants)
       allow update: if (
@@ -125,7 +138,7 @@ service cloud.firestore {
           ])
         ) ||
         // Admin/CEO
-        userRole() in ["admin", "ceo"]
+        userRole() in ["admin", "ceo", "superadmin"]
       );
     }
 
@@ -189,19 +202,19 @@ service cloud.firestore {
     // 📩 PENDING INVITES
     match /pendingInvites/{inviteId} {
       allow read: if request.auth != null &&
-        (userRole() in ["admin", "ceo"] || resource.data.inviterId == request.auth.uid);
+        (userRole() in ["admin", "ceo", "superadmin"] || resource.data.inviterId == request.auth.uid);
 
       allow create: if request.auth != null &&
-        (userRole() in ["admin", "ceo"] || request.resource.data.inviterId == request.auth.uid);
+        (userRole() in ["admin", "ceo", "superadmin"] || request.resource.data.inviterId == request.auth.uid);
 
-      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
+      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
     }
 
     // ==========================================
     // 💸 REFERRAL REWARDS
     match /referralReward/{rewardId} {
       allow read: if request.auth != null &&
-        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo"]);
+        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo", "superadmin"]);
 
       allow create: if request.auth != null &&
         request.resource.data.keys().hasAll([
@@ -214,7 +227,7 @@ service cloud.firestore {
         // Allow server-side (Admin SDK with no auth context) to update transferred status
         request.auth == null ||
         // Allow admin/ceo to update anything
-        (request.auth != null && userRole() in ["admin", "ceo"]) ||
+        (request.auth != null && userRole() in ["admin", "ceo", "superadmin"]) ||
         // Allow user to update their own reward's transfer status
         (
           request.auth != null &&
@@ -229,24 +242,24 @@ service cloud.firestore {
         )
       );
 
-      allow delete: if request.auth != null && userRole() in ["admin", "ceo"];
+      allow delete: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
     }
 
     // ==========================================
     // 📋 REFERRAL REWARD TRANSFER LOGS
     match /referralRewardTransferlogs/{logId} {
       allow read: if request.auth != null &&
-        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo"]);
+        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo", "superadmin"]);
 
       allow list: if request.auth != null && (
-        userRole() in ["admin", "ceo"] ||
+        userRole() in ["admin", "ceo", "superadmin"] ||
         request.query.where("userId", "==", request.auth.uid)
       );
 
       // Only server-side (Admin SDK) can create transfer logs
       allow create: if request.auth == null;
 
-      allow delete: if request.auth != null && userRole() in ["admin", "ceo"];
+      allow delete: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
     }
 
     // ==========================================
@@ -254,7 +267,7 @@ service cloud.firestore {
     match /uplineRewards/{rewardId} {
       // Allow upline to read their own rewards
       allow read: if request.auth != null &&
-        (resource.data.uplineId == request.auth.uid || userRole() in ["admin", "ceo"]);
+        (resource.data.uplineId == request.auth.uid || userRole() in ["admin", "ceo", "superadmin"]);
 
       // Allow listing rewards for current upline
       allow list: if request.auth != null &&
@@ -275,11 +288,11 @@ service cloud.firestore {
               "updatedAt"
             ])
           ) ||
-          userRole() in ["admin", "ceo"]
+          userRole() in ["admin", "ceo", "superadmin"]
         );
 
       // Only admins can delete
-      allow delete: if request.auth != null && userRole() in ["admin", "ceo"];
+      allow delete: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
     }
 
     match /paybackEntries/{docId} {
@@ -290,16 +303,16 @@ service cloud.firestore {
           resource.data.uplineUsername ==
             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.username
         ) ||
-        userRole() in ["admin", "ceo"]
+        userRole() in ["admin", "ceo", "superadmin"]
       );
 
       allow list: if request.auth != null && (
-        userRole() in ["admin", "ceo"] ||
+        userRole() in ["admin", "ceo", "superadmin"] ||
         request.query.where("userId", "==", request.auth.uid)
       );
 
       allow create: if request.auth != null &&
-        (request.resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo"]);
+        (request.resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo", "superadmin"]);
 
       allow update: if request.auth != null && (
         resource.data.userId == request.auth.uid ||
@@ -308,10 +321,10 @@ service cloud.firestore {
           resource.data.uplineUsername ==
             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.username
         ) ||
-        userRole() in ["admin", "ceo"]
+        userRole() in ["admin", "ceo", "superadmin"]
       );
 
-      allow delete: if request.auth != null && userRole() in ["admin", "ceo"];
+      allow delete: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
     }
 
     // ==========================================
@@ -328,7 +341,7 @@ service cloud.firestore {
     // 💹 CAPITAL SHARE PROFITS
     match /capitalShareProfits/{docId} {
       allow read, create, update: if request.auth != null &&
-        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo"]);
+        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo", "superadmin"]);
     }
 
     // ==========================================
@@ -361,20 +374,20 @@ service cloud.firestore {
     // ==========================================
     // 📥 REQUESTS
     match /requests/{docId} {
-      allow read, write: if request.auth != null && userRole() in ["admin", "ceo"];
+      allow read, write: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
     }
 
     // ==========================================
     // 📊 PAYBACK PROFIT HISTORY
     match /paybackProfitHistory/{docId} {
-      allow read, create: if request.auth != null && userRole() in ["admin", "ceo"];
+      allow read, create: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
     }
 
     // ==========================================
     // 🔄 PASSIVE TRANSFERS
     match /passiveTransfers/{docId} {
       allow read, create: if request.auth != null &&
-        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo"]);
+        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo", "superadmin"]);
     }
 
     // ==========================================
@@ -383,41 +396,41 @@ service cloud.firestore {
       allow read, list: if request.auth != null && (
         resource.data.fromUserId == request.auth.uid ||
         resource.data.uplineId == request.auth.uid ||
-        userRole() in ["admin", "ceo"]
+        userRole() in ["admin", "ceo", "superadmin"]
       );
 
       allow create: if request.auth != null &&
-        (request.resource.data.fromUserId == request.auth.uid || userRole() in ["admin", "ceo"]);
+        (request.resource.data.fromUserId == request.auth.uid || userRole() in ["admin", "ceo", "superadmin"]);
 
-      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
+      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
     }
 
     // ==========================================
     // 💼 TRANSFER TRANSACTIONS
     match /transferTransactions/{docId} {
-      allow read, write: if request.auth != null && userRole() in ["admin", "ceo"];
+      allow read, write: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
     }
 
     // ==========================================
     // 💳 WALLETS
     match /wallets/{walletId} {
       allow read: if request.auth != null &&
-        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo"]);
+        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo", "superadmin"]);
 
       allow create: if request.auth != null &&
         request.resource.data.userId == request.auth.uid;
 
       allow update: if request.auth != null &&
-        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo"]);
+        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo", "superadmin"]);
 
-      allow delete: if request.auth != null && userRole() in ["admin", "ceo"];
+      allow delete: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
     }
 
     // ==========================================
     // 💵 DEPOSITS
     match /deposits/{docId} {
       allow read: if request.auth != null &&
-        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo"]);
+        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo", "superadmin"]);
 
       allow create: if (
         // Allow Admin SDK (server-side) to create deposit records
@@ -426,19 +439,19 @@ service cloud.firestore {
         (request.auth != null && request.resource.data.userId == request.auth.uid)
       );
 
-      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
+      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
     }
 
     // ==========================================
     // 💵 WITHDRAWALS
     match /withdrawals/{docId} {
       allow read: if request.auth != null &&
-        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo"]);
+        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo", "superadmin"]);
 
       allow create: if request.auth != null &&
         request.resource.data.userId == request.auth.uid;
 
-      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
+      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
     }
 
     // ==========================================
@@ -451,7 +464,7 @@ service cloud.firestore {
           resource.data.recipientUsername ==
             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.username
         ) ||
-        userRole() in ["admin", "ceo"]
+        userRole() in ["admin", "ceo", "superadmin"]
       );
 
       allow list: if request.auth != null &&
@@ -468,7 +481,7 @@ service cloud.firestore {
           request.resource.data.status == "Pending"
         );
 
-      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
+      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
     }
 
     // 🛍️ PRODUCTS
@@ -477,7 +490,7 @@ service cloud.firestore {
         request.resource.data.merchantId == request.auth.uid;
 
       allow read: if resource.data.status == "active" ||
-        (request.auth != null && (resource.data.merchantId == request.auth.uid || userRole() in ["admin", "ceo"]));
+        (request.auth != null && (resource.data.merchantId == request.auth.uid || userRole() in ["admin", "ceo", "superadmin"]));
 
       allow update, delete: if request.auth != null &&
         (
@@ -486,7 +499,7 @@ service cloud.firestore {
               "name", "category", "description", "price", "stock", "image", "status", "updatedAt"
             ])
           ) ||
-          userRole() in ["admin", "ceo"]
+          userRole() in ["admin", "ceo", "superadmin"]
         );
     }
 
@@ -496,11 +509,11 @@ service cloud.firestore {
         (
           resource.data.merchantId == request.auth.uid ||
           resource.data.customerId == request.auth.uid ||
-          userRole() in ["admin", "ceo"]
+          userRole() in ["admin", "ceo", "superadmin"]
         );
 
       allow create: if request.auth != null && (
-        userRole() in ["admin", "ceo"] ||
+        userRole() in ["admin", "ceo", "superadmin"] ||
         (
           request.resource.data.customerId == request.auth.uid &&
           request.resource.data.merchantId is string &&
@@ -521,7 +534,7 @@ service cloud.firestore {
         )
       );
 
-      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
+      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
     }
 
     // 🧾 ORDERS (canonical)
@@ -530,11 +543,11 @@ service cloud.firestore {
         resource.data.customerId == request.auth.uid ||
         resource.data.merchantId == request.auth.uid ||
         resource.data.riderId == request.auth.uid ||
-        userRole() in ["admin", "ceo"]
+        userRole() in ["admin", "ceo", "superadmin"]
       );
 
       allow create: if request.auth != null && (
-        userRole() in ["admin", "ceo"] ||
+        userRole() in ["admin", "ceo", "superadmin"] ||
         (
           request.resource.data.customerId == request.auth.uid &&
           request.resource.data.merchantId is string &&
@@ -556,7 +569,7 @@ service cloud.firestore {
       );
 
       allow update: if request.auth != null && (
-        userRole() in ["admin", "ceo"] ||
+        userRole() in ["admin", "ceo", "superadmin"] ||
         (resource.data.customerId == request.auth.uid &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             "dropoffLocation", "updatedAt"
@@ -574,22 +587,22 @@ service cloud.firestore {
         )
       );
 
-      allow delete: if request.auth != null && userRole() in ["admin", "ceo"];
+      allow delete: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
 
       match /items/{itemId} {
         allow read: if request.auth != null && (
           get(/databases/$(database)/documents/orders/$(orderId)).data.customerId == request.auth.uid ||
           get(/databases/$(database)/documents/orders/$(orderId)).data.merchantId == request.auth.uid ||
           get(/databases/$(database)/documents/orders/$(orderId)).data.riderId == request.auth.uid ||
-          userRole() in ["admin", "ceo"]
+          userRole() in ["admin", "ceo", "superadmin"]
         );
 
         allow create: if request.auth != null && (
-          userRole() in ["admin", "ceo"] ||
+          userRole() in ["admin", "ceo", "superadmin"] ||
           get(/databases/$(database)/documents/orders/$(orderId)).data.customerId == request.auth.uid
         );
 
-        allow update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
+        allow update, delete: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
       }
     }
 
@@ -598,79 +611,79 @@ service cloud.firestore {
       allow read: if request.auth != null && (
         resource.data.customerId == request.auth.uid ||
         resource.data.merchantId == request.auth.uid ||
-        userRole() in ["admin", "ceo"]
+        userRole() in ["admin", "ceo", "superadmin"]
       );
       allow create: if request.auth != null && (
-        userRole() in ["admin", "ceo"] ||
+        userRole() in ["admin", "ceo", "superadmin"] ||
         request.resource.data.customerId == request.auth.uid
       );
-      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
+      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
     }
 
     // 💬 FEEDBACK
     match /feedback/{feedbackId} {
       allow read: if request.auth != null &&
-        (resource.data.merchantId == request.auth.uid || userRole() in ["admin", "ceo"]);
+        (resource.data.merchantId == request.auth.uid || userRole() in ["admin", "ceo", "superadmin"]);
 
       allow create: if request.auth != null;
-      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
+      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
     }
 
     // 🏪 MERCHANTS (store profiles)
     match /merchants/{merchantId} {
       allow read: if request.auth != null;
       allow create, update: if request.auth != null &&
-        (request.auth.uid == merchantId || userRole() in ["admin", "ceo"]);
-      allow delete: if request.auth != null && userRole() in ["admin", "ceo"];
+        (request.auth.uid == merchantId || userRole() in ["admin", "ceo", "superadmin"]);
+      allow delete: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
     }
 
     // 🛵 RIDERS
     match /riders/{riderId} {
       allow read: if request.auth != null;
       allow create, update: if request.auth != null &&
-        (request.auth.uid == riderId || userRole() in ["admin", "ceo"]);
-      allow delete: if request.auth != null && userRole() in ["admin", "ceo"];
+        (request.auth.uid == riderId || userRole() in ["admin", "ceo", "superadmin"]);
+      allow delete: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
     }
 
     // 🍔 MENUS
     match /menus/{menuId} {
       allow read: if request.auth != null;
       allow create, update: if request.auth != null &&
-        (request.resource.data.merchantId == request.auth.uid || userRole() in ["admin", "ceo"]);
+        (request.resource.data.merchantId == request.auth.uid || userRole() in ["admin", "ceo", "superadmin"]);
       allow delete: if request.auth != null &&
-        (resource.data.merchantId == request.auth.uid || userRole() in ["admin", "ceo"]);
+        (resource.data.merchantId == request.auth.uid || userRole() in ["admin", "ceo", "superadmin"]);
     }
 
     // 💸 EARNINGS (rider earnings)
     match /earnings/{earningId} {
       allow read: if request.auth != null &&
-        (resource.data.riderId == request.auth.uid || userRole() in ["admin", "ceo"]);
+        (resource.data.riderId == request.auth.uid || userRole() in ["admin", "ceo", "superadmin"]);
       allow create, update: if request.auth == null ||
-        (request.auth != null && userRole() in ["admin", "ceo"]);
-      allow delete: if request.auth != null && userRole() in ["admin", "ceo"];
+        (request.auth != null && userRole() in ["admin", "ceo", "superadmin"]);
+      allow delete: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
     }
 
     // 💰 MERCHANT EARNINGS
     match /merchantEarnings/{recordId} {
       allow read: if request.auth != null &&
-        (resource.data.merchantId == request.auth.uid || userRole() in ["admin", "ceo"]);
+        (resource.data.merchantId == request.auth.uid || userRole() in ["admin", "ceo", "superadmin"]);
       allow create, update: if request.auth == null ||
-        (request.auth != null && userRole() in ["admin", "ceo"]);
-      allow delete: if request.auth != null && userRole() in ["admin", "ceo"];
+        (request.auth != null && userRole() in ["admin", "ceo", "superadmin"]);
+      allow delete: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
     }
 
     // ⭐ REVIEWS
     match /reviews/{reviewId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null && request.resource.data.customerId == request.auth.uid;
-      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
+      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
     }
     
     // ==========================================
     // 🛒 SHOP CATEGORIES
     match /shopCategories/{categoryId} {
       allow read: if request.auth != null;
-      allow create, update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
+      allow create, update, delete: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
     }
 
     // ==========================================
@@ -684,14 +697,14 @@ service cloud.firestore {
     // � OVERRIDE TRANSACTIONS
     match /overrideTransactions/{docId} {
       allow read: if request.auth != null &&
-        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo"]);
+        (resource.data.userId == request.auth.uid || userRole() in ["admin", "ceo", "superadmin"]);
 
       allow list: if request.auth != null &&
         request.query.where("userId", "==", request.auth.uid);
 
       allow create: if request.auth == null; // Allow server-side (Admin SDK) only
 
-      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo"];
+      allow update, delete: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
     }
 
     // ==========================================
@@ -713,17 +726,17 @@ service cloud.firestore {
           resource.data.riderId == request.auth.uid ||
           resource.data.customerId == request.auth.uid ||
           resource.data.merchantId == request.auth.uid ||
-          userRole() in ["admin", "ceo"]
+          userRole() in ["admin", "ceo", "superadmin"]
         );
 
       allow list: if request.auth != null && (
-        userRole() in ["admin", "ceo"] ||
+        userRole() in ["admin", "ceo", "superadmin"] ||
         request.query.where("riderId", "==", request.auth.uid) ||
         request.query.where("customerId", "==", request.auth.uid) ||
         request.query.where("merchantId", "==", request.auth.uid)
       );
 
-      allow create: if request.auth == null || (request.auth != null && userRole() in ["admin", "ceo"]);
+      allow create: if request.auth == null || (request.auth != null && userRole() in ["admin", "ceo", "superadmin"]);
 
       allow update: if request.auth != null &&
         (
@@ -734,10 +747,10 @@ service cloud.firestore {
             ])
           ) ||
           // Admin/CEO can update anything
-          userRole() in ["admin", "ceo"]
+          userRole() in ["admin", "ceo", "superadmin"]
         );
 
-      allow delete: if request.auth != null && userRole() in ["admin", "ceo"];
+      allow delete: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
     }
 
     // ==========================================
@@ -747,3 +760,4 @@ service cloud.firestore {
     }
   }
 }
+

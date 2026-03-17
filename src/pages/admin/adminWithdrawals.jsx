@@ -41,7 +41,6 @@ import { db } from "../../firebase";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
 import AdminSidebarToggle from "../../components/AdminSidebarToggle";
-import bgImage from "../../assets/bownersbg.png";
 import { useTheme } from "@mui/material/styles";
 
 const AdminWithdrawals = () => {
@@ -55,6 +54,7 @@ const AdminWithdrawals = () => {
   const [userRole, setUserRole] = useState(
     () => localStorage.getItem("userRole")?.toUpperCase() || ""
   );
+  const [userEmail, setUserEmail] = useState("");
 
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");
@@ -99,7 +99,9 @@ const AdminWithdrawals = () => {
         const userDoc = await getDoc(doc(db, "users", user.uid));
         if (userDoc.exists()) {
           const role = userDoc.data().role?.toUpperCase() || "";
+          const email = userDoc.data().email || user.email || "";
           setUserRole(role);
+          setUserEmail(email);
         }
       } catch (err) {
         console.error("[adminWithdrawals] Error fetching role:", err);
@@ -237,7 +239,15 @@ const AdminWithdrawals = () => {
     }
   };
 
-  const canApproveReject = ["ADMIN", "CEO"].includes(userRole);
+  // Emails that should have approve/reject disabled
+  const restrictedEmails = [
+    "admin1@gmail.com",
+    "admin2@gmail.com"
+  ];
+
+  // Check if user can approve/reject
+  const isRestrictedEmail = restrictedEmails.includes((userEmail || "").toLowerCase());
+  const canApproveReject = ["ADMIN", "CEO"].includes(userRole) && !isRestrictedEmail;
 
   const filteredWithdrawals = withdrawals.filter((w) => {
     const search = searchTerm.toLowerCase();
@@ -266,20 +276,8 @@ const AdminWithdrawals = () => {
         display: "flex",
         flexDirection: isMobile ? "column" : "row",
         minHeight: "100vh",
-        backgroundImage: `url(${bgImage})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
+        backgroundColor: "#1a1a1a",
         position: "relative",
-        "&::before": {
-          content: '""',
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "rgba(0,0,0,0.25)",
-          zIndex: 0,
-        },
       }}
     >
       <Box sx={{ position: "fixed", width: "100%", zIndex: 1200 }}>

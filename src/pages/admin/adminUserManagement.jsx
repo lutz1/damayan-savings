@@ -53,7 +53,6 @@ import { auth, db, secondaryAuth } from "../../firebase";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
 import AdminSidebarToggle from "../../components/AdminSidebarToggle";
-import bgImage from "../../assets/bownersbg.png";
 
 const AdminUserManagement = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -64,6 +63,11 @@ const AdminUserManagement = () => {
   const [authReady, setAuthReady] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [resettingUserId, setResettingUserId] = useState(null);
+  const currentRole = String(localStorage.getItem("userRole") || "")
+    .trim()
+    .toUpperCase();
+  const isSuperAdmin = currentRole === "SUPERADMIN";
   const [newUser, setNewUser] = useState({
     username: "",
     name: "",
@@ -478,6 +482,66 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
     }
   };
 
+  const handleResetPassword = async (user) => {
+    if (!isSuperAdmin) {
+      alert("Only SUPERADMIN can reset passwords.");
+      return;
+    }
+
+    if (!user?.id) {
+      alert("Invalid user selected.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Reset password for ${user.username || user.email || "this user"} to default (password123)?`
+    );
+    if (!confirmed) return;
+
+    try {
+      setResettingUserId(user.id);
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) {
+        throw new Error("Authentication required. Please login again.");
+      }
+
+      const RESET_PASSWORD_URL =
+        "https://us-central1-amayan-savings.cloudfunctions.net/resetUserPasswordDefault";
+
+      const response = await fetch(RESET_PASSWORD_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          targetUid: user.id,
+        }),
+      });
+
+      const rawBody = await response.text();
+      let payload = {};
+      try {
+        payload = rawBody ? JSON.parse(rawBody) : {};
+      } catch (_) {
+        payload = { error: rawBody || "Unexpected response from server" };
+      }
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to reset password");
+      }
+
+      alert(
+        `Password reset successful for ${user.username || user.email || user.id}. Default password: ${payload.defaultPassword || "password123"}`
+      );
+    } catch (err) {
+      console.error("Error resetting password:", err);
+      alert(`Failed to reset password: ${err.message}`);
+    } finally {
+      setResettingUserId(null);
+    }
+  };
+
   // Pagination handlers
   const handleChangePage = (_, newPage) => setPage(newPage);
   const handleChangeRowsPerPage = (e) => {
@@ -497,20 +561,8 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
         display: "flex",
         flexDirection: isMobile ? "column" : "row",
         minHeight: "100vh",
-        backgroundImage: `url(${bgImage})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
+        backgroundColor: "#1a1a1a",
         position: "relative",
-        "&::before": {
-          content: '""',
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "rgba(0,0,0,0.25)",
-          zIndex: 0,
-        },
       }}
     >
       {/* 🔝 Topbar */}
@@ -625,6 +677,8 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
               }}
             >
               <MenuItem value="All">All</MenuItem>
+              <MenuItem value="ADMIN">Admin</MenuItem>
+              <MenuItem value="SUPERADMIN">Superadmin</MenuItem>
               <MenuItem value="CEO">CEO</MenuItem>
               <MenuItem value="MasterMD">MasterMD</MenuItem>
               <MenuItem value="MD">MD</MenuItem>
@@ -685,6 +739,19 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
                           <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
                             Referred By: {user.referredBy || "—"}
                           </Typography>
+                          {isSuperAdmin && (
+                            <Box sx={{ mt: 1.5 }}>
+                              <Button
+                                size="small"
+                                variant="contained"
+                                color="warning"
+                                disabled={resettingUserId === user.id}
+                                onClick={() => handleResetPassword(user)}
+                              >
+                                {resettingUserId === user.id ? "Resetting..." : "Reset Password"}
+                              </Button>
+                            </Box>
+                          )}
                         </CardContent>
                       </Card>
                     ))}
@@ -699,6 +766,7 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
                           <TableCell sx={{ color: "white" }}>Email</TableCell>
                           <TableCell sx={{ color: "white" }}>Role</TableCell>
                           <TableCell sx={{ color: "white" }}>Referred By</TableCell>
+                          {isSuperAdmin && <TableCell sx={{ color: "white" }}>Action</TableCell>}
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -711,6 +779,19 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
                             <TableCell sx={{ color: "white" }}>
                               {user.referredBy || "—"}
                             </TableCell>
+                            {isSuperAdmin && (
+                              <TableCell>
+                                <Button
+                                  size="small"
+                                  variant="contained"
+                                  color="warning"
+                                  disabled={resettingUserId === user.id}
+                                  onClick={() => handleResetPassword(user)}
+                                >
+                                  {resettingUserId === user.id ? "Resetting..." : "Reset Password"}
+                                </Button>
+                              </TableCell>
+                            )}
                           </motion.tr>
                         ))}
                       </TableBody>
@@ -893,6 +974,8 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
                 onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
                 label="Role"
               >
+                <MenuItem value="ADMIN">Admin</MenuItem>
+                <MenuItem value="SUPERADMIN">Superadmin</MenuItem>
                 <MenuItem value="CEO">CEO</MenuItem>
                 <MenuItem value="MasterMD">MasterMD</MenuItem>
                 <MenuItem value="MD">MD</MenuItem>

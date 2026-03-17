@@ -39,7 +39,6 @@ import { db } from "../../firebase";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
 import AdminSidebarToggle from "../../components/AdminSidebarToggle";
-import bgImage from "../../assets/bownersbg.png";
 import { useTheme } from "@mui/material/styles";
 import { getAuth } from "firebase/auth";
 
@@ -55,6 +54,7 @@ const AdminDeposits = () => {
   const [userRole, setUserRole] = useState(() => 
     localStorage.getItem("userRole")?.toUpperCase() || ""
   );
+  const [userEmail, setUserEmail] = useState("");
 
   // 🔹 New states for search/filter/pagination
   const [searchTerm, setSearchTerm] = useState("");
@@ -105,7 +105,9 @@ const AdminDeposits = () => {
         const userDoc = await getDoc(doc(db, "users", user.uid));
         if (userDoc.exists()) {
           const role = userDoc.data().role?.toLowerCase() || "";
+          const email = userDoc.data().email || user.email || "";
           setUserRole(role);
+          setUserEmail(email);
           console.log("[adminDeposits] User role verified from Firestore:", role);
         }
       } catch (err) {
@@ -234,8 +236,15 @@ const AdminDeposits = () => {
   const handleViewProof = (url) => setProofImage(url);
   const closeProofDialog = () => setProofImage(null);
 
+  // Emails that should have approve/reject disabled
+  const restrictedEmails = [
+    "admin1@gmail.com",
+    "admin2@gmail.com"
+  ];
+
   // Check if user can approve/reject
-  const canApproveReject = ["ADMIN", "CEO"].includes(userRole);
+  const isRestrictedEmail = restrictedEmails.includes((userEmail || "").toLowerCase());
+  const canApproveReject = ["ADMIN", "CEO"].includes(userRole) && !isRestrictedEmail;
   
   // Debug log
   React.useEffect(() => {
@@ -271,20 +280,8 @@ const AdminDeposits = () => {
         display: "flex",
         flexDirection: isMobile ? "column" : "row",
         minHeight: "100vh",
-        backgroundImage: `url(${bgImage})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
+        backgroundColor: "#1a1a1a",
         position: "relative",
-        "&::before": {
-          content: '""',
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "rgba(0,0,0,0.25)",
-          zIndex: 0,
-        },
       }}
     >
       {/* Topbar */}

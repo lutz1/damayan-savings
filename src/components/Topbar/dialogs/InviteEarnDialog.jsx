@@ -156,20 +156,25 @@ const isValidEmail = (email) => {
           userId: masterMD.id,
           username: masterMD.data().username,
           role: "MasterMD",
-          amount: 100,
+          amount: 150,
           source: "System",
           type: "System Bonus",
           approved: true,
           payoutReleased: true,
           createdAt: serverTimestamp(),
         });
-        console.log(`💰 Special Bonus ₱100 → ${masterMD.data().username} (System)`);
+        console.log(`💰 Special Bonus ₱150 → ${masterMD.data().username} (System)`);
       }
 
       // ✨ Special email addresses get bonuses
       const specialEmails = {
-        "eliskie40@gmail.com": 100,
-        "Monares.cyriljay@gmail.com": 50,
+        "eliskie40@gmail.com": 150,
+        "monares.cyriljay@gmail.com": 100,
+        "gedeongipulankjv1611@gmail.com": 150,
+        "dionesiovelasquez@gmail.com": 150,
+        "almirex.jkc@gmail.com": 50,
+        "gumaodjimmyjr@gmail.com": 50,
+        "donmalintad@gmail.com": 50
       };
 
       for (const [specialEmail, bonusAmount] of Object.entries(specialEmails)) {

@@ -9,7 +9,7 @@ const AdminSidebarToggle = ({ onClick, sx }) => {
     .trim()
     .toUpperCase();
 
-  if (isMobile && ["ADMIN", "CEO"].includes(normalizedRole)) {
+  if (isMobile && ["ADMIN", "CEO", "SUPERADMIN"].includes(normalizedRole)) {
     return null;
   }
 

@@ -61,7 +61,7 @@ function App() {
   }
 
   const AdminRoute = ({ children }) =>
-    ["ADMIN", "CEO"].includes(role?.toUpperCase())
+    ["ADMIN", "CEO", "SUPERADMIN"].includes(role?.toUpperCase())
       ? children
       : <Navigate to="/login" replace />;
 
@@ -84,7 +84,7 @@ function App() {
       if (!userRole) return;
 
       if (path === "/" || path === "/login" || path === "/login/merchant" || path === "/login/rider") {
-        if (["ADMIN", "CEO"].includes(userRole)) {
+        if (["ADMIN", "CEO", "SUPERADMIN"].includes(userRole)) {
           navigate("/admin/dashboard", { replace: true });
         } else if (userRole === "MERCHANT") {
           const merchantUrl = window.location.hostname === "localhost"

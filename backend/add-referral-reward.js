@@ -7,7 +7,7 @@ const addReferralReward = async () => {
   try {
     // Referral reward configuration
     const userEmail = "monares.cyriljay@gmail.com";
-    const rewardAmount = 150;
+    const rewardAmount = 50;
     const rewardType = "System Bonus";
     const source = "System";
 

@@ -36,7 +36,6 @@ import { db } from "../../firebase";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
 import AdminSidebarToggle from "../../components/AdminSidebarToggle";
-import bgImage from "../../assets/bownersbg.png";
 import { useTheme } from "@mui/material/styles";
 import {
   ResponsiveContainer,
@@ -205,20 +204,8 @@ const AdminWalletToWallet = () => {
         display: "flex",
         flexDirection: isMobile ? "column" : "row",
         minHeight: "100vh",
-        backgroundImage: `url(${bgImage})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
+        backgroundColor: "#1a1a1a",
         position: "relative",
-        "&::before": {
-          content: '""',
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "rgba(0,0,0,0.25)",
-          zIndex: 0,
-        },
       }}
     >
       <Box sx={{ position: "fixed", width: "100%", zIndex: 1200 }}>

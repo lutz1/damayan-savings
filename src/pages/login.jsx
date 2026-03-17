@@ -89,6 +89,7 @@ const Login = () => {
     switch (upper) {
         case "ADMIN":
         case "CEO":
+        case "SUPERADMIN":
           goTo("/admin/dashboard");
         break;
       case "MASTERMD":
@@ -310,19 +311,7 @@ const Login = () => {
                   <Typography sx={{ fontSize: { xs: "0.75rem", sm: "0.85rem" }, fontWeight: 600, color: "#E5E7EB" }}>
                     Password
                   </Typography>
-                  <Typography
-                    component="a"
-                    href="#"
-                    sx={{
-                      fontSize: { xs: "0.65rem", sm: "0.75rem" },
-                      fontWeight: 700,
-                      color: "#3B82F6",
-                      textDecoration: "none",
-                      "&:hover": { textDecoration: "underline" },
-                    }}
-                  >
-                    Forgot Password?
-                  </Typography>
+                  
                 </Box>
                 <TextField
                   fullWidth

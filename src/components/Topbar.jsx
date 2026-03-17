@@ -82,7 +82,9 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
     "dionesiovelasquez@gmail.com",
     "ericalvarez@gmail.com",
     "melchor@gmail.com",
-    "vanessa.ilagan@gmail.com"
+    "vanessa.ilagan@gmail.com",
+    "admin1@gmail.com",
+    "admin2@gmail.com"
   ];
   /*
   const restrictedForAdmin = ["Purchase Codes", "Withdrawal", /* "Deposit", */ "Transfer Funds", "Invite & Earn" // DISABLED: deposits disabled for now
@@ -114,8 +116,8 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
             unsubscribeCodes = null;
           }
 
-          // Admin/CEO do not use purchase codes in Topbar; avoid unnecessary listeners.
-          if (!["ADMIN", "CEO"].includes(normalizedUserRole)) {
+          // Admin-like roles do not use purchase codes in Topbar; avoid unnecessary listeners.
+          if (!["ADMIN", "CEO", "SUPERADMIN"].includes(normalizedUserRole)) {
             const codesRef = collection(db, "purchaseCodes");
             const q = query(
               codesRef,
@@ -229,7 +231,7 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
                 color="inherit"
                 onClick={onToggleSidebar}
                 sx={{
-                  display: ["ADMIN", "CEO"].includes(normalizedRole)
+                  display: ["ADMIN", "CEO", "SUPERADMIN"].includes(normalizedRole)
                     ? { xs: "inline-flex", md: "inline-flex" }
                     : { xs: "none", md: "inline-flex" },
                 }}
@@ -383,7 +385,7 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
                 <Divider sx={{ my: 2, borderColor: "rgba(255,255,255,0.2)" }} />
 
                 {/* Wallet */}
-                {!["ADMIN", "CEO"].includes(normalizedRole) && (
+                {!["ADMIN", "CEO", "SUPERADMIN"].includes(normalizedRole) && (
                   <Box
                     sx={{
                       background: "rgba(255,255,255,0.08)",
@@ -483,7 +485,7 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
         closeDrawer();
         navigate("/member/vouchers");
       },
-      visible: !["ADMIN", "CEO"].includes(normalizedRole),
+      visible: !["ADMIN", "CEO", "SUPERADMIN"].includes(normalizedRole),
     },
     { icon: <LogoutIcon sx={{ color: "#FF5252" }} />, label: "Logout", action: handleOpenLogoutDialog },
   ].filter((item) => item.visible !== false).map((item, i) => {

@@ -65,16 +65,16 @@ const AppBottomNav = ({ open, onToggleSidebar, layout = "bottom" }) => {
 
   const role = localStorage.getItem("userRole")?.trim();
   const upperRole = role?.toUpperCase();
-  const isAdminOrCEO = ["ADMIN", "CEO"].includes(upperRole);
-  const effectiveLayout = isAdminOrCEO && layout === "bottom" ? "sidebar" : layout;
+  const isAdminLikeRole = ["ADMIN", "CEO", "SUPERADMIN"].includes(upperRole);
+  const effectiveLayout = isAdminLikeRole && layout === "bottom" ? "sidebar" : layout;
   
   // Debug log for CEO users
-  if (isAdminOrCEO && typeof window !== "undefined" && window.location.href.includes("admin")) {
+  if (isAdminLikeRole && typeof window !== "undefined" && window.location.href.includes("admin")) {
     console.log("[AppBottomNav] Admin/CEO Sidebar - Role:", role, "Upper:", upperRole, "Layout:", effectiveLayout);
   }
 
   useEffect(() => {
-    if (!isAdminOrCEO || !authReady || !auth.currentUser) return undefined;
+    if (!isAdminLikeRole || !authReady || !auth.currentUser) return undefined;
 
     const unsubPendingApprovals = onSnapshot(
       query(collection(db, "products"), where("approvalStatus", "==", "PENDING")),
@@ -94,7 +94,7 @@ const AppBottomNav = ({ open, onToggleSidebar, layout = "bottom" }) => {
   // Navigation items based on role
   let navItems = [];
   
-  if (isAdminOrCEO) {
+  if (isAdminLikeRole) {
     navItems = [
       { label: "Dashboard", value: "/admin/dashboard", icon: <DashboardIcon /> },
       { label: "Paybacks", value: "/admin/payback-entries", icon: <SavingsIcon /> },

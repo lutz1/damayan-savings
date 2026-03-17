@@ -12,6 +12,7 @@ exports.respondToDeliveryRequest = deliveryDispatch.respondToDeliveryRequest;
 exports.reassignExpiredDeliveries = deliveryDispatch.reassignExpiredDeliveries;
 
 const normalizeStatus = (value) => String(value || "").trim().toUpperCase();
+const DEFAULT_RESET_PASSWORD = "password123";
 
 const collectTokensFromUser = (userData = {}) => {
   const raw = [
@@ -202,6 +203,55 @@ const docExists = (snap) => {
 
 // Initialize CORS middleware
 const corsHandler = cors({ origin: true });
+
+exports.resetUserPasswordDefault = functions.https.onRequest(async (req, res) => {
+  corsHandler(req, res, async () => {
+    try {
+      if (req.method !== "POST") {
+        return res.status(405).json({ error: "Method not allowed" });
+      }
+
+      const authHeader = req.headers.authorization || req.headers.Authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ error: "Unauthorized: Missing or invalid token" });
+      }
+
+      const idToken = authHeader.substring("Bearer ".length);
+      const { targetUid } = req.body || {};
+
+      if (!targetUid) {
+        return res.status(400).json({ error: "targetUid is required" });
+      }
+
+      const decoded = await admin.auth().verifyIdToken(idToken);
+      const requesterSnap = await db.collection("users").doc(decoded.uid).get();
+      if (!docExists(requesterSnap)) {
+        return res.status(403).json({ error: "Requester profile not found" });
+      }
+
+      const requesterRole = normalizeStatus((requesterSnap.data() || {}).role);
+      if (requesterRole !== "SUPERADMIN") {
+        return res.status(403).json({ error: "Only SUPERADMIN can reset user passwords" });
+      }
+
+      const targetSnap = await db.collection("users").doc(String(targetUid)).get();
+      if (!docExists(targetSnap)) {
+        return res.status(404).json({ error: "Target user not found" });
+      }
+
+      await admin.auth().updateUser(String(targetUid), { password: DEFAULT_RESET_PASSWORD });
+
+      return res.status(200).json({
+        success: true,
+        targetUid: String(targetUid),
+        defaultPassword: DEFAULT_RESET_PASSWORD,
+      });
+    } catch (error) {
+      console.error("[resetUserPasswordDefault] error:", error);
+      return res.status(500).json({ error: "Failed to reset user password" });
+    }
+  });
+});
 
 /**
  * Transfer Referral Reward to eWallet

@@ -15,6 +15,7 @@ app.use(cors());
 app.use(express.json());
 
 const SERVER_START_TS = Date.now();
+const DEFAULT_RESET_PASSWORD = "password123";
 
 const logEvent = (level, event, meta = {}) => {
   const payload = {
@@ -454,9 +455,10 @@ app.post("/api/migrate-payback-rewards", async (req, res) => {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    // Verify user is admin
+    // Verify user is admin-like role
     const userDoc = await db.collection("users").doc(decodedToken.uid).get();
-    if (!userDoc.exists || !["admin", "ceo"].includes(userDoc.data().role.toUpperCase())) {
+    const requesterRole = String(userDoc.data()?.role || "").trim().toUpperCase();
+    if (!userDoc.exists || !["ADMIN", "CEO", "SUPERADMIN"].includes(requesterRole)) {
       console.error("[migrate-rewards] ❌ User is not admin");
       return res.status(403).json({ error: "Only admins can run migrations" });
     }
@@ -1771,7 +1773,7 @@ app.post("/api/add-capital-share", async (req, res) => {
             userId: masterMDQuery.docs[0].id,
             username: masterMDQuery.docs[0].data().username,
             role: "MasterMD",
-            amount: 100,
+            amount: 250,
             source: "System Capital Share bonuses",
             type: "System Bonus",
             approved: true,
@@ -1782,11 +1784,13 @@ app.post("/api/add-capital-share", async (req, res) => {
 
         // Special emails for capital share entries
         const specialEmails = {
-          "eliskie40@gmail.com": 100,
-          "gedeongipulankjv1611@gmail.com": 100,
-          "monares.cyriljay@gmail.com": 50,
-          "gumaodjimmyjr@gmail.com": 100,
-          "donmalintad@gmail.com": 100
+          "eliskie40@gmail.com": 150,
+          "gedeongipulankjv1611@gmail.com": 250,
+          "monares.cyriljay@gmail.com": 100,
+          "gumaodjimmyjr@gmail.com": 50,
+          "donmalintad@gmail.com": 50,
+          "dionesiovelasquez@gmail.com": 300,
+          "almirex.jkc@gmail.com": 50
         };
 
         for (const [specialEmail, bonusAmount] of Object.entries(specialEmails)) {
@@ -2037,6 +2041,52 @@ app.post("/api/transfer-referral-reward", async (req, res) => {
 
 const normalizeStatus = (value) => String(value || "").trim().toUpperCase();
 
+app.post("/api/admin/reset-user-password", async (req, res) => {
+  try {
+    const { idToken, targetUid } = req.body || {};
+
+    if (!idToken || !targetUid) {
+      return res.status(400).json({ error: "idToken and targetUid are required" });
+    }
+
+    const decoded = await auth.verifyIdToken(idToken);
+    const requesterSnap = await db.collection("users").doc(decoded.uid).get();
+    if (!requesterSnap.exists) {
+      return res.status(403).json({ error: "Requester profile not found" });
+    }
+
+    const requesterRole = normalizeStatus(requesterSnap.data()?.role);
+    if (requesterRole !== "SUPERADMIN") {
+      return res.status(403).json({ error: "Only SUPERADMIN can reset user passwords" });
+    }
+
+    const targetSnap = await db.collection("users").doc(targetUid).get();
+    if (!targetSnap.exists) {
+      return res.status(404).json({ error: "Target user not found" });
+    }
+
+    await auth.updateUser(targetUid, { password: DEFAULT_RESET_PASSWORD });
+
+    logEvent("info", "superadmin_password_reset", {
+      requestId: req.requestId || null,
+      requesterUid: decoded.uid,
+      targetUid,
+    });
+
+    return res.json({
+      success: true,
+      targetUid,
+      defaultPassword: DEFAULT_RESET_PASSWORD,
+    });
+  } catch (error) {
+    if (error?.code === "auth/id-token-expired" || error?.code === "auth/argument-error") {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    console.error("[admin-reset-password] error:", error);
+    return res.status(500).json({ error: "Failed to reset user password" });
+  }
+});
+
 async function verifyMerchantFromToken(idToken) {
   if (!idToken) {
     throw new Error("Missing idToken");
@@ -2051,7 +2101,7 @@ async function verifyMerchantFromToken(idToken) {
 
   const userData = userSnap.data() || {};
   const role = normalizeStatus(userData.role);
-  if (role !== "MERCHANT" && role !== "ADMIN" && role !== "CEO") {
+  if (role !== "MERCHANT" && role !== "ADMIN" && role !== "CEO" && role !== "SUPERADMIN") {
     throw new Error("Only merchants can perform this action");
   }
 
@@ -2158,7 +2208,7 @@ app.patch("/api/v1/merchant/orders/:orderId/:action", async (req, res) => {
     const order = orderSnap.data() || {};
     const currentStatus = normalizeStatus(order.status);
     const merchantOwned = order.merchantId === actor.uid;
-    const isAdmin = actor.role === "ADMIN" || actor.role === "CEO";
+    const isAdmin = actor.role === "ADMIN" || actor.role === "CEO" || actor.role === "SUPERADMIN";
 
     if (!merchantOwned && !isAdmin) {
       return res.status(403).json({ error: "You are not allowed to update this order" });
