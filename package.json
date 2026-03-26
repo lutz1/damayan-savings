@@ -60,7 +60,9 @@
     "test": "vitest",
     "test:run": "vitest run",
     "predeploy": "npm run build && npm run build:merchant && npm run build:rider && node scripts/prepare-gh-pages.mjs",
-    "deploy": "gh-pages -d dist --add"
+    "deploy": "gh-pages -d dist --add",
+    "deploy:functions": "firebase deploy --only functions",
+    "deploy:functions:deposit-approval": "firebase deploy --only functions:processDepositApproval"
   },
   "browserslist": {
     "production": [

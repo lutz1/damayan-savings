@@ -67,7 +67,7 @@ const AdminDeposits = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const auth = getAuth();
-  const functions = getFunctions(app);
+  const functions = getFunctions(app, "us-central1");
 
   useEffect(() => setSidebarOpen(!isMobile), [isMobile]);
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
