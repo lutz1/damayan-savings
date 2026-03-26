@@ -56,8 +56,8 @@ const PurchaseCodesDialog = ({
 
   const codePrices = {
     capital: 6400,
-    downline: 600,
-  };
+    downline: 1000,
+  }; 
 
   useEffect(() => {
     if (!open || !auth?.currentUser) return;
@@ -236,7 +236,7 @@ const PurchaseCodesDialog = ({
                 Capital Share Activation Code — ₱6400
               </MenuItem>
               <MenuItem value="downline">
-                Downline Code — ₱600
+                Downline Code — ₱1000
               </MenuItem>
             </TextField>
           )}
