@@ -31,11 +31,11 @@ import {
   collection,
   onSnapshot,
   doc,
-  updateDoc,
   getDoc,
   query,
 } from "firebase/firestore";
-import { db } from "../../firebase";
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { app, db } from "../../firebase";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
 import AdminSidebarToggle from "../../components/AdminSidebarToggle";
@@ -67,6 +67,7 @@ const AdminDeposits = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const auth = getAuth();
+  const functions = getFunctions(app);
 
   useEffect(() => setSidebarOpen(!isMobile), [isMobile]);
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
@@ -178,53 +179,26 @@ const AdminDeposits = () => {
   // ✅ Approve or Reject deposit
   const handleAction = async (status) => {
     if (!selectedDeposit) return;
-    const { id, userId, netAmount, amount } = selectedDeposit;
+    const { id } = selectedDeposit;
 
     try {
-      const depositRef = doc(db, "deposits", id);
-      const reviewerMeta = await getReviewerMetadata();
-      await updateDoc(depositRef, {
-        status: status.toLowerCase(),
-        ...reviewerMeta,
-        reviewedAt: new Date(),
+      const processDepositApproval = httpsCallable(functions, "processDepositApproval");
+      await processDepositApproval({
+        depositId: id,
+        action: status.toLowerCase(),
         remarks,
       });
 
-      if (status.toLowerCase() === "approved") {
-        const userRef = doc(db, "users", userId);
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists()) {
-          const currentBalance = Number(userSnap.data().eWallet);
-          // Use netAmount if present and > 0, otherwise fallback to amount
-          let depositAmount = Number(netAmount);
-          if (!depositAmount || depositAmount <= 0) {
-            depositAmount = Number(amount);
-          }
-          const safeBalance = isNaN(currentBalance) ? 0 : currentBalance;
-          const safeDeposit = isNaN(depositAmount) ? 0 : depositAmount;
-          await updateDoc(userRef, {
-            eWallet: safeBalance + safeDeposit,
-            lastUpdated: new Date(),
-          });
-          console.log("[ADMIN] Updated user eWallet:", {
-            userId,
-            before: currentBalance,
-            deposit: safeDeposit,
-            after: safeBalance + safeDeposit,
-          });
-        }
-      }
-
       setSelectedDeposit(null);
       setRemarks("");
-      // Show a success notification
       window.alert(
         status.toLowerCase() === "approved"
-          ? "Deposit approved and eWallet updated!"
-          : "Deposit status updated."
+          ? "Deposit approved successfully."
+          : "Deposit rejected successfully."
       );
     } catch (err) {
       console.error("Error updating deposit:", err);
+      window.alert(err?.message || "Failed to process deposit.");
     }
   };
 
@@ -240,37 +214,49 @@ const AdminDeposits = () => {
   const handleViewProof = (url) => setProofImage(url);
   const closeProofDialog = () => setProofImage(null);
 
-  const getReviewerMetadata = async () => {
-    const currentUser = auth.currentUser;
-    const reviewerUid = currentUser?.uid || "";
-    const reviewerEmail = currentUser?.email || "";
+  const buildShareText = (deposit) => {
+    const createdDate = deposit?.createdAt?.seconds
+      ? new Date(deposit.createdAt.seconds * 1000)
+      : null;
+    const dateLabel = createdDate ? createdDate.toLocaleDateString() : "—";
+    const timeLabel = createdDate ? createdDate.toLocaleTimeString() : "—";
+    const amount = Number(deposit?.amount || 0);
+    const net = Number(deposit?.netAmount || deposit?.amount || 0);
+    const status = String(deposit?.status || "pending");
+    const receiptUrl = deposit?.receiptUrl || "No uploaded receipt";
 
-    if (!reviewerUid) {
-      return {
-        reviewedByUid: "",
-        reviewedByEmail: reviewerEmail,
-        reviewedByUsername: "",
-        reviewedByRole: "",
-      };
-    }
+    return [
+      `Email: ${deposit?.email || "—"}`,
+      `Amount: ₱${amount.toLocaleString()}`,
+      `Type: ${deposit?.type || "—"}`,
+      `Net: ₱${net.toLocaleString()}`,
+      `Status: ${status}`,
+      `Uploaded Receipt: ${receiptUrl}`,
+      `Date: ${dateLabel}`,
+      `Time: ${timeLabel}`,
+    ].join("\n");
+  };
 
+  const handleShareDeposit = async (deposit) => {
+    const text = buildShareText(deposit);
     try {
-      const reviewerSnap = await getDoc(doc(db, "users", reviewerUid));
-      const reviewerData = reviewerSnap.exists() ? reviewerSnap.data() || {} : {};
-      return {
-        reviewedByUid: reviewerUid,
-        reviewedByEmail: reviewerEmail,
-        reviewedByUsername: reviewerData.username || reviewerData.name || "",
-        reviewedByRole: String(reviewerData.role || "").toUpperCase(),
-      };
+      if (navigator.share) {
+        await navigator.share({
+          title: "Deposit Details",
+          text,
+        });
+        return;
+      }
+
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        window.alert("Deposit details copied to clipboard.");
+        return;
+      }
+
+      window.alert(text);
     } catch (err) {
-      console.warn("[adminDeposits] Failed to fetch reviewer metadata:", err);
-      return {
-        reviewedByUid: reviewerUid,
-        reviewedByEmail: reviewerEmail,
-        reviewedByUsername: "",
-        reviewedByRole: "",
-      };
+      console.warn("Share failed:", err);
     }
   };
 
@@ -283,6 +269,7 @@ const AdminDeposits = () => {
   // Check if user can approve/reject
   const isRestrictedEmail = restrictedEmails.includes((userEmail || "").toLowerCase());
   const canApproveReject = ["ADMIN", "CEO"].includes(normalizedRole) && !isRestrictedEmail;
+  const canShareDeposit = ["SUPERADMIN", "ADMIN", "CEO"].includes(normalizedRole);
   
   // Debug log
   React.useEffect(() => {
@@ -546,11 +533,34 @@ const AdminDeposits = () => {
                                 >
                                   Approve / Reject
                                 </Button>
+                                  {canShareDeposit && (
+                                    <Button
+                                      variant="contained"
+                                      color="primary"
+                                      size="small"
+                                      onClick={() => handleShareDeposit(d)}
+                                    >
+                                      Share
+                                    </Button>
+                                  )}
                               </Box>
                             ) : (
-                              <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.6)", mt: 1 }}>
-                                —
-                              </Typography>
+                              <Box sx={{ mt: 1 }}>
+                                {canShareDeposit ? (
+                                  <Button
+                                    variant="contained"
+                                    color="primary"
+                                    size="small"
+                                    onClick={() => handleShareDeposit(d)}
+                                  >
+                                    Share
+                                  </Button>
+                                ) : (
+                                  <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.6)" }}>
+                                    —
+                                  </Typography>
+                                )}
+                              </Box>
                             )}
                           </CardContent>
                         </Card>
@@ -640,14 +650,37 @@ const AdminDeposits = () => {
                                     >
                                       Approve / Reject
                                     </Button>
+                                    {canShareDeposit && (
+                                      <Button
+                                        variant="contained"
+                                        color="primary"
+                                        size="small"
+                                        onClick={() => handleShareDeposit(d)}
+                                      >
+                                        Share
+                                      </Button>
+                                    )}
                                   </Box>
                                 ) : (
-                                  <Typography
-                                    variant="body2"
-                                    sx={{ color: "rgba(255,255,255,0.6)" }}
-                                  >
-                                    —
-                                  </Typography>
+                                  <Box>
+                                    {canShareDeposit ? (
+                                      <Button
+                                        variant="contained"
+                                        color="primary"
+                                        size="small"
+                                        onClick={() => handleShareDeposit(d)}
+                                      >
+                                        Share
+                                      </Button>
+                                    ) : (
+                                      <Typography
+                                        variant="body2"
+                                        sx={{ color: "rgba(255,255,255,0.6)" }}
+                                      >
+                                        —
+                                      </Typography>
+                                    )}
+                                  </Box>
                                 )}
                               </TableCell>
                             </motion.tr>

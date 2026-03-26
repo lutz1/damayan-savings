@@ -55,6 +55,91 @@ const sendPushToUsers = async ({ userIds = [], title, body, data = {} }) => {
   return { sent, users: uniqueUserIds.length };
 };
 
+exports.processDepositApproval = functions.https.onCall(async (data, context) => {
+  if (!context.auth?.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Authentication required.");
+  }
+
+  const depositId = String(data?.depositId || "").trim();
+  const action = String(data?.action || "").trim().toLowerCase();
+  const remarks = String(data?.remarks || "").trim();
+
+  if (!depositId) {
+    throw new functions.https.HttpsError("invalid-argument", "Deposit ID is required.");
+  }
+
+  if (!["approved", "rejected"].includes(action)) {
+    throw new functions.https.HttpsError("invalid-argument", "Invalid deposit action.");
+  }
+
+  const reviewerRef = db.collection("users").doc(context.auth.uid);
+  const reviewerSnap = await reviewerRef.get();
+  const reviewerData = reviewerSnap.exists ? reviewerSnap.data() || {} : {};
+  const reviewerRole = String(reviewerData.role || "").toUpperCase();
+
+  if (!["ADMIN", "CEO", "SUPERADMIN"].includes(reviewerRole)) {
+    throw new functions.https.HttpsError("permission-denied", "Not authorized to review deposits.");
+  }
+
+  return db.runTransaction(async (transaction) => {
+    const depositRef = db.collection("deposits").doc(depositId);
+    const depositSnap = await transaction.get(depositRef);
+
+    if (!depositSnap.exists) {
+      throw new functions.https.HttpsError("not-found", "Deposit request not found.");
+    }
+
+    const depositData = depositSnap.data() || {};
+    const currentStatus = String(depositData.status || "pending").toLowerCase();
+    if (currentStatus !== "pending") {
+      throw new functions.https.HttpsError("failed-precondition", "Deposit has already been reviewed.");
+    }
+
+    const updateData = {
+      status: action,
+      remarks,
+      reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+      reviewedByUid: context.auth.uid,
+      reviewedByEmail: context.auth.token.email || reviewerData.email || "",
+      reviewedByUsername: reviewerData.username || reviewerData.name || "",
+      reviewedByRole: reviewerRole,
+    };
+
+    transaction.update(depositRef, updateData);
+
+    let creditedAmount = 0;
+    if (action === "approved") {
+      const userId = String(depositData.userId || "").trim();
+      if (!userId) {
+        throw new functions.https.HttpsError("failed-precondition", "Deposit request has no user ID.");
+      }
+
+      const userRef = db.collection("users").doc(userId);
+      const userSnap = await transaction.get(userRef);
+      if (!userSnap.exists) {
+        throw new functions.https.HttpsError("not-found", "Deposit user not found.");
+      }
+
+      const userData = userSnap.data() || {};
+      const currentBalance = Number(userData.eWallet);
+      const depositAmount = Number(depositData.netAmount || depositData.amount || 0);
+      const safeBalance = Number.isFinite(currentBalance) ? currentBalance : 0;
+      creditedAmount = Number.isFinite(depositAmount) ? depositAmount : 0;
+
+      transaction.update(userRef, {
+        eWallet: safeBalance + creditedAmount,
+        lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    return {
+      success: true,
+      status: action,
+      creditedAmount,
+    };
+  });
+});
+
 exports.notifyMerchantOnNewOrder = functions.firestore
   .document("sales/{saleId}")
   .onCreate(async (snap, context) => {
@@ -1566,7 +1651,13 @@ exports.purchaseActivationCode = functions.https.onRequest(async (req, res) => {
       }
 
       const codePrices = { capital: 2400, downline: 600 };
-      const amount = codePrices[codeType];
+
+      const getDateValue = (value) => {
+        if (!value) return null;
+        if (typeof value.toDate === "function") return value.toDate();
+        const parsed = new Date(value);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+      };
 
       const result = await db.runTransaction(async (transaction) => {
         // Idempotency check
@@ -1575,7 +1666,14 @@ exports.purchaseActivationCode = functions.https.onRequest(async (req, res) => {
           const existingSnap = await transaction.get(idempotencyRef);
           if (docExists(existingSnap)) {
             const data = existingSnap.data();
-            return { success: true, deduped: true, code: data.code, codeId: data.codeId };
+            return {
+              success: true,
+              deduped: true,
+              code: data.code,
+              codeId: data.codeId,
+              amount: Number(data.amount || 0),
+              isCapitalRenewalEligible: Boolean(data.isCapitalRenewalEligible),
+            };
           }
         }
 
@@ -1586,6 +1684,18 @@ exports.purchaseActivationCode = functions.https.onRequest(async (req, res) => {
         }
 
         const userData = userSnap.data();
+        const activatedAt = getDateValue(userData.capitalActivatedAt);
+        const renewalDate = activatedAt
+          ? new Date(activatedAt.getFullYear() + 1, activatedAt.getMonth(), activatedAt.getDate())
+          : null;
+        const isCapitalRenewalEligible = Boolean(
+          codeType === "capital" && activatedAt && renewalDate && new Date() >= renewalDate
+        );
+        const amount =
+          codeType === "capital"
+            ? (isCapitalRenewalEligible ? 500 : codePrices.capital)
+            : codePrices.downline;
+
         const currentBalance = Number(userData.eWallet || 0);
         if (currentBalance < amount) {
           throw new Error("Insufficient wallet balance");
@@ -1614,6 +1724,8 @@ exports.purchaseActivationCode = functions.https.onRequest(async (req, res) => {
           transaction.set(idempotencyRef, {
             code: randomCode,
             codeId: purchaseRef.id,
+            amount,
+            isCapitalRenewalEligible,
             createdAt: new Date(),
           });
         }
@@ -1622,6 +1734,8 @@ exports.purchaseActivationCode = functions.https.onRequest(async (req, res) => {
           success: true,
           code: randomCode,
           codeId: purchaseRef.id,
+          amount,
+          isCapitalRenewalEligible,
           newBalance: currentBalance - amount,
         };
       });
@@ -1637,9 +1751,10 @@ exports.purchaseActivationCode = functions.https.onRequest(async (req, res) => {
             data: {
               userId,
               codeType,
-              amount,
+              amount: result.amount,
               newBalance: result.newBalance,
               deduped: result.deduped || false,
+              isCapitalRenewalEligible: result.isCapitalRenewalEligible || false,
               source: "Cloud Function",
             },
           }),

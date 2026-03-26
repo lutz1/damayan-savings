@@ -28,10 +28,19 @@ import {
   onSnapshot,
   runTransaction,
 } from "firebase/firestore";
+import { useNavigate } from "react-router-dom";
 
 
-import DepositDialog from "./DepositDialog";
 import { sendPurchaseNotification, cleanupOldNotifications } from "../../../utils/notifications";
+
+const getDateValue = (value) => {
+  if (!value) return null;
+  if (typeof value?.toDate === "function") {
+    return value.toDate();
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
 
 const PurchaseCodesDialog = ({
   open,
@@ -41,6 +50,7 @@ const PurchaseCodesDialog = ({
   auth,
   onBalanceUpdate,
 }) => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
   // Clean up old notifications on mount
@@ -51,13 +61,26 @@ const PurchaseCodesDialog = ({
   const [successMessage, setSuccessMessage] = useState("");
   const [purchaseLogs, setPurchaseLogs] = useState([]);
   const [confirmDialog, setConfirmDialog] = useState(false);
-  const [depositOpen, setDepositOpen] = useState(false);
   const [purchaseConfirmOpen, setPurchaseConfirmOpen] = useState(false);
 
+  const activatedAt = getDateValue(userData?.capitalActivatedAt);
+  const hasActivatedCapitalShare = Boolean(activatedAt);
+  const oneYearAfterActivation = activatedAt
+    ? new Date(activatedAt.getFullYear() + 1, activatedAt.getMonth(), activatedAt.getDate())
+    : null;
+  const isCapitalRenewalEligible = Boolean(
+    hasActivatedCapitalShare && oneYearAfterActivation && new Date() >= oneYearAfterActivation
+  );
+
+  const capitalPrice = isCapitalRenewalEligible ? 500 : 6400;
+  const capitalLabel = isCapitalRenewalEligible
+    ? "Capital Share Renewal Code"
+    : "Capital Share Activation Code";
+
   const codePrices = {
-    capital: 6400,
+    capital: capitalPrice,
     downline: 1000,
-  }; 
+  };
 
   useEffect(() => {
     if (!open || !auth?.currentUser) return;
@@ -131,7 +154,7 @@ const PurchaseCodesDialog = ({
 
       setSuccessMessage(
         codeType === "capital"
-          ? "Capital Share Activation Code purchased!"
+          ? `${capitalLabel} purchased!`
           : "Downline Code purchased!"
       );
 
@@ -146,10 +169,6 @@ const PurchaseCodesDialog = ({
   const handleClose = () => {
     setSuccessMessage("");
     onClose();
-  };
-
-  const handleDepositClose = () => {
-    setDepositOpen(false);
   };
 
   const getStatusColor = (status) => {
@@ -233,7 +252,7 @@ const PurchaseCodesDialog = ({
               }}
             >
               <MenuItem value="capital">
-                Capital Share Activation Code — ₱6400
+                {capitalLabel} — ₱{capitalPrice}
               </MenuItem>
               <MenuItem value="downline">
                 Downline Code — ₱1000
@@ -326,7 +345,8 @@ const PurchaseCodesDialog = ({
           <Button
             onClick={() => {
               setConfirmDialog(false);
-              setDepositOpen(true); // Redirect to DepositDialog
+              onClose();
+              navigate("/member/cash-in");
             }}
             variant="contained"
             color="primary"
@@ -355,7 +375,7 @@ const PurchaseCodesDialog = ({
   <DialogTitle sx={{ fontWeight: 600 }}>Confirm Purchase</DialogTitle>
   <DialogContent>
     <Typography sx={{ mt: 1 }}>
-      Are you sure you want to purchase this {codeType === "capital" ? "Capital Share Activation Code" : "Downline Code"} for ₱{codePrices[codeType]}?
+      Are you sure you want to purchase this {codeType === "capital" ? capitalLabel : "Downline Code"} for ₱{codePrices[codeType]}?
     </Typography>
   </DialogContent>
   <DialogActions sx={{ justifyContent: "center", mt: 1 }}>
@@ -381,18 +401,6 @@ const PurchaseCodesDialog = ({
   </DialogActions>
 </Dialog>
 
-      {/* Deposit Dialog */}
-      <DepositDialog
-        open={depositOpen}
-        onClose={handleDepositClose}
-        userData={userData}
-        db={db}
-        auth={auth}
-        onDepositSuccess={() => {
-          handleDepositClose();
-          if (onBalanceUpdate) onBalanceUpdate();
-        }}
-      />
     </>
   );
 };

@@ -22,6 +22,51 @@ const RewardHistoryDialog = ({
   setLoadingTransfer = () => {},
   onTransferSuccess = () => {},
 }) => {
+  const formatAmount = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed.toLocaleString() : "0";
+  };
+
+  const toDate = (value) => {
+    if (!value) return null;
+    if (typeof value?.toDate === "function") return value.toDate();
+    if (typeof value === "object" && typeof value.seconds === "number") {
+      return new Date(value.seconds * 1000);
+    }
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  const getDisplayDate = (reward) => {
+    const date = toDate(reward.releasedAt) || toDate(reward.createdAt);
+    if (!date) return "";
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  const getSortTime = (reward) => {
+    const date = toDate(reward.releasedAt) || toDate(reward.createdAt);
+    return date?.getTime?.() || 0;
+  };
+
+  const getSourceLabel = (reward) => {
+    const source = (reward.source || "").toString().trim();
+    const normalized = source.toLowerCase();
+    if (source && normalized !== "system") return source;
+
+    return (
+      reward.inviteeUsername ||
+      reward.fromUsername ||
+      reward.fromUser ||
+      reward.triggeredByUsername ||
+      (reward.type === "System Bonus" ? "Invite Registration" : reward.type) ||
+      "Invite Registration"
+    );
+  };
+
   return (
     <Dialog
       open={open}
@@ -68,7 +113,7 @@ const RewardHistoryDialog = ({
           <Box component="ul" sx={{ m: 0, p: 0, listStyle: "none" }}>
             {[...rewardHistory]
               .filter(r => !r.transferredAmount && !r.dateTransferred)
-              .sort((a, b) => (b.releasedAt?.seconds || 0) - (a.releasedAt?.seconds || 0))
+              .sort((a, b) => getSortTime(b) - getSortTime(a))
               .map((reward, idx) => {
                 const transferred = !!(reward.transferredAmount && reward.dateTransferred);
                 const isLoading = !!loadingTransfer?.[reward.id];
@@ -77,7 +122,7 @@ const RewardHistoryDialog = ({
                   if (!user) return;
                   if (transferred) return alert("Reward already transferred.");
                   const confirmed = window.confirm(
-                    `Are you sure you want to transfer \u20b1${reward.amount.toLocaleString()} to your eWallet?`
+                    `Are you sure you want to transfer ₱${formatAmount(reward.amount)} to your eWallet?`
                   );
                   if (!confirmed) return;
                   try {
@@ -101,7 +146,7 @@ const RewardHistoryDialog = ({
                       throw new Error(msg);
                     }
                     const result = await response.json();
-                    alert(result.alreadyTransferred ? "Already transferred previously." : `\u20b1${reward.amount.toLocaleString()} transferred to eWallet!`);
+                    alert(result.alreadyTransferred ? "Already transferred previously." : `₱${formatAmount(reward.amount)} transferred to eWallet!`);
                     onTransferSuccess();
                   } catch (err) {
                     const msg = err.name === "AbortError" ? "Request timed out." : (err.message || "Unknown error");
@@ -111,9 +156,8 @@ const RewardHistoryDialog = ({
                   }
                 };
 
-                const dateLabel = reward.releasedAt?.seconds
-                  ? new Date(reward.releasedAt.seconds * 1000).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
-                  : "";
+                const dateLabel = getDisplayDate(reward);
+                const sourceLabel = getSourceLabel(reward);
 
                 return (
                   <Box
@@ -139,7 +183,7 @@ const RewardHistoryDialog = ({
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, flexWrap: "wrap" }}>
                         <Typography sx={{ fontSize: 15, fontWeight: 800, color: "#105abf" }}>
-                          \u20b1{Number(reward.amount).toLocaleString()}
+                          ₱{formatAmount(reward.amount)}
                         </Typography>
                         <Chip
                           label="Pending Transfer"
@@ -148,10 +192,10 @@ const RewardHistoryDialog = ({
                             backgroundColor: "rgba(239,108,0,0.12)", color: "#e65100" }}
                         />
                       </Box>
-                      {reward.source && (
+                      {sourceLabel && (
                         <Typography sx={{ fontSize: 11, color: "#5d646f", mt: 0.3 }}
-                          noWrap title={reward.source}>
-                          From: {reward.source}
+                          noWrap title={sourceLabel}>
+                          From: {sourceLabel}
                         </Typography>
                       )}
                       {dateLabel && (

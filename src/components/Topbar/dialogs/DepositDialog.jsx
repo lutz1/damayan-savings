@@ -18,7 +18,7 @@ import {
   Chip,
 } from "@mui/material";
 import { Savings, CheckCircle } from "@mui/icons-material";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { addDoc, collection, query, where, onSnapshot, serverTimestamp } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 const DepositDialog = ({ open, onClose, userData, db }) => {
@@ -27,7 +27,6 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
   const [error, setError] = useState("");
   const [depositLogs, setDepositLogs] = useState([]);
   const [processingPayment, setProcessingPayment] = useState(false);
-  const [serverWaking, setServerWaking] = useState(false);
 
   const auth = getAuth();
   const currentUser = auth.currentUser;
@@ -52,69 +51,40 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
     onClose();
   };
 
-  // Handle PayMongo payment
-  const handlePayMongoPayment = async () => {
+  const handleSubmitCashIn = async () => {
     try {
       if (!amount || parseFloat(amount) <= 0) {
         setError("Please enter a valid deposit amount.");
         return;
       }
+      if (!currentUser?.uid) {
+        setError("Session expired. Please log in again.");
+        return;
+      }
 
       setProcessingPayment(true);
-      setServerWaking(false);
       setError("");
 
-      // Show "waking server" message after 3 seconds
-      const wakeTimer = setTimeout(() => {
-        setServerWaking(true);
-      }, 3000);
-
-      const idToken = await auth.currentUser.getIdToken();
-      const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
       const depositName = userData?.name && userData?.name.trim() 
         ? userData.name 
         : (currentUser.displayName || currentUser.email || "Unknown User");
 
-      // Add timeout to the fetch request (30 seconds for Render cold start)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
-
-      const response = await fetch(`${API_BASE}/api/create-payment-link`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          idToken,
-          amount: parseFloat(amount),
-          name: depositName,
-          email: currentUser.email,
-        }),
-        signal: controller.signal,
+      await addDoc(collection(db, "deposits"), {
+        userId: currentUser.uid,
+        name: depositName,
+        email: currentUser.email || "",
+        amount: Number(amount),
+        status: "Pending",
+        type: "Cash In Request",
+        paymentMethod: "Manual",
+        source: "manual",
+        createdAt: serverTimestamp(),
       });
 
-      clearTimeout(timeoutId);
-      clearTimeout(wakeTimer);
-
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Failed to create payment");
-
-      // Store checkoutId in sessionStorage so success page can retrieve it
-      if (result.checkoutId) {
-        sessionStorage.setItem("paymongo_checkout_id", result.checkoutId);
-        console.log("[DepositDialog] Stored checkoutId:", result.checkoutId);
-      }
-
-      // Redirect to PayMongo checkout
-      window.location.href = result.checkoutUrl;
+      setSuccess(true);
+      setAmount("");
     } catch (err) {
-      console.error("PayMongo error:", err);
-      
-      if (err.name === 'AbortError') {
-        setError("Request timeout. The server might be waking up. Please try again in a moment.");
-      } else {
-        setError(err.message || "Payment creation failed. Please try again.");
-      }
-      
-      setServerWaking(false);
+      setError(err.message || "Cash in request failed. Please try again.");
     } finally {
       setProcessingPayment(false);
     }
@@ -198,7 +168,7 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
               )}
 
               <Typography variant="subtitle2" sx={{ mb: 2, color: "#FFD54F", fontWeight: 600 }}>
-                💳 Fast & Secure Payment
+                Cash in Request
               </Typography>
               <TextField
                 fullWidth
@@ -216,7 +186,7 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
               />
               
               <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.7)", mb: 1.5 }}>
-                ✅ Supports GCash, Credit Cards & Bank Transfer
+                Submit your request. Admin will review and confirm your cash in.
               </Typography>
 
               <Button
@@ -231,35 +201,17 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
                   "&:hover": { bgcolor: "#66BB6A" },
                   "&.Mui-disabled": { opacity: 0.6 },
                 }}
-                onClick={handlePayMongoPayment}
+                onClick={handleSubmitCashIn}
               >
                 {processingPayment ? (
                   <>
                     <CircularProgress size={20} sx={{ color: "#000", mr: 1 }} />
-                    {serverWaking ? "Waking server..." : "Processing..."}
+                    Processing...
                   </>
                 ) : (
-                  "Proceed to Payment"
+                  "Submit Request"
                 )}
               </Button>
-
-              {serverWaking && (
-                <Alert
-                  severity="info"
-                  sx={{
-                    mb: 1,
-                    background: "rgba(33,150,243,0.15)",
-                    color: "#90CAF9",
-                    fontSize: 12,
-                  }}
-                >
-                  ⏳ Server is waking up (Render free tier). This may take 30-50 seconds. Please wait...
-                </Alert>
-              )}
-
-              <Typography variant="caption" sx={{ display: "block", textAlign: "center", color: "rgba(255,255,255,0.6)", mt: 1 }}>
-                You will be redirected to secure PayMongo checkout
-              </Typography>
             </>
           )}
 

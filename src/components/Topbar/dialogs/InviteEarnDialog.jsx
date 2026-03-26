@@ -17,7 +17,7 @@ const InviteEarnDialog = ({ open, onClose, userData, db, auth }) => {
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserContact, setNewUserContact] = useState("");
   const [newUserAddress, setNewUserAddress] = useState("");
-  const [newUserRole, setNewUserRole] = useState("MD");
+  const [newUserRole, setNewUserRole] = useState("Agent");
   const [selectedCode, setSelectedCode] = useState("");
   const [availableCodes, setAvailableCodes] = useState([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -157,7 +157,10 @@ const isValidEmail = (email) => {
           username: masterMD.data().username,
           role: "MasterMD",
           amount: 150,
-          source: "System",
+          source: newUserUsername || newUserName || "Invite Registration",
+          inviteeUsername: newUserUsername || "",
+          inviteeName: newUserName || "",
+          triggeredByUsername: userData?.username || "",
           type: "System Bonus",
           approved: true,
           payoutReleased: true,
@@ -188,7 +191,10 @@ const isValidEmail = (email) => {
             username: specialUser.data().username,
             role: specialUser.data().role,
             amount: bonusAmount,
-            source: "System",
+            source: newUserUsername || newUserName || "Invite Registration",
+            inviteeUsername: newUserUsername || "",
+            inviteeName: newUserName || "",
+            triggeredByUsername: userData?.username || "",
             type: "System Bonus",
             approved: true,
             payoutReleased: true,
@@ -205,7 +211,7 @@ const isValidEmail = (email) => {
       setNewUserEmail("");
       setNewUserContact("");
       setNewUserAddress("");
-      setNewUserRole("MD");
+      setNewUserRole("Agent");
       setSelectedCode("");
     } catch (err) {
       console.error("❌ Invite failed:", err);
@@ -224,7 +230,7 @@ const isValidEmail = (email) => {
     setNewUserEmail("");
     setNewUserContact("");
     setNewUserAddress("");
-    setNewUserRole("MD");
+    setNewUserRole("Agent");
     setSelectedCode("");
     onClose();
   };
@@ -455,9 +461,6 @@ const isValidEmail = (email) => {
                 "& .MuiSvgIcon-root": { color: "#105abf" },
               }}
             >
-              <MenuItem value="MD">MD (Managing Director)</MenuItem>
-              <MenuItem value="MS">MS (Marketing Specialist)</MenuItem>
-              <MenuItem value="MI">MI (Marketing Influencer)</MenuItem>
               <MenuItem value="Agent">Agent</MenuItem>
             </Select>
           </FormControl>

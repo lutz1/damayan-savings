@@ -15,6 +15,27 @@ export async function sendPurchaseNotification({ userId, codeType }) {
   });
 }
 
+// Call this after a successful send money transaction
+export async function sendTransferNotification({ userId, amount, recipientUsername }) {
+  if (!userId) return;
+  const safeAmount = Number(amount) || 0;
+  const toUser = recipientUsername || "recipient";
+
+  await addDoc(collection(db, "notifications"), {
+    userId,
+    title: "Transfer Successful",
+    message: `You sent ${safeAmount.toLocaleString("en-PH", {
+      style: "currency",
+      currency: "PHP",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })} to ${toUser}.`,
+    type: "send-money",
+    createdAt: serverTimestamp(),
+    read: false,
+  });
+}
+
 // Call this periodically or after loading notifications
 export async function cleanupOldNotifications(userId) {
   if (!userId) return;

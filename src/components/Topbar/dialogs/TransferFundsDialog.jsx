@@ -36,6 +36,7 @@ import {
   getDocs,
   limit,
 } from "firebase/firestore";
+import { sendTransferNotification } from "../../../utils/notifications";
 
 const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) => {
   const safeUserData = userData || {};
@@ -185,6 +186,12 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
         throw new Error(data.error || "Transfer failed");
       }
 
+      await sendTransferNotification({
+        userId: auth.currentUser.uid,
+        amount: numAmount,
+        recipientUsername,
+      });
+
       // Update local balance
       if (onBalanceUpdate) onBalanceUpdate(data.newBalance);
 
@@ -248,6 +255,12 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
       if (!response.ok) {
         throw new Error(data.error || "Transfer failed");
       }
+
+      await sendTransferNotification({
+        userId: auth.currentUser.uid,
+        amount: numAmount,
+        recipientUsername,
+      });
 
       // Update local balance
       if (onBalanceUpdate) onBalanceUpdate(data.newBalance);

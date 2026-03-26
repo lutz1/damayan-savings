@@ -25,6 +25,51 @@ const OverrideUplineRewardsDialog = ({
   loadingTransfer = {},
   setLoadingTransfer = () => {},
 }) => {
+  const formatAmount = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed.toLocaleString() : "0";
+  };
+
+  const toDate = (value) => {
+    if (!value) return null;
+    if (typeof value?.toDate === "function") return value.toDate();
+    if (typeof value === "object" && typeof value.seconds === "number") {
+      return new Date(value.seconds * 1000);
+    }
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  const getSortTime = (item) => {
+    const date = toDate(item.releaseDate) || toDate(item.createdAt);
+    return date?.getTime?.() || 0;
+  };
+
+  const getDisplayDate = (item) => {
+    const date = toDate(item.releaseDate) || toDate(item.createdAt);
+    if (!date) return "";
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  const getSourceLabel = (item) => {
+    const source = (item.source || "").toString().trim();
+    const normalized = source.toLowerCase();
+    if (source && normalized !== "system") return source;
+
+    return (
+      item.fromUsername ||
+      item.fromUser ||
+      item.triggeredByUsername ||
+      item.uplineUsername ||
+      item.type ||
+      "Network Bonus"
+    );
+  };
+
   return (
     <Dialog
       open={open}
@@ -70,7 +115,7 @@ const OverrideUplineRewardsDialog = ({
         ) : (
           <Box component="ul" sx={{ m: 0, p: 0, listStyle: "none" }}>
             {[...overrideList]
-              .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+              .sort((a, b) => getSortTime(b) - getSortTime(a))
               .map((o, idx) => {
                 let dueDate = o.dueDate || o.releaseDate;
                 if (dueDate) {
@@ -84,21 +129,13 @@ const OverrideUplineRewardsDialog = ({
                 const profitStatus = credited ? "Credited" : (isClaimable ? "Ready to Claim" : "Pending");
                 const isLoading = !!loadingTransfer?.[o.id];
 
-                const dateObj = o.releaseDate || o.createdAt;
-                let releaseLabel = "";
-                if (dateObj) {
-                  let d = typeof dateObj === "object" && dateObj.seconds ? new Date(dateObj.seconds * 1000)
-                    : (typeof dateObj === "string" || typeof dateObj === "number") ? new Date(dateObj) : null;
-                  if (d && !isNaN(d.getTime())) {
-                    releaseLabel = d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-                  }
-                }
-                const from = o.fromUsername || o.fromUser || o.source || "N/A";
+                const releaseLabel = getDisplayDate(o);
+                const from = getSourceLabel(o);
 
                 const handleSingleOverrideTransfer = async () => {
                   if (!user || credited) return alert(credited ? "Already credited." : "");
                   if (!isClaimable) return alert("Not yet due. Check back after the due date.");
-                  const confirmed = window.confirm(`Transfer \u20b1${o.amount.toLocaleString()} to eWallet?`);
+                  const confirmed = window.confirm(`Transfer ₱${formatAmount(o.amount)} to eWallet?`);
                   if (!confirmed) return;
                   try {
                     setLoadingTransfer((prev) => ({ ...prev, [o.id]: true }));
@@ -121,7 +158,7 @@ const OverrideUplineRewardsDialog = ({
                       throw new Error(msg);
                     }
                     const result = await response.json();
-                    alert(result.alreadyTransferred ? "Already credited previously." : `\u20b1${o.amount.toLocaleString()} transferred!`);
+                    alert(result.alreadyTransferred ? "Already credited previously." : `₱${formatAmount(o.amount)} transferred!`);
                   } catch (err) {
                     alert("Transfer failed: " + (err.name === "AbortError" ? "Timed out." : err.message));
                   } finally {
@@ -158,7 +195,7 @@ const OverrideUplineRewardsDialog = ({
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, flexWrap: "wrap" }}>
                         <Typography sx={{ fontSize: 15, fontWeight: 800, color: credited ? "#2e7d32" : "#752a00" }}>
-                          \u20b1{Number(o.amount).toLocaleString()}
+                          ₱{formatAmount(o.amount)}
                         </Typography>
                         <Chip
                           label={profitStatus}

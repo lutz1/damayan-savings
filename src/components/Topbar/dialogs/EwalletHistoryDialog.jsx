@@ -89,8 +89,8 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
             displayType = "💰 Capital Share Added";
           } else if (d.type === "Referral Reward Transfer") {
             displayType = `🎁 Referral Reward from ${d.source || "System"}`;
-          } else if (d.type === "PayMongo") {
-            displayType = "💳 PayMongo Deposit";
+          } else if (d.type === "Cash In Request") {
+            displayType = "Cash In Request";
           }
           return { 
             ...d, 

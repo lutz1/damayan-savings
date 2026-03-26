@@ -2,7 +2,7 @@
 import RewardHistoryDialog from "./components/dialogs/RewardHistoryDialog";
 /* eslint-disable no-unused-vars */
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { sendReferralTransferAvailableNotification } from "../../utils/referralNotifications";
 import { sendOverrideTransferAvailableNotification } from "../../utils/overrideNotifications";
 import {
@@ -60,7 +60,6 @@ import QueryStatsIcon from "@mui/icons-material/QueryStats";
 import PersonPinIcon from "@mui/icons-material/PersonPin";
 import TransferFundsDialog from "../../components/Topbar/dialogs/TransferFundsDialog";
 import WithdrawDialog from "../../components/Topbar/dialogs/WithdrawDialog";
-import DepositDialog from "../../components/Topbar/dialogs/DepositDialog";
 import PurchaseCodesDialog from "../../components/Topbar/dialogs/PurchaseCodesDialog";
 import InviteEarnDialog from "../../components/Topbar/dialogs/InviteEarnDialog";
 import EwalletHistoryDialog from "../../components/Topbar/dialogs/EwalletHistoryDialog";
@@ -81,9 +80,16 @@ import { motion } from "framer-motion";
 import NetworkGroupSales from "./components/dialogs/networkGroupsales";
 
 const MemberDashboard = () => {
-    // Get location for deposit dialog redirect
-    const location = useLocation();
-    
+    const toAmountNumber = (value) => {
+      if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+      if (typeof value === "string") {
+        const normalized = value.replace(/[^0-9.-]/g, "");
+        const parsed = parseFloat(normalized);
+        return Number.isFinite(parsed) ? parsed : 0;
+      }
+      return 0;
+    };
+
     // Animated count-up states for card values
     const [displayContribution, setDisplayContribution] = useState(0);
     const [displayCapitalShare, setDisplayCapitalShare] = useState(0);
@@ -396,7 +402,7 @@ useEffect(() => {
     unsubscribeCapital = onSnapshot(
       capitalQ,
       (snap) => {
-        const total = snap.docs.reduce((sum, d) => sum + Number(d.data()?.amount || 0), 0);
+        const total = snap.docs.reduce((sum, d) => sum + toAmountNumber(d.data()?.amount), 0);
         setTotalCapitalShare(total);
       },
       () => {
@@ -408,7 +414,7 @@ useEffect(() => {
     unsubscribePayback = onSnapshot(
       paybackQ,
       (snap) => {
-        const total = snap.docs.reduce((sum, d) => sum + Number(d.data()?.amount || 0), 0);
+        const total = snap.docs.reduce((sum, d) => sum + toAmountNumber(d.data()?.amount), 0);
         setTotalContribution(total);
       },
       () => {
@@ -569,7 +575,7 @@ useEffect(() => {
   
   // Calculate TOTAL from ALL rewards (for marketing purposes - show total earned, even if claimed)
   const total = overrideList.reduce((sum, reward) => {
-    return sum + (Number(reward.amount) || 0);
+    return sum + toAmountNumber(reward.amount);
   }, 0);
   
   setOverrideEarnings(total);
@@ -590,7 +596,7 @@ useEffect(() => {
     const isClaimed = reward.claimed || reward.status === "Credited";
     
     if (isDue && !isClaimed) {
-      claimableTotal += Number(reward.amount) || 0;
+      claimableTotal += toAmountNumber(reward.amount);
       return true;
     }
     return false;
@@ -637,7 +643,7 @@ useEffect(() => {
       setRewardHistory(pendingRewards);
       
       // Calculate total from ALL released rewards (including transferred ones)
-      const total = allRewards.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+      const total = allRewards.reduce((sum, r) => sum + toAmountNumber(r.amount), 0);
       setTotalEarnings(total);
 
       // Notify if there are available rewards to transfer and not already notified in this session
@@ -653,15 +659,6 @@ useEffect(() => {
 
     return () => unsubscribe();
   }, [user]);
-
-  // 🔹 Check if we should open deposit dialog (from deposit-cancel page)
-  useEffect(() => {
-    if (location.state?.openDepositDialog) {
-      setDashDialog("deposit");
-      // Clear the state to prevent opening dialog on subsequent visits
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, [location]);
 
   return (
     <Box sx={{ minHeight: "100vh", backgroundColor: "#f7f9fc", color: "#191c1e", pb: 14 }}>
@@ -760,7 +757,7 @@ useEffect(() => {
                 </IconButton>
               </Box>
               <Button
-                onClick={() => setDashDialog("deposit")}
+                onClick={() => navigate('/member/cash-in')}
                 sx={{
                   backgroundColor: "#fff",
                   color: "#0055ba",
@@ -1070,9 +1067,6 @@ useEffect(() => {
       </Box>
 
       {/* ─────────────────── Quick Action Dialogs ─────────────────── */}
-      {dashDialog === "deposit" && (
-        <DepositDialog open onClose={() => setDashDialog(null)} userData={userData} db={db} auth={auth} />
-      )}
       {dashDialog === "transfer" && (
         <TransferFundsDialog open onClose={() => setDashDialog(null)} userData={userData} db={db} auth={auth} />
       )}

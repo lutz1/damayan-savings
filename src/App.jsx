@@ -31,8 +31,7 @@ const MemberPayback = lazy(() => import("./pages/member/memberPayback"));
 const MemberCapitalShare = lazy(() => import("./pages/member/memberCapitalShare"));
 const MemberProfile = lazy(() => import("./pages/member/memberProfile"));
 const MemberVouchers = lazy(() => import("./pages/member/memberVouchers"));
-const DepositSuccess = lazy(() => import("./pages/depositSuccess"));
-const DepositCancel = lazy(() => import("./pages/depositCancel"));
+const MemberCashIn = lazy(() => import("./pages/member/memberCashIn"));
 
 
 function App() {
@@ -137,8 +136,6 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/login/merchant" element={<Login />} />
             <Route path="/login/rider" element={<Login />} />
-            <Route path="/deposit-success" element={<DepositSuccess />} />
-            <Route path="/deposit-cancel" element={<DepositCancel />} />
 
             <Route
               path="/admin/dashboard"
@@ -284,6 +281,14 @@ function App() {
               element={
                 <MemberRoute>
                   <MemberVouchers />
+                </MemberRoute>
+              }
+            />
+            <Route
+              path="/member/cash-in"
+              element={
+                <MemberRoute>
+                  <MemberCashIn />
                 </MemberRoute>
               }
             />
