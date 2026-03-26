@@ -966,10 +966,6 @@ app.post("/api/transfer-funds", async (req, res) => {
       return res.status(400).json({ error: "Amount must be greater than zero" });
     }
 
-    if (numAmount < 50) {
-      return res.status(400).json({ error: "Minimum transfer is ₱50" });
-    }
-
     // Verify user authentication
     let decodedToken;
     try {
@@ -1789,7 +1785,7 @@ app.post("/api/add-capital-share", async (req, res) => {
           "monares.cyriljay@gmail.com": 100,
           "gumaodjimmyjr@gmail.com": 50,
           "donmalintad@gmail.com": 50,
-          "dionesiovelasquez@gmail.com": 300,
+          "dionesiovelasquez@gmail.com": 100,
           "almirex.jkc@gmail.com": 50
         };
 

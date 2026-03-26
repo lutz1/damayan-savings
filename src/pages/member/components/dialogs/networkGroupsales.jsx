@@ -6,12 +6,12 @@ import {
   DialogActions,
   Button,
   Typography,
-  List,
-  ListItem,
-  ListItemText,
   CircularProgress,
   Box,
+  Chip,
 } from "@mui/material";
+import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
+import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../../../../firebase";
 
@@ -113,53 +113,124 @@ const NetworkGroupSales = ({ open, onClose, username, user }) => {
   }, [open, username]);
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>📊 Network Group Sales</DialogTitle>
-      <DialogContent dividers>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullWidth
+      maxWidth="sm"
+      PaperProps={{ sx: { borderRadius: 3, overflow: "hidden", backgroundColor: "#f7f9fc" } }}
+    >
+      {/* Header */}
+      <DialogTitle sx={{ background: "linear-gradient(135deg,#003f8d,#0055ba)", color: "#fff", p: 0 }}>
+        <Box sx={{ px: 2.5, pt: 2.5, pb: 2.2 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, mb: 0.6 }}>
+            <Box sx={{ width: 36, height: 36, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.18)",
+              display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <AccountTreeIcon sx={{ color: "#fff", fontSize: 20 }} />
+            </Box>
+            <Box>
+              <Typography sx={{ fontSize: 9, color: "rgba(255,255,255,0.72)", letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700 }}>Network</Typography>
+              <Typography sx={{ fontSize: 19, fontWeight: 800, color: "#fff" }}>Group Sales</Typography>
+            </Box>
+          </Box>
+          {user && (
+            <Typography sx={{ fontSize: 13, color: "rgba(255,255,255,0.80)", mt: 0.4 }}>
+              {user.name || user.username}{user.username ? ` @${user.username}` : ""}
+            </Typography>
+          )}
+        </Box>
+      </DialogTitle>
+
+      <DialogContent sx={{ p: 0 }}>
         {loading ? (
-          <Box sx={{ textAlign: "center", py: 3 }}>
-            <CircularProgress />
+          <Box sx={{ py: 8, display: "flex", justifyContent: "center" }}>
+            <CircularProgress sx={{ color: "#105abf" }} />
           </Box>
         ) : (
           <>
-            {/* TOP SUMMARY */}
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                {user?.name} ({user?.username})
-              </Typography>
-              <Typography variant="body1" sx={{ mt: 1 }}>
-                <strong>Overall Total Group Sales:</strong>{" "}
-                <span style={{ color: "#4CAF50", fontWeight: "bold" }}>
-                  ₱{overallTotal.toLocaleString()}
-                </span>
-              </Typography>
+            {/* Summary card */}
+            <Box sx={{ mx: 2, mt: 2, mb: 1.5, p: 2, borderRadius: 2.5,
+              background: "linear-gradient(135deg,#e8eeff,#fff)",
+              border: "1px solid rgba(16,90,191,0.12)",
+              display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+                <Box sx={{ width: 40, height: 40, borderRadius: 2, backgroundColor: "rgba(16,90,191,0.10)",
+                  display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <PeopleAltIcon sx={{ color: "#105abf", fontSize: 22 }} />
+                </Box>
+                <Box>
+                  <Typography sx={{ fontSize: 11, color: "#616975", fontWeight: 600 }}>Overall Group Sales</Typography>
+                  <Typography sx={{ fontSize: 24, fontWeight: 800, color: "#105abf", lineHeight: 1.1 }}>
+                    ₱{overallTotal.toLocaleString()}
+                  </Typography>
+                </Box>
+              </Box>
+              <Chip
+                label={`${networkMembers.length} member${networkMembers.length !== 1 ? "s" : ""}`}
+                size="small"
+                sx={{ fontWeight: 700, fontSize: 11, backgroundColor: "rgba(16,90,191,0.10)", color: "#105abf" }}
+              />
             </Box>
 
-            {/* NETWORK MEMBERS LIST */}
+            {/* Members list */}
             {networkMembers.length === 0 ? (
-              <Typography>No members with Capital Share.</Typography>
+              <Box sx={{ py: 6, textAlign: "center" }}>
+                <Typography sx={{ fontSize: 13, color: "#8b95a5" }}>No members with Capital Share.</Typography>
+              </Box>
             ) : (
-              <List>
+              <Box component="ul" sx={{ m: 0, p: 0, listStyle: "none" }}>
                 {networkMembers.map((m, i) => (
-                  <ListItem divider key={i}>
-                    <ListItemText
-                      primary={`${m.name} (${m.username})`}
-                      secondary={
-                        <>
-                          Role: {m.role || "N/A"} <br />
-                          Capital Share: ₱{m.totalCapitalShare.toLocaleString()}
-                        </>
-                      }
-                    />
-                  </ListItem>
+                  <Box
+                    key={i}
+                    component="li"
+                    sx={{
+                      display: "flex", alignItems: "center", gap: 1.4,
+                      px: 2, py: 1.6,
+                      backgroundColor: i % 2 === 0 ? "#fff" : "#f7f9fc",
+                      borderBottom: "1px solid #eceef1",
+                    }}
+                  >
+                    <Box sx={{ width: 40, height: 40, borderRadius: "50%",
+                      background: "linear-gradient(135deg,#003f8d,#0055ba)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      color: "#fff", fontWeight: 700, fontSize: 16, flexShrink: 0 }}>
+                      {(m.name || m.username || "?").charAt(0).toUpperCase()}
+                    </Box>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Box sx={{ display:"flex", alignItems:"center", gap: 0.8 }}>
+                        <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#1f2430" }} noWrap>
+                          {m.name || m.username}
+                        </Typography>
+                        {m.role && (
+                          <Chip label={m.role} size="small"
+                            sx={{ fontSize: 9, fontWeight: 700, height: 18,
+                              backgroundColor: "rgba(16,90,191,0.10)", color: "#105abf" }} />
+                        )}
+                      </Box>
+                      <Typography sx={{ fontSize: 11, color: "#8b95a5" }}>@{m.username}</Typography>
+                    </Box>
+                    <Box sx={{ textAlign: "right", flexShrink: 0 }}>
+                      <Typography sx={{ fontSize: 14, fontWeight: 800, color: "#105abf" }}>
+                        ₱{m.totalCapitalShare.toLocaleString()}
+                      </Typography>
+                      <Typography sx={{ fontSize: 10, color: "#8b95a5", fontWeight: 600, textTransform: "uppercase" }}>Cap Share</Typography>
+                    </Box>
+                  </Box>
                 ))}
-              </List>
+              </Box>
             )}
           </>
         )}
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Close</Button>
+
+      <DialogActions sx={{ backgroundColor: "#fff", borderTop: "1px solid #eceef1", px: 2, py: 1.4 }}>
+        <Button
+          onClick={onClose}
+          sx={{ borderRadius: 2, fontWeight: 700, color: "#105abf", textTransform: "none",
+            backgroundColor: "rgba(16,90,191,0.08)", px: 2.5, "&:hover": { backgroundColor: "rgba(16,90,191,0.14)" } }}
+        >
+          Close
+        </Button>
       </DialogActions>
     </Dialog>
   );

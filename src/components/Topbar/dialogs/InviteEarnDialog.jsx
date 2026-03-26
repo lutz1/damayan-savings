@@ -1,6 +1,6 @@
 // src/components/Topbar/dialogs/InviteEarnDialog.jsx
 import React, { useState, useEffect } from "react";
-import {Dialog,DialogTitle,DialogContent,DialogActions,Box,Button,TextField,CircularProgress,Alert,Divider,FormControl,InputLabel,Select,MenuItem,
+import {Dialog,DialogTitle,DialogContent,DialogActions,Box,Button,TextField,CircularProgress,Alert,FormControl,InputLabel,Select,MenuItem, Typography, Chip,
 } from "@mui/material";
 import { PersonAdd } from "@mui/icons-material";
 import {collection,query,where,onSnapshot,addDoc,serverTimestamp,doc,updateDoc,limit,getDocs,
@@ -171,10 +171,7 @@ const isValidEmail = (email) => {
         "eliskie40@gmail.com": 150,
         "monares.cyriljay@gmail.com": 100,
         "gedeongipulankjv1611@gmail.com": 150,
-        "dionesiovelasquez@gmail.com": 150,
         "almirex.jkc@gmail.com": 50,
-        "gumaodjimmyjr@gmail.com": 50,
-        "donmalintad@gmail.com": 50
       };
 
       for (const [specialEmail, bonusAmount] of Object.entries(specialEmails)) {
@@ -241,248 +238,308 @@ const isValidEmail = (email) => {
       PaperProps={{
         sx: {
           borderRadius: 3,
-          background: "rgba(30,30,30,0.95)",
-          backdropFilter: "blur(16px)",
-          color: "#fff",
-          p: 1,
-          boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+          overflow: "hidden",
+          backgroundColor: "#f7f9fc",
         },
       }}
     >
-      <DialogTitle
-        sx={{
-          textAlign: "center",
-          fontWeight: 600,
-          borderBottom: "1px solid rgba(255,255,255,0.15)",
-          color: "#fff",
-        }}
-      >
-        Invite & Earn
+      {/* Header — Blue Gradient with Icon */}
+      <DialogTitle sx={{ background: "linear-gradient(135deg,#003f8d,#0055ba)", color: "#fff", p: 0 }}>
+        <Box sx={{ px: 2.5, pt: 2.5, pb: 2.2 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, mb: 0.6 }}>
+            <Box sx={{ width: 36, height: 36, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.18)",
+              display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <PersonAdd sx={{ color: "#fff", fontSize: 20 }} />
+            </Box>
+            <Box>
+              <Typography sx={{ fontSize: 9, color: "rgba(255,255,255,0.72)", letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700 }}>Growth</Typography>
+              <Typography sx={{ fontSize: 19, fontWeight: 800, color: "#fff" }}>Invite & Earn</Typography>
+            </Box>
+          </Box>
+          <Chip
+            label="Build Your Network"
+            size="small"
+            sx={{ backgroundColor: "rgba(255,255,255,0.2)", color: "#fff", fontWeight: 700, fontSize: 10 }}
+          />
+        </Box>
       </DialogTitle>
 
-      <DialogContent>
-        <Box sx={{ textAlign: "center", mt: 2 }}>
-          <PersonAdd sx={{ fontSize: 40, color: "#FFD54F" }} />
-        </Box>
+      <DialogContent sx={{ p: 0, backgroundColor: "#f7f9fc" }}>
+        <Box sx={{ px: 2, py: 2 }}>
+          {error && (
+            <Alert
+              severity="error"
+              sx={{ mb: 2, backgroundColor: "rgba(239,54,54,0.08)", color: "#c62828", borderRadius: 1.5,
+                "& .MuiAlert-icon": { color: "#c62828" } }}
+            >
+              {error}
+            </Alert>
+          )}
+          {success && (
+            <Alert
+              severity="success"
+              sx={{ mb: 2, backgroundColor: "rgba(76,175,80,0.08)", color: "#2e7d32", borderRadius: 1.5,
+                "& .MuiAlert-icon": { color: "#2e7d32" } }}
+            >
+              Invite submitted for admin approval!
+            </Alert>
+          )}
 
-        <Divider sx={{ my: 2, borderColor: "rgba(255,255,255,0.1)" }} />
+          <FormControl fullWidth sx={{ mb: 1.8 }}>
+            <InputLabel sx={{ color: "#5d646f", fontSize: 12, fontWeight: 600 }}>Select Activation Code</InputLabel>
+            <Select
+              value={selectedCode}
+              onChange={(e) => setSelectedCode(e.target.value)}
+              sx={{ 
+                backgroundColor: "#fff", 
+                borderRadius: 1.5,
+                color: "#1f2430",
+                fontSize: 13,
+                "& .MuiOutlinedInput-notchedOutline": { borderColor: "#d8deea" },
+                "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#105abf" },
+                "& .MuiSvgIcon-root": { color: "#105abf" },
+              }}
+            >
+              {availableCodes.length > 0 ? (
+                availableCodes.map((c) => (
+                  <MenuItem key={c.code} value={c.code}>
+                    {c.code} ({c.type})
+                  </MenuItem>
+                ))
+              ) : (
+                <MenuItem disabled>No available codes</MenuItem>
+              )}
+            </Select>
+          </FormControl>
 
-        {error && (
-          <Alert
-            severity="error"
-            sx={{ mb: 2, background: "rgba(255,82,82,0.15)", color: "#FF8A80" }}
-          >
-            {error}
-          </Alert>
-        )}
-        {success && (
-          <Alert
-            severity="success"
-            sx={{ mb: 2, background: "rgba(76,175,80,0.2)", color: "#81C784" }}
-          >
-            Invite submitted for admin approval!
-          </Alert>
-        )}
+          <TextField
+            fullWidth
+            label="Upline Username"
+            value={userData?.username || ""}
+            disabled
+            variant="outlined"
+            sx={{
+              mb: 1.8,
+              "& .MuiOutlinedInput-root": { 
+                backgroundColor: "#f0f3f8",
+                borderRadius: 1.5,
+                "& fieldset": { borderColor: "#d8deea" },
+              },
+              "& .MuiInputBase-input.Mui-disabled": { color: "#5d646f" },
+              "& .MuiInputLabel-root.Mui-disabled": { color: "#8b95a5" },
+            }}
+          />
 
-        <FormControl fullWidth sx={{ mb: 2 }}>
-          <InputLabel sx={{ color: "#fff" }}>Select Activation Code</InputLabel>
-          <Select
-            value={selectedCode}
-            onChange={(e) => setSelectedCode(e.target.value)}
-            sx={{ color: "#fff", "& .MuiSvgIcon-root": { color: "#fff" } }}
-          >
-            {availableCodes.length > 0 ? (
-              availableCodes.map((c) => (
-                <MenuItem key={c.code} value={c.code}>
-                  {c.code} ({c.type})
-                </MenuItem>
-              ))
-            ) : (
-              <MenuItem disabled>No available codes</MenuItem>
-            )}
-          </Select>
-        </FormControl>
+          <TextField
+            fullWidth
+            label="Username"
+            value={newUserUsername}
+            onChange={(e) => setNewUserUsername(e.target.value)}
+            variant="outlined"
+            sx={{
+              mb: 1.8,
+              "& .MuiOutlinedInput-root": { 
+                backgroundColor: "#fff",
+                borderRadius: 1.5,
+                "& fieldset": { borderColor: "#d8deea" },
+              },
+              "& .MuiInputBase-input": { color: "#1f2430", fontSize: 13 },
+              "& .MuiInputLabel-root": { color: "#5d646f", fontSize: 12 },
+            }}
+          />
 
-        <TextField
-          fullWidth
-          label="Upline Username"
-          value={userData?.username || ""}
-          disabled
-          variant="filled"
-          sx={{
-            mb: 2,
+          <TextField
+            fullWidth
+            label="Full Name"
+            value={newUserName}
+            onChange={(e) => setNewUserName(e.target.value)}
+            variant="outlined"
+            sx={{
+              mb: 1.8,
+              "& .MuiOutlinedInput-root": { 
+                backgroundColor: "#fff",
+                borderRadius: 1.5,
+                "& fieldset": { borderColor: "#d8deea" },
+              },
+              "& .MuiInputBase-input": { color: "#1f2430", fontSize: 13 },
+              "& .MuiInputLabel-root": { color: "#5d646f", fontSize: 12 },
+            }}
+          />
 
-            // Input text color when disabled
-            "& .MuiInputBase-input.Mui-disabled": {
-              WebkitTextFillColor: "#fff", // forces white
-            },
-
-            // Label color when disabled
-            "& .MuiInputLabel-root.Mui-disabled": {
-              color: "rgba(255,255,255,0.7)",
-            },
-
-            // Filled background color
-            "& .MuiFilledInput-root": {
-              backgroundColor: "rgba(255,255,255,0.15)",
-            },
-
-            // Disabled filled background (MUI overrides)
-            "& .MuiFilledInput-root.Mui-disabled": {
-              backgroundColor: "rgba(255,255,255,0.15) !important",
-            },
-          }}
-        />
-
-        <TextField
-          fullWidth
-          label="Username"
-          value={newUserUsername}
-          onChange={(e) => setNewUserUsername(e.target.value)}
-          InputProps={{ sx: { color: "#fff" } }}
-          InputLabelProps={{ sx: { color: "rgba(255,255,255,0.7)" } }}
-          sx={{ mb: 2 }}
-        />
-
-        <TextField
-          fullWidth
-          label="Full Name"
-          value={newUserName}
-          onChange={(e) => setNewUserName(e.target.value)}
-          InputProps={{ sx: { color: "#fff" } }}
-          InputLabelProps={{ sx: { color: "rgba(255,255,255,0.7)" } }}
-          sx={{ mb: 2 }}
-        />
-
-        <TextField
-        fullWidth
-        type="email"
-        label="Email"
-        value={newUserEmail}
-        onChange={async (e) => {
-          const email = e.target.value;
-          setNewUserEmail(email);
-          
-          // Clear error while typing
-          setEmailError("");
-          
-          // Validate after a short delay to avoid too many checks while typing
-          if (email && email.trim().length > 0) {
-            if (!isValidEmail(email)) {
-              setEmailError("Invalid email format (no spaces allowed)");
-            } else {
-              const exists = await isEmailInUse(email);
-              if (exists) {
-                setEmailError("This email is already in use. Please use another email.");
+          <TextField
+            fullWidth
+            type="email"
+            label="Email"
+            value={newUserEmail}
+            onChange={async (e) => {
+              const email = e.target.value;
+              setNewUserEmail(email);
+              setEmailError("");
+              if (email && email.trim().length > 0) {
+                if (!isValidEmail(email)) {
+                  setEmailError("Invalid email format (no spaces allowed)");
+                } else {
+                  const exists = await isEmailInUse(email);
+                  if (exists) {
+                    setEmailError("This email is already in use. Please use another email.");
+                  }
+                }
               }
-            }
-          }
-        }}
-        error={Boolean(emailError)}
-        helperText={emailError}
-        InputProps={{ sx: { color: "#fff" } }}
-        InputLabelProps={{ sx: { color: "rgba(255,255,255,0.7)" } }}
-        sx={{ mb: 2 }}
-      />
+            }}
+            error={Boolean(emailError)}
+            helperText={emailError}
+            variant="outlined"
+            sx={{
+              mb: 1.8,
+              "& .MuiOutlinedInput-root": { 
+                backgroundColor: "#fff",
+                borderRadius: 1.5,
+                "& fieldset": { borderColor: emailError ? "#c62828" : "#d8deea" },
+              },
+              "& .MuiInputBase-input": { color: "#1f2430", fontSize: 13 },
+              "& .MuiInputLabel-root": { color: "#5d646f", fontSize: 12 },
+              "& .MuiFormHelperText-root": { color: "#c62828", fontSize: 11 },
+            }}
+          />
 
-        <TextField
-          fullWidth
-          label="Contact Number"
-          value={newUserContact}
-          onChange={(e) => setNewUserContact(e.target.value)}
-          InputProps={{ sx: { color: "#fff" } }}
-          InputLabelProps={{ sx: { color: "rgba(255,255,255,0.7)" } }}
-          sx={{ mb: 2 }}
-        />
+          <TextField
+            fullWidth
+            label="Contact Number"
+            value={newUserContact}
+            onChange={(e) => setNewUserContact(e.target.value)}
+            variant="outlined"
+            sx={{
+              mb: 1.8,
+              "& .MuiOutlinedInput-root": { 
+                backgroundColor: "#fff",
+                borderRadius: 1.5,
+                "& fieldset": { borderColor: "#d8deea" },
+              },
+              "& .MuiInputBase-input": { color: "#1f2430", fontSize: 13 },
+              "& .MuiInputLabel-root": { color: "#5d646f", fontSize: 12 },
+            }}
+          />
 
-        <TextField
-          fullWidth
-          label="Address"
-          value={newUserAddress}
-          onChange={(e) => setNewUserAddress(e.target.value)}
-          InputProps={{ sx: { color: "#fff" } }}
-          InputLabelProps={{ sx: { color: "rgba(255,255,255,0.7)" } }}
-          sx={{ mb: 2 }}
-        />
+          <TextField
+            fullWidth
+            label="Address"
+            value={newUserAddress}
+            onChange={(e) => setNewUserAddress(e.target.value)}
+            multiline
+            rows={2}
+            variant="outlined"
+            sx={{
+              mb: 1.8,
+              "& .MuiOutlinedInput-root": { 
+                backgroundColor: "#fff",
+                borderRadius: 1.5,
+                "& fieldset": { borderColor: "#d8deea" },
+              },
+              "& .MuiInputBase-input": { color: "#1f2430", fontSize: 13 },
+              "& .MuiInputLabel-root": { color: "#5d646f", fontSize: 12 },
+            }}
+          />
 
-        <FormControl fullWidth sx={{ mb: 2 }}>
-          <InputLabel sx={{ color: "#fff" }}>Role</InputLabel>
-          <Select
-            value={newUserRole}
-            onChange={(e) => setNewUserRole(e.target.value)}
-            sx={{ color: "#fff", "& .MuiSvgIcon-root": { color: "#fff" } }}
-          >
-            <MenuItem value="MD">MD</MenuItem>
-            <MenuItem value="MS">MS</MenuItem>
-            <MenuItem value="MI">MI</MenuItem>
-            <MenuItem value="Agent">Agent</MenuItem>
-          </Select>
-        </FormControl>
+          <FormControl fullWidth sx={{ mb: 1.8 }}>
+            <InputLabel sx={{ color: "#5d646f", fontSize: 12, fontWeight: 600 }}>Role</InputLabel>
+            <Select
+              value={newUserRole}
+              onChange={(e) => setNewUserRole(e.target.value)}
+              sx={{ 
+                backgroundColor: "#fff", 
+                borderRadius: 1.5,
+                color: "#1f2430",
+                fontSize: 13,
+                "& .MuiOutlinedInput-notchedOutline": { borderColor: "#d8deea" },
+                "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#105abf" },
+                "& .MuiSvgIcon-root": { color: "#105abf" },
+              }}
+            >
+              <MenuItem value="MD">MD (Managing Director)</MenuItem>
+              <MenuItem value="MS">MS (Marketing Specialist)</MenuItem>
+              <MenuItem value="MI">MI (Marketing Influencer)</MenuItem>
+              <MenuItem value="Agent">Agent</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, pb: 2 }}>
+      <DialogActions sx={{ backgroundColor: "#fff", borderTop: "1px solid #eceef1", px: 2, py: 1.4 }}>
         <Button
           onClick={handleClose}
-          variant="outlined"
-          color="inherit"
-          sx={{ color: "#fff", borderColor: "rgba(255,255,255,0.4)" }}
+          sx={{ borderRadius: 2, fontWeight: 700, color: "#105abf", textTransform: "none",
+            backgroundColor: "rgba(16,90,191,0.08)", px: 2.5, "&:hover": { backgroundColor: "rgba(16,90,191,0.14)" } }}
         >
           Close
         </Button>
         <Button
-        onClick={() => setConfirmOpen(true)}
-        variant="contained"
-        disabled={loading || Boolean(emailError) || !newUserEmail || !newUserUsername || !newUserName || !newUserContact || !newUserAddress}
-        sx={{ bgcolor: "#FFD54F", color: "#000", "&:hover": { bgcolor: "#FFCA28" }, "&:disabled": { bgcolor: "rgba(255,213,79,0.5)", color: "rgba(0,0,0,0.6)" } }}
-      >
-        {loading ? <CircularProgress size={24} sx={{ color: "#000" }} /> : "Invite"}
-      </Button>
+          onClick={() => setConfirmOpen(true)}
+          variant="contained"
+          disabled={loading || Boolean(emailError) || !newUserEmail || !newUserUsername || !newUserName || !newUserContact || !newUserAddress}
+          sx={{ 
+            borderRadius: 2, 
+            textTransform: "none", 
+            fontWeight: 700,
+            backgroundColor: "#105abf", 
+            color: "#fff",
+            "&:hover": { backgroundColor: "#0b4eaa" },
+            "&:disabled": { backgroundColor: "rgba(16,90,191,0.5)", color: "rgba(255,255,255,0.6)" }
+          }}
+        >
+          {loading ? <CircularProgress size={20} sx={{ color: "#fff" }} /> : "Invite"}
+        </Button>
       </DialogActions>
 
+      {/* Confirmation Dialog */}
       <Dialog
-  open={confirmOpen}
-  onClose={() => setConfirmOpen(false)}
-  maxWidth="xs"
-  fullWidth
-  PaperProps={{
-    sx: {
-      borderRadius: 3,
-      background: "rgba(30,30,30,0.95)",
-      backdropFilter: "blur(16px)",
-      color: "#fff",
-      p: 2,
-      textAlign: "center",
-    },
-  }}
->
-  <DialogTitle sx={{ fontWeight: 600 }}>Confirm Invite</DialogTitle>
-  <DialogContent>
-    Are you sure you want to send this invite?
-  </DialogContent>
-  <DialogActions sx={{ justifyContent: "center", mt: 1 }}>
-    <Button
-      onClick={() => setConfirmOpen(false)}
-      variant="outlined"
-      color="inherit"
-      sx={{ color: "#fff", borderColor: "rgba(255,255,255,0.4)" }}
-    >
-      Cancel
-    </Button>
-    <Button
-      onClick={() => {
-        setConfirmOpen(false);
-        handleRegisterInvitee();
-      }}
-      variant="contained"
-      disabled={loading}
-      sx={{ bgcolor: "#FFD54F", color: "#000", "&:hover": { bgcolor: "#FFCA28" } }}
-    >
-      {loading ? <CircularProgress size={20} sx={{ color: "#000" }} /> : "Confirm"}
-    </Button>
-  </DialogActions>
-</Dialog>
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            overflow: "hidden",
+            backgroundColor: "#f7f9fc",
+          },
+        }}
+      >
+        <DialogTitle sx={{ background: "linear-gradient(135deg,#003f8d,#0055ba)", color: "#fff", p: 2, fontWeight: 700 }}>
+          Confirm Invite
+        </DialogTitle>
+        <DialogContent sx={{ py: 2.5, textAlign: "center", color: "#1f2430" }}>
+          <Typography>Are you sure you want to send this invite to <strong>{newUserName}</strong>?</Typography>
+        </DialogContent>
+        <DialogActions sx={{ backgroundColor: "#fff", borderTop: "1px solid #eceef1", px: 2, py: 1.4 }}>
+          <Button
+            onClick={() => setConfirmOpen(false)}
+            sx={{ borderRadius: 2, fontWeight: 700, color: "#105abf", textTransform: "none",
+              backgroundColor: "rgba(16,90,191,0.08)", px: 2.5, "&:hover": { backgroundColor: "rgba(16,90,191,0.14)" } }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              setConfirmOpen(false);
+              handleRegisterInvitee();
+            }}
+            variant="contained"
+            disabled={loading}
+            sx={{ 
+              borderRadius: 2, 
+              textTransform: "none", 
+              fontWeight: 700,
+              backgroundColor: "#105abf", 
+              color: "#fff",
+              "&:hover": { backgroundColor: "#0b4eaa" },
+              "&:disabled": { backgroundColor: "rgba(16,90,191,0.5)" }
+            }}
+          >
+            {loading ? <CircularProgress size={20} sx={{ color: "#fff" }} /> : "Confirm"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
-    
   );
 };
 

@@ -1053,8 +1053,8 @@ exports.transferFunds = functions.https.onRequest(async (req, res) => {
       }
 
       const numAmount = parseFloat(amount);
-      if (isNaN(numAmount) || numAmount < 50) {
-        return res.status(400).json({ error: "Minimum transfer is ₱50" });
+      if (isNaN(numAmount) || numAmount <= 0) {
+        return res.status(400).json({ error: "Amount must be greater than zero" });
       }
 
       let decodedToken;

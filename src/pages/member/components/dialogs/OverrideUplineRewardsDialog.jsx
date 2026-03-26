@@ -7,7 +7,13 @@ import {
   Button,
   Typography,
   Box,
+  Chip,
+  CircularProgress,
 } from "@mui/material";
+import AccountTreeIcon from "@mui/icons-material/AccountTree";
+import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import TaskAltIcon from "@mui/icons-material/TaskAlt";
 
 const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
 
@@ -24,282 +30,171 @@ const OverrideUplineRewardsDialog = ({
       open={open}
       onClose={onClose}
       fullWidth
-      maxWidth="lg"
+      maxWidth="sm"
       PaperProps={{
         sx: {
-          background: "rgba(30,41,59,0.92)",
           borderRadius: 3,
-          boxShadow: "0 8px 32px 0 rgba(31,38,135,0.37)",
-          color: "#fff",
-          backdropFilter: "blur(10px)",
+          overflow: "hidden",
+          backgroundColor: "#f7f9fc",
         },
       }}
     >
-      <DialogTitle
-        sx={{
-          fontWeight: 700,
-          letterSpacing: 0.5,
-          color: "#FFD54F",
-          textShadow: "1px 1px 3px rgba(0,0,0,0.4)",
-          textAlign: "center",
-          background: "rgba(33,150,243,0.10)",
-          borderTopLeftRadius: 16,
-          borderTopRightRadius: 16,
-          mb: 1,
-        }}
-      >
-        Override Upline Rewards
+      {/* Header */}
+      <DialogTitle sx={{ background: "linear-gradient(135deg,#5a1a00,#9b3a00)", color: "#fff", p: 0 }}>
+        <Box sx={{ px: 2.5, pt: 2.5, pb: 2.2 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, mb: 0.6 }}>
+            <Box sx={{ width: 36, height: 36, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.18)",
+              display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <AccountTreeIcon sx={{ color: "#fff", fontSize: 20 }} />
+            </Box>
+            <Box>
+              <Typography sx={{ fontSize: 9, color: "rgba(255,255,255,0.72)", letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700 }}>Earnings</Typography>
+              <Typography sx={{ fontSize: 19, fontWeight: 800, color: "#fff" }}>Override Rewards</Typography>
+            </Box>
+          </Box>
+          <Chip
+            label={`${overrideList.length} record${overrideList.length !== 1 ? "s" : ""}`}
+            size="small"
+            sx={{ backgroundColor: "rgba(255,255,255,0.2)", color: "#fff", fontWeight: 700, fontSize: 11 }}
+          />
+        </Box>
       </DialogTitle>
-      <DialogContent
-        dividers
-        sx={{
-          background: "rgba(255,255,255,0.03)",
-          borderRadius: 2,
-          p: 0,
-          maxHeight: { xs: 800, sm: 900, md: 1000, lg: 1200 },
-          minHeight: 480,
-          overflowY: "auto",
-          width: '100%',
-        }}
-      >
+
+      {/* Content */}
+      <DialogContent sx={{ p: 0, backgroundColor: "#f7f9fc" }}>
         {overrideList.length === 0 ? (
-          <Box display="flex" alignItems="center" justifyContent="center" height="120px">
-            <Typography variant="body2" sx={{ color: "#FFD54F", textAlign: "center" }}>
-              No override rewards found.
-            </Typography>
+          <Box sx={{ py: 8, textAlign: "center" }}>
+            <HourglassEmptyIcon sx={{ fontSize: 44, color: "#c2c6d5", mb: 1 }} />
+            <Typography sx={{ fontSize: 13, color: "#8b95a5" }}>No override rewards found.</Typography>
           </Box>
         ) : (
-          <Box
-            sx={{
-              width: "100%",
-              flex: 1,
-              overflowY: "auto",
-              maxHeight: { xs: 700, sm: 800, md: 900, lg: 1100 },
-              scrollbarWidth: "none",
-              msOverflowStyle: "none",
-              "&::-webkit-scrollbar": {
-                display: "none",
-              },
-              p: 0,
-              m: 0,
-            }}
-            component="ul"
-          >
+          <Box component="ul" sx={{ m: 0, p: 0, listStyle: "none" }}>
             {[...overrideList]
               .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
-              .map((o) => {
-                // Check if dueDate has passed for uplineRewards collection
+              .map((o, idx) => {
                 let dueDate = o.dueDate || o.releaseDate;
                 if (dueDate) {
-                  if (typeof dueDate === "object" && dueDate.seconds) {
-                    dueDate = new Date(dueDate.seconds * 1000);
-                  } else if (typeof dueDate === "string" || typeof dueDate === "number") {
-                    dueDate = new Date(dueDate);
-                  }
+                  if (typeof dueDate === "object" && dueDate.seconds) dueDate = new Date(dueDate.seconds * 1000);
+                  else if (typeof dueDate === "string" || typeof dueDate === "number") dueDate = new Date(dueDate);
                 }
-                
                 const isClaimed = o.claimed || o.status === "Credited";
                 const isClaimable = dueDate && new Date() >= dueDate && !isClaimed;
-                
-                // Fallback for old override collection (with expirationDate)
                 const isExpired = o.expirationDate && new Date(o.expirationDate) < new Date();
                 const credited = o.status === "Credited" || isExpired || isClaimed;
-                
                 const profitStatus = credited ? "Credited" : (isClaimable ? "Ready to Claim" : "Pending");
-                const profitIcon = credited ? "✅" : (isClaimable ? "✓" : "⏳");
-                const borderColor = credited ? "#4caf50" : (isClaimable ? "#fdd835" : "#1976d2");
-                const iconBg = credited ? "rgba(76,175,80,0.12)" : (isClaimable ? "rgba(253,216,53,0.12)" : "rgba(33,150,243,0.12)");
-                const iconColor = credited ? "#81C784" : (isClaimable ? "#FBC02D" : "#64B5F6");
+                const isLoading = !!loadingTransfer?.[o.id];
+
+                const dateObj = o.releaseDate || o.createdAt;
+                let releaseLabel = "";
+                if (dateObj) {
+                  let d = typeof dateObj === "object" && dateObj.seconds ? new Date(dateObj.seconds * 1000)
+                    : (typeof dateObj === "string" || typeof dateObj === "number") ? new Date(dateObj) : null;
+                  if (d && !isNaN(d.getTime())) {
+                    releaseLabel = d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+                  }
+                }
+                const from = o.fromUsername || o.fromUser || o.source || "N/A";
 
                 const handleSingleOverrideTransfer = async () => {
-                  if (!user) return;
-                  if (credited) return alert("Already credited.");
-                  if (!isClaimable) return alert("This reward is not yet due. Check back after the due date.");
-                  const confirmed = window.confirm(
-                    `Are you sure you want to transfer ₱${o.amount.toLocaleString()} to your eWallet?`
-                  );
+                  if (!user || credited) return alert(credited ? "Already credited." : "");
+                  if (!isClaimable) return alert("Not yet due. Check back after the due date.");
+                  const confirmed = window.confirm(`Transfer \u20b1${o.amount.toLocaleString()} to eWallet?`);
                   if (!confirmed) return;
                   try {
                     setLoadingTransfer((prev) => ({ ...prev, [o.id]: true }));
-                    
-                    // Get user's ID token
                     const idToken = await user.getIdToken();
-                    
-                    // Call Cloud Function (secure, idempotent)
-                    const endpoint = "https://us-central1-amayan-savings.cloudfunctions.net/transferOverrideReward";
-                    console.log("[OverrideTransfer] Calling Cloud Function:", endpoint);
-                    
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-                    
-                    const response = await fetch(endpoint, {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${idToken}`,
-                      },
-                      body: JSON.stringify({
-                        overrideId: o.id,
-                        amount: o.amount,
-                        clientRequestId: `override-${o.id}-${user.uid}`,
-                      }),
-                      signal: controller.signal,
-                    });
-                    
-                    clearTimeout(timeoutId);
-
-                    if (!response.ok) {
-                      let errorMessage = "Failed to transfer reward";
-                      try {
-                        const errorData = await response.json();
-                        errorMessage = errorData.error || errorMessage;
-                      } catch (e) {
-                        errorMessage = `Server error (${response.status}): ${response.statusText}`;
+                    const timeoutId = setTimeout(() => controller.abort(), 30000);
+                    const response = await fetch(
+                      "https://us-central1-amayan-savings.cloudfunctions.net/transferOverrideReward",
+                      {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+                        body: JSON.stringify({ overrideId: o.id, amount: o.amount, clientRequestId: `override-${o.id}-${user.uid}` }),
+                        signal: controller.signal,
                       }
-                      throw new Error(errorMessage);
+                    );
+                    clearTimeout(timeoutId);
+                    if (!response.ok) {
+                      let msg = "Failed";
+                      try { const e = await response.json(); msg = e.error || msg; } catch (_) {}
+                      throw new Error(msg);
                     }
-
                     const result = await response.json();
-                    console.log("[OverrideTransfer] Success:", result);
-                    
-                    if (result.alreadyTransferred) {
-                      alert("This reward was already credited previously.");
-                    } else {
-                      alert(`₱${o.amount.toLocaleString()} successfully transferred to eWallet!`);
-                    }
+                    alert(result.alreadyTransferred ? "Already credited previously." : `\u20b1${o.amount.toLocaleString()} transferred!`);
                   } catch (err) {
-                    console.error("[OverrideTransfer] Error:", err);
-                    let userMsg = "Failed to transfer reward: ";
-                    if (err.name === "AbortError") {
-                      userMsg += "Request timeout (check your internet connection)";
-                    } else if (err instanceof TypeError && err.message.includes("fetch")) {
-                      userMsg += "Network error - unable to reach backend";
-                    } else {
-                      userMsg += err.message || "Unknown error";
-                    }
-                    alert(userMsg);
+                    alert("Transfer failed: " + (err.name === "AbortError" ? "Timed out." : err.message));
                   } finally {
                     setLoadingTransfer((prev) => ({ ...prev, [o.id]: false }));
                   }
                 };
-                let releaseDate = "N/A";
-                const dateObj = o.releaseDate || o.createdAt;
-                if (dateObj) {
-                  let d;
-                  if (typeof dateObj === "object" && dateObj.seconds) {
-                    d = new Date(dateObj.seconds * 1000);
-                  } else if (typeof dateObj === "string" || typeof dateObj === "number") {
-                    d = new Date(dateObj);
-                  }
-                  if (d && !isNaN(d.getTime())) {
-                    releaseDate = d.toLocaleDateString("en-US", {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric"
-                    });
-                  }
-                }
-                const from = o.fromUsername || o.fromUser || o.source || "N/A";
+
                 return (
                   <Box
                     key={o.id}
                     component="li"
                     sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "flex-start",
-                      borderBottom: "1px solid rgba(255,255,255,0.06)",
-                      py: 1,
-                      px: { xs: 0.5, sm: 1, md: 1.5 },
-                      width: '100%',
-                      m: 0,
-                      gap: 1.5,
+                      display: "flex", alignItems: "center", gap: 1.5,
+                      px: 2, py: 1.8,
+                      backgroundColor: idx % 2 === 0 ? "#fff" : "#f7f9fc",
+                      borderBottom: "1px solid #eceef1",
                     }}
                   >
-                    <Box
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        minWidth: 32,
-                        minHeight: 32,
-                        bgcolor: iconBg,
-                        borderRadius: "50%",
-                        mr: 1.5,
-                        border: `1.5px solid ${borderColor}`,
-                      }}
-                    >
-                      <Typography sx={{ fontSize: 16, color: iconColor }}>{profitIcon}</Typography>
+                    {/* Status icon */}
+                    <Box sx={{
+                      width: 40, height: 40, borderRadius: "50%", flexShrink: 0,
+                      backgroundColor: credited ? "rgba(46,125,50,0.10)" : isClaimable ? "rgba(239,108,0,0.10)" : "rgba(117,42,0,0.08)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
+                      {credited
+                        ? <TaskAltIcon sx={{ fontSize: 20, color: "#2e7d32" }} />
+                        : isClaimable
+                          ? <CheckCircleIcon sx={{ fontSize: 20, color: "#e65100" }} />
+                          : <AccountTreeIcon sx={{ fontSize: 20, color: "#752a00" }} />
+                      }
                     </Box>
+
+                    {/* Details */}
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography
-                        variant="subtitle2"
-                        sx={{ fontWeight: 600, color: "#fff", fontSize: 13, lineHeight: 1.2 }}
-                      >
-                        ₱{o.amount.toLocaleString()} override
-                      </Typography>
-                      <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", mt: 0.2, mb: 0.2 }}>
-                        <Typography
-                          sx={{
-                            px: 0.7,
-                            py: 0.1,
-                            borderRadius: 1,
-                            bgcolor: credited ? "#1976d2" : "#c62828",
-                            color: "#fff",
-                            fontWeight: 500,
-                            fontSize: 10,
-                            letterSpacing: 0.2,
-                          }}
-                        >
-                          {credited ? "Valid" : "Pending"}
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, flexWrap: "wrap" }}>
+                        <Typography sx={{ fontSize: 15, fontWeight: 800, color: credited ? "#2e7d32" : "#752a00" }}>
+                          \u20b1{Number(o.amount).toLocaleString()}
                         </Typography>
-                        <Typography
+                        <Chip
+                          label={profitStatus}
+                          size="small"
                           sx={{
-                            px: 0.7,
-                            py: 0.1,
-                            borderRadius: 1,
-                            bgcolor: profitStatus === "Credited" ? "#388e3c" : "#ef6c00",
-                            color: "#fff",
-                            fontWeight: 500,
-                            fontSize: 10,
-                            letterSpacing: 0.2,
+                            fontSize: 9, fontWeight: 700, height: 18,
+                            backgroundColor: credited ? "rgba(46,125,50,0.12)" : isClaimable ? "rgba(239,108,0,0.12)" : "rgba(117,42,0,0.10)",
+                            color: credited ? "#2e7d32" : isClaimable ? "#e65100" : "#752a00",
                           }}
-                        >
-                          {profitStatus}
-                        </Typography>
+                        />
                       </Box>
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          color: "#B3E5FC",
-                          fontWeight: 400,
-                          display: "block",
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          maxWidth: { xs: 100, sm: 140, md: 180 },
-                        }}
-                        title={from}
-                      >
+                      <Typography sx={{ fontSize: 11, color: "#5d646f", mt: 0.3 }} noWrap>
                         From: {from}
                       </Typography>
-                      <Typography
-                        variant="caption"
-                        sx={{ color: "#fff", opacity: 0.6, display: "block", mt: 0.2, fontSize: 10 }}
-                      >
-                        {releaseDate}
-                      </Typography>
+                      {releaseLabel && (
+                        <Typography sx={{ fontSize: 10, color: "#8b95a5", mt: 0.2, fontWeight: 600 }}>
+                          {releaseLabel}
+                        </Typography>
+                      )}
                     </Box>
+
+                    {/* Transfer button */}
                     {!credited && isClaimable && (
                       <Button
                         variant="contained"
                         size="small"
-                        color="success"
                         onClick={handleSingleOverrideTransfer}
-                        disabled={loadingTransfer?.[o.id]}
-                        sx={{ ml: 1, fontWeight: 500, minWidth: 60, px: 1.5, py: 0.5, height: 28, fontSize: 12, borderRadius: 2, boxShadow: 'none' }}
+                        disabled={isLoading}
+                        sx={{
+                          borderRadius: 2, textTransform: "none", fontWeight: 700,
+                          minWidth: 72, fontSize: 12,
+                          backgroundColor: "#9b3a00", "&:hover": { backgroundColor: "#7d2f00" },
+                          boxShadow: "none",
+                        }}
                       >
-                        {loadingTransfer?.[o.id] ? "..." : "Transfer"}
+                        {isLoading ? <CircularProgress size={14} sx={{ color: "#fff" }} /> : "Transfer"}
                       </Button>
                     )}
                   </Box>
@@ -308,14 +203,14 @@ const OverrideUplineRewardsDialog = ({
           </Box>
         )}
       </DialogContent>
-      <DialogActions
-        sx={{
-          background: "rgba(33,150,243,0.10)",
-          borderBottomRightRadius: 16,
-          borderBottomLeftRadius: 16,
-        }}
-      >
-        <Button onClick={onClose} sx={{ fontWeight: 600, color: "#1976d2" }}>
+
+      {/* Footer */}
+      <DialogActions sx={{ backgroundColor: "#fff", borderTop: "1px solid #eceef1", px: 2, py: 1.4 }}>
+        <Button
+          onClick={onClose}
+          sx={{ borderRadius: 2, fontWeight: 700, color: "#752a00", textTransform: "none",
+            backgroundColor: "rgba(117,42,0,0.08)", px: 2.5, "&:hover": { backgroundColor: "rgba(117,42,0,0.14)" } }}
+        >
           Close
         </Button>
       </DialogActions>

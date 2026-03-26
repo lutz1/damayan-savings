@@ -42,6 +42,7 @@ import {
   setDoc,
   deleteDoc,
   serverTimestamp,
+  getDoc,
   getDocs,
   limit,
   addDoc,
@@ -279,6 +280,20 @@ const AdminUserManagement = () => {
     const referrerUsername = inviterDoc.data().username || "";
     const inviterUpline = inviterDoc.data().referredBy || null; // for network chain
 
+    // Track who approved the invite for superadmin audit visibility.
+    const approverUid = auth.currentUser?.uid || "";
+    const approverEmail = auth.currentUser?.email || "";
+    let approverUsername = "";
+    let approverRole = "";
+    if (approverUid) {
+      const approverSnap = await getDoc(doc(db, "users", approverUid));
+      if (approverSnap.exists()) {
+        const approverData = approverSnap.data() || {};
+        approverUsername = approverData.username || "";
+        approverRole = approverData.role || "";
+      }
+    }
+
     // 🧩 Create Firebase Auth user for invitee
     const userCredential = await createUserWithEmailAndPassword(
       secondaryAuth,
@@ -297,6 +312,13 @@ const AdminUserManagement = () => {
       role: invite.role,
       referredBy: uplineUsername,
       referrerRole,
+      inviteAcceptedByUsername: invite.inviterUsername || invite.referredBy || "",
+      inviteAcceptedByUid: invite.inviterId || "",
+      inviteApprovedByUsername: approverUsername,
+      inviteApprovedByUid: approverUid,
+      inviteApprovedByEmail: approverEmail,
+      inviteApprovedByRole: approverRole,
+      inviteApprovedAt: serverTimestamp(),
       referralReward: false,
       createdAt: serverTimestamp(),
     });
@@ -740,6 +762,11 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
                             Referred By: {user.referredBy || "—"}
                           </Typography>
                           {isSuperAdmin && (
+                            <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                              Invite Approved By: {user.inviteApprovedByUsername || user.inviteApprovedByEmail || user.inviteApprovedByUid || "—"}
+                            </Typography>
+                          )}
+                          {isSuperAdmin && (
                             <Box sx={{ mt: 1.5 }}>
                               <Button
                                 size="small"
@@ -766,6 +793,7 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
                           <TableCell sx={{ color: "white" }}>Email</TableCell>
                           <TableCell sx={{ color: "white" }}>Role</TableCell>
                           <TableCell sx={{ color: "white" }}>Referred By</TableCell>
+                          {isSuperAdmin && <TableCell sx={{ color: "white" }}>Invite Approved By</TableCell>}
                           {isSuperAdmin && <TableCell sx={{ color: "white" }}>Action</TableCell>}
                         </TableRow>
                       </TableHead>
@@ -779,6 +807,11 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
                             <TableCell sx={{ color: "white" }}>
                               {user.referredBy || "—"}
                             </TableCell>
+                            {isSuperAdmin && (
+                              <TableCell sx={{ color: "white" }}>
+                                {user.inviteApprovedByUsername || user.inviteApprovedByEmail || user.inviteApprovedByUid || "—"}
+                              </TableCell>
+                            )}
                             {isSuperAdmin && (
                               <TableCell>
                                 <Button
@@ -852,6 +885,11 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
                       <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
                         Upline: {invite.uplineUsername}
                       </Typography>
+                      {isSuperAdmin && (
+                        <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                          Accepted By (Inviter): {invite.inviterUsername || invite.referredBy || "—"}
+                        </Typography>
+                      )}
                       <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
                         Referral Code: {invite.referralCode}
                       </Typography>
@@ -887,6 +925,7 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
                       <TableCell sx={{ color: "white" }}>Email</TableCell>
                       <TableCell sx={{ color: "white" }}>Role</TableCell>
                       <TableCell sx={{ color: "white" }}>Upline</TableCell>
+                      {isSuperAdmin && <TableCell sx={{ color: "white" }}>Accepted By (Inviter)</TableCell>}
                       <TableCell sx={{ color: "white" }}>Referral Code</TableCell>
                       <TableCell sx={{ color: "white" }}>Action</TableCell>
                     </TableRow>
@@ -899,6 +938,11 @@ console.log(`=== ✅ Finished Bonus Distribution for ${invite.inviteeUsername} =
                         <TableCell sx={{ color: "white" }}>{invite.inviteeEmail}</TableCell>
                         <TableCell sx={{ color: "white" }}>{invite.role}</TableCell>
                         <TableCell sx={{ color: "white" }}>{invite.uplineUsername}</TableCell>
+                        {isSuperAdmin && (
+                          <TableCell sx={{ color: "white" }}>
+                            {invite.inviterUsername || invite.referredBy || "—"}
+                          </TableCell>
+                        )}
                         <TableCell sx={{ color: "white" }}>{invite.referralCode}</TableCell>
                         <TableCell>
                           <Button

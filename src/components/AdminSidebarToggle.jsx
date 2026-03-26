@@ -22,11 +22,11 @@ const AdminSidebarToggle = ({ onClick, sx }) => {
         top: 80,
         left: 12,
         zIndex: 1202,
-        color: "#fff",
-        backgroundColor: "rgba(0,0,0,0.35)",
+        color: "#191c1e",
+        backgroundColor: "rgba(255,255,255,0.85)",
         backdropFilter: "blur(8px)",
-        border: "1px solid rgba(255,255,255,0.2)",
-        "&:hover": { backgroundColor: "rgba(0,0,0,0.5)" },
+        border: "1px solid rgba(0,0,0,0.12)",
+        "&:hover": { backgroundColor: "rgba(255,255,255,1)" },
         ...sx,
       }}
     >

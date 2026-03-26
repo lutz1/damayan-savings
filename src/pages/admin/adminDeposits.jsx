@@ -55,6 +55,8 @@ const AdminDeposits = () => {
     localStorage.getItem("userRole")?.toUpperCase() || ""
   );
   const [userEmail, setUserEmail] = useState("");
+  const normalizedRole = String(userRole || "").toUpperCase();
+  const isSuperAdmin = normalizedRole === "SUPERADMIN";
 
   // 🔹 New states for search/filter/pagination
   const [searchTerm, setSearchTerm] = useState("");
@@ -104,7 +106,7 @@ const AdminDeposits = () => {
       try {
         const userDoc = await getDoc(doc(db, "users", user.uid));
         if (userDoc.exists()) {
-          const role = userDoc.data().role?.toLowerCase() || "";
+          const role = String(userDoc.data().role || "").toUpperCase();
           const email = userDoc.data().email || user.email || "";
           setUserRole(role);
           setUserEmail(email);
@@ -180,8 +182,10 @@ const AdminDeposits = () => {
 
     try {
       const depositRef = doc(db, "deposits", id);
+      const reviewerMeta = await getReviewerMetadata();
       await updateDoc(depositRef, {
         status: status.toLowerCase(),
+        ...reviewerMeta,
         reviewedAt: new Date(),
         remarks,
       });
@@ -236,6 +240,40 @@ const AdminDeposits = () => {
   const handleViewProof = (url) => setProofImage(url);
   const closeProofDialog = () => setProofImage(null);
 
+  const getReviewerMetadata = async () => {
+    const currentUser = auth.currentUser;
+    const reviewerUid = currentUser?.uid || "";
+    const reviewerEmail = currentUser?.email || "";
+
+    if (!reviewerUid) {
+      return {
+        reviewedByUid: "",
+        reviewedByEmail: reviewerEmail,
+        reviewedByUsername: "",
+        reviewedByRole: "",
+      };
+    }
+
+    try {
+      const reviewerSnap = await getDoc(doc(db, "users", reviewerUid));
+      const reviewerData = reviewerSnap.exists() ? reviewerSnap.data() || {} : {};
+      return {
+        reviewedByUid: reviewerUid,
+        reviewedByEmail: reviewerEmail,
+        reviewedByUsername: reviewerData.username || reviewerData.name || "",
+        reviewedByRole: String(reviewerData.role || "").toUpperCase(),
+      };
+    } catch (err) {
+      console.warn("[adminDeposits] Failed to fetch reviewer metadata:", err);
+      return {
+        reviewedByUid: reviewerUid,
+        reviewedByEmail: reviewerEmail,
+        reviewedByUsername: "",
+        reviewedByRole: "",
+      };
+    }
+  };
+
   // Emails that should have approve/reject disabled
   const restrictedEmails = [
     "admin1@gmail.com",
@@ -244,7 +282,7 @@ const AdminDeposits = () => {
 
   // Check if user can approve/reject
   const isRestrictedEmail = restrictedEmails.includes((userEmail || "").toLowerCase());
-  const canApproveReject = ["ADMIN", "CEO"].includes(userRole) && !isRestrictedEmail;
+  const canApproveReject = ["ADMIN", "CEO"].includes(normalizedRole) && !isRestrictedEmail;
   
   // Debug log
   React.useEffect(() => {
@@ -464,6 +502,11 @@ const AdminDeposits = () => {
                             <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
                               Net: ₱{d.netAmount || d.amount}
                             </Typography>
+                            {isSuperAdmin && (
+                              <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                                Approved By: {d.reviewedByUsername || d.reviewedByEmail || d.reviewedByUid || "—"}
+                              </Typography>
+                            )}
                             <Typography
                               sx={{
                                 mt: 1,
@@ -519,7 +562,7 @@ const AdminDeposits = () => {
                     <Table size="medium">
                       <TableHead>
                         <TableRow>
-                          {["Name", "Amount", "Type", "Charge", "Net Amount", "Status", "Date", "Actions"].map(
+                          {["Name", "Amount", "Type", "Charge", "Net Amount", ...(isSuperAdmin ? ["Approved By"] : []), "Status", "Date", "Actions"].map(
                             (head) => (
                               <TableCell
                                 key={head}
@@ -553,6 +596,11 @@ const AdminDeposits = () => {
                               <TableCell sx={{ color: "white" }}>
                                 ₱{d.netAmount || d.amount}
                               </TableCell>
+                              {isSuperAdmin && (
+                                <TableCell sx={{ color: "white" }}>
+                                  {d.reviewedByUsername || d.reviewedByEmail || d.reviewedByUid || "—"}
+                                </TableCell>
+                              )}
                               <TableCell
                                 sx={{
                                   color:

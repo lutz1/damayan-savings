@@ -79,7 +79,7 @@ const AdminVoucherRecords = () => {
       }
 
       const role = String(localStorage.getItem("userRole") || "").trim().toUpperCase();
-      if (!["ADMIN", "CEO"].includes(role)) {
+      if (!["ADMIN", "CEO", "SUPERADMIN"].includes(role)) {
         setVoucherData([]);
         setAccessDenied(true);
         setLoading(false);

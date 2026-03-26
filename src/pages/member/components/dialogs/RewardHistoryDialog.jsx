@@ -5,6 +5,11 @@ import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
+import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
+import GroupAddIcon from '@mui/icons-material/GroupAdd';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 
 const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
 
@@ -22,273 +27,169 @@ const RewardHistoryDialog = ({
       open={open}
       onClose={onClose}
       fullWidth
-      maxWidth="lg"
+      maxWidth="sm"
       PaperProps={{
         sx: {
-          background: "rgba(30,41,59,0.92)",
           borderRadius: 3,
-          boxShadow: "0 8px 32px 0 rgba(31,38,135,0.37)",
-          color: "#fff",
-          backdropFilter: "blur(10px)",
+          overflow: "hidden",
+          backgroundColor: "#f7f9fc",
         },
       }}
     >
-      <DialogTitle
-        sx={{
-          fontWeight: 700,
-          letterSpacing: 0.5,
-          color: "#FFD54F",
-          textShadow: "1px 1px 3px rgba(0,0,0,0.4)",
-          textAlign: "center",
-          background: "rgba(33,150,243,0.10)",
-          borderTopLeftRadius: 16,
-          borderTopRightRadius: 16,
-          mb: 1,
-        }}
-      >
-        Reward History
+      {/* Header */}
+      <DialogTitle sx={{ background: "linear-gradient(135deg,#003f8d,#0055ba)", color: "#fff", p: 0 }}>
+        <Box sx={{ px: 2.5, pt: 2.5, pb: 2.2 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, mb: 0.6 }}>
+            <Box sx={{ width: 36, height: 36, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.18)",
+              display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <GroupAddIcon sx={{ color: "#fff", fontSize: 20 }} />
+            </Box>
+            <Box>
+              <Typography sx={{ fontSize: 9, color: "rgba(255,255,255,0.72)", letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700 }}>Earnings</Typography>
+              <Typography sx={{ fontSize: 19, fontWeight: 800, color: "#fff" }}>Referral Rewards</Typography>
+            </Box>
+          </Box>
+          <Chip
+            label={`${rewardHistory.filter(r => !r.transferredAmount && !r.dateTransferred).length} pending transfer${rewardHistory.filter(r => !r.transferredAmount && !r.dateTransferred).length !== 1 ? "s" : ""}`}
+            size="small"
+            sx={{ backgroundColor: "rgba(255,255,255,0.2)", color: "#fff", fontWeight: 700, fontSize: 11 }}
+          />
+        </Box>
       </DialogTitle>
-      <DialogContent
-        dividers
-        sx={{
-          background: "rgba(255,255,255,0.03)",
-          borderRadius: 2,
-          p: 0,
-          maxHeight: { xs: 800, sm: 900, md: 1000, lg: 1200 },
-          minHeight: 480,
-          overflowY: "auto",
-          width: '100%',
-        }}
-      >
+
+      {/* Content */}
+      <DialogContent sx={{ p: 0, backgroundColor: "#f7f9fc" }}>
         {rewardHistory.length === 0 ? (
-          <Box display="flex" alignItems="center" justifyContent="center" height="120px">
-            <Typography variant="body2" sx={{ color: "#FFD54F", textAlign: "center" }}>
-              No approved rewards yet.
-            </Typography>
+          <Box sx={{ py: 8, textAlign: "center" }}>
+            <HourglassEmptyIcon sx={{ fontSize: 44, color: "#c2c6d5", mb: 1 }} />
+            <Typography sx={{ fontSize: 13, color: "#8b95a5" }}>No approved rewards yet.</Typography>
           </Box>
         ) : (
-          <Box
-            sx={{
-              width: "100%",
-              flex: 1,
-              overflowY: "auto",
-              maxHeight: { xs: 700, sm: 800, md: 900, lg: 1100 },
-              scrollbarWidth: "none",
-              msOverflowStyle: "none",
-              "&::-webkit-scrollbar": {
-                display: "none",
-              },
-              p: 0,
-              m: 0,
-            }}
-            component="ul"
-          >
+          <Box component="ul" sx={{ m: 0, p: 0, listStyle: "none" }}>
             {[...rewardHistory]
-              // Double-check: exclude transferred rewards from display
               .filter(r => !r.transferredAmount && !r.dateTransferred)
-              .sort((a, b) => (b.releasedAt?.seconds || b.dateTransferred?.seconds || 0) - (a.releasedAt?.seconds || a.dateTransferred?.seconds || 0))
-              .map((reward) => {
-                // Reward is transferred ONLY if both transferredAmount AND dateTransferred exist
+              .sort((a, b) => (b.releasedAt?.seconds || 0) - (a.releasedAt?.seconds || 0))
+              .map((reward, idx) => {
                 const transferred = !!(reward.transferredAmount && reward.dateTransferred);
-                const profitStatus = transferred ? "Transferred" : "Pending";
-                const profitIcon = transferred ? "✅" : "⏳";
-                const borderColor = transferred ? "#4caf50" : "#1976d2";
-                const iconBg = transferred ? "rgba(76,175,80,0.12)" : "rgba(33,150,243,0.12)";
-                const iconColor = transferred ? "#81C784" : "#64B5F6";
+                const isLoading = !!loadingTransfer?.[reward.id];
+
                 const handleSingleTransfer = async () => {
                   if (!user) return;
                   if (transferred) return alert("Reward already transferred.");
                   const confirmed = window.confirm(
-                    `Are you sure you want to transfer ₱${reward.amount.toLocaleString()} to your eWallet?`
+                    `Are you sure you want to transfer \u20b1${reward.amount.toLocaleString()} to your eWallet?`
                   );
                   if (!confirmed) return;
                   try {
                     setLoadingTransfer((prev) => ({ ...prev, [reward.id]: true }));
-                    
-                    // Get user's ID token
                     const idToken = await user.getIdToken();
-                    
-                    // Call Cloud Function (secure, idempotent)
-                    const endpoint = "https://us-central1-amayan-savings.cloudfunctions.net/transferReferralReward";
-                    console.log("[RewardTransfer] Calling Cloud Function:", endpoint);
-                    
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-                    
-                    const response = await fetch(endpoint, {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${idToken}`,
-                      },
-                      body: JSON.stringify({
-                        rewardId: reward.id,
-                        amount: reward.amount,
-                        clientRequestId: `reward-${reward.id}-${user.uid}`,
-                      }),
-                      signal: controller.signal,
-                    });
-                    
-                    clearTimeout(timeoutId);
-
-                    if (!response.ok) {
-                      let errorMessage = "Failed to transfer reward";
-                      try {
-                        const errorData = await response.json();
-                        errorMessage = errorData.error || errorMessage;
-                      } catch (e) {
-                        errorMessage = `Server error (${response.status}): ${response.statusText}`;
+                    const timeoutId = setTimeout(() => controller.abort(), 30000);
+                    const response = await fetch(
+                      "https://us-central1-amayan-savings.cloudfunctions.net/transferReferralReward",
+                      {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+                        body: JSON.stringify({ rewardId: reward.id, amount: reward.amount, clientRequestId: `reward-${reward.id}-${user.uid}` }),
+                        signal: controller.signal,
                       }
-                      throw new Error(errorMessage);
+                    );
+                    clearTimeout(timeoutId);
+                    if (!response.ok) {
+                      let msg = "Failed to transfer reward";
+                      try { const e = await response.json(); msg = e.error || msg; } catch (_) {}
+                      throw new Error(msg);
                     }
-
                     const result = await response.json();
-                    console.log("[RewardTransfer] Success:", result);
-                    
-                    if (result.alreadyTransferred) {
-                      alert("This reward was already transferred previously.");
-                    } else {
-                      alert(`₱${reward.amount.toLocaleString()} transferred to eWallet!`);
-                    }
-                    
+                    alert(result.alreadyTransferred ? "Already transferred previously." : `\u20b1${reward.amount.toLocaleString()} transferred to eWallet!`);
                     onTransferSuccess();
                   } catch (err) {
-                    console.error("[RewardTransfer] Error:", err);
-                    let userMsg = "Failed to transfer reward: ";
-                    if (err.name === "AbortError") {
-                      userMsg += "Request timeout (check your internet connection)";
-                    } else if (err instanceof TypeError && err.message.includes("fetch")) {
-                      userMsg += "Network error - unable to reach backend";
-                    } else {
-                      userMsg += err.message || "Unknown error";
-                    }
-                    alert(userMsg);
+                    const msg = err.name === "AbortError" ? "Request timed out." : (err.message || "Unknown error");
+                    alert("Transfer failed: " + msg);
                   } finally {
                     setLoadingTransfer((prev) => ({ ...prev, [reward.id]: false }));
                   }
                 };
+
+                const dateLabel = reward.releasedAt?.seconds
+                  ? new Date(reward.releasedAt.seconds * 1000).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+                  : "";
+
                 return (
                   <Box
                     key={reward.id}
                     component="li"
                     sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "flex-start",
-                      borderBottom: "1px solid rgba(255,255,255,0.06)",
-                      py: 1,
-                      px: { xs: 0.5, sm: 1, md: 1.5 },
-                      width: '100%',
-                      m: 0,
-                      gap: 1.5,
+                      display: "flex", alignItems: "center", gap: 1.5,
+                      px: 2, py: 1.8,
+                      backgroundColor: idx % 2 === 0 ? "#fff" : "#f7f9fc",
+                      borderBottom: "1px solid #eceef1",
                     }}
                   >
-                    <Box
+                    {/* Icon */}
+                    <Box sx={{
+                      width: 40, height: 40, borderRadius: "50%", flexShrink: 0,
+                      backgroundColor: "rgba(16,90,191,0.08)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
+                      <GroupAddIcon sx={{ color: "#105abf", fontSize: 20 }} />
+                    </Box>
+
+                    {/* Details */}
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, flexWrap: "wrap" }}>
+                        <Typography sx={{ fontSize: 15, fontWeight: 800, color: "#105abf" }}>
+                          \u20b1{Number(reward.amount).toLocaleString()}
+                        </Typography>
+                        <Chip
+                          label="Pending Transfer"
+                          size="small"
+                          sx={{ fontSize: 9, fontWeight: 700, height: 18,
+                            backgroundColor: "rgba(239,108,0,0.12)", color: "#e65100" }}
+                        />
+                      </Box>
+                      {reward.source && (
+                        <Typography sx={{ fontSize: 11, color: "#5d646f", mt: 0.3 }}
+                          noWrap title={reward.source}>
+                          From: {reward.source}
+                        </Typography>
+                      )}
+                      {dateLabel && (
+                        <Typography sx={{ fontSize: 10, color: "#8b95a5", mt: 0.2, fontWeight: 600 }}>
+                          {dateLabel}
+                        </Typography>
+                      )}
+                    </Box>
+
+                    {/* Transfer button */}
+                    <Button
+                      variant="contained"
+                      size="small"
+                      onClick={handleSingleTransfer}
+                      disabled={isLoading}
                       sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        minWidth: 32,
-                        minHeight: 32,
-                        bgcolor: iconBg,
-                        borderRadius: "50%",
-                        mr: 1.5,
-                        border: `1.5px solid ${borderColor}`,
+                        borderRadius: 2, textTransform: "none", fontWeight: 700,
+                        minWidth: 72, fontSize: 12,
+                        backgroundColor: "#105abf", "&:hover": { backgroundColor: "#0b4eaa" },
+                        boxShadow: "none",
                       }}
                     >
-                      <Typography sx={{ fontSize: 16, color: iconColor }}>{profitIcon}</Typography>
-                    </Box>
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography
-                        variant="subtitle2"
-                        sx={{ fontWeight: 600, color: "#fff", fontSize: 13, lineHeight: 1.2 }}
-                      >
-                        ₱{reward.amount.toLocaleString()} earned
-                      </Typography>
-                      <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", mt: 0.2, mb: 0.2 }}>
-                        <Typography
-                          sx={{
-                            px: 0.7,
-                            py: 0.1,
-                            borderRadius: 1,
-                            bgcolor: transferred ? "#1976d2" : "#c62828",
-                            color: "#fff",
-                            fontWeight: 500,
-                            fontSize: 10,
-                            letterSpacing: 0.2,
-                          }}
-                        >
-                          {transferred ? "Valid" : "Pending"}
-                        </Typography>
-                        <Typography
-                          sx={{
-                            px: 0.7,
-                            py: 0.1,
-                            borderRadius: 1,
-                            bgcolor: profitStatus === "Transferred" ? "#388e3c" : "#ef6c00",
-                            color: "#fff",
-                            fontWeight: 500,
-                            fontSize: 10,
-                            letterSpacing: 0.2,
-                          }}
-                        >
-                          {profitStatus}
-                        </Typography>
-                      </Box>
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          color: "#B3E5FC",
-                          fontWeight: 400,
-                          display: "block",
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          maxWidth: { xs: 100, sm: 140, md: 180 },
-                        }}
-                        title={reward.source}
-                      >
-                        From: {reward.source}
-                      </Typography>
-                      <Typography
-                        variant="caption"
-                        sx={{ color: "#fff", opacity: 0.6, display: "block", mt: 0.2, fontSize: 10 }}
-                      >
-                        {reward.releasedAt?.seconds
-                          ? new Date(reward.releasedAt.seconds * 1000).toLocaleDateString("en-US", {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                            })
-                          : ""}
-                      </Typography>
-                    </Box>
-                    {!transferred && (
-                      <Button
-                        variant="contained"
-                        size="small"
-                        color="success"
-                        onClick={handleSingleTransfer}
-                        disabled={loadingTransfer?.[reward.id]}
-                        sx={{ ml: 1, fontWeight: 500, minWidth: 60, px: 1.5, py: 0.5, height: 28, fontSize: 12, borderRadius: 2, boxShadow: 'none' }}
-                      >
-                        {loadingTransfer?.[reward.id] ? "..." : "Transfer"}
-                      </Button>
-                    )}
+                      {isLoading ? <CircularProgress size={14} sx={{ color: "#fff" }} /> : "Transfer"}
+                    </Button>
                   </Box>
                 );
               })}
           </Box>
         )}
       </DialogContent>
-      <DialogActions
-        sx={{
-          background: "rgba(33,150,243,0.10)",
-          borderBottomRightRadius: 16,
-          borderBottomLeftRadius: 16,
-        }}
-      >
-        <Button onClick={onClose} sx={{ fontWeight: 600, color: "#1976d2" }}>
+
+      {/* Footer */}
+      <DialogActions sx={{ backgroundColor: "#fff", borderTop: "1px solid #eceef1", px: 2, py: 1.4 }}>
+        <Button
+          onClick={onClose}
+          sx={{ borderRadius: 2, fontWeight: 700, color: "#105abf", textTransform: "none",
+            backgroundColor: "rgba(16,90,191,0.08)", px: 2.5, "&:hover": { backgroundColor: "rgba(16,90,191,0.14)" } }}
+        >
           Close
         </Button>
       </DialogActions>
@@ -297,3 +198,4 @@ const RewardHistoryDialog = ({
 };
 
 export default RewardHistoryDialog;
+

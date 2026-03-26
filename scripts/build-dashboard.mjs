@@ -1,5 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Box, Toolbar, Typography, Grid, Card, Drawer, Tabs, Tab, Pagination, useMediaQuery } from "@mui/material";
+import { writeFileSync } from 'fs';
+
+const content = `import React, { useEffect, useState } from "react";
+import { Box, Toolbar, Typography, Grid, Card, Drawer, useMediaQuery } from "@mui/material";
 import { db } from "../../firebase";
 import { collection, query, onSnapshot, orderBy } from "firebase/firestore";
 import { motion } from "framer-motion";
@@ -26,39 +28,8 @@ const AdminDashboard = () => {
   const [recentActivities, setRecentActivities] = useState([]);
   const [previousRevenue, setPreviousRevenue] = useState(0);
   const [memberActivityDist, setMemberActivityDist] = useState({ MasterMD: { codes: 0, shares: 0 }, MD: { codes: 0, shares: 0 }, MS: { codes: 0, shares: 0 }, MI: { codes: 0, shares: 0 }, Agent: { codes: 0, shares: 0 } });
-  const [activityTab, setActivityTab] = useState("all");
-  const [activityPage, setActivityPage] = useState(1);
 
   const handleToggleSidebar = () => setSidebarOpen(prev => !prev);
-  const ACTIVITY_PAGE_SIZE = 8;
-
-  const filteredActivities = useMemo(() => {
-    if (activityTab === "all") return recentActivities;
-    const activityTypeByTab = {
-      deposit: "Deposit",
-      withdrawal: "Withdrawal",
-      payback: "Add Payback Entry",
-      voucher: "Capital Share Voucher",
-    };
-    return recentActivities.filter(a => a.activityType === activityTypeByTab[activityTab]);
-  }, [recentActivities, activityTab]);
-
-  const totalActivityPages = Math.max(1, Math.ceil(filteredActivities.length / ACTIVITY_PAGE_SIZE));
-
-  const paginatedActivities = useMemo(() => {
-    const start = (activityPage - 1) * ACTIVITY_PAGE_SIZE;
-    return filteredActivities.slice(start, start + ACTIVITY_PAGE_SIZE);
-  }, [filteredActivities, activityPage]);
-
-  useEffect(() => {
-    setActivityPage(1);
-  }, [activityTab]);
-
-  useEffect(() => {
-    if (activityPage > totalActivityPages) {
-      setActivityPage(totalActivityPages);
-    }
-  }, [activityPage, totalActivityPages]);
 
   // Calculate growth percentages
   const revenueGrowth = previousRevenue > 0 ? ((totalRevenue - previousRevenue) / previousRevenue * 100).toFixed(1) : 0;
@@ -78,38 +49,19 @@ const AdminDashboard = () => {
       capitalShareVouchers: [],
       walletToWalletTransfers: [],
     };
-    let usersById = {};
 
     const updateMemberDist = () => {
       const distRoles = ["MasterMD", "MD", "MS", "MI", "Agent"];
       const dist = {};
       distRoles.forEach(r => { dist[r] = { codes: 0, shares: 0 }; });
-
-      const normalizeRole = (value) => {
-        const cleaned = String(value || "").replace(/\s+/g, "").toUpperCase();
-        const roleMap = {
-          MASTERMD: "MasterMD",
-          MD: "MD",
-          MS: "MS",
-          MI: "MI",
-          AGENT: "Agent",
-        };
-        return roleMap[cleaned] || null;
-      };
-
       allActivities.purchaseCodes.forEach(code => {
-        const role = normalizeRole(code.role || code.userRole || code.memberRole || usersById[code.userId]?.role);
-        if (!role) return;
-
-        const typeText = String(code.type || code.codeType || "").toLowerCase();
-        if (typeText.includes("downline") || typeText.includes("invite")) {
-          dist[role].codes++;
-        }
-        if (typeText.includes("activate capital share") || typeText.includes("capital")) {
-          dist[role].shares++;
-        }
+        const role = code.role || code.userRole || code.memberRole;
+        if (role && dist[role] !== undefined) dist[role].codes++;
       });
-
+      [...allActivities.capitalShareVouchers, ...allActivities.capitalShareEntries].forEach(v => {
+        const role = v.role || v.userRole || v.memberRole;
+        if (role && dist[role] !== undefined) dist[role].shares++;
+      });
       setMemberActivityDist(dist);
     };
 
@@ -205,12 +157,7 @@ const AdminDashboard = () => {
             if (u.email) userMapObj[u.email] = u;
             userMapObj[u.id] = u;
           });
-          usersById = data.reduce((acc, u) => {
-            acc[u.id] = u;
-            return acc;
-          }, {});
           setUserMap(userMapObj);
-          updateMemberDist();
         })
       );
 
@@ -394,12 +341,12 @@ const AdminDashboard = () => {
         <Grid container spacing={2} sx={{ mb: 4 }}>
           {[
             { label: "Total Users", value: Object.values(userCounts).reduce((a, b) => a + b, 0).toLocaleString(), icon: "group", badge: "+12%", positive: true },
-            { label: "Total Revenue", value: `₱${totalRevenue.toLocaleString()}`, icon: "payments", badge: `${Number(revenueGrowth) >= 0 ? "+" : ""}${revenueGrowth}%`, positive: Number(revenueGrowth) >= 0 },
-            { label: "Total Deposits", value: `₱${totalDeposits.toLocaleString()}`, icon: "account_balance_wallet", badge: "+5.2%", positive: true },
-            { label: "Total Withdrawals", value: `₱${totalWithdrawals.toLocaleString()}`, icon: "outbox", badge: "-2.1%", positive: false },
+            { label: "Total Revenue", value: \`\u20B1\${totalRevenue.toLocaleString()}\`, icon: "payments", badge: \`\${Number(revenueGrowth) >= 0 ? "+" : ""}\${revenueGrowth}%\`, positive: Number(revenueGrowth) >= 0 },
+            { label: "Total Deposits", value: \`\u20B1\${totalDeposits.toLocaleString()}\`, icon: "account_balance_wallet", badge: "+5.2%", positive: true },
+            { label: "Total Withdrawals", value: \`\u20B1\${totalWithdrawals.toLocaleString()}\`, icon: "outbox", badge: "-2.1%", positive: false },
           ].map((item, i) => (
-            <Grid item xs={6} sm={3} key={i} sx={{ display: "flex" }}>
-              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: i * 0.08 }} style={{ width: "100%", height: "100%" }}>
+            <Grid item xs={6} sm={3} key={i}>
+              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: i * 0.08 }}>
                 <Box
                   sx={{
                     bgcolor: "#ffffff",
@@ -408,8 +355,7 @@ const AdminDashboard = () => {
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "space-between",
-                    minHeight: 122,
-                    height: "100%",
+                    minHeight: 112,
                     boxShadow: "0 1px 6px rgba(0,0,0,0.07)",
                     transition: "box-shadow 0.2s",
                     "&:hover": { boxShadow: "0 4px 18px rgba(0,0,0,0.12)" },
@@ -464,7 +410,7 @@ const AdminDashboard = () => {
               <Typography sx={{ fontSize: 18, fontWeight: 700, fontFamily: "'Manrope', sans-serif", color: "#191c1e" }}>
                 Total Revenue Over Time
               </Typography>
-              <Typography sx={{ fontSize: 12, color: "#54647a", mt: 0.5 }}>Daily updates · current period</Typography>
+              <Typography sx={{ fontSize: 12, color: "#54647a", mt: 0.5 }}>Daily updates \u00B7 current period</Typography>
             </Box>
           </Box>
           {chartData.length > 0 ? (
@@ -487,7 +433,7 @@ const AdminDashboard = () => {
             <Box>
               <Box sx={{ height: 192, display: "flex", alignItems: "flex-end", gap: "4px" }}>
                 {[40, 55, 45, 70, 85, 60, 50, 65, 75, 40].map((h, i) => (
-                  <Box key={i} sx={{ flex: 1, bgcolor: i === 4 ? "#0053db" : "rgba(0,83,219,0.15)", height: `${h}%`, borderRadius: "4px 4px 0 0" }} />
+                  <Box key={i} sx={{ flex: 1, bgcolor: i === 4 ? "#0053db" : "rgba(0,83,219,0.15)", height: \`\${h}%\`, borderRadius: "4px 4px 0 0" }} />
                 ))}
               </Box>
               <Box sx={{ display: "flex", justifyContent: "space-between", mt: 1.5, px: 0.5 }}>
@@ -527,13 +473,13 @@ const AdminDashboard = () => {
                     <Box key={role}>
                       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.75 }}>
                         <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#191c1e" }}>{role}</Typography>
-                        <Typography sx={{ fontSize: 10, color: "#76777d" }}>{data.codes} · {data.shares}</Typography>
+                        <Typography sx={{ fontSize: 10, color: "#76777d" }}>{data.codes} \u00B7 {data.shares}</Typography>
                       </Box>
                       <Box sx={{ width: "100%", bgcolor: "#e0e3e5", height: 6, borderRadius: 99, overflow: "hidden", mb: 0.75 }}>
-                        <Box sx={{ bgcolor: "#0053db", height: "100%", width: `${codePct}%`, borderRadius: 99, transition: "width 0.8s ease" }} />
+                        <Box sx={{ bgcolor: "#0053db", height: "100%", width: \`\${codePct}%\`, borderRadius: 99, transition: "width 0.8s ease" }} />
                       </Box>
                       <Box sx={{ width: "100%", bgcolor: "#e0e3e5", height: 6, borderRadius: 99, overflow: "hidden" }}>
-                        <Box sx={{ bgcolor: "#009668", height: "100%", width: `${sharePct}%`, borderRadius: 99, transition: "width 0.8s ease" }} />
+                        <Box sx={{ bgcolor: "#009668", height: "100%", width: \`\${sharePct}%\`, borderRadius: 99, transition: "width 0.8s ease" }} />
                       </Box>
                     </Box>
                   );
@@ -576,7 +522,7 @@ const AdminDashboard = () => {
                           </Box>
                         </Box>
                         <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#009668" }}>
-                          ₱{Number(user.totalEarnings).toLocaleString()}
+                          \u20B1{Number(user.totalEarnings).toLocaleString()}
                         </Typography>
                       </Box>
                     );
@@ -594,23 +540,10 @@ const AdminDashboard = () => {
           <Typography sx={{ fontSize: 18, fontWeight: 700, fontFamily: "'Manrope', sans-serif", color: "#191c1e", mb: 2 }}>
             Activity Logs
           </Typography>
-          <Tabs
-            value={activityTab}
-            onChange={(_, nextTab) => setActivityTab(nextTab)}
-            variant="scrollable"
-            allowScrollButtonsMobile
-            sx={{ mb: 2, minHeight: 36, "& .MuiTab-root": { minHeight: 36, textTransform: "none", fontSize: 12, fontWeight: 600 } }}
-          >
-            <Tab label="All Activity" value="all" />
-            <Tab label="Deposits" value="deposit" />
-            <Tab label="Withdrawals" value="withdrawal" />
-            <Tab label="Add Payback" value="payback" />
-            <Tab label="Capital Share Voucher" value="voucher" />
-          </Tabs>
           <Box sx={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-            {paginatedActivities.length > 0 ? (
-              paginatedActivities.map((act, idx) => {
-                const totalShown = paginatedActivities.length;
+            {recentActivities.length > 0 ? (
+              recentActivities.map((act, idx) => {
+                const totalShown = recentActivities.length;
                 const isFirst = idx === 0;
                 const isLast = idx === totalShown - 1;
                 const actCfg = {
@@ -642,7 +575,7 @@ const AdminDashboard = () => {
                   (act.createdAt?.seconds ? new Date(act.createdAt.seconds * 1000).toLocaleString() : "Recently");
 
                 return (
-                  <motion.div key={act.id || `${activityTab}-${idx}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, delay: Math.min(idx, 10) * 0.04 }}>
+                  <motion.div key={act.id || idx} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, delay: Math.min(idx, 10) * 0.04 }}>
                     <Box
                       sx={{
                         bgcolor: "#f2f4f6",
@@ -666,7 +599,7 @@ const AdminDashboard = () => {
                           <Box component="span" sx={{ fontWeight: 700 }}>{act.activityType}</Box>
                           {" "}by{" "}
                           <Box component="span" sx={{ fontWeight: 600 }}>{displayName}</Box>
-                          {act.amount ? ` — ₱${Number(act.amount).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : ""}
+                          {act.amount ? \` \u2014 \u20B1\${Number(act.amount).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}\` : ""}
                         </Typography>
                         <Typography sx={{ fontSize: 10, color: "#76777d", mt: 0.5 }}>{timeStr}</Typography>
                       </Box>
@@ -676,22 +609,10 @@ const AdminDashboard = () => {
               })
             ) : (
               <Box sx={{ bgcolor: "#f2f4f6", p: 3, borderRadius: "12px", textAlign: "center" }}>
-                <Typography sx={{ fontSize: 12, color: "#76777d" }}>No activity found for this tab.</Typography>
+                <Typography sx={{ fontSize: 12, color: "#76777d" }}>No recent activity.</Typography>
               </Box>
             )}
           </Box>
-          {filteredActivities.length > ACTIVITY_PAGE_SIZE && (
-            <Box sx={{ display: "flex", justifyContent: "center", mt: 2 }}>
-              <Pagination
-                count={totalActivityPages}
-                page={activityPage}
-                onChange={(_, page) => setActivityPage(page)}
-                size={isMobile ? "small" : "medium"}
-                color="primary"
-                shape="rounded"
-              />
-            </Box>
-          )}
         </Box>
 
       </Box>
@@ -700,3 +621,26 @@ const AdminDashboard = () => {
 };
 
 export default AdminDashboard;
+`;
+
+writeFileSync('src/pages/admin/adminDashboard.jsx', content, 'utf8');
+
+// Verify key things
+const checks = {
+  'no GoogleMap': !content.includes('GoogleMap'),
+  'no userLocations': !content.includes('userLocations'),
+  'memberActivityDist': content.includes('memberActivityDist'),
+  'updateMemberDist': content.includes('updateMemberDist'),
+  'Direct Invite Reward only': content.includes("filter(r => r.type === 'Direct Invite Reward');"),
+  'slice 50': content.includes('.slice(0, 50)'),
+  'Grid container': content.includes('<Grid container spacing={2}'),
+  'Grid item xs6 sm3': content.includes('xs={6} sm={3}'),
+  'peso symbol': content.includes('\u20B1'),
+  'no map section': !content.includes('User Locations'),
+  'activity logs all': content.includes('recentActivities.map((act, idx)'),
+  'MasterMD in roles': content.includes('"MasterMD"'),
+};
+
+console.log('Checks:');
+Object.entries(checks).forEach(([k,v]) => console.log(v ? '  \u2713' : '  \u2717', k));
+console.log('Lines:', content.split('\n').length);

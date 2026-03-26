@@ -231,6 +231,10 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
                 color="inherit"
                 onClick={onToggleSidebar}
                 sx={{
+                  color: "#191c1e",
+                  backgroundColor: "rgba(255,255,255,0.75)",
+                  border: "1px solid rgba(0,0,0,0.08)",
+                  "&:hover": { backgroundColor: "rgba(255,255,255,0.95)" },
                   display: ["ADMIN", "CEO", "SUPERADMIN"].includes(normalizedRole)
                     ? { xs: "inline-flex", md: "inline-flex" }
                     : { xs: "none", md: "inline-flex" },

@@ -1,8 +1,8 @@
-import OverrideUplineRewardsDialog from "./components/dialogs/OverrideUplineRewardsDialog";
+﻿import OverrideUplineRewardsDialog from "./components/dialogs/OverrideUplineRewardsDialog";
 import RewardHistoryDialog from "./components/dialogs/RewardHistoryDialog";
 /* eslint-disable no-unused-vars */
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { sendReferralTransferAvailableNotification } from "../../utils/referralNotifications";
 import { sendOverrideTransferAvailableNotification } from "../../utils/overrideNotifications";
 import {
@@ -10,6 +10,7 @@ import {
   Toolbar,
   Typography,
   CircularProgress,
+  Skeleton,
   Grid,
   Card,
   CardContent,
@@ -25,9 +26,44 @@ import {
   TextField,
   MenuItem,
   Badge,
+  Chip,
+  Drawer,
+  Divider,
+  Tooltip,
 } from "@mui/material";
 import VisibilityIcon from "@mui/icons-material/Visibility";
+import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import SortIcon from "@mui/icons-material/Sort";
+import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
+import SendMoneyIcon from "@mui/icons-material/Send";
+import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
+import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
+import MonetizationOnIcon from "@mui/icons-material/MonetizationOn";
+import PaymentIcon from "@mui/icons-material/Payment";
+import GroupAddIcon from "@mui/icons-material/GroupAdd";
+import HistoryIcon from "@mui/icons-material/History";
+import CallReceivedIcon from "@mui/icons-material/CallReceived";
+import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
+import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import CelebrationIcon from "@mui/icons-material/Celebration";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import ShareIcon from "@mui/icons-material/Share";
+import HomeIcon from "@mui/icons-material/Home";
+import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
+import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
+import RedeemIcon from "@mui/icons-material/Redeem";
+import PersonIcon from "@mui/icons-material/Person";
+import AccountTreeIcon from "@mui/icons-material/AccountTree";
+import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
+import QueryStatsIcon from "@mui/icons-material/QueryStats";
+import PersonPinIcon from "@mui/icons-material/PersonPin";
+import TransferFundsDialog from "../../components/Topbar/dialogs/TransferFundsDialog";
+import WithdrawDialog from "../../components/Topbar/dialogs/WithdrawDialog";
+import DepositDialog from "../../components/Topbar/dialogs/DepositDialog";
+import PurchaseCodesDialog from "../../components/Topbar/dialogs/PurchaseCodesDialog";
+import InviteEarnDialog from "../../components/Topbar/dialogs/InviteEarnDialog";
+import EwalletHistoryDialog from "../../components/Topbar/dialogs/EwalletHistoryDialog";
 import { onAuthStateChanged } from "firebase/auth";
 import {
   collection,
@@ -42,9 +78,6 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../../firebase";
 import { motion } from "framer-motion";
-import Topbar from "../../components/Topbar";
-import AppBottomNav from "../../components/AppBottomNav";
-import bgImage from "../../assets/bg.jpg";
 import NetworkGroupSales from "./components/dialogs/networkGroupsales";
 
 const MemberDashboard = () => {
@@ -129,23 +162,9 @@ const MemberDashboard = () => {
       if (start !== end) frame = requestAnimationFrame(animate);
       return () => frame && cancelAnimationFrame(frame);
     }, [overrideEarnings]);
-  const [sidebarOpen, setSidebarOpen] = useState(() => {
-  // Optional: detect mobile width
-  return window.innerWidth >= 960 ? true : false; // desktop open, mobile closed
-});
-
-useEffect(() => {
-  const handleResize = () => {
-    setSidebarOpen(window.innerWidth >= 960);
-  };
-  window.addEventListener("resize", handleResize);
-  return () => window.removeEventListener("resize", handleResize);
-}, []);
-
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [openDepositDialog, setOpenDepositDialog] = useState(false);
   const [roleCounts, setRoleCounts] = useState({
     MD: 0,
     MS: 0,
@@ -172,6 +191,241 @@ const [overrideDialogOpen, setOverrideDialogOpen] = useState(false);
 const [loadingTransfer, setLoadingTransfer] = useState(false);
 
 const [groupSalesOpen, setGroupSalesOpen] = useState(false);
+
+// GCash-style dashboard state
+const [eWallet, setEWallet] = useState(0);
+const [showBalance, setShowBalance] = useState(false);
+const [dashDialog, setDashDialog] = useState(null);
+const [availableCodes, setAvailableCodes] = useState([]);
+const navigate = useNavigate();
+
+// ─── Notifications ───────────────────────────────────────────────────────────
+const [notifDrawerOpen, setNotifDrawerOpen] = useState(false);
+const [notifications, setNotifications] = useState([]);
+const [unreadCount, setUnreadCount] = useState(0);
+
+useEffect(() => {
+  if (!user) return;
+
+  const q = query(
+    collection(db, "notifications"),
+    where("userId", "==", user.uid)
+  );
+
+  const unsub = onSnapshot(
+    q,
+    (snap) => {
+      const items = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      setNotifications(items);
+      setUnreadCount(items.filter((n) => !n.read).length);
+    },
+    () => {}
+  );
+
+  return () => unsub();
+}, [user]);
+
+const handleOpenNotifications = () => {
+  setNotifDrawerOpen(true);
+  // Mark all as read in Firestore
+  if (user) {
+    notifications
+      .filter((n) => !n.read)
+      .forEach((n) => {
+        updateDoc(doc(db, "notifications", n.id), { read: true }).catch(() => {});
+      });
+    setUnreadCount(0);
+  }
+};
+
+const handleToggleSortOrder = () => {
+  setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+};
+
+const handleViewReferrals = (role) => {
+  setSelectedRole(role);
+  setOpenDialog(true);
+};
+
+const filteredReferrals = referrals
+  .filter((ref) => {
+    if (!selectedRole || ref.role !== selectedRole) return false;
+    const name = (ref.name || "").toLowerCase();
+    const username = (ref.username || "").toLowerCase();
+    const term = searchTerm.toLowerCase();
+    return name.includes(term) || username.includes(term);
+  })
+  .sort((a, b) => {
+    const aVal = (a?.[sortField] || "").toString().toLowerCase();
+    const bVal = (b?.[sortField] || "").toString().toLowerCase();
+    if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
+    if (aVal > bVal) return sortOrder === "asc" ? 1 : -1;
+    return 0;
+  });
+
+useEffect(() => {
+  let unsubscribeUser = null;
+  let unsubscribeReferrals = null;
+  let unsubscribeCodes = null;
+  let unsubscribeCapital = null;
+  let unsubscribePayback = null;
+
+  const resetRoleCounts = () => {
+    setRoleCounts({ MD: 0, MS: 0, MI: 0, Agent: 0 });
+  };
+
+  const normalizeRole = (rawRole) => {
+    const upper = String(rawRole || "").trim().toUpperCase();
+
+    if (upper === "MASTERMD" || upper === "MMD" || upper === "MANAGINGDIRECTOR" || upper === "MANAGING DIRECTOR") return "MD";
+    if (upper === "MD") return "MD";
+
+    if (upper === "MARKETINGSPECIALIST" || upper === "MARKETING SPECIALIST") return "MS";
+    if (upper === "MS") return "MS";
+
+    if (upper === "MARKETINGINFLUENCER" || upper === "MARKETING INFLUENCER") return "MI";
+    if (upper === "MI") return "MI";
+
+    return "Agent";
+  };
+
+  const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+    if (!currentUser) {
+      setUser(null);
+      setUserData(null);
+      setReferrals([]);
+      resetRoleCounts();
+      setEWallet(0);
+      setTotalContribution(0);
+      setTotalCapitalShare(0);
+      setAvailableCodes([]);
+      setLoading(false);
+      return;
+    }
+
+    setUser(currentUser);
+    setLoading(true);
+
+    if (unsubscribeUser) unsubscribeUser();
+    if (unsubscribeReferrals) unsubscribeReferrals();
+    if (unsubscribeCodes) unsubscribeCodes();
+    if (unsubscribeCapital) unsubscribeCapital();
+    if (unsubscribePayback) unsubscribePayback();
+
+    const userRef = doc(db, "users", currentUser.uid);
+    unsubscribeUser = onSnapshot(
+      userRef,
+      (userSnap) => {
+        if (!userSnap.exists()) {
+          setUserData(null);
+          setLoading(false);
+          return;
+        }
+
+        const data = userSnap.data() || {};
+        setUserData({ id: userSnap.id, ...data });
+        setEWallet(Number(data.eWallet) || 0);
+        setLoading(false);
+
+        if (unsubscribeReferrals) {
+          unsubscribeReferrals();
+          unsubscribeReferrals = null;
+        }
+
+        const username = String(data.username || "").trim();
+        if (!username) {
+          setReferrals([]);
+          resetRoleCounts();
+          return;
+        }
+
+        const referralsQ = query(collection(db, "users"), where("referredBy", "==", username));
+        unsubscribeReferrals = onSnapshot(
+          referralsQ,
+          (refSnap) => {
+            const nextReferrals = refSnap.docs.map((refDoc) => {
+              const refData = refDoc.data() || {};
+              return {
+                id: refDoc.id,
+                name: refData.name || "",
+                username: refData.username || "",
+                email: refData.email || "",
+                contactNumber: refData.contactNumber || "",
+                role: normalizeRole(refData.role),
+              };
+            });
+
+            const counts = { MD: 0, MS: 0, MI: 0, Agent: 0 };
+            nextReferrals.forEach((ref) => {
+              counts[ref.role] = (counts[ref.role] || 0) + 1;
+            });
+
+            setReferrals(nextReferrals);
+            setRoleCounts(counts);
+          },
+          () => {
+            setReferrals([]);
+            resetRoleCounts();
+          }
+        );
+      },
+      () => {
+        setLoading(false);
+      }
+    );
+
+    const codesQ = query(
+      collection(db, "purchaseCodes"),
+      where("userId", "==", currentUser.uid),
+      where("used", "==", false)
+    );
+
+    unsubscribeCodes = onSnapshot(
+      codesQ,
+      (snap) => {
+        setAvailableCodes(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      },
+      () => {
+        setAvailableCodes([]);
+      }
+    );
+
+    const capitalQ = query(collection(db, "capitalShareEntries"), where("userId", "==", currentUser.uid));
+    unsubscribeCapital = onSnapshot(
+      capitalQ,
+      (snap) => {
+        const total = snap.docs.reduce((sum, d) => sum + Number(d.data()?.amount || 0), 0);
+        setTotalCapitalShare(total);
+      },
+      () => {
+        setTotalCapitalShare(0);
+      }
+    );
+
+    const paybackQ = query(collection(db, "paybackEntries"), where("userId", "==", currentUser.uid));
+    unsubscribePayback = onSnapshot(
+      paybackQ,
+      (snap) => {
+        const total = snap.docs.reduce((sum, d) => sum + Number(d.data()?.amount || 0), 0);
+        setTotalContribution(total);
+      },
+      () => {
+        setTotalContribution(0);
+      }
+    );
+  });
+
+  return () => {
+    if (unsubscribeUser) unsubscribeUser();
+    if (unsubscribeReferrals) unsubscribeReferrals();
+    if (unsubscribeCodes) unsubscribeCodes();
+    if (unsubscribeCapital) unsubscribeCapital();
+    if (unsubscribePayback) unsubscribePayback();
+    unsubscribeAuth();
+  };
+}, []);
 
 const handleTransferToWallet = async ({ amount, type, rewardId = null }) => {
   if (!user) return;
@@ -400,520 +654,655 @@ useEffect(() => {
     return () => unsubscribe();
   }, [user]);
 
-  const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
-
   // 🔹 Check if we should open deposit dialog (from deposit-cancel page)
   useEffect(() => {
     if (location.state?.openDepositDialog) {
-      setOpenDepositDialog(true);
+      setDashDialog("deposit");
       // Clear the state to prevent opening dialog on subsequent visits
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, [location]);
 
-  // 🔹 Listen to referral counts
-  const listenToReferrals = useCallback((username) => {
-    if (!username) return;
-    const lowerUsername = username.toLowerCase();
-    const q = query(collection(db, "users"), where("referredBy", "==", username));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const counts = { MD: 0, MS: 0, MI: 0, Agent: 0 };
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        if (
-          data.referredBy &&
-          data.referredBy.toLowerCase() === lowerUsername &&
-          data.role &&
-          counts[data.role] !== undefined
-        ) {
-          counts[data.role] += 1;
-        }
-      });
-      setRoleCounts(counts);
-    });
-
-    return unsubscribe;
-  }, []);
-
-  // 🔹 Fetch Payback Total Contribution and Capital Share
-const fetchPaybackAndCapital = async (uid) => {
-  try {
-    // ✅ Fetch Payback Entries
-    const paybackRef = collection(db, "paybackEntries");
-    const paybackQuery = query(paybackRef, where("userId", "==", uid));
-    const paybackSnap = await getDocs(paybackQuery);
-
-    const totalPayback = paybackSnap.docs.reduce(
-      (acc, doc) => acc + (Number(doc.data().amount) || 0),
-      0
-    );
-    setTotalContribution(totalPayback);
-
-    // ✅ Fetch Capital Share Entries
-    const capitalRef = collection(db, "capitalShareEntries");
-    const capitalQuery = query(capitalRef, where("userId", "==", uid));
-    const capitalSnap = await getDocs(capitalQuery);
-
-    const totalCapital = capitalSnap.docs.reduce(
-      (acc, doc) => acc + (Number(doc.data().amount) || 0),
-      0
-    );
-    setTotalCapitalShare(totalCapital);
-  } catch (error) {
-    console.error("Error fetching totals:", error);
-  }
-};
-
-  // 🔹 Fetch user info
-  const fetchUserData = useCallback(
-    async (uid) => {
-      try {
-        const userRef = doc(db, "users", uid);
-        const snap = await getDoc(userRef);
-        if (snap.exists()) {
-          const data = snap.data();
-          setUserData(data);
-          const unsubscribe = listenToReferrals(data.username);
-
-          // Fetch payback and capital share
-          await fetchPaybackAndCapital(uid);
-          return unsubscribe;
-        }
-      } catch (error) {
-        console.error("Error loading user data:", error);
-      }
-    },
-    [listenToReferrals]
-  );
-
-  // 🔹 Auth state listener
-  useEffect(() => {
-    let unsubReferrals = null;
-    const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser) {
-        setUser(currentUser);
-        unsubReferrals = await fetchUserData(currentUser.uid);
-      } else {
-        setUser(null);
-        setUserData(null);
-        setRoleCounts({ MD: 0, MS: 0, MI: 0, Agent: 0 });
-        if (unsubReferrals) unsubReferrals();
-      }
-      setLoading(false);
-    });
-
-    return () => {
-      unsubAuth();
-      if (unsubReferrals) unsubReferrals();
-    };
-  }, [fetchUserData]);
-
-  // 🔹 View referrals by role
-  const handleViewReferrals = async (role) => {
-    if (!userData?.username) return;
-    setSelectedRole(role);
-    setOpenDialog(true);
-
-    try {
-      const q = query(
-        collection(db, "users"),
-        where("referredBy", "==", userData.username),
-        where("role", "==", role)
-      );
-      const querySnapshot = await getDocs(q);
-      const data = querySnapshot.docs.map((d) => d.data());
-      setReferrals(data);
-    } catch (error) {
-      console.error("Error fetching referrals:", error);
-    }
-  };
-
-  // 🔹 Filter + Sort
-  const filteredReferrals = referrals
-    .filter(
-      (r) =>
-        r.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.username?.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-    .sort((a, b) => {
-      const fieldA = a[sortField]?.toString().toLowerCase() || "";
-      const fieldB = b[sortField]?.toString().toLowerCase() || "";
-      if (fieldA < fieldB) return sortOrder === "asc" ? -1 : 1;
-      if (fieldA > fieldB) return sortOrder === "asc" ? 1 : -1;
-      return 0;
-    });
-
-  const handleToggleSortOrder = () =>
-    setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
-
   return (
-    <Box
-      sx={{
-        display: "flex",
-        minHeight: "100vh",
-        backgroundImage:
-          `linear-gradient(120deg, rgba(30, 41, 59, 0.92) 60%, rgba(33, 150, 243, 0.25)), url(${bgImage})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundAttachment: "fixed",
-        position: "relative",
-        overflow: "hidden",
-        '&::before': {
-          content: '""',
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'linear-gradient(120deg, rgba(30, 41, 59, 0.92) 60%, rgba(33, 150, 243, 0.25))',
-          zIndex: 0,
-        },
-      }}
-    >
-      {/* 🔝 Topbar */}
-      <Box sx={{ position: "fixed", width: "100%", zIndex: 10 }}>
-        <Topbar
-          open={sidebarOpen}
-          onToggleSidebar={handleToggleSidebar}
-          openDepositDialog={openDepositDialog}
-          onDepositDialogChange={setOpenDepositDialog}
-          dialogProps={{
-            onReferralTransferClick: () => setRewardDialogOpen(true),
-            onOverrideTransferClick: () => setOverrideDialogOpen(true),
+    <Box sx={{ minHeight: "100vh", backgroundColor: "#f7f9fc", color: "#191c1e", pb: 14 }}>
+      <Box sx={{ maxWidth: { xs: "100%", sm: 460 }, mx: "auto", px: { xs: 2, sm: 2.5 }, pt: 2.5 }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+            {loading ? (
+              <Skeleton variant="circular" width={42} height={42} />
+            ) : (
+              <Box
+                onClick={() => navigate('/member/profile')}
+                sx={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: "50%",
+                  background: "#d8e2ff",
+                  color: "#003f8d",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontWeight: 700,
+                  fontSize: 16,
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  "&:hover": { transform: "scale(1.1)", boxShadow: "0 4px 12px rgba(0,63,141,0.2)" },
+                }}
+              >
+                {(userData?.name || userData?.username || "U").charAt(0).toUpperCase()}
+              </Box>
+            )}
+            <Box>
+              <Typography sx={{ fontSize: 10, color: "#616363", letterSpacing: 0.8, textTransform: "uppercase", fontWeight: 600 }}>
+                Welcome back,
+              </Typography>
+              {loading ? (
+                <Skeleton variant="text" width={140} height={32} sx={{ borderRadius: 1 }} />
+              ) : (
+                <Typography sx={{ fontSize: 21, color: "#003f8d", fontWeight: 800, lineHeight: 1.1 }}>
+                  {userData?.name || userData?.username || "Member"}
+                </Typography>
+              )}
+            </Box>
+          </Box>
+          <Tooltip title="Notifications">
+            <IconButton onClick={handleOpenNotifications} sx={{ color: "#003f8d" }}>
+              <Badge badgeContent={unreadCount > 0 ? unreadCount : null} color="error" max={9}
+                sx={{ "& .MuiBadge-badge": { fontSize: 10, minWidth: 16, height: 16, top: 1, right: 1 } }}
+              >
+                {unreadCount > 0 ? <NotificationsActiveIcon /> : <NotificationsNoneIcon />}
+              </Badge>
+            </IconButton>
+          </Tooltip>
+        </Box>
+
+        <Box
+          sx={{
+            background: "linear-gradient(135deg, #003f8d 0%, #0055ba 100%)",
+            borderRadius: "28px",
+            p: 3,
+            color: "#fff",
+            boxShadow: "0 10px 24px rgba(25, 28, 30, 0.16)",
+            position: "relative",
+            overflow: "hidden",
+            mb: 2.5,
           }}
-        />
-      </Box>
-
-      {/* 🧭 Sidebar */}
-      <Box sx={{ zIndex: 5 }}>
-        <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
-      </Box>
-
-      {/* 🧩 Main Content */}
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          p: 4,
-          mt: 0,
-          pb: { xs: 12, sm: 12, md: 12 },
-          color: "white",
-          zIndex: 1,
-          overflowY: "auto",
-          maxHeight: "100vh",
-          width: "100%",
-          transition: "all 0.3s ease",
-          position: "relative",
-          // Hide scrollbar while keeping scroll functionality
-          scrollbarWidth: 'none', // Firefox
-          msOverflowStyle: 'none', // IE and Edge
-          '&::-webkit-scrollbar': {
-            display: 'none', // Chrome, Safari, Opera
-          },
-        }}
-      >
-        <Toolbar />
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
         >
-          <Typography
-            variant="h4"
-            gutterBottom
+          <Box
             sx={{
-              mt: 3,
-              fontWeight: 700,
-              letterSpacing: 0.5,
-              mb: 3,
-              textShadow: "1px 1px 3px rgba(0,0,0,0.4)",
+              position: "absolute",
+              top: -50,
+              right: -42,
+              width: 170,
+              height: 170,
+              borderRadius: "50%",
+              background: "rgba(255,255,255,0.10)",
+              filter: "blur(8px)",
             }}
-          >
-            👤 {userData ? `${userData.username}'s Dashboard` : "Loading Dashboard..."}
+          />
+          <Box sx={{ position: "relative", zIndex: 1 }}>
+            <Typography sx={{ fontSize: 11, color: "rgba(255,255,255,0.75)", letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700 }}>
+              Available Balance
+            </Typography>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mt: 0.8 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.6 }}>
+                <Typography sx={{ fontSize: 33, fontWeight: 800, letterSpacing: -0.6, lineHeight: 1 }}>
+                  {showBalance
+                    ? `₱${(eWallet || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    : "₱ ••••••"}
+                </Typography>
+                <IconButton
+                  size="small"
+                  onClick={() => setShowBalance((p) => !p)}
+                  sx={{ color: "rgba(255,255,255,0.85)" }}
+                >
+                  {showBalance ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                </IconButton>
+              </Box>
+              <Button
+                onClick={() => setDashDialog("deposit")}
+                sx={{
+                  backgroundColor: "#fff",
+                  color: "#0055ba",
+                  borderRadius: "999px",
+                  textTransform: "none",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  px: 2,
+                  minWidth: "auto",
+                  "&:hover": { backgroundColor: "#f3f6ff" },
+                }}
+              >
+                + Cash In
+              </Button>
+            </Box>
+
+            <Box sx={{ mt: 2.5, pt: 1.6, borderTop: "1px solid rgba(255,255,255,0.18)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <Box>
+                <Typography sx={{ fontSize: 10.5, color: "rgba(255,255,255,0.72)" }}>Total Capital Share</Typography>
+                <Typography sx={{ fontSize: 18, fontWeight: 700 }}>
+                  ₱{Number(displayCapitalShare).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </Typography>
+              </Box>
+              <Box sx={{ textAlign: "right" }}>
+                <Typography sx={{ fontSize: 10.5, color: "rgba(255,255,255,0.72)" }}>Payback Contribution</Typography>
+                <Typography sx={{ fontSize: 18, fontWeight: 700 }}>
+                  ₱{Number(displayContribution).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
+        </Box>
+
+        <Grid container spacing={1.5} sx={{ mb: 0.8 }}>
+          {[
+            { icon: <SendMoneyIcon />, label: "Send", dialog: "transfer" },
+            { icon: <CallReceivedIcon />, label: "Withdraw", dialog: "withdraw" },
+            { icon: <PaymentIcon />, label: "Purchase", dialog: "purchase" },
+            { icon: <GroupAddIcon />, label: "Invite", dialog: "invite" },
+            { icon: <HistoryIcon />, label: "History", dialog: "walletHistory" },
+            { icon: <RedeemIcon />, label: "Rewards +", action: () => navigate("/member/vouchers") },
+          ].map((action) => (
+            <Grid item xs={3} key={action.label}>
+              <Box
+                onClick={() => (action.dialog ? setDashDialog(action.dialog) : action.action?.())}
+                sx={{ textAlign: "center", cursor: "pointer", py: 0.7, "&:active": { transform: "scale(0.95)" } }}
+              >
+                <Box
+                  sx={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 1.8,
+                    border: "1px solid #d8deea",
+                    color: "#2563b8",
+                    backgroundColor: "#fff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    mx: "auto",
+                    mb: 0.7,
+                  }}
+                >
+                  {React.cloneElement(action.icon, { sx: { fontSize: 26 } })}
+                </Box>
+                <Typography sx={{ fontSize: 11, color: "#3f4552", fontWeight: 600 }}>{action.label}</Typography>
+              </Box>
+            </Grid>
+          ))}
+        </Grid>
+
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }}>
+          <Typography sx={{ fontSize: 17, fontWeight: 800, color: "#1b1f23", mt: 1.2, mb: 1.4 }}>
+            Earnings Analytics
           </Typography>
 
-          {/* 💰 Payback and Capital Cards */}
-          <Grid container spacing={3} sx={{ mb: 3 }}>
-            {/* Unified Card Style for All Four Cards - Vertical Alignment */}
-            <Grid container direction="column" spacing={3} sx={{ mb: 3, alignItems: 'center' }}>
-              {[{
-                label: "Payback Total Contribution",
-                value: `₱${Number(displayContribution).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                color: "#81C784",
-                icon: null,
-              }, {
-                label: "Total Capital Share",
-                value: `₱${Number(displayCapitalShare).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                color: "#FFD54F",
-                icon: null,
-              }, {
-                label: "Referral Earnings",
-                value: `₱${Number(displayEarnings).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                color: "#81C784",
-                icon: (
-                  <IconButton onClick={() => setRewardDialogOpen(true)} color="inherit" size="small">
-                    <Badge
-                      color="warning"
-                      variant="dot"
-                      overlap="circular"
-                      invisible={!rewardHistory.some(r => r.payoutReleased && !r.transferredAmount)}
-                      anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-                    >
-                      <VisibilityIcon sx={{ color: "#81C784" }} />
-                    </Badge>
-                  </IconButton>
-                ),
-                subtitle: "Total earned from your referrals"
-              }, {
-                label: "Override Earnings",
-                value: `₱${Number(displayOverride).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                color: "#64B5F6",
-                icon: (
-                  <IconButton onClick={() => setOverrideDialogOpen(true)} color="inherit" size="small">
-                    <Badge
-                      color="warning"
-                      variant="dot"
-                      overlap="circular"
-                      invisible={!overrideList.some(reward => {
-                        const dueDate = reward.dueDate
-                          ? (typeof reward.dueDate === "object" && reward.dueDate.seconds
-                              ? new Date(reward.dueDate.seconds * 1000)
-                              : new Date(reward.dueDate))
-                          : null;
-                        const isDue = dueDate && new Date() >= dueDate;
-                        const isClaimed = reward.claimed || reward.status === "Credited";
-                        return isDue && !isClaimed;
-                      })}
-                      anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-                    >
-                      <VisibilityIcon sx={{ color: "#64B5F6" }} />
-                    </Badge>
-                  </IconButton>
-                ),
-                subtitle: "Upline rewards (after 30-day maturation)"
-              }].map((card, idx) => (
-                <Grid item key={card.label} sx={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
-                  <Card
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, mb: 2 }}>
+            {/* Referral Earnings — full width */}
+              <Card
+                sx={{ borderRadius: 2.5, boxShadow: "0 8px 20px rgba(25,28,30,0.08)",
+                  background: "linear-gradient(135deg,#e8eeff 0%,#ffffff 100%)", cursor: "pointer" }}
+                onClick={() => setRewardDialogOpen(true)}
+              >
+                <CardContent sx={{ p: { xs: 1.5, sm: 2 }, display: "flex", alignItems: "center", justifyContent: "space-between", "&:last-child": { pb: { xs: 1.5, sm: 2 } } }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                    <Box sx={{ width: 44, height: 44, borderRadius: 2, backgroundColor: "rgba(16,90,191,0.12)",
+                      display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <GroupAddIcon sx={{ color: "#105abf", fontSize: 24 }} />
+                    </Box>
+                    <Box>
+                      <Typography sx={{ fontSize: 11, color: "#616975", fontWeight: 600 }}>Referral Earnings</Typography>
+                      <Typography sx={{ fontSize: 26, fontWeight: 800, color: "#105abf", lineHeight: 1.1, mt: 0.3 }}>
+                        ₱{Number(displayEarnings).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Badge color="warning" variant="dot" overlap="circular"
+                    invisible={!rewardHistory.some((r) => r.payoutReleased && !r.transferredAmount)}
+                    anchorOrigin={{ vertical: "top", horizontal: "right" }}>
+                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center",
+                      width: 36, height: 36, borderRadius: "50%", backgroundColor: "rgba(16,90,191,0.08)" }}>
+                      <VisibilityIcon sx={{ color: "#105abf", fontSize: 20 }} />
+                    </Box>
+                  </Badge>
+                </CardContent>
+              </Card>
+
+            {/* Override Earnings — full width */}
+              <Card
+                sx={{ borderRadius: 2.5, boxShadow: "0 8px 20px rgba(25,28,30,0.08)",
+                  background: "linear-gradient(135deg,#fff4ee 0%,#ffffff 100%)", cursor: "pointer" }}
+                onClick={() => setOverrideDialogOpen(true)}
+              >
+                <CardContent sx={{ p: { xs: 1.5, sm: 2 }, display: "flex", alignItems: "center", justifyContent: "space-between", "&:last-child": { pb: { xs: 1.5, sm: 2 } } }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                    <Box sx={{ width: 44, height: 44, borderRadius: 2, backgroundColor: "rgba(117,42,0,0.10)",
+                      display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <AccountTreeIcon sx={{ color: "#752a00", fontSize: 24 }} />
+                    </Box>
+                    <Box>
+                      <Typography sx={{ fontSize: 11, color: "#616975", fontWeight: 600 }}>Override Earnings</Typography>
+                      <Typography sx={{ fontSize: 26, fontWeight: 800, color: "#752a00", lineHeight: 1.1, mt: 0.3 }}>
+                        ₱{Number(displayOverride).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Badge color="warning" variant="dot" overlap="circular"
+                    invisible={!overrideList.some((reward) => {
+                      let dueDate = reward.dueDate || reward.releaseDate;
+                      if (dueDate) {
+                        if (typeof dueDate === "object" && dueDate.seconds) dueDate = new Date(dueDate.seconds * 1000);
+                        else if (typeof dueDate === "string" || typeof dueDate === "number") dueDate = new Date(dueDate);
+                      }
+                      return dueDate && dueDate <= new Date() && !(reward.claimed || reward.status === "Credited");
+                    })}
+                    anchorOrigin={{ vertical: "top", horizontal: "right" }}>
+                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center",
+                      width: 36, height: 36, borderRadius: "50%", backgroundColor: "rgba(117,42,0,0.08)" }}>
+                      <VisibilityIcon sx={{ color: "#752a00", fontSize: 20 }} />
+                    </Box>
+                  </Badge>
+                </CardContent>
+              </Card>
+          </Box>
+
+          <Box sx={{ backgroundColor: "#eceef1", borderRadius: 3, p: 2.2, mb: 2 }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.4 }}>
+              <Typography sx={{ fontSize: 17, fontWeight: 800, color: "#1b1f23" }}>Network Summary</Typography>
+              <Button
+                onClick={() => setGroupSalesOpen(true)}
+                sx={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  borderRadius: "999px",
+                  px: 1.4,
+                  py: 0.4,
+                  color: "#105abf",
+                  backgroundColor: "rgba(16,90,191,0.10)",
+                }}
+              >
+                Group Sales
+              </Button>
+            </Box>
+
+            {loading ? (
+              <Box sx={{ py: 2, display: "flex", justifyContent: "center" }}>
+                <CircularProgress size={26} sx={{ color: "#105abf" }} />
+              </Box>
+            ) : userData ? (
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 1.1 }}>
+                {[
+                  { role: "MD", label: "Managing Director", sub: "Tier 1 Elite", icon: <VerifiedUserIcon /> },
+                  { role: "MS", label: "Marketing Specialist", sub: "Growth Focused", icon: <MonetizationOnIcon /> },
+                  { role: "MI", label: "Marketing Influencer", sub: "Network Hub", icon: <QueryStatsIcon /> },
+                  { role: "Agent", label: "General Agents", sub: "Base Network", icon: <PersonPinIcon /> },
+                ].map((item) => (
+                  <Box
+                    key={item.role}
                     sx={{
-                      background: "rgba(255,255,255,0.1)",
-                      backdropFilter: "blur(10px)",
-                      width: 340,
-                      maxWidth: '90vw',
-                      color: "#fff",
-                      borderRadius: 3,
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
-                      position: "relative",
-                      m: 1,
+                      borderRadius: 2,
+                      backgroundColor: "#fff",
+                      px: 1.8,
+                      py: 1.4,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
                     }}
                   >
-                    <CardContent>
-                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                          {card.label}
-                        </Typography>
-                        {card.icon}
-                      </Box>
-                      <Typography
-                        variant="h4"
-                        sx={{ fontWeight: "bold", color: card.color, mt: 1, wordBreak: 'break-word' }}
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+                      <Box
+                        sx={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: "50%",
+                          backgroundColor: "rgba(16,90,191,0.08)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "#105abf",
+                        }}
                       >
-                        {card.value}
-                      </Typography>
-                      {card.subtitle && (
-                        <Typography variant="body2" sx={{ mt: 1, opacity: 0.8 }}>
-                          {card.subtitle}
+                        {React.cloneElement(item.icon, { sx: { fontSize: 21 } })}
+                      </Box>
+                      <Box>
+                        <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#1f2430" }}>{item.label}</Typography>
+                        <Typography sx={{ fontSize: 11, color: "#6f7684" }}>{item.sub}</Typography>
+                      </Box>
+                    </Box>
+
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
+                      <Box sx={{ textAlign: "right" }}>
+                        <Typography sx={{ fontSize: 22, fontWeight: 800, color: "#105abf", lineHeight: 1 }}>
+                          {roleCounts[item.role]}
                         </Typography>
-                      )}
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
-
-          </Grid>
-
-          {loading ? (
-            <Box
-              sx={{
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                height: "60vh",
-              }}
-            >
-              <CircularProgress color="inherit" />
-            </Box>
-          ) : userData ? (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-            >
-              <Typography variant="h6" sx={{ mb: 3, opacity: 0.9 }}>
-                Welcome <strong>{userData.name}</strong>! Here’s your current network summary:
-              </Typography>
-
-              <Button
-              variant="contained"
-              sx={{
-                mb: 3,
-                backgroundColor: "#FFD54F",
-                color: "#000",
-                fontWeight: 600,
-                "&:hover": { backgroundColor: "#FFC107" },
-              }}
-              onClick={() => setGroupSalesOpen(true)}
-            >
-              📊 Network Group Sales
-            </Button>
-
-              <Grid container direction="column" spacing={3} sx={{ mb: 3, alignItems: 'center', width: '100%' }}>
-                {["MD", "MS", "MI", "Agent"].map((role) => (
-                  <Grid item key={role} sx={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
-                    <Card
-                      sx={{
-                        background: "rgba(255,255,255,0.1)",
-                        backdropFilter: "blur(10px)",
-                        width: 340,
-                        maxWidth: '90vw',
-                        color: "#fff",
-                        borderRadius: 3,
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
-                        position: "relative",
-                        m: 1,
-                      }}
-                    >
-                      <CardContent>
-                        <Box
-                          sx={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                          }}
-                        >
-                          <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                            {role}
-                          </Typography>
-                          <IconButton
-                            onClick={() => handleViewReferrals(role)}
-                            color="inherit"
-                            size="small"
-                          >
-                            <VisibilityIcon sx={{ color: "#FFD54F" }} />
-                          </IconButton>
-                        </Box>
-                        <Typography
-                          variant="h4"
-                          sx={{ mt: 1, fontWeight: "bold", color: "#FFD54F" }}
-                        >
-                          {roleCounts[role]}
-                        </Typography>
-                        <Typography variant="body2" sx={{ mt: 1, opacity: 0.8 }}>
-                          Total {role} referrals under your network
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
+                        <Typography sx={{ fontSize: 10, color: "#8b95a5", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.6 }}>Agents</Typography>
+                      </Box>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleViewReferrals(item.role)}
+                        sx={{ backgroundColor: "rgba(16,90,191,0.08)", "&:hover": { backgroundColor: "rgba(16,90,191,0.16)" } }}
+                      >
+                        <VisibilityIcon sx={{ color: "#105abf", fontSize: 17 }} />
+                      </IconButton>
+                    </Box>
+                  </Box>
                 ))}
-              </Grid>
-            </motion.div>
-          ) : (
-            <Typography variant="body1">Unable to load user data.</Typography>
-          )}
+              </Box>
+            ) : (
+              <Typography sx={{ fontSize: 13, color: "#5d646f", py: 1 }}>Unable to load user data.</Typography>
+            )}
+          </Box>
+
+          <Box
+            sx={{
+              border: "1px solid rgba(16,90,191,0.12)",
+              borderRadius: 3,
+              p: 2,
+              mb: 2,
+              backgroundColor: "rgba(16,90,191,0.05)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 1,
+            }}
+          >
+            <Box>
+              <Typography sx={{ fontSize: 15, fontWeight: 800, color: "#105abf" }}>Expand Sanctuary</Typography>
+              <Typography sx={{ fontSize: 12, color: "#5f6673", mt: 0.3 }}>
+                Share your referral link and grow your earning network.
+              </Typography>
+            </Box>
+            <IconButton
+              onClick={() => setDashDialog("invite")}
+              sx={{
+                width: 42,
+                height: 42,
+                borderRadius: 2,
+                backgroundColor: "#105abf",
+                color: "#fff",
+                "&:hover": { backgroundColor: "#0b4eaa" },
+              }}
+            >
+              <ShareIcon fontSize="small" />
+            </IconButton>
+          </Box>
         </motion.div>
       </Box>
 
+      <Box
+        sx={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          width: "100%",
+          backgroundColor: "rgba(255,255,255,0.88)",
+          backdropFilter: "blur(8px)",
+          borderTopLeftRadius: 24,
+          borderTopRightRadius: 24,
+          boxShadow: "0 -8px 22px rgba(25,28,30,0.08)",
+          py: 1,
+          zIndex: 20,
+        }}
+      >
+        <Box sx={{ maxWidth: 460, mx: "auto", px: 1.5, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Button sx={{ minWidth: 0, color: "#003f8d", display: "flex", flexDirection: "column", gap: 0.4 }}>
+            <HomeIcon sx={{ fontSize: 22 }} />
+            <Typography sx={{ fontSize: 10, fontWeight: 700, lineHeight: 1 }}>Home</Typography>
+          </Button>
+          <Button onClick={() => navigate('/member/income/payback')} sx={{ minWidth: 0, color: "#8b95a5", display: "flex", flexDirection: "column", gap: 0.4, '&:hover': { color: "#003f8d" } }}>
+            <ReceiptLongIcon sx={{ fontSize: 22 }} />
+            <Typography sx={{ fontSize: 10, fontWeight: 700, lineHeight: 1 }}>PAYBACK</Typography>
+          </Button>
+          <Button sx={{ minWidth: 0, color: "#fff", mt: -2.5, display: "flex", flexDirection: "column", gap: 0.7 }}>
+            <Box sx={{ width: 52, height: 52, borderRadius: "50%", backgroundColor: "#105abf", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 10px 18px rgba(16,90,191,0.35)" }}>
+              <QrCodeScannerIcon sx={{ fontSize: 28 }} />
+            </Box>
+            <Typography sx={{ fontSize: 10, fontWeight: 700, color: "#8b95a5", lineHeight: 1 }}>Scan</Typography>
+          </Button>
+          <Button onClick={() => navigate('/member/income/capital-share')} sx={{ minWidth: 0, color: "#8b95a5", display: "flex", flexDirection: "column", gap: 0.4, '&:hover': { color: "#003f8d" } }}>
+            <RedeemIcon sx={{ fontSize: 22 }} />
+            <Typography sx={{ fontSize: 10, fontWeight: 700, lineHeight: 1 }}>CAPITAL</Typography>
+          </Button>
+          <Button onClick={() => navigate('/member/profile')} sx={{ minWidth: 0, color: "#8b95a5", display: "flex", flexDirection: "column", gap: 0.4, '&:hover': { color: "#003f8d" } }}>
+            <PersonIcon sx={{ fontSize: 22 }} />
+            <Typography sx={{ fontSize: 10, fontWeight: 700, lineHeight: 1 }}>Profile</Typography>
+          </Button>
+        </Box>
+      </Box>
+
+      {/* ─────────────────── Quick Action Dialogs ─────────────────── */}
+      {dashDialog === "deposit" && (
+        <DepositDialog open onClose={() => setDashDialog(null)} userData={userData} db={db} auth={auth} />
+      )}
+      {dashDialog === "transfer" && (
+        <TransferFundsDialog open onClose={() => setDashDialog(null)} userData={userData} db={db} auth={auth} />
+      )}
+      {dashDialog === "withdraw" && (
+        <WithdrawDialog open onClose={() => setDashDialog(null)} userData={userData} db={db} auth={auth} />
+      )}
+      {dashDialog === "purchase" && (
+        <PurchaseCodesDialog open onClose={() => setDashDialog(null)} userData={userData} availableCodes={availableCodes} db={db} auth={auth} />
+      )}
+      {dashDialog === "invite" && (
+        <InviteEarnDialog open onClose={() => setDashDialog(null)} userData={userData} availableCodes={availableCodes} db={db} auth={auth} />
+      )}
+      {dashDialog === "walletHistory" && (
+        <EwalletHistoryDialog open onClose={() => setDashDialog(null)} db={db} auth={auth} />
+      )}
+
       {/* 👁 Referrals Dialog */}
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} fullWidth maxWidth="sm">
-        <DialogTitle>{selectedRole} Referrals</DialogTitle>
-        <DialogContent dividers>
-          {/* 🔍 Search + Sort */}
-          <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
+      <Dialog
+        open={openDialog}
+        onClose={() => setOpenDialog(false)}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{ sx: { borderRadius: 3, overflow: "hidden" } }}
+      >
+        <DialogTitle sx={{ background: "linear-gradient(135deg,#003f8d,#0055ba)", color: "#fff", p: 0 }}>
+          <Box sx={{ px: 2.5, pt: 2.5, pb: 2 }}>
+            <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.72)", letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700 }}>
+              Network View
+            </Typography>
+            <Typography sx={{ fontSize: 20, fontWeight: 800 }}>
+              {selectedRole === "MD" ? "Managing Directors" :
+               selectedRole === "MS" ? "Marketing Specialists" :
+               selectedRole === "MI" ? "Marketing Influencers" : "General Agents"}
+            </Typography>
+            <Chip
+              label={`${filteredReferrals.length} member${filteredReferrals.length !== 1 ? "s" : ""}`}
+              size="small"
+              sx={{ mt: 0.8, backgroundColor: "rgba(255,255,255,0.2)", color: "#fff", fontWeight: 700, fontSize: 11 }}
+            />
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ p: 0, backgroundColor: "#f7f9fc" }}>
+          <Box sx={{ px: 2, pt: 2, pb: 1, backgroundColor: "#fff", borderBottom: "1px solid #eceef1", display: "flex", gap: 1 }}>
             <TextField
-              label="Search by name or username"
+              placeholder="Search name or username…"
               variant="outlined"
               fullWidth
               size="small"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
             />
             <TextField
               select
-              label="Sort by"
-              variant="outlined"
               size="small"
               value={sortField}
               onChange={(e) => setSortField(e.target.value)}
-              sx={{ minWidth: 120 }}
+              sx={{ minWidth: 110, "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
             >
               <MenuItem value="name">Name</MenuItem>
               <MenuItem value="username">Username</MenuItem>
             </TextField>
-            <IconButton onClick={handleToggleSortOrder}>
-              <SortIcon
-                sx={{
-                  transform: sortOrder === "asc" ? "rotate(0deg)" : "rotate(180deg)",
-                  transition: "transform 0.3s",
-                }}
-              />
+            <IconButton onClick={handleToggleSortOrder} sx={{ color: "#105abf", border: "1px solid #d8deea", borderRadius: 2, px: 1 }}>
+              <SortIcon sx={{ transform: sortOrder === "asc" ? "rotate(0deg)" : "rotate(180deg)", transition: "transform 0.3s" }} />
             </IconButton>
           </Box>
-
           {filteredReferrals.length === 0 ? (
-            <Typography variant="body2">No referrals found.</Typography>
+            <Box sx={{ py: 6, textAlign: "center" }}>
+              <Typography sx={{ fontSize: 13, color: "#8b95a5" }}>No members found.</Typography>
+            </Box>
           ) : (
-            <List>
+            <List disablePadding>
               {filteredReferrals.map((ref, i) => (
-                <ListItem key={i} divider>
+                <ListItem key={i} divider sx={{ px: 2, py: 1.4, backgroundColor: i % 2 === 0 ? "#fff" : "#f7f9fc" }}>
+                  <Box sx={{ width: 38, height: 38, borderRadius: "50%", background: "linear-gradient(135deg,#003f8d,#0055ba)",
+                    display: "flex", alignItems: "center", justifyContent: "center", color: "#fff",
+                    fontWeight: 700, fontSize: 15, mr: 1.5, flexShrink: 0 }}>
+                    {(ref.name || ref.username || "?").charAt(0).toUpperCase()}
+                  </Box>
                   <ListItemText
-                    primary={`${ref.name} (${ref.username})`}
-                    secondary={`Email: ${ref.email || "N/A"} | Contact: ${ref.contactNumber || "N/A"}`}
+                    primary={
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
+                        <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#1f2430" }}>
+                          {ref.name || ref.username}
+                        </Typography>
+                        <Chip label={ref.role} size="small"
+                          sx={{ fontSize: 9, fontWeight: 700, height: 18, px: 0.5,
+                            backgroundColor: ref.role === "MD" ? "rgba(16,90,191,0.12)" : ref.role === "MS" ? "rgba(117,42,0,0.10)" : ref.role === "MI" ? "rgba(46,125,50,0.10)" : "rgba(0,0,0,0.06)",
+                            color: ref.role === "MD" ? "#105abf" : ref.role === "MS" ? "#752a00" : ref.role === "MI" ? "#2e7d32" : "#5d646f",
+                          }}
+                        />
+                      </Box>
+                    }
+                    secondary={
+                      <Typography component="span" sx={{ fontSize: 12, color: "#8b95a5" }}>
+                        @{ref.username}{ref.email ? ` · ${ref.email}` : ""}
+                      </Typography>
+                    }
                   />
                 </ListItem>
               ))}
             </List>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>Close</Button>
+        <DialogActions sx={{ backgroundColor: "#fff", borderTop: "1px solid #eceef1", px: 2, py: 1.4 }}>
+          <Button onClick={() => setOpenDialog(false)}
+            sx={{ borderRadius: 2, fontWeight: 700, color: "#105abf", textTransform: "none",
+              backgroundColor: "rgba(16,90,191,0.08)", px: 2.5, "&:hover": { backgroundColor: "rgba(16,90,191,0.14)" } }}>
+            Close
+          </Button>
         </DialogActions>
       </Dialog>
-    {/* 🧾 Reward History Dialog */}
-    <RewardHistoryDialog
-      open={rewardDialogOpen}
-      onClose={() => setRewardDialogOpen(false)}
-      rewardHistory={rewardHistory}
-      user={user}
-      loadingTransfer={loadingTransfer}
-      setLoadingTransfer={setLoadingTransfer}
-      onTransferSuccess={() => {
-        // Reward data will auto-refresh via the Firestore listener
-        // Optionally add a small delay to ensure Firestore update completes
-        setTimeout(() => {
-          console.log("[Dashboard] Reward transfer successful, data will refresh from Firestore");
-        }, 500);
-      }}
-    />
 
+      {/* 🧾 Reward History Dialog */}
+      <RewardHistoryDialog
+        open={rewardDialogOpen}
+        onClose={() => setRewardDialogOpen(false)}
+        rewardHistory={rewardHistory}
+        user={user}
+        loadingTransfer={loadingTransfer}
+        setLoadingTransfer={setLoadingTransfer}
+        onTransferSuccess={() => {
+          setTimeout(() => {
+            console.log("[Dashboard] Reward transfer successful, data will refresh from Firestore");
+          }, 500);
+        }}
+      />
 
-    {/* 🧾 Override Upline Rewards Dialog */}
-    <OverrideUplineRewardsDialog
-      open={overrideDialogOpen}
-      onClose={() => setOverrideDialogOpen(false)}
-      overrideList={overrideList}
-      user={user}
-      loadingTransfer={loadingTransfer}
-      setLoadingTransfer={setLoadingTransfer}
-    />
+      {/* 🧾 Override Upline Rewards Dialog */}
+      <OverrideUplineRewardsDialog
+        open={overrideDialogOpen}
+        onClose={() => setOverrideDialogOpen(false)}
+        overrideList={overrideList}
+        user={user}
+        loadingTransfer={loadingTransfer}
+        setLoadingTransfer={setLoadingTransfer}
+      />
 
-<NetworkGroupSales
-  open={groupSalesOpen}
-  onClose={() => setGroupSalesOpen(false)}
-  username={userData?.username}
-  user={userData}
-/>
+      <NetworkGroupSales
+        open={groupSalesOpen}
+        onClose={() => setGroupSalesOpen(false)}
+        username={userData?.username}
+        user={userData}
+      />
 
+      {/* ─── Notifications Drawer ─────────────────────────── */}
+      <Drawer
+        anchor="right"
+        open={notifDrawerOpen}
+        onClose={() => setNotifDrawerOpen(false)}
+        PaperProps={{
+          sx: {
+            width: { xs: "100vw", sm: 380 },
+            borderTopLeftRadius: { xs: 0, sm: 20 },
+            borderBottomLeftRadius: { xs: 0, sm: 20 },
+            backgroundColor: "#f7f9fc",
+          },
+        }}
+      >
+        {/* Header */}
+        <Box sx={{ background: "linear-gradient(135deg,#003f8d,#0055ba)", px: 2.5, pt: 3.5, pb: 2.5 }}>
+          <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.72)", letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700 }}>Inbox</Typography>
+          <Typography sx={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>Notifications</Typography>
+          {unreadCount > 0 && (
+            <Chip label={`${unreadCount} new`} size="small"
+              sx={{ mt: 0.8, backgroundColor: "rgba(255,255,255,0.22)", color: "#fff", fontWeight: 700, fontSize: 11 }} />
+          )}
+        </Box>
+
+        {/* List */}
+        <Box sx={{ flex: 1, overflowY: "auto", p: 0 }}>
+          {notifications.length === 0 ? (
+            <Box sx={{ py: 8, textAlign: "center" }}>
+              <NotificationsNoneIcon sx={{ fontSize: 48, color: "#c2c6d5", mb: 1 }} />
+              <Typography sx={{ fontSize: 13, color: "#8b95a5" }}>No notifications yet.</Typography>
+            </Box>
+          ) : (
+            notifications.map((n, idx) => {
+              const isUnread = !n.read;
+              const icon = n.type === "reward" ? <CelebrationIcon sx={{ fontSize: 20, color: "#105abf" }} />
+                : n.type === "success" ? <CheckCircleOutlineIcon sx={{ fontSize: 20, color: "#2e7d32" }} />
+                : <InfoOutlinedIcon sx={{ fontSize: 20, color: "#752a00" }} />;
+              const ts = n.createdAt?.seconds
+                ? new Date(n.createdAt.seconds * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+                : "";
+              return (
+                <Box key={n.id}>
+                  <Box sx={{
+                    display: "flex", alignItems: "flex-start", gap: 1.5,
+                    px: 2, py: 1.8,
+                    backgroundColor: isUnread ? "rgba(16,90,191,0.05)" : "#fff",
+                    borderLeft: isUnread ? "3px solid #105abf" : "3px solid transparent",
+                  }}>
+                    <Box sx={{ width: 38, height: 38, borderRadius: "50%", backgroundColor: "rgba(16,90,191,0.10)",
+                      display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, mt: 0.2 }}>
+                      {icon}
+                    </Box>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography sx={{ fontSize: 13, fontWeight: isUnread ? 700 : 600, color: "#1f2430", lineHeight: 1.3 }}>
+                        {n.title || "Notification"}
+                      </Typography>
+                      {n.message && (
+                        <Typography sx={{ fontSize: 12, color: "#5d646f", mt: 0.3, lineHeight: 1.5 }}>
+                          {n.message}
+                        </Typography>
+                      )}
+                      {ts && (
+                        <Typography sx={{ fontSize: 10, color: "#8b95a5", mt: 0.5, fontWeight: 600 }}>{ts}</Typography>
+                      )}
+                    </Box>
+                    {isUnread && (
+                      <Box sx={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#105abf", mt: 0.8, flexShrink: 0 }} />
+                    )}
+                  </Box>
+                  <Divider sx={{ ml: 7 }} />
+                </Box>
+              );
+            })
+          )}
+        </Box>
+
+        {/* Footer */}
+        <Box sx={{ p: 2, backgroundColor: "#fff", borderTop: "1px solid #eceef1" }}>
+          <Button fullWidth onClick={() => setNotifDrawerOpen(false)}
+            sx={{ borderRadius: 2.5, textTransform: "none", fontWeight: 700, color: "#105abf",
+              backgroundColor: "rgba(16,90,191,0.08)", py: 1.2, "&:hover": { backgroundColor: "rgba(16,90,191,0.14)" } }}>
+            Close
+          </Button>
+        </Box>
+      </Drawer>
     </Box>
   );
 };

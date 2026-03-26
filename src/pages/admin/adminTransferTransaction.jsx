@@ -48,6 +48,28 @@ const AdminTransferTransaction = () => {
     return () => unsubscribe();
   }, []);
 
+  const formatTransactionDate = (value) => {
+    if (!value) return "—";
+
+    let parsedDate = null;
+
+    if (typeof value?.toDate === "function") {
+      parsedDate = value.toDate();
+    } else if (value?.seconds && typeof value.seconds === "number") {
+      parsedDate = new Date(value.seconds * 1000);
+    } else if (value instanceof Date) {
+      parsedDate = value;
+    } else if (typeof value === "number" || typeof value === "string") {
+      parsedDate = new Date(value);
+    }
+
+    if (!(parsedDate instanceof Date) || Number.isNaN(parsedDate.getTime())) {
+      return "—";
+    }
+
+    return parsedDate.toLocaleString();
+  };
+
   // 💰 Compute total collected fee (1%)
   const totalFee = transactions.reduce((sum, t) => sum + (t.fee || 0), 0);
 
@@ -190,7 +212,7 @@ const AdminTransferTransaction = () => {
                         Net: ₱{txn.netAmount?.toFixed(2) || "0.00"}
                       </Typography>
                       <Typography sx={{ fontSize: 12, opacity: 0.7, mt: 0.5 }}>
-                        {txn.createdAt ? new Date(txn.createdAt).toLocaleString() : "—"}
+                        {formatTransactionDate(txn.createdAt)}
                       </Typography>
                     </CardContent>
                   </Card>
@@ -228,9 +250,7 @@ const AdminTransferTransaction = () => {
                         <TableCell sx={{ color: "#00e676" }}>₱{txn.fee?.toFixed(2) || "0.00"}</TableCell>
                         <TableCell sx={{ color: "white" }}>₱{txn.netAmount?.toFixed(2) || "0.00"}</TableCell>
                         <TableCell sx={{ color: "white" }}>
-                          {txn.createdAt
-                            ? new Date(txn.createdAt).toLocaleString()
-                            : "—"}
+                          {formatTransactionDate(txn.createdAt)}
                         </TableCell>
                       </motion.tr>
                     ))}

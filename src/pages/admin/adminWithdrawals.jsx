@@ -64,6 +64,7 @@ const AdminWithdrawals = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const auth = getAuth();
+  const isSuperAdmin = userRole === "SUPERADMIN";
 
   useEffect(() => setSidebarOpen(!isMobile), [isMobile]);
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
@@ -175,6 +176,40 @@ const AdminWithdrawals = () => {
   const handleViewQR = (url) => setQrImage(url);
   const closeQRDialog = () => setQrImage(null);
 
+  const getReviewerMetadata = async () => {
+    const currentUser = auth.currentUser;
+    const reviewerUid = currentUser?.uid || "";
+    const reviewerEmail = currentUser?.email || "";
+
+    if (!reviewerUid) {
+      return {
+        reviewedByUid: "",
+        reviewedByEmail: reviewerEmail,
+        reviewedByUsername: "",
+        reviewedByRole: "",
+      };
+    }
+
+    try {
+      const reviewerSnap = await getDoc(doc(db, "users", reviewerUid));
+      const reviewerData = reviewerSnap.exists() ? reviewerSnap.data() || {} : {};
+      return {
+        reviewedByUid: reviewerUid,
+        reviewedByEmail: reviewerEmail,
+        reviewedByUsername: reviewerData.username || reviewerData.name || "",
+        reviewedByRole: String(reviewerData.role || "").toUpperCase(),
+      };
+    } catch (err) {
+      console.warn("[adminWithdrawals] Failed to fetch reviewer metadata:", err);
+      return {
+        reviewedByUid: reviewerUid,
+        reviewedByEmail: reviewerEmail,
+        reviewedByUsername: "",
+        reviewedByRole: "",
+      };
+    }
+  };
+
   const handleAction = async (status) => {
     if (!selectedWithdrawal) return;
     const { id } = selectedWithdrawal;
@@ -182,6 +217,12 @@ const AdminWithdrawals = () => {
     try {
       const nextStatus = status.toLowerCase();
       const withdrawalRef = doc(db, "withdrawals", id);
+      const reviewerMeta = await getReviewerMetadata();
+      const reviewPayload = {
+        ...reviewerMeta,
+        reviewedAt: new Date(),
+        remarks,
+      };
 
       if (nextStatus === "rejected") {
         // ✅ Reject: refund wallet (reverse the deduction from request time)
@@ -219,16 +260,14 @@ const AdminWithdrawals = () => {
 
           transaction.update(withdrawalRef, {
             status: nextStatus,
-            reviewedAt: new Date(),
-            remarks,
+            ...reviewPayload,
           });
         });
       } else {
         // ✅ Approve: just mark as approved (wallet already deducted at request time)
         await updateDoc(withdrawalRef, {
           status: nextStatus,
-          reviewedAt: new Date(),
-          remarks,
+          ...reviewPayload,
         });
       }
 
@@ -444,6 +483,11 @@ const AdminWithdrawals = () => {
                             <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
                               Method: {w.paymentMethod || "Wallet"}
                             </Typography>
+                            {isSuperAdmin && (
+                              <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
+                                Reviewed By: {w.reviewedByUsername || w.reviewedByEmail || w.reviewedByUid || "—"}
+                              </Typography>
+                            )}
                             <Typography
                               sx={{
                                 mt: 1,
@@ -508,6 +552,7 @@ const AdminWithdrawals = () => {
                             "Charge",
                             "Net",
                             "Method",
+                            ...(isSuperAdmin ? ["Reviewed By"] : []),
                             "Status",
                             "Date",
                             "Actions",
@@ -536,6 +581,11 @@ const AdminWithdrawals = () => {
                               <TableCell sx={{ color: "white" }}>₱{w.charge || 0}</TableCell>
                               <TableCell sx={{ color: "white" }}>₱{w.netAmount || w.amount}</TableCell>
                               <TableCell sx={{ color: "white" }}>{w.paymentMethod || "Wallet"}</TableCell>
+                              {isSuperAdmin && (
+                                <TableCell sx={{ color: "white" }}>
+                                  {w.reviewedByUsername || w.reviewedByEmail || w.reviewedByUid || "—"}
+                                </TableCell>
+                              )}
                               <TableCell
                                 sx={{
                                   color:
