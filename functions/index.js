@@ -105,16 +105,16 @@ exports.processDepositApproval = functions.https.onCall(async (data, context) =>
       reviewedByRole: reviewerRole,
     };
 
-    transaction.update(depositRef, updateData);
-
     let creditedAmount = 0;
+    let userRef = null;
+    let nextBalance = null;
     if (action === "approved") {
       const userId = String(depositData.userId || "").trim();
       if (!userId) {
         throw new functions.https.HttpsError("failed-precondition", "Deposit request has no user ID.");
       }
 
-      const userRef = db.collection("users").doc(userId);
+      userRef = db.collection("users").doc(userId);
       const userSnap = await transaction.get(userRef);
       if (!userSnap.exists) {
         throw new functions.https.HttpsError("not-found", "Deposit user not found.");
@@ -125,9 +125,14 @@ exports.processDepositApproval = functions.https.onCall(async (data, context) =>
       const depositAmount = Number(depositData.netAmount || depositData.amount || 0);
       const safeBalance = Number.isFinite(currentBalance) ? currentBalance : 0;
       creditedAmount = Number.isFinite(depositAmount) ? depositAmount : 0;
+      nextBalance = safeBalance + creditedAmount;
+    }
 
+    transaction.update(depositRef, updateData);
+
+    if (action === "approved" && userRef) {
       transaction.update(userRef, {
-        eWallet: safeBalance + creditedAmount,
+        eWallet: nextBalance,
         lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
       });
     }
