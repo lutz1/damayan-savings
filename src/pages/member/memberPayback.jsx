@@ -13,6 +13,13 @@ import { db, auth } from "../../firebase";
 
 
 const MemberPayback = () => {
+  const memberPalette = {
+    navy: "#0b1f5e",
+    royal: "#173a8a",
+    gold: "#d4af37",
+    softText: "#d9e2ff",
+  };
+
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
@@ -447,7 +454,7 @@ const fetchPaybackData = useCallback(async (userId) => {
       sx={{
         display: "flex",
         minHeight: "100vh",
-        backgroundImage: `linear-gradient(120deg, rgba(30, 41, 59, 0.92) 60%, rgba(33, 150, 243, 0.25)), url(${bgImage})`,
+        backgroundImage: `linear-gradient(130deg, rgba(11, 31, 94, 0.95) 52%, rgba(23, 58, 138, 0.72) 78%, rgba(212, 175, 55, 0.32) 100%), url(${bgImage})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundAttachment: "fixed",
@@ -460,7 +467,7 @@ const fetchPaybackData = useCallback(async (userId) => {
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'linear-gradient(120deg, rgba(30, 41, 59, 0.92) 60%, rgba(33, 150, 243, 0.25))',
+          background: 'linear-gradient(130deg, rgba(11, 31, 94, 0.95) 52%, rgba(23, 58, 138, 0.72) 78%, rgba(212, 175, 55, 0.32) 100%)',
           zIndex: 0,
         },
       }}
@@ -500,13 +507,13 @@ const fetchPaybackData = useCallback(async (userId) => {
         {/* Header Section */}
         <Box sx={{ mb: 4, width: '100%', maxWidth: 900 }}>
           <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 900, letterSpacing: 1, mb: 1, color: '#fff', textShadow: '0 2px 12px #000a' }}>
-            Member <span style={{ color: '#4FC3F7' }}>Payback</span> Dashboard
+            Member <span style={{ color: '#d4af37' }}>Payback</span> Dashboard
           </Typography>
-          <Typography variant="h6" sx={{ color: '#b0bec5', fontWeight: 500, mb: 1.5, textShadow: '0 1px 8px #0006' }}>
+          <Typography variant="h6" sx={{ color: memberPalette.softText, fontWeight: 500, mb: 1.5, textShadow: '0 1px 8px #0006' }}>
             <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>💸 Track Contributions</Box>
-            <Box component="span" sx={{ mx: 1, color: '#4FC3F7' }}>•</Box>
+            <Box component="span" sx={{ mx: 1, color: memberPalette.gold }}>•</Box>
             <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>📈 Earn Passive Income</Box>
-            <Box component="span" sx={{ mx: 1, color: '#4FC3F7' }}>•</Box>
+            <Box component="span" sx={{ mx: 1, color: memberPalette.gold }}>•</Box>
             <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>📝 Manage Paybacks</Box>
           </Typography>
         </Box>
@@ -517,14 +524,14 @@ const fetchPaybackData = useCallback(async (userId) => {
             label: "Total Contribution",
             value: `₱${Number(displayContribution).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             icon: "💸",
-            color: "#4FC3F7",
-            bg: "rgba(79,195,247,0.15)",
+            color: "#d4af37",
+            bg: "rgba(212,175,55,0.17)",
           }, {
             label: "Total Passive Income",
             value: `₱${Number(displayPassiveIncome).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             icon: "📈",
-            color: "#81C784",
-            bg: "rgba(129,199,132,0.15)",
+            color: "#e8eefe",
+            bg: "rgba(23,58,138,0.30)",
           }].map((item, index) => (
             <Grid item xs={6} key={index} sx={{ display: "flex", width: '100%', flexBasis: 0, flexGrow: 1, flexShrink: 0 }}>
               <Card
@@ -579,7 +586,7 @@ const fetchPaybackData = useCallback(async (userId) => {
           <Button
             variant="contained"
             color="primary"
-            sx={{ fontWeight: 700, borderRadius: 2, boxShadow: 2, textTransform: 'none', px: 3, py: 1.2, fontSize: 16 }}
+            sx={{ fontWeight: 700, borderRadius: 2, boxShadow: 2, textTransform: 'none', px: 3, py: 1.2, fontSize: 16, background: 'linear-gradient(135deg, #d4af37, #b9901e)', color: '#0b1f5e', '&:hover': { background: 'linear-gradient(135deg, #e0be52, #c19a2b)' } }}
             onClick={() => setOpenAddDialog(true)}
           >
             + Add Payback Entry
@@ -588,7 +595,7 @@ const fetchPaybackData = useCallback(async (userId) => {
 
             variant="contained"
             color="success"
-            sx={{ position: 'relative', fontWeight: 700, borderRadius: 2, boxShadow: 2, textTransform: 'none', px: 3, py: 1.2, fontSize: 16 }}
+            sx={{ position: 'relative', fontWeight: 700, borderRadius: 2, boxShadow: 2, textTransform: 'none', px: 3, py: 1.2, fontSize: 16, background: 'linear-gradient(135deg, #173a8a, #0b1f5e)', '&:hover': { background: 'linear-gradient(135deg, #1e469f, #122a70)' } }}
             onClick={() => setHistoryDialogOpen(true)}
           >
             Passive Income Earn

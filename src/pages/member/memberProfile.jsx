@@ -34,6 +34,12 @@ import HomeIcon from "@mui/icons-material/Home";
 import LockIcon from "@mui/icons-material/Lock";
 
 const MemberProfile = () => {
+  const memberPalette = {
+    navy: "#0b1f5e",
+    royal: "#173a8a",
+    gold: "#d4af37",
+  };
+
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
@@ -174,7 +180,7 @@ const MemberProfile = () => {
       sx={{
         display: "flex",
         height: "100vh",
-        backgroundImage: `url(${bgImage})`,
+        backgroundImage: `linear-gradient(135deg, rgba(11,31,94,0.92) 40%, rgba(23,58,138,0.76) 70%, rgba(212,175,55,0.30) 100%), url(${bgImage})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundAttachment: "fixed",
@@ -239,7 +245,7 @@ const MemberProfile = () => {
                 <Card
                   sx={{
                     backdropFilter: "blur(18px)",
-                    background: "rgba(255,255,255,0.2)",
+                    background: "linear-gradient(140deg, rgba(255,255,255,0.20) 0%, rgba(255,255,255,0.13) 45%, rgba(212,175,55,0.18) 100%)",
                     borderRadius: 5,
                     p: { xs: 2, sm: 4 },
                     display: "flex",
@@ -260,7 +266,7 @@ const MemberProfile = () => {
                       sx={{
                         width: isMobile ? 100 : 120,
                         height: isMobile ? 100 : 120,
-                        border: "3px solid rgba(255,255,255,0.6)",
+                        border: "3px solid rgba(212,175,55,0.8)",
                       }}
                     />
                     {editMode && (
@@ -271,7 +277,8 @@ const MemberProfile = () => {
                         sx={{
                           textTransform: "none",
                           borderRadius: "20px",
-                          background: "linear-gradient(90deg,#4facfe,#00f2fe)",
+                          background: "linear-gradient(90deg,#d4af37,#f2de9c)",
+                          color: memberPalette.navy,
                         }}
                       >
                         Upload Photo

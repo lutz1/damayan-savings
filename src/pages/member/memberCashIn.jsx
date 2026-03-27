@@ -61,6 +61,14 @@ const formatDate = (ts) => {
 };
 
 const MemberCashIn = () => {
+  const memberPalette = {
+    navy: "#0b1f5e",
+    royal: "#173a8a",
+    gold: "#d4af37",
+    softGold: "#f2de9c",
+    surface: "#f4f7fb",
+  };
+
   const navigate = useNavigate();
   const [screen, setScreen] = useState("main");
   const [bankTab, setBankTab] = useState(1); // 0=OTC, 1=Local Banks, 2=Global
@@ -177,7 +185,7 @@ const MemberCashIn = () => {
         alignItems: "center",
         px: 1,
         py: 1.2,
-        background: "linear-gradient(135deg, #1266db 0%, #1a73e8 100%)",
+        background: `linear-gradient(135deg, ${memberPalette.navy} 0%, ${memberPalette.royal} 55%, ${memberPalette.gold} 100%)`,
         color: "#fff",
         position: "sticky",
         top: 0,
@@ -196,7 +204,7 @@ const MemberCashIn = () => {
 
   const AmountDialog = () => (
     <Dialog open={!!selectedPartner} onClose={handleCloseDialog} maxWidth="xs" fullWidth>
-      <DialogTitle sx={{ fontWeight: 800, color: "#143b7d", pb: 0.5 }}>
+      <DialogTitle sx={{ fontWeight: 800, color: memberPalette.navy, pb: 0.5 }}>
         Send
       </DialogTitle>
       <DialogContent>
@@ -214,10 +222,10 @@ const MemberCashIn = () => {
                 sx={{ width: 220, maxWidth: "100%", borderRadius: 2, border: "1px solid #e6ebf3" }}
               />
             </Box>
-            <Typography sx={{ color: "#1a2f52", fontSize: 13, fontWeight: 700, mb: 0.75 }}>
+            <Typography sx={{ color: memberPalette.navy, fontSize: 13, fontWeight: 700, mb: 0.75 }}>
               Send to BPI
             </Typography>
-            <Typography sx={{ color: "#7a8faf", fontSize: 12.5, mb: 2, mt: 0.5 }}>
+            <Typography sx={{ color: "#5f6f8f", fontSize: 12.5, mb: 2, mt: 0.5 }}>
               Scan the QR code, send your payment, then enter the amount and upload the receipt.
             </Typography>
             <TextField
@@ -244,7 +252,7 @@ const MemberCashIn = () => {
               }}
             />
             <Box sx={{ mt: 2 }}>
-              <Typography sx={{ fontSize: 13, color: "#1a2f52", fontWeight: 700, mb: 1 }}>
+              <Typography sx={{ fontSize: 13, color: memberPalette.navy, fontWeight: 700, mb: 1 }}>
                 Upload Receipt
               </Typography>
               <Button component="label" variant="outlined" fullWidth sx={{ textTransform: "none", borderRadius: 2 }}>
@@ -276,7 +284,7 @@ const MemberCashIn = () => {
         )}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={handleCloseDialog} sx={{ textTransform: "none", color: "#5f7498" }}>
+            <Button onClick={handleCloseDialog} sx={{ textTransform: "none", color: "#5f7498" }}>
           {success ? "Close" : "Cancel"}
         </Button>
         {!success && (
@@ -288,8 +296,8 @@ const MemberCashIn = () => {
               textTransform: "none",
               fontWeight: 800,
               borderRadius: 2,
-              backgroundColor: "#1a73e8",
-              "&:hover": { backgroundColor: "#0f62d5" },
+              backgroundColor: memberPalette.navy,
+              "&:hover": { backgroundColor: memberPalette.royal },
             }}
           >
             {processing ? (
@@ -306,7 +314,7 @@ const MemberCashIn = () => {
   // ── BANKS SCREEN ──────────────────────────────────────────────────────────
   if (screen === "banks") {
     return (
-      <Box sx={{ minHeight: "100vh", backgroundColor: "#f4f7fb" }}>
+      <Box sx={{ minHeight: "100vh", background: `linear-gradient(180deg, ${memberPalette.surface} 0%, #edf1fa 100%)` }}>
         <Box sx={{ maxWidth: 460, mx: "auto", pb: 6 }}>
           <AppHeader />
 
@@ -317,9 +325,9 @@ const MemberCashIn = () => {
               onChange={(_, v) => setBankTab(v)}
               sx={{
                 px: 1,
-                "& .MuiTabs-indicator": { backgroundColor: "#1a73e8", height: 3 },
+                "& .MuiTabs-indicator": { backgroundColor: memberPalette.gold, height: 3 },
                 "& .MuiTab-root": { textTransform: "none", fontWeight: 600, fontSize: 13, color: "#7a8faf", minWidth: 0, px: 2 },
-                "& .Mui-selected": { color: "#1a73e8", fontWeight: 800 },
+                "& .Mui-selected": { color: memberPalette.navy, fontWeight: 800 },
               }}
             >
               <Tab label="Over-the-Counter" />
@@ -333,7 +341,7 @@ const MemberCashIn = () => {
               {/* InstaPay Cash In */}
               <Box sx={{ px: 2, mt: 2.5 }}>
                 <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
-                  <Typography sx={{ fontWeight: 800, color: "#1a2f52", fontSize: 14.5 }}>InstaPay Cash In</Typography>
+                  <Typography sx={{ fontWeight: 800, color: memberPalette.navy, fontSize: 14.5 }}>InstaPay Cash In</Typography>
                   <Chip
                     label="FAST"
                     size="small"
@@ -374,14 +382,14 @@ const MemberCashIn = () => {
   // ── EWALLET SCREEN ────────────────────────────────────────────────────────
   // ── MAIN SCREEN ───────────────────────────────────────────────────────────
   return (
-    <Box sx={{ minHeight: "100vh", backgroundColor: "#f4f7fb" }}>
+    <Box sx={{ minHeight: "100vh", background: `linear-gradient(180deg, ${memberPalette.surface} 0%, #edf1fa 100%)` }}>
       <Box sx={{ maxWidth: 460, mx: "auto", pb: 6 }}>
         <AppHeader />
 
         <Box sx={{ px: 2, pt: 2.5 }}>
           {/* How to Cash In */}
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.4 }}>
-            <Typography sx={{ fontSize: 15.5, fontWeight: 800, color: "#143b7d" }}>How to Cash In</Typography>
+            <Typography sx={{ fontSize: 15.5, fontWeight: 800, color: memberPalette.navy }}>How to Cash In</Typography>
             <Chip
               label="1 HOUR"
               size="small"
@@ -423,8 +431,8 @@ const MemberCashIn = () => {
 
           {/* Recent Cash In */}
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mt: 3, mb: 1.4 }}>
-            <Typography sx={{ fontSize: 15.5, fontWeight: 800, color: "#143b7d" }}>Recent Cash In</Typography>
-            <Typography sx={{ fontSize: 12.5, color: "#1a73e8", fontWeight: 700, cursor: "pointer" }}>See All</Typography>
+            <Typography sx={{ fontSize: 15.5, fontWeight: 800, color: memberPalette.navy }}>Recent Cash In</Typography>
+            <Typography sx={{ fontSize: 12.5, color: memberPalette.navy, fontWeight: 700, cursor: "pointer" }}>See All</Typography>
           </Box>
 
           {depositLogs.length === 0 ? (
@@ -452,7 +460,7 @@ const MemberCashIn = () => {
                       sx={{
                         width: 42,
                         height: 42,
-                        background: "linear-gradient(135deg, #1266db 0%, #38b2e8 100%)",
+                        background: `linear-gradient(135deg, ${memberPalette.navy} 0%, ${memberPalette.royal} 65%, ${memberPalette.gold} 100%)`,
                         color: "#fff",
                         fontSize: 16,
                         fontWeight: 800,
@@ -497,7 +505,7 @@ const MemberCashIn = () => {
             mx: 2,
             mt: 3,
             borderRadius: 2.5,
-            background: "linear-gradient(135deg, #ff8c00 0%, #e65100 100%)",
+            background: `linear-gradient(135deg, ${memberPalette.navy} 0%, ${memberPalette.royal} 55%, ${memberPalette.gold} 100%)`,
             p: 2.5,
             color: "#fff",
           }}
@@ -512,13 +520,13 @@ const MemberCashIn = () => {
             disableElevation
             sx={{
               backgroundColor: "#fff",
-              color: "#e65100",
+              color: memberPalette.navy,
               fontWeight: 800,
               textTransform: "none",
               borderRadius: 1.5,
               px: 2.2,
               fontSize: 12,
-              "&:hover": { backgroundColor: "#fff3e0" },
+              "&:hover": { backgroundColor: memberPalette.softGold },
             }}
           >
             GET STARTED
@@ -527,7 +535,7 @@ const MemberCashIn = () => {
       </Box>
 
       <Dialog open={methodUnavailableOpen} onClose={() => setMethodUnavailableOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 800, color: "#143b7d" }}>E-Wallet</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 800, color: memberPalette.navy }}>E-Wallet</DialogTitle>
         <DialogContent>
           <Typography sx={{ color: "#5f7498", fontSize: 14 }}>
             This payment method is not available right now.

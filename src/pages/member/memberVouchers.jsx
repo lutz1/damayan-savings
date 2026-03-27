@@ -10,36 +10,36 @@ const OFW_PERKS = [
     title: "Remittance Rewards",
     description: "Earn points on every remittance transaction",
     icon: "account_balance_wallet",
-    color: "bg-blue-100",
-    borderColor: "border-blue-300",
-    textColor: "text-blue-700",
+    color: "bg-blue-50",
+    borderColor: "border-blue-900/30",
+    textColor: "text-blue-900",
   },
   {
     id: "perk_insurance",
     title: "Insurance Coverage",
     description: "Comprehensive health and life insurance benefits",
     icon: "health_and_safety",
-    color: "bg-green-100",
-    borderColor: "border-green-300",
-    textColor: "text-green-700",
+    color: "bg-amber-50",
+    borderColor: "border-amber-300",
+    textColor: "text-amber-700",
   },
   {
     id: "perk_investment",
     title: "Investment Options",
     description: "Grow your savings with profitable investment vehicles",
     icon: "trending_up",
-    color: "bg-amber-100",
-    borderColor: "border-amber-300",
-    textColor: "text-amber-700",
+    color: "bg-slate-50",
+    borderColor: "border-blue-900/25",
+    textColor: "text-blue-900",
   },
   {
     id: "perk_credit",
     title: "Credit Access",
     description: "Easy access to loans and credit facilities",
     icon: "credit_card",
-    color: "bg-purple-100",
-    borderColor: "border-purple-300",
-    textColor: "text-purple-700",
+    color: "bg-amber-50",
+    borderColor: "border-amber-300",
+    textColor: "text-amber-700",
   },
 ];
 
@@ -212,35 +212,35 @@ const MemberVouchers = () => {
   };
 
   return (
-    <div className="font-display text-slate-900 min-h-screen bg-[linear-gradient(180deg,#f8fbff_0%,#eef4ff_100%)]">
-      <div className="relative flex h-screen max-w-md mx-auto flex-col overflow-hidden bg-[linear-gradient(180deg,#f8fbff_0%,#eef4ff_100%)] border-x border-slate-200/70 shadow-xl">
-        <div className="absolute -top-24 -right-20 h-64 w-64 rounded-full bg-sky-200/35 blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-28 -left-16 h-64 w-64 rounded-full bg-emerald-200/35 blur-3xl pointer-events-none" />
+    <div className="font-display text-slate-900 min-h-screen bg-[linear-gradient(180deg,#f5f8ff_0%,#eef2fb_72%,#f8f2df_100%)]">
+      <div className="relative flex h-screen max-w-md mx-auto flex-col overflow-hidden bg-[linear-gradient(180deg,#f5f8ff_0%,#eef2fb_72%,#f8f2df_100%)] border-x border-blue-900/10 shadow-xl">
+        <div className="absolute -top-24 -right-20 h-64 w-64 rounded-full bg-blue-900/15 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-28 -left-16 h-64 w-64 rounded-full bg-amber-300/30 blur-3xl pointer-events-none" />
 
-        <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-slate-200 pt-[max(env(safe-area-inset-top),0px)]">
+        <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-blue-900/10 pt-[max(env(safe-area-inset-top),0px)]">
           <div className="flex items-center p-4 justify-between">
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="text-slate-700 flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
+            className="text-blue-900 flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-blue-50 transition-colors"
           >
             <span className="material-symbols-outlined">arrow_back</span>
           </button>
-          <h1 className="text-slate-900 text-lg font-bold leading-tight tracking-tight flex-1 text-center pr-10">My Vouchers</h1>
+          <h1 className="text-blue-950 text-lg font-bold leading-tight tracking-tight flex-1 text-center pr-10">My Vouchers</h1>
           </div>
 
           <div className="flex px-4 pb-1">
           <button
             type="button"
             onClick={() => setActiveTab("ACTIVE")}
-            className={`flex-1 py-3 text-xs font-black uppercase tracking-widest transition-colors ${activeTab === "ACTIVE" ? "text-sky-600 border-b-2 border-sky-500" : "text-slate-500"}`}
+            className={`flex-1 py-3 text-xs font-black uppercase tracking-widest transition-colors ${activeTab === "ACTIVE" ? "text-blue-900 border-b-2 border-amber-500" : "text-slate-500"}`}
           >
             Active
           </button>
           <button
             type="button"
             onClick={() => setActiveTab("ARCHIVED")}
-            className={`flex-1 py-3 text-xs font-black uppercase tracking-widest transition-colors ${activeTab !== "ACTIVE" ? "text-sky-600 border-b-2 border-sky-500" : "text-slate-500"}`}
+            className={`flex-1 py-3 text-xs font-black uppercase tracking-widest transition-colors ${activeTab !== "ACTIVE" ? "text-blue-900 border-b-2 border-amber-500" : "text-slate-500"}`}
           >
             Used / Expired
           </button>
@@ -255,10 +255,10 @@ const MemberVouchers = () => {
               {/* Display all vouchers matching active tab */}
               {vouchers.map((voucher, index) => 
                 matchesActiveTab(voucher) && (
-                  <div key={index} className="p-4 rounded-3xl bg-white/80 border border-white shadow-[0_12px_30px_rgba(15,23,42,0.10)] backdrop-blur-xl">
+                  <div key={index} className="p-4 rounded-3xl bg-white/85 border border-blue-900/10 shadow-[0_12px_30px_rgba(15,23,42,0.10)] backdrop-blur-xl">
                     <div className="flex gap-4">
                       <div className="h-16 w-16 flex-shrink-0 rounded-2xl flex items-center justify-center border border-slate-200 bg-slate-50">
-                        <span className="material-symbols-outlined text-sky-600 text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>{voucher.icon}</span>
+                        <span className="material-symbols-outlined text-blue-900 text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>{voucher.icon}</span>
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="text-slate-900 font-bold text-lg leading-tight truncate">{voucher.title}</h3>
@@ -268,7 +268,7 @@ const MemberVouchers = () => {
                           <span className="text-[11px] font-extrabold uppercase tracking-wider">{voucher.voucherStatus || "ACTIVE"}</span>
                         </div>
                         {!!getSplitVoucherSummary(voucher) && (
-                          <p className="text-[11px] text-amber-700 font-bold mt-2">
+                          <p className="text-[11px] text-amber-800 font-bold mt-2">
                             {getSplitVoucherSummary(voucher)}
                           </p>
                         )}
@@ -285,7 +285,7 @@ const MemberVouchers = () => {
                         <button
                           type="button"
                           onClick={() => openDirections(voucher.branchAddress)}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#111827] hover:bg-[#1f2937] text-white text-xs font-bold uppercase tracking-wide transition-colors"
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0b1f5e] hover:bg-[#173a8a] text-white text-xs font-bold uppercase tracking-wide transition-colors"
                         >
                           <span className="material-symbols-outlined text-[18px]">location_on</span>
                           Get Directions
@@ -297,7 +297,7 @@ const MemberVouchers = () => {
                           setSelectedVoucherIndex(index);
                           setQrPreviewOpen(true);
                         }}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#111827] hover:bg-[#1f2937] text-white text-xs font-bold uppercase tracking-wide transition-colors"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0b1f5e] hover:bg-[#173a8a] text-white text-xs font-bold uppercase tracking-wide transition-colors"
                       >
                         {voucher?.voucherType === "OFW" ? "View Rewards" : "View QR"}
                         <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -321,7 +321,7 @@ const MemberVouchers = () => {
               <button
                 type="button"
                 onClick={() => window.location.reload()}
-                className="text-sky-700 font-bold underline decoration-sky-300 underline-offset-4"
+                className="text-blue-900 font-bold underline decoration-amber-400 underline-offset-4"
               >
                 Refresh list
               </button>

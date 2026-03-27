@@ -48,6 +48,13 @@ const MIN_AMOUNT = 1000;
 
 
 const MemberCapitalShare = () => {
+  const memberPalette = {
+    navy: "#0b1f5e",
+    royal: "#173a8a",
+    gold: "#d4af37",
+    softText: "#d9e2ff",
+  };
+
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
@@ -770,7 +777,7 @@ const MemberCapitalShare = () => {
       sx={{
         display: "flex",
         minHeight: "100vh",
-        backgroundImage: `linear-gradient(120deg, rgba(30, 41, 59, 0.92) 60%, rgba(33, 150, 243, 0.25)), url(${bgImage})`,
+        backgroundImage: `linear-gradient(130deg, rgba(11, 31, 94, 0.95) 52%, rgba(23, 58, 138, 0.72) 78%, rgba(212, 175, 55, 0.32) 100%), url(${bgImage})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundAttachment: "fixed",
@@ -782,7 +789,7 @@ const MemberCapitalShare = () => {
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'linear-gradient(120deg, rgba(30, 41, 59, 0.92) 60%, rgba(33, 150, 243, 0.25))',
+          background: 'linear-gradient(130deg, rgba(11, 31, 94, 0.95) 52%, rgba(23, 58, 138, 0.72) 78%, rgba(212, 175, 55, 0.32) 100%)',
           zIndex: 0,
         },
       }}
@@ -814,13 +821,13 @@ const MemberCapitalShare = () => {
         {/* Header Section */}
         <Box sx={{ mb: 4, width: '100%', maxWidth: 900 }}>
           <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 900, letterSpacing: 1, mb: 1, color: '#fff', textShadow: '0 2px 12px #000a' }}>
-            Member <span style={{ color: '#4FC3F7' }}>Capital Share</span> Dashboard
+            Member <span style={{ color: '#d4af37' }}>Capital Share</span> Dashboard
           </Typography>
-          <Typography variant="h6" sx={{ color: '#b0bec5', fontWeight: 500, mb: 1.5, textShadow: '0 1px 8px #0006' }}>
+          <Typography variant="h6" sx={{ color: memberPalette.softText, fontWeight: 500, mb: 1.5, textShadow: '0 1px 8px #0006' }}>
             <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>💰 Grow Capital</Box>
-            <Box component="span" sx={{ mx: 1, color: '#4FC3F7' }}>•</Box>
+            <Box component="span" sx={{ mx: 1, color: memberPalette.gold }}>•</Box>
             <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>📈 Earn Monthly Profit</Box>
-            <Box component="span" sx={{ mx: 1, color: '#4FC3F7' }}>•</Box>
+            <Box component="span" sx={{ mx: 1, color: memberPalette.gold }}>•</Box>
             <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>📝 Manage Shares</Box>
           </Typography>
         </Box>
@@ -832,14 +839,14 @@ const MemberCapitalShare = () => {
           <Grid item xs={12} md={12} sx={{ mb: { xs: 2, md: 0 }, display: 'flex', width: '100%' }}>
             <Card
               sx={{
-                background: `linear-gradient(120deg, rgba(231,237,241,0.27), rgba(33,150,243,0.08))`,
+                background: `linear-gradient(135deg, rgba(255,255,255,0.18), rgba(23,58,138,0.18), rgba(212,175,55,0.20))`,
                 backdropFilter: "blur(14px)",
-                border: `2px solid #4FC3F733`,
+                border: `2px solid rgba(212,175,55,0.30)`,
                 borderRadius: "18px",
                 p: 3,
                 width: '100%',
                 minWidth: 0,
-                boxShadow: `0 4px 24px 0 rgba(33,150,243,0.10)`,
+                boxShadow: `0 4px 24px 0 rgba(11,31,94,0.22)`,
                 transition: "transform 0.3s, box-shadow 0.3s",
                 position: "relative",
                 overflow: "hidden",
@@ -850,13 +857,13 @@ const MemberCapitalShare = () => {
                   right: 0,
                   width: "100px",
                   height: "100px",
-                  background: `radial-gradient(circle, #4FC3F720, transparent)`,
+                  background: `radial-gradient(circle, rgba(212,175,55,0.25), transparent)`,
                   borderRadius: "50%",
                 },
                 '&:hover': {
                   transform: "translateY(-10px) scale(1.03)",
-                  boxShadow: `0 20px 50px #4FC3F755`,
-                  border: `2.5px solid #4FC3F766`,
+                  boxShadow: `0 20px 50px rgba(212,175,55,0.35)`,
+                  border: `2.5px solid rgba(212,175,55,0.45)`,
                 },
               }}
             >
@@ -867,7 +874,7 @@ const MemberCapitalShare = () => {
                 <Typography variant="body2" sx={{ opacity: 1, mb: 1, color: "#fff", fontSize: "0.85rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, textShadow: '1px 1px 4px #000' }}>
                   Capital Share
                 </Typography>
-                <Typography variant="h5" sx={{ fontWeight: 800, color: "#4FC3F7", mb: 1, lineHeight: 1, textShadow: '1px 1px 4px #000' }}>
+                <Typography variant="h5" sx={{ fontWeight: 800, color: memberPalette.gold, mb: 1, lineHeight: 1, textShadow: '1px 1px 4px #000' }}>
                   ₱{Number(capitalAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </Typography>
                 {capitalAmount > 0 && (
@@ -918,14 +925,14 @@ const MemberCapitalShare = () => {
           <Grid item xs={12} md={6} sx={{ display: 'flex', width: '100%' }}>
             <Card
               sx={{
-                background: `linear-gradient(120deg, rgba(129,199,132,0.15) 80%, rgba(255,255,255,0.04))`,
+                background: `linear-gradient(120deg, rgba(255,255,255,0.16) 55%, rgba(23,58,138,0.35) 100%)`,
                 backdropFilter: "blur(14px)",
-                border: `2px solid #81C78433`,
+                border: `2px solid rgba(217,226,255,0.35)`,
                 borderRadius: "18px",
                 p: 3,
                 width: '100%',
                 minWidth: 0,
-                boxShadow: `0 4px 24px 0 #81C78422`,
+                boxShadow: `0 4px 24px 0 rgba(11,31,94,0.22)`,
                 transition: "transform 0.3s, box-shadow 0.3s",
                 position: "relative",
                 overflow: "hidden",
@@ -936,13 +943,13 @@ const MemberCapitalShare = () => {
                   right: 0,
                   width: "100px",
                   height: "100px",
-                  background: `radial-gradient(circle, #81C78420, transparent)`,
+                  background: `radial-gradient(circle, rgba(212,175,55,0.20), transparent)`,
                   borderRadius: "50%",
                 },
                 '&:hover': {
                   transform: "translateY(-10px) scale(1.03)",
-                  boxShadow: `0 20px 50px #81C78455`,
-                  border: `2.5px solid #81C78466` ,
+                  boxShadow: `0 20px 50px rgba(23,58,138,0.35)`,
+                  border: `2.5px solid rgba(217,226,255,0.45)` ,
                 },
               }}
             >
@@ -953,7 +960,7 @@ const MemberCapitalShare = () => {
                 <Typography variant="body2" sx={{ opacity: 1, mb: 1, color: "#fff", fontSize: "0.85rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, textShadow: '1px 1px 4px #000' }}>
                   Monthly Profit (5%)
                 </Typography>
-                <Typography variant="h5" sx={{ fontWeight: 800, color: "#81C784", mb: 1, lineHeight: 1, textShadow: '1px 1px 4px #000' }}>
+                <Typography variant="h5" sx={{ fontWeight: 800, color: "#e8eefe", mb: 1, lineHeight: 1, textShadow: '1px 1px 4px #000' }}>
                   ₱{Number(monthlyProfit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </Typography>
                 <Button
