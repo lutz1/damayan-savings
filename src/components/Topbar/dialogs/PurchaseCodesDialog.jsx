@@ -64,12 +64,11 @@ const PurchaseCodesDialog = ({
   const [purchaseConfirmOpen, setPurchaseConfirmOpen] = useState(false);
 
   const activatedAt = getDateValue(userData?.capitalActivatedAt);
-  const hasActivatedCapitalShare = Boolean(activatedAt);
   const oneYearAfterActivation = activatedAt
     ? new Date(activatedAt.getFullYear() + 1, activatedAt.getMonth(), activatedAt.getDate())
     : null;
   const isCapitalRenewalEligible = Boolean(
-    hasActivatedCapitalShare && oneYearAfterActivation && new Date() >= oneYearAfterActivation
+    activatedAt && oneYearAfterActivation && new Date() >= oneYearAfterActivation
   );
 
   const capitalPrice = isCapitalRenewalEligible ? 500 : 6000;
@@ -147,7 +146,7 @@ const PurchaseCodesDialog = ({
 
       // Send notification for capital share activation code
       if (codeType === "capital") {
-        await sendPurchaseNotification({ userId: auth.currentUser.uid, codeType: "Capital Share Activation Code" });
+        await sendPurchaseNotification({ userId: auth.currentUser.uid, codeType: capitalLabel });
       }
 
       if (onBalanceUpdate) onBalanceUpdate(result.newBalance);
