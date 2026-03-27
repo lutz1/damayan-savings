@@ -14,6 +14,42 @@ exports.reassignExpiredDeliveries = deliveryDispatch.reassignExpiredDeliveries;
 const normalizeStatus = (value) => String(value || "").trim().toUpperCase();
 const DEFAULT_RESET_PASSWORD = "password123";
 
+const PURCHASE_CODE_PRICES = Object.freeze({
+  capitalActivation: 6000,
+  capitalRenewal: 500,
+  downline: 1000,
+});
+
+const getDateValue = (value) => {
+  if (!value) return null;
+  if (typeof value.toDate === "function") return value.toDate();
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const resolvePurchaseCodePricing = (userData = {}) => {
+  const activatedAt = getDateValue(userData.capitalActivatedAt);
+  const renewalDate = activatedAt
+    ? new Date(activatedAt.getFullYear() + 1, activatedAt.getMonth(), activatedAt.getDate())
+    : null;
+  const isCapitalRenewalEligible = Boolean(
+    activatedAt && renewalDate && new Date() >= renewalDate
+  );
+
+  const capitalPrice = isCapitalRenewalEligible
+    ? PURCHASE_CODE_PRICES.capitalRenewal
+    : PURCHASE_CODE_PRICES.capitalActivation;
+
+  return {
+    capitalPrice,
+    downlinePrice: PURCHASE_CODE_PRICES.downline,
+    capitalLabel: isCapitalRenewalEligible
+      ? "Capital Share Renewal Code"
+      : "Capital Share Activation Code",
+    isCapitalRenewalEligible,
+  };
+};
+
 const collectTokensFromUser = (userData = {}) => {
   const raw = [
     userData.fcmToken,
@@ -1655,15 +1691,6 @@ exports.purchaseActivationCode = functions.https.onRequest(async (req, res) => {
         return res.status(400).json({ error: "Missing required field: codeType" });
       }
 
-      const codePrices = { capital: 2400, downline: 600 };
-
-      const getDateValue = (value) => {
-        if (!value) return null;
-        if (typeof value.toDate === "function") return value.toDate();
-        const parsed = new Date(value);
-        return Number.isNaN(parsed.getTime()) ? null : parsed;
-      };
-
       const result = await db.runTransaction(async (transaction) => {
         // Idempotency check
         if (clientRequestId) {
@@ -1689,17 +1716,12 @@ exports.purchaseActivationCode = functions.https.onRequest(async (req, res) => {
         }
 
         const userData = userSnap.data();
-        const activatedAt = getDateValue(userData.capitalActivatedAt);
-        const renewalDate = activatedAt
-          ? new Date(activatedAt.getFullYear() + 1, activatedAt.getMonth(), activatedAt.getDate())
-          : null;
-        const isCapitalRenewalEligible = Boolean(
-          codeType === "capital" && activatedAt && renewalDate && new Date() >= renewalDate
-        );
+        const pricing = resolvePurchaseCodePricing(userData);
+        const isCapitalRenewalEligible = codeType === "capital" && pricing.isCapitalRenewalEligible;
         const amount =
           codeType === "capital"
-            ? (isCapitalRenewalEligible ? 500 : codePrices.capital)
-            : codePrices.downline;
+            ? pricing.capitalPrice
+            : pricing.downlinePrice;
 
         const currentBalance = Number(userData.eWallet || 0);
         if (currentBalance < amount) {
@@ -1772,6 +1794,40 @@ exports.purchaseActivationCode = functions.https.onRequest(async (req, res) => {
     } catch (error) {
       console.error("[purchase-activation-code] Error:", error);
       res.status(400).json({ error: error.message || "Internal server error" });
+    }
+  });
+});
+
+/**
+ * Get Purchase Code Pricing
+ * Returns canonical prices used by purchaseActivationCode
+ */
+exports.getPurchaseCodePricing = functions.https.onRequest(async (req, res) => {
+  corsHandler(req, res, async () => {
+    try {
+      if (req.method !== "GET") {
+        return res.status(405).json({ error: "Method not allowed" });
+      }
+
+      const authHeader = req.headers.authorization || req.headers.Authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ error: "Unauthorized: Missing or invalid token" });
+      }
+
+      const idToken = authHeader.substring("Bearer ".length);
+      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      const userId = decodedToken.uid;
+
+      const userSnap = await db.collection("users").doc(userId).get();
+      if (!docExists(userSnap)) {
+        return res.status(404).json({ error: "User account not found" });
+      }
+
+      const pricing = resolvePurchaseCodePricing(userSnap.data() || {});
+      return res.json(pricing);
+    } catch (error) {
+      console.error("[get-purchase-code-pricing] Error:", error);
+      return res.status(400).json({ error: error.message || "Internal server error" });
     }
   });
 });

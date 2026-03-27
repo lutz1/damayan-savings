@@ -33,6 +33,9 @@ import { useNavigate } from "react-router-dom";
 
 import { sendPurchaseNotification, cleanupOldNotifications } from "../../../utils/notifications";
 
+const PURCHASE_CODE_PRICE_ENDPOINT =
+  "https://us-central1-amayan-savings.cloudfunctions.net/getPurchaseCodePricing";
+
 const getDateValue = (value) => {
   if (!value) return null;
   if (typeof value?.toDate === "function") {
@@ -62,6 +65,7 @@ const PurchaseCodesDialog = ({
   const [purchaseLogs, setPurchaseLogs] = useState([]);
   const [confirmDialog, setConfirmDialog] = useState(false);
   const [purchaseConfirmOpen, setPurchaseConfirmOpen] = useState(false);
+  const [serverPricing, setServerPricing] = useState(null);
 
   const activatedAt = getDateValue(userData?.capitalActivatedAt);
   const oneYearAfterActivation = activatedAt
@@ -77,9 +81,47 @@ const PurchaseCodesDialog = ({
     : "Capital Share Activation Code";
 
   const codePrices = {
-    capital: capitalPrice,
-    downline: 1000,
+    capital: Number(serverPricing?.capitalPrice ?? capitalPrice),
+    downline: Number(serverPricing?.downlinePrice ?? 1000),
   };
+
+  const resolvedCapitalLabel = serverPricing?.capitalLabel || capitalLabel;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPricing = async () => {
+      if (!open || !auth?.currentUser) return;
+      setServerPricing(null);
+
+      try {
+        const idToken = await auth.currentUser.getIdToken();
+        const response = await fetch(PURCHASE_CODE_PRICE_ENDPOINT, {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${idToken}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch purchase code pricing");
+        }
+
+        const pricing = await response.json();
+        if (isMounted) {
+          setServerPricing(pricing);
+        }
+      } catch (error) {
+        console.warn("[PurchaseCodesDialog] Pricing fetch failed. Using local fallback:", error);
+      }
+    };
+
+    loadPricing();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [open, auth]);
 
   useEffect(() => {
     if (!open || !auth?.currentUser) return;
@@ -113,7 +155,7 @@ const PurchaseCodesDialog = ({
   setPurchaseConfirmOpen(true);
 };
 
-  const performPurchase = async (amount) => {
+  const performPurchase = async () => {
     if (loading) return;
     setLoading(true);
     try {
@@ -146,14 +188,14 @@ const PurchaseCodesDialog = ({
 
       // Send notification for capital share activation code
       if (codeType === "capital") {
-        await sendPurchaseNotification({ userId: auth.currentUser.uid, codeType: capitalLabel });
+        await sendPurchaseNotification({ userId: auth.currentUser.uid, codeType: resolvedCapitalLabel });
       }
 
       if (onBalanceUpdate) onBalanceUpdate(result.newBalance);
 
       setSuccessMessage(
         codeType === "capital"
-          ? `${capitalLabel} purchased!`
+          ? `${resolvedCapitalLabel} purchased!`
           : "Downline Code purchased!"
       );
 
@@ -251,10 +293,10 @@ const PurchaseCodesDialog = ({
               }}
             >
               <MenuItem value="capital">
-                {capitalLabel} — ₱{capitalPrice}
+                {resolvedCapitalLabel} — ₱{codePrices.capital}
               </MenuItem>
               <MenuItem value="downline">
-                Downline Code — ₱1000
+                Downline Code — ₱{codePrices.downline}
               </MenuItem>
             </TextField>
           )}
@@ -374,7 +416,7 @@ const PurchaseCodesDialog = ({
   <DialogTitle sx={{ fontWeight: 600 }}>Confirm Purchase</DialogTitle>
   <DialogContent>
     <Typography sx={{ mt: 1 }}>
-      Are you sure you want to purchase this {codeType === "capital" ? capitalLabel : "Downline Code"} for ₱{codePrices[codeType]}?
+      Are you sure you want to purchase this {codeType === "capital" ? resolvedCapitalLabel : "Downline Code"} for ₱{codePrices[codeType]}?
     </Typography>
   </DialogContent>
   <DialogActions sx={{ justifyContent: "center", mt: 1 }}>
@@ -389,7 +431,7 @@ const PurchaseCodesDialog = ({
     <Button
   onClick={async () => {
     setPurchaseConfirmOpen(false);
-    await performPurchase(codePrices[codeType]); // ✅ purchase runs only once here
+    await performPurchase(); // ✅ purchase runs only once here
   }}
   variant="contained"
   disabled={loading}
