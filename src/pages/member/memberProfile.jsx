@@ -2,50 +2,41 @@
 import React, { useState, useEffect } from "react";
 import {
   Box,
-  Toolbar,
   Typography,
-  Grid,
-  Card,
-  TextField,
-  Button,
   Avatar,
+  Button,
+  TextField,
   CircularProgress,
-  useMediaQuery,
-  LinearProgress,
-  Fade,
-  Divider,
-  InputAdornment,
   Backdrop,
+  LinearProgress,
+  IconButton,
+  InputAdornment,
 } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
-import { onAuthStateChanged, updatePassword } from "firebase/auth";
+import { onAuthStateChanged, updatePassword, signOut } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from "../../firebase";
-import Topbar from "../../components/Topbar";
-import AppBottomNav from "../../components/AppBottomNav";
-import bgImage from "../../assets/bg.jpg";
-
-// Icons
+import MemberBottomNav from "../../components/MemberBottomNav";
+import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import PersonIcon from "@mui/icons-material/Person";
 import EmailIcon from "@mui/icons-material/Email";
 import PhoneIcon from "@mui/icons-material/Phone";
 import HomeIcon from "@mui/icons-material/Home";
 import LockIcon from "@mui/icons-material/Lock";
+import EditIcon from "@mui/icons-material/Edit";
+import CameraAltIcon from "@mui/icons-material/CameraAlt";
+import { useNavigate } from "react-router-dom";
+
+const memberPalette = {
+  navy: "#0b1f5e",
+  royal: "#173a8a",
+  gold: "#d4af37",
+  softGold: "#f2de9c",
+  surface: "#f7f9fc",
+};
 
 const MemberProfile = () => {
-  const memberPalette = {
-    navy: "#0b1f5e",
-    royal: "#173a8a",
-    gold: "#d4af37",
-  };
-
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
-  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
-  useEffect(() => setSidebarOpen(!isMobile), [isMobile]);
-  const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
-
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -56,11 +47,15 @@ const MemberProfile = () => {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordErrors, setPasswordErrors] = useState({});
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
-  const isPasswordValid =
-    newPassword.length >= 6 && newPassword === confirmPassword;
+  const isPasswordValid = newPassword.length >= 6 && newPassword === confirmPassword;
 
-  // Real-time password validation
+  const handleLogout = async () => {
+    await signOut(auth);
+    navigate("/");
+  };
+
   useEffect(() => {
     const errors = {};
     if (newPassword && newPassword.length < 6)
@@ -70,13 +65,11 @@ const MemberProfile = () => {
     setPasswordErrors(errors);
   }, [newPassword, confirmPassword]);
 
-  // Load user profile
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
-        const docRef = doc(db, "users", currentUser.uid);
-        const snap = await getDoc(docRef);
+        const snap = await getDoc(doc(db, "users", currentUser.uid));
         if (snap.exists()) setUserData(snap.data());
       }
       setLoading(false);
@@ -102,7 +95,6 @@ const MemberProfile = () => {
         await uploadBytes(picRef, profilePic);
         photoURL = await getDownloadURL(picRef);
       }
-
       await updateDoc(doc(db, "users", user.uid), {
         username: userData.username,
         name: userData.name,
@@ -111,13 +103,12 @@ const MemberProfile = () => {
         profilePicture: photoURL,
         updatedAt: new Date().toISOString(),
       });
-
       setUserData({ ...userData, profilePicture: photoURL });
       setEditMode(false);
-      // Profile updated successfully (notification removed)
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
       console.error("Error updating profile:", err);
-      // Failed to update profile (notification removed)
     }
     setSaving(false);
   };
@@ -140,20 +131,13 @@ const MemberProfile = () => {
 
   const handleChangePassword = async () => {
     if (!isPasswordValid) return;
-
     setSaving(true);
     try {
       await updatePassword(auth.currentUser, newPassword);
       setNewPassword("");
       setConfirmPassword("");
-      // Password updated successfully (notification removed)
     } catch (err) {
       console.error(err);
-      if (err.code === "auth/requires-recent-login") {
-        // Error updating password (notification removed)
-        // Please log out and log in again before changing password.
-      }
-      // else: Failed to update password (notification removed)
     }
     setSaving(false);
   };
@@ -165,407 +149,379 @@ const MemberProfile = () => {
       </Backdrop>
     );
 
-  const textFieldStyles = {
-    "& .MuiInputBase-input": { color: "white" },
-    "& .MuiInputLabel-root": { color: "white" },
-    "& .MuiInputLabel-root.Mui-focused": { color: "white" },
-    "& .MuiFilledInput-root": {
-      backgroundColor: "rgba(255,255,255,0.1)",
-      "&:hover": { backgroundColor: "rgba(255,255,255,0.15)" },
+  const fieldSx = {
+    "& .MuiInputBase-input": { color: memberPalette.navy },
+    "& .MuiInputLabel-root": { color: "rgba(11,31,94,0.6)" },
+    "& .MuiInputLabel-root.Mui-focused": { color: memberPalette.navy },
+    "& .MuiOutlinedInput-root": {
+      backgroundColor: "#fff",
+      borderRadius: "12px",
+      "& fieldset": { borderColor: "rgba(11,31,94,0.15)" },
+      "&:hover fieldset": { borderColor: memberPalette.gold },
+      "&.Mui-focused fieldset": { borderColor: memberPalette.gold },
     },
+    "& .MuiOutlinedInput-root.Mui-disabled": {
+      backgroundColor: "rgba(247,249,252,0.9)",
+    },
+    "& .MuiInputBase-input.Mui-disabled": { color: "rgba(11,31,94,0.5)", WebkitTextFillColor: "rgba(11,31,94,0.5)" },
   };
 
   return (
     <Box
       sx={{
-        display: "flex",
-        height: "100vh",
-        backgroundImage: `linear-gradient(135deg, rgba(11,31,94,0.92) 40%, rgba(23,58,138,0.76) 70%, rgba(212,175,55,0.30) 100%), url(${bgImage})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundAttachment: "fixed",
-        position: "relative",
-        overflow: "hidden",
+        minHeight: "100vh",
+        background: `linear-gradient(160deg, ${memberPalette.navy} 0%, ${memberPalette.royal} 30%, ${memberPalette.surface} 65%, ${memberPalette.softGold} 100%)`,
+        pb: 12,
       }}
     >
-      {/* Topbar */}
-      <Box sx={{ position: "fixed", width: "100%", zIndex: 10 }}>
-        <Topbar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
-      </Box>
-
-      {/* Sidebar */}
+      {/* ─── Top header ─── */}
       <Box
         sx={{
-          zIndex: 5,
-          position: isMobile ? "fixed" : "relative",
-          height: "100%",
+          maxWidth: 460,
+          mx: "auto",
+          px: 2.5,
+          pt: 3,
+          pb: 2,
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
         }}
       >
-        <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
-      </Box>
-
-      {/* Main Content */}
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          p: { xs: 2, sm: 4 },
-          mt: 1,
-          pb: { xs: 12, sm: 12, md: 12 },
-          color: "white",
-          minHeight: "100vh",
-          overflowY: "auto",
-          maxHeight: "100vh",
-          width: "100%",
-          transition: "all 0.3s ease",
-        }}
-      >
-        <Toolbar />
-        <Fade in={!loading}>
-          <Box
+        <IconButton
+          onClick={() => navigate("/member/dashboard")}
+          sx={{ color: "#fff", p: 0.5 }}
+        >
+          <ArrowBackIosNewIcon sx={{ fontSize: 20 }} />
+        </IconButton>
+        <Typography sx={{ fontSize: 18, fontWeight: 700, color: "#fff", flex: 1 }}>
+          My Profile
+        </Typography>
+        {!editMode && (
+          <IconButton
+            onClick={() => setEditMode(true)}
             sx={{
-              maxWidth: 800,
-              mx: "auto",
-              display: "flex",
-              flexDirection: "column",
-              gap: 4,
+              color: memberPalette.gold,
+              border: "1.5px solid rgba(212,175,55,0.5)",
+              borderRadius: "12px",
+              p: 0.8,
             }}
           >
-            <Typography
-              variant={isMobile ? "h5" : "h4"}
-              fontWeight={700}
-              sx={{ textAlign: "center" }}
-            >
-              My Profile
-            </Typography>
-
-            {userData ? (
-              <>
-                {/* Profile Card */}
-                <Card
-                  sx={{
-                    backdropFilter: "blur(18px)",
-                    background: "linear-gradient(140deg, rgba(255,255,255,0.20) 0%, rgba(255,255,255,0.13) 45%, rgba(212,175,55,0.18) 100%)",
-                    borderRadius: 5,
-                    p: { xs: 2, sm: 4 },
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 3,
-                  }}
-                >
-                  <Box
-                    sx={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      gap: 2,
-                    }}
-                  >
-                    <Avatar
-                      src={preview || userData.profilePicture}
-                      sx={{
-                        width: isMobile ? 100 : 120,
-                        height: isMobile ? 100 : 120,
-                        border: "3px solid rgba(212,175,55,0.8)",
-                      }}
-                    />
-                    {editMode && (
-                      <Button
-                        variant="contained"
-                        component="label"
-                        size="small"
-                        sx={{
-                          textTransform: "none",
-                          borderRadius: "20px",
-                          background: "linear-gradient(90deg,#d4af37,#f2de9c)",
-                          color: memberPalette.navy,
-                        }}
-                      >
-                        Upload Photo
-                        <input hidden type="file" onChange={handleFileChange} />
-                      </Button>
-                    )}
-                    <Typography
-                      variant="h6"
-                      sx={{ fontWeight: 600, textTransform: "capitalize" }}
-                    >
-                      {userData.username}
-                    </Typography>
-                  </Box>
-
-                  <Grid container spacing={2}>
-                    {/* Username */}
-                    <Grid item xs={12} width={"100%"}>
-                      <TextField
-                        label="Username"
-                        fullWidth
-                        value={userData.username || ""}
-                        onChange={(e) =>
-                          setUserData({
-                            ...userData,
-                            username: e.target.value,
-                          })
-                        }
-                        InputProps={{
-                          readOnly: !editMode,
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <PersonIcon sx={{ color: "white" }} />
-                            </InputAdornment>
-                          ),
-                        }}
-                        variant="filled"
-                        sx={textFieldStyles}
-                      />
-                    </Grid>
-
-                    {/* Full Name */}
-                    <Grid item xs={12} width={"100%"}>
-                      <TextField
-                        label="Full Name"
-                        fullWidth
-                        value={userData.name || ""}
-                        onChange={(e) =>
-                          setUserData({ ...userData, name: e.target.value })
-                        }
-                        InputProps={{
-                          readOnly: !editMode,
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <PersonIcon sx={{ color: "white" }} />
-                            </InputAdornment>
-                          ),
-                        }}
-                        variant="filled"
-                        sx={textFieldStyles}
-                      />
-                    </Grid>
-
-                    {/* Email */}
-                    <Grid item xs={12} width={"100%"}>
-                      <TextField
-                        label="Email"
-                        fullWidth
-                        value={userData.email || ""}
-                        InputProps={{
-                          readOnly: true,
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <EmailIcon sx={{ color: "white" }} />
-                            </InputAdornment>
-                          ),
-                        }}
-                        variant="filled"
-                        sx={textFieldStyles}
-                      />
-                    </Grid>
-
-                    {/* Contact Number */}
-                    <Grid item xs={12} width={"100%"}>
-                      <TextField
-                        label="Contact Number"
-                        fullWidth
-                        value={userData.contactNumber || ""}
-                        onChange={(e) =>
-                          setUserData({
-                            ...userData,
-                            contactNumber: e.target.value,
-                          })
-                        }
-                        InputProps={{
-                          readOnly: !editMode,
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <PhoneIcon sx={{ color: "white" }} />
-                            </InputAdornment>
-                          ),
-                        }}
-                        variant="filled"
-                        sx={textFieldStyles}
-                      />
-                    </Grid>
-
-                    {/* Address */}
-                    <Grid item xs={12} width={"100%"}>
-                      <TextField
-                        label="Address"
-                        fullWidth
-                        value={userData.address || ""}
-                        onChange={(e) =>
-                          setUserData({ ...userData, address: e.target.value })
-                        }
-                        InputProps={{
-                          readOnly: !editMode,
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <HomeIcon sx={{ color: "white" }} />
-                            </InputAdornment>
-                          ),
-                        }}
-                        variant="filled"
-                        sx={textFieldStyles}
-                      />
-                    </Grid>
-                  </Grid>
-
-                  <Box sx={{ mt: 3, display: "flex", justifyContent: "center" }}>
-                    {!editMode ? (
-                      <Button
-                        variant="contained"
-                        onClick={() => setEditMode(true)}
-                        sx={{
-                          px: 4,
-                          py: 1.2,
-                          borderRadius: "30px",
-                          textTransform: "none",
-                          background: "linear-gradient(90deg,#4facfe,#00f2fe)",
-                        }}
-                      >
-                        Edit Profile
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="contained"
-                        onClick={handleSaveProfile}
-                        disabled={saving}
-                        sx={{
-                          px: 4,
-                          py: 1.2,
-                          borderRadius: "30px",
-                          textTransform: "none",
-                          background: "linear-gradient(90deg,#43e97b,#38f9d7)",
-                        }}
-                      >
-                        {saving ? "Saving..." : "Save Changes"}
-                      </Button>
-                    )}
-                  </Box>
-                </Card>
-
-                <Divider sx={{ my: 3, borderColor: "rgba(255,255,255,0.3)" }} />
-
-                {/* Change Password Card */}
-                <Card
-                  sx={{
-                    backdropFilter: "blur(18px)",
-                    background: "rgba(255,255,255,0.2)",
-                    borderRadius: 5,
-                    p: { xs: 2, sm: 4 },
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 2,
-                  }}
-                >
-                  <Typography variant="h6" gutterBottom>
-                    Change Password
-                  </Typography>
-
-                  {/* New Password */}
-                  <TextField
-                    label="New Password"
-                    type="password"
-                    fullWidth
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    sx={textFieldStyles}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <LockIcon sx={{ color: "white" }} />
-                        </InputAdornment>
-                      ),
-                    }}
-                    variant="filled"
-                  />
-
-                  {/* Password Strength */}
-                  {newPassword && (
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      <LinearProgress
-                        variant="determinate"
-                        value={getPasswordStrength(newPassword)}
-                        sx={{
-                          height: 8,
-                          borderRadius: 2,
-                          flexGrow: 1,
-                          backgroundColor: "rgba(255,255,255,0.3)",
-                          "& .MuiLinearProgress-bar": {
-                            backgroundColor: getPasswordColor(
-                              getPasswordStrength(newPassword)
-                            ),
-                          },
-                        }}
-                      />
-                      <Typography
-                        variant="caption"
-                        sx={{ color: "#fff", minWidth: 80 }}
-                      >
-                        {getPasswordStrength(newPassword) < 50
-                          ? "Weak"
-                          : getPasswordStrength(newPassword) < 75
-                          ? "Medium"
-                          : "Strong"}
-                      </Typography>
-                    </Box>
-                  )}
-
-                  {/* Confirm Password */}
-                  <TextField
-                    label="Confirm Password"
-                    type="password"
-                    fullWidth
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    sx={textFieldStyles}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <LockIcon sx={{ color: "white" }} />
-                        </InputAdornment>
-                      ),
-                    }}
-                    variant="filled"
-                  />
-
-                  {/* Error Messages */}
-                  {Object.values(passwordErrors).map((err, i) => (
-                    <Typography
-                      key={i}
-                      variant="body2"
-                      sx={{ color: "#ff5252", fontSize: 13 }}
-                    >
-                      {err}
-                    </Typography>
-                  ))}
-
-                  {/* Update Button */}
-                  <Button
-                    variant="contained"
-                    onClick={handleChangePassword}
-                    sx={{
-                      background: "linear-gradient(90deg,#ff9966,#ff5e62)",
-                      textTransform: "none",
-                      px: 4,
-                      py: 1.2,
-                      borderRadius: "30px",
-                      alignSelf: "center",
-                    }}
-                    disabled={!isPasswordValid || saving}
-                  >
-                    {saving ? "Updating..." : "Update Password"}
-                  </Button>
-                </Card>
-              </>
-            ) : (
-              <Typography variant="body1" textAlign="center">
-                Unable to load profile.
-              </Typography>
-            )}
-          </Box>
-        </Fade>
+            <EditIcon sx={{ fontSize: 18 }} />
+          </IconButton>
+        )}
       </Box>
 
-      {/* ToastContainer removed */}
+      <Box sx={{ maxWidth: 460, mx: "auto", px: 2.5 }}>
+        {/* ─── Avatar section ─── */}
+        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", mb: 3 }}>
+          <Box sx={{ position: "relative" }}>
+            <Avatar
+              src={preview || userData?.profilePicture}
+              sx={{
+                width: 96,
+                height: 96,
+                border: `3px solid ${memberPalette.gold}`,
+                boxShadow: "0 4px 20px rgba(212,175,55,0.4)",
+              }}
+            />
+            {editMode && (
+              <Box
+                component="label"
+                sx={{
+                  position: "absolute",
+                  bottom: 0,
+                  right: 0,
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  background: memberPalette.gold,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
+                }}
+              >
+                <CameraAltIcon sx={{ fontSize: 16, color: memberPalette.navy }} />
+                <input hidden type="file" accept="image/*" onChange={handleFileChange} />
+              </Box>
+            )}
+          </Box>
+          <Typography sx={{ mt: 1.5, fontSize: 17, fontWeight: 700, color: "#fff" }}>
+            {userData?.username || "Member"}
+          </Typography>
+          <Typography sx={{ fontSize: 12, color: "rgba(255,255,255,0.65)" }}>
+            {userData?.email || ""}
+          </Typography>
+        </Box>
+
+        {/* ─── Profile info card ─── */}
+        <Box
+          sx={{
+            backgroundColor: "#fff",
+            borderRadius: "24px",
+            p: 2.5,
+            boxShadow: "0 8px 28px rgba(11,31,94,0.10)",
+            mb: 2,
+          }}
+        >
+          <Typography sx={{ fontSize: 13, fontWeight: 700, color: memberPalette.navy, mb: 2, letterSpacing: 0.6, textTransform: "uppercase" }}>
+            Personal Information
+          </Typography>
+
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.8 }}>
+            <TextField
+              label="Username"
+              fullWidth
+              value={userData?.username || ""}
+              onChange={(e) => setUserData({ ...userData, username: e.target.value })}
+              disabled={!editMode}
+              variant="outlined"
+              size="small"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <PersonIcon sx={{ fontSize: 18, color: memberPalette.gold }} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={fieldSx}
+            />
+            <TextField
+              label="Full Name"
+              fullWidth
+              value={userData?.name || ""}
+              onChange={(e) => setUserData({ ...userData, name: e.target.value })}
+              disabled={!editMode}
+              variant="outlined"
+              size="small"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <PersonIcon sx={{ fontSize: 18, color: memberPalette.gold }} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={fieldSx}
+            />
+            <TextField
+              label="Email"
+              fullWidth
+              value={userData?.email || ""}
+              disabled
+              variant="outlined"
+              size="small"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <EmailIcon sx={{ fontSize: 18, color: memberPalette.gold }} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={fieldSx}
+            />
+            <TextField
+              label="Contact Number"
+              fullWidth
+              value={userData?.contactNumber || ""}
+              onChange={(e) => setUserData({ ...userData, contactNumber: e.target.value })}
+              disabled={!editMode}
+              variant="outlined"
+              size="small"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <PhoneIcon sx={{ fontSize: 18, color: memberPalette.gold }} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={fieldSx}
+            />
+            <TextField
+              label="Address"
+              fullWidth
+              value={userData?.address || ""}
+              onChange={(e) => setUserData({ ...userData, address: e.target.value })}
+              disabled={!editMode}
+              variant="outlined"
+              size="small"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <HomeIcon sx={{ fontSize: 18, color: memberPalette.gold }} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={fieldSx}
+            />
+          </Box>
+
+          {editMode && (
+            <Box sx={{ display: "flex", gap: 1.5, mt: 2.5 }}>
+              <Button
+                fullWidth
+                variant="outlined"
+                onClick={() => { setEditMode(false); setProfilePic(null); setPreview(null); }}
+                sx={{
+                  borderRadius: "12px",
+                  textTransform: "none",
+                  fontWeight: 600,
+                  borderColor: "rgba(11,31,94,0.25)",
+                  color: memberPalette.navy,
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                fullWidth
+                variant="contained"
+                onClick={handleSaveProfile}
+                disabled={saving}
+                sx={{
+                  borderRadius: "12px",
+                  textTransform: "none",
+                  fontWeight: 700,
+                  background: `linear-gradient(90deg, ${memberPalette.navy}, ${memberPalette.royal})`,
+                  boxShadow: "0 4px 14px rgba(11,31,94,0.3)",
+                }}
+              >
+                {saving ? "Saving…" : "Save Changes"}
+              </Button>
+            </Box>
+          )}
+
+          {saveSuccess && (
+            <Typography sx={{ mt: 1.5, fontSize: 13, color: "#4caf50", textAlign: "center", fontWeight: 600 }}>
+              Profile updated successfully.
+            </Typography>
+          )}
+        </Box>
+
+        {/* ─── Change password card ─── */}
+        <Box
+          sx={{
+            backgroundColor: "#fff",
+            borderRadius: "24px",
+            p: 2.5,
+            boxShadow: "0 8px 28px rgba(11,31,94,0.10)",
+          }}
+        >
+          <Typography sx={{ fontSize: 13, fontWeight: 700, color: memberPalette.navy, mb: 2, letterSpacing: 0.6, textTransform: "uppercase" }}>
+            Change Password
+          </Typography>
+
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.8 }}>
+            <TextField
+              label="New Password"
+              type="password"
+              fullWidth
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              variant="outlined"
+              size="small"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <LockIcon sx={{ fontSize: 18, color: memberPalette.gold }} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={fieldSx}
+            />
+
+            {newPassword && (
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <LinearProgress
+                  variant="determinate"
+                  value={getPasswordStrength(newPassword)}
+                  sx={{
+                    height: 6,
+                    borderRadius: 3,
+                    flexGrow: 1,
+                    backgroundColor: "rgba(11,31,94,0.1)",
+                    "& .MuiLinearProgress-bar": {
+                      backgroundColor: getPasswordColor(getPasswordStrength(newPassword)),
+                    },
+                  }}
+                />
+                <Typography sx={{ fontSize: 11, color: getPasswordColor(getPasswordStrength(newPassword)), minWidth: 48, fontWeight: 700 }}>
+                  {getPasswordStrength(newPassword) < 50 ? "Weak" : getPasswordStrength(newPassword) < 75 ? "Medium" : "Strong"}
+                </Typography>
+              </Box>
+            )}
+
+            <TextField
+              label="Confirm Password"
+              type="password"
+              fullWidth
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              variant="outlined"
+              size="small"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <LockIcon sx={{ fontSize: 18, color: memberPalette.gold }} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={fieldSx}
+            />
+
+            {Object.values(passwordErrors).map((err, i) => (
+              <Typography key={i} sx={{ fontSize: 12, color: "#f44336", fontWeight: 500 }}>
+                {err}
+              </Typography>
+            ))}
+
+            <Button
+              fullWidth
+              variant="contained"
+              onClick={handleChangePassword}
+              disabled={!isPasswordValid || saving}
+              sx={{
+                borderRadius: "12px",
+                textTransform: "none",
+                fontWeight: 700,
+                py: 1.2,
+                background: `linear-gradient(90deg, ${memberPalette.gold}, ${memberPalette.softGold})`,
+                color: memberPalette.navy,
+                boxShadow: "0 4px 14px rgba(212,175,55,0.3)",
+                "&.Mui-disabled": { background: "rgba(11,31,94,0.1)", color: "rgba(11,31,94,0.4)" },
+              }}
+            >
+              {saving ? "Updating…" : "Update Password"}
+            </Button>
+          </Box>
+        </Box>
+      </Box>
+
+        {/* ─── Logout ─── */}
+        <Box sx={{ mt: 2, mb: 1 }}>
+          <Button
+            fullWidth
+            variant="outlined"
+            onClick={handleLogout}
+            sx={{
+              borderRadius: "14px",
+              textTransform: "none",
+              fontWeight: 700,
+              py: 1.3,
+              fontSize: 15,
+              borderColor: "rgba(244,67,54,0.5)",
+              color: "#f44336",
+              background: "rgba(244,67,54,0.06)",
+              "&:hover": {
+                borderColor: "#f44336",
+                background: "rgba(244,67,54,0.12)",
+              },
+            }}
+          >
+            Log Out
+          </Button>
+        </Box>
+
+      <MemberBottomNav />
     </Box>
   );
 };

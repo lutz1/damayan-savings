@@ -31,8 +31,8 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 // 🔹 CHANGE: react-big-calendar imports
-import Topbar from "../../components/Topbar";
-import AppBottomNav from "../../components/AppBottomNav";
+
+import MemberBottomNav from "../../components/MemberBottomNav";
 import bgImage from "../../assets/bg.jpg";
 import { auth, db } from "../../firebase";
 import ProfitHistoryDialog from "./components/dialogs/ProfitHistoryDialog";
@@ -794,20 +794,14 @@ const MemberCapitalShare = () => {
         },
       }}
     >
-      <Box sx={{ position: "fixed", width: "100%", zIndex: 10 }}>
-        <Topbar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
-      </Box>
-
-      <Box sx={{ zIndex: 5, position: isMobile ? "fixed" : "relative", height: "100%", transition: "all 0.3s ease" }}>
-        <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
-      </Box>
+      <MemberBottomNav />
 
       <Box
         component="main"
         sx={{
           flexGrow: 1,
           p: { xs: 2, sm: 4 },
-          mt: 5,
+          pt: 3,
           pb: { xs: 12, sm: 12, md: 12 },
           color: "white",
           overflowY: "auto",
@@ -817,7 +811,6 @@ const MemberCapitalShare = () => {
           transition: "all 0.3s ease",
         }}
       >
-        <Toolbar />
         {/* Header Section */}
         <Box sx={{ mb: 4, width: '100%', maxWidth: 900 }}>
           <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 900, letterSpacing: 1, mb: 1, color: '#fff', textShadow: '0 2px 12px #000a' }}>

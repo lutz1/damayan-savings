@@ -1124,7 +1124,7 @@ exports.addPaybackEntry = functions.https.onRequest(async (req, res) => {
 
       // 📊 Log to Render
       try {
-        await fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
+        fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1264,7 +1264,7 @@ exports.transferFunds = functions.https.onRequest(async (req, res) => {
 
       // 📊 Log to Render
       try {
-        await fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
+        fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1393,7 +1393,7 @@ exports.transferProfit = functions.https.onRequest(async (req, res) => {
 
       // 📊 Log to Render
       try {
-        await fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
+        fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1518,7 +1518,7 @@ exports.transferCapitalShare = functions.https.onRequest(async (req, res) => {
 
       // 📊 Log to Render
       try {
-        await fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
+        fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1636,7 +1636,7 @@ exports.transferPassiveIncome = functions.https.onRequest(async (req, res) => {
 
       // 📊 Log to Render
       try {
-        await fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
+        fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1769,7 +1769,7 @@ exports.purchaseActivationCode = functions.https.onRequest(async (req, res) => {
 
       // Log to Render
       try {
-        await fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
+        fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1925,7 +1925,7 @@ exports.createWithdrawal = functions.https.onRequest(async (req, res) => {
 
       // Log to Render
       try {
-        await fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
+        fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -2085,7 +2085,7 @@ exports.createCapitalShareVoucher = functions.https.onRequest(async (req, res) =
 
       // Log to Render
       try {
-        await fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
+        fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -2285,7 +2285,7 @@ exports.createInviteAndRewards = functions.https.onRequest(async (req, res) => {
 
       // Log to Render
       try {
-        await fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
+        fetch("https://damayan-savings-backend.onrender.com/api/log-event", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

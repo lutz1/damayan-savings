@@ -1,17 +1,15 @@
 import React, { useEffect, useState, useCallback } from "react";
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
+  Drawer,
   List,
   ListItem,
   ListItemText,
   Chip,
   Typography,
-  Button,
+  IconButton,
   Box,
 } from "@mui/material";
+import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import {
   ArrowDropUp as CreditIcon,
   ArrowDropDown as DebitIcon,
@@ -202,121 +200,98 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
   };
 
   return (
-    <Dialog
+    <Drawer
+      anchor="right"
       open={open}
       onClose={onClose}
-      maxWidth="xs"
-      fullWidth
-      PaperProps={{
-        sx: {
-          borderRadius: 3,
-          background: "rgba(25,25,25,0.95)",
-          color: "#fff",
-          p: 1,
-          boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
-        },
-      }}
+      ModalProps={{ keepMounted: true }}
+      transitionDuration={{ enter: 360, exit: 260 }}
+      slotProps={{ backdrop: { sx: { backgroundColor: "rgba(0,0,0,0.4)" } } }}
+      PaperProps={{ sx: { width: { xs: "100%", sm: 430 }, maxWidth: "100%", backgroundColor: "#f7f9fc" } }}
     >
-      <DialogTitle
-        sx={{
-          textAlign: "center",
-          fontWeight: 600,
-          borderBottom: "1px solid rgba(255,255,255,0.15)",
-        }}
-      >
-        E-Wallet History
-      </DialogTitle>
-      <DialogContent>
-        {history.length > 0 ? (
-          <List dense sx={{ maxHeight: 400, overflowY: "auto" }}>
-            {history.map((item) => {
-              const amount =
-                item.source === "received" && item.status === "Approved"
-                  ? item.netAmount || item.amount
-                  : item.netAmount || item.amount;
-              const formattedAmount = Number(amount || 0).toLocaleString("en-PH", {
-                minimumFractionDigits: 2,
-              });
-              if (item.source === "received" && item.status !== "Approved") return null;
+      <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+        {/* Header */}
+        <Box sx={{ minHeight: 70, px: 1, display: "flex", alignItems: "center", justifyContent: "space-between", color: "#fff", background: "linear-gradient(135deg, #0b1f5e 0%, #173a8a 55%, #d4af37 100%)" }}>
+          <IconButton onClick={onClose} sx={{ color: "#fff" }}>
+            <ArrowBackIosNewIcon />
+          </IconButton>
+          <Typography sx={{ fontSize: 18, fontWeight: 800, letterSpacing: 0.2 }}>E-Wallet History</Typography>
+          <Box sx={{ width: 40 }} />
+        </Box>
 
-              return (
-                <ListItem
-                  key={item.id}
-                  sx={{
-                    borderBottom: "1px solid rgba(255,255,255,0.08)",
-                    py: 0.8,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <ListItemText
-                    primary={
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                        {item.isCredit ? (
-                          <CreditIcon sx={{ color: "#4CAF50", fontSize: 22 }} />
-                        ) : (
-                          <DebitIcon sx={{ color: "#FF5252", fontSize: 22 }} />
-                        )}
-                        <Typography
-                          component="span"
-                          sx={{
-                            fontWeight: 600,
-                            color: item.isCredit ? "#4CAF50" : "#FF5252",
-                          }}
-                        >
-                          {item.isCredit ? `+₱${formattedAmount}` : `-₱${formattedAmount}`}
-                        </Typography>
-                      </Box>
-                    }
-                    secondary={
-                      <Typography
-                        variant="body2"
-                        sx={{ color: "rgba(255,255,255,0.75)", fontSize: 12 }}
-                      >
-                        {item.displayType} • {formatDate(item.createdAt)}
-                      </Typography>
-                    }
-                  />
-                  <Chip
-                    size="small"
-                    label={item.status || "Pending"}
-                    color={getStatusColor(item.status)}
-                    sx={{
-                      textTransform: "capitalize",
-                      fontWeight: 600,
-                      fontSize: 11,
-                      ml: 1,
-                    }}
-                  />
-                </ListItem>
-              );
-            })}
-          </List>
-        ) : (
-          <Typography
-            variant="body2"
-            sx={{ textAlign: "center", color: "rgba(255,255,255,0.7)", py: 3 }}
-          >
-            No wallet history yet.
-          </Typography>
-        )}
-      </DialogContent>
-      <DialogActions sx={{ justifyContent: "center", pb: 2 }}>
-        <Button
-          onClick={onClose}
-          variant="outlined"
-          color="inherit"
-          sx={{
-            borderColor: "rgba(255,255,255,0.3)",
-            color: "#fff",
-            "&:hover": { background: "rgba(255,255,255,0.1)" },
-          }}
-        >
-          Close
-        </Button>
-      </DialogActions>
-    </Dialog>
+        {/* Content */}
+        <Box sx={{ flex: 1, overflowY: "auto", p: 2 }}>
+          {history.length > 0 ? (
+            <Box sx={{ background: "#fff", borderRadius: 2, boxShadow: "0 1px 4px rgba(11,31,94,0.08)" }}>
+              <List dense>
+                {history.map((item) => {
+                  const amount =
+                    item.source === "received" && item.status === "Approved"
+                      ? item.netAmount || item.amount
+                      : item.netAmount || item.amount;
+                  const formattedAmount = Number(amount || 0).toLocaleString("en-PH", {
+                    minimumFractionDigits: 2,
+                  });
+                  if (item.source === "received" && item.status !== "Approved") return null;
+
+                  return (
+                    <ListItem
+                      key={item.id}
+                      sx={{
+                        borderBottom: "1px solid #f0f0f0",
+                        py: 0.8,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                            {item.isCredit ? (
+                              <CreditIcon sx={{ color: "#4CAF50", fontSize: 22 }} />
+                            ) : (
+                              <DebitIcon sx={{ color: "#FF5252", fontSize: 22 }} />
+                            )}
+                            <Typography
+                              component="span"
+                              sx={{
+                                fontWeight: 700,
+                                color: item.isCredit ? "#2e7d32" : "#c62828",
+                              }}
+                            >
+                              {item.isCredit ? `+₱${formattedAmount}` : `-₱${formattedAmount}`}
+                            </Typography>
+                          </Box>
+                        }
+                        secondary={
+                          <Typography
+                            variant="body2"
+                            sx={{ color: "#666", fontSize: 12 }}
+                          >
+                            {item.displayType} • {formatDate(item.createdAt)}
+                          </Typography>
+                        }
+                      />
+                      <Chip
+                        size="small"
+                        label={item.status || "Pending"}
+                        color={getStatusColor(item.status)}
+                        sx={{ textTransform: "capitalize", fontWeight: 600, fontSize: 11, ml: 1 }}
+                      />
+                    </ListItem>
+                  );
+                })}
+              </List>
+            </Box>
+          ) : (
+            <Typography variant="body2" sx={{ textAlign: "center", color: "#888", py: 4 }}>
+              No wallet history yet.
+            </Typography>
+          )}
+        </Box>
+      </Box>
+    </Drawer>
   );
 };
 

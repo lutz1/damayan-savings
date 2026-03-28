@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import {
+  Drawer,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -9,14 +10,15 @@ import {
   TextField,
   MenuItem,
   Button,
+  IconButton,
   CircularProgress,
-  Divider,
   List,
   ListItem,
   ListItemText,
   Chip,
 } from "@mui/material";
-import { Wallet, CheckCircle, ErrorOutline } from "@mui/icons-material";
+import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
+import { CheckCircle, ErrorOutline } from "@mui/icons-material";
 import {
   doc,
   updateDoc,
@@ -227,140 +229,114 @@ const PurchaseCodesDialog = ({
 
   return (
     <>
-      <Dialog
+      <Drawer
+        anchor="right"
         open={open}
         onClose={handleClose}
-        maxWidth="xs"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 3,
-            background: "rgba(30,30,30,0.9)",
-            backdropFilter: "blur(20px)",
-            color: "#fff",
-            p: 1,
-            boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
-          },
-        }}
+        ModalProps={{ keepMounted: true }}
+        transitionDuration={{ enter: 360, exit: 260 }}
+        slotProps={{ backdrop: { sx: { backgroundColor: "rgba(0,0,0,0.4)" } } }}
+        PaperProps={{ sx: { width: { xs: "100%", sm: 430 }, maxWidth: "100%", backgroundColor: "#f7f9fc" } }}
       >
-        <DialogTitle
-          sx={{
-            textAlign: "center",
-            fontWeight: 600,
-            borderBottom: "1px solid rgba(255,255,255,0.15)",
-          }}
-        >
-          Purchase Codes
-        </DialogTitle>
-
-        <DialogContent>
-          <Box sx={{ textAlign: "center", mt: 2 }}>
-            <Wallet sx={{ fontSize: 40, color: "#4FC3F7" }} />
-            <Typography variant="h6" sx={{ mt: 1 }}>
-              Available Balance
-            </Typography>
-            <Typography
-              variant="h5"
-              sx={{ fontWeight: 700, color: "#4CAF50" }}
-            >
-              ₱
-              {userData.eWallet?.toLocaleString("en-PH", {
-                minimumFractionDigits: 2,
-              })}
-            </Typography>
+        <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+          {/* Header */}
+          <Box sx={{ minHeight: 70, px: 1, display: "flex", alignItems: "center", justifyContent: "space-between", color: "#fff", background: "linear-gradient(135deg, #0b1f5e 0%, #173a8a 55%, #d4af37 100%)" }}>
+            <IconButton onClick={handleClose} sx={{ color: "#fff" }}>
+              <ArrowBackIosNewIcon />
+            </IconButton>
+            <Typography sx={{ fontSize: 18, fontWeight: 800, letterSpacing: 0.2 }}>Purchase Codes</Typography>
+            <Box sx={{ width: 40 }} />
           </Box>
 
-          <Divider sx={{ my: 2, borderColor: "rgba(255,255,255,0.1)" }} />
-
-          {successMessage ? (
-            <Box sx={{ textAlign: "center", py: 4 }}>
-              <CheckCircle sx={{ fontSize: 50, color: "#4CAF50" }} />
-              <Typography sx={{ mt: 1, color: "#4CAF50", fontWeight: 600 }}>
-                {successMessage}
+          {/* Content */}
+          <Box sx={{ flex: 1, overflowY: "auto", p: 2 }}>
+            {/* 💰 Wallet Balance */}
+            <Box sx={{ background: "#fff", borderRadius: 2, p: 2, mb: 2, textAlign: "center", boxShadow: "0 1px 4px rgba(11,31,94,0.08)" }}>
+              <Typography variant="body2" sx={{ color: "#666", mb: 0.5 }}>Available Balance</Typography>
+              <Typography variant="h5" sx={{ fontWeight: 800, color: "#0b1f5e" }}>
+                ₱{userData.eWallet?.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
               </Typography>
             </Box>
-          ) : (
-            <TextField
-              select
-              fullWidth
-              label="Select Code Type"
-              value={codeType}
-              onChange={(e) => setCodeType(e.target.value)}
-              sx={{
-                mb: 2,
-                "& .MuiInputBase-root": { color: "#fff" },
-                "& .MuiInputLabel-root": { color: "rgba(255,255,255,0.7)" },
-              }}
-            >
-              <MenuItem value="capital">
-                {resolvedCapitalLabel} — ₱{codePrices.capital}
-              </MenuItem>
-              <MenuItem value="downline">
-                Downline Code — ₱{codePrices.downline}
-              </MenuItem>
-            </TextField>
-          )}
 
-          {purchaseLogs.length > 0 && (
-            <>
-              <Divider sx={{ my: 2, borderColor: "rgba(255,255,255,0.1)" }} />
-              <Typography
-                variant="subtitle1"
-                sx={{ mb: 1, fontWeight: 600, color: "#90CAF9" }}
+            {successMessage ? (
+              <Box sx={{ textAlign: "center", py: 4 }}>
+                <CheckCircle sx={{ fontSize: 50, color: "#4CAF50" }} />
+                <Typography sx={{ mt: 1, color: "#4CAF50", fontWeight: 600 }}>
+                  {successMessage}
+                </Typography>
+              </Box>
+            ) : (
+              <TextField
+                select
+                fullWidth
+                label="Select Code Type"
+                value={codeType}
+                onChange={(e) => setCodeType(e.target.value)}
+                sx={{ mb: 2, background: "#fff", borderRadius: 1 }}
               >
-                Purchase Code Logs
-              </Typography>
-              <List dense sx={{ maxHeight: 150, overflowY: "auto" }}>
-                {purchaseLogs.map((log) => (
-                  <ListItem
-                    key={log.id}
-                    sx={{ borderBottom: "1px solid rgba(255,255,255,0.1)", py: 0.5 }}
-                  >
-                    <ListItemText
-                      primary={`${log.code} (${log.type})`}
-                      secondary={
-                        log.createdAt
-                          ? new Date(log.createdAt.seconds * 1000).toLocaleString("en-PH")
-                          : "Processing..."
-                      }
-                      primaryTypographyProps={{ color: "#fff" }}
-                      secondaryTypographyProps={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}
-                    />
-                    <Chip
-                      size="small"
-                      label={log.status}
-                      color={getStatusColor(log.status)}
-                      sx={{ textTransform: "capitalize", fontWeight: 600, fontSize: 11 }}
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            </>
-          )}
-        </DialogContent>
+                <MenuItem value="capital">
+                  {resolvedCapitalLabel} — ₱{codePrices.capital}
+                </MenuItem>
+                <MenuItem value="downline">
+                  Downline Code — ₱{codePrices.downline}
+                </MenuItem>
+              </TextField>
+            )}
 
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button
-            onClick={handleClose}
-            variant="outlined"
-            color="inherit"
-            sx={{ borderColor: "rgba(255,255,255,0.3)", color: "#fff", "&:hover": { background: "rgba(255,255,255,0.1)" } }}
-          >
-            {successMessage ? "Close" : "Cancel"}
-          </Button>
+            {purchaseLogs.length > 0 && (
+              <Box sx={{ background: "#fff", borderRadius: 2, p: 2, boxShadow: "0 1px 4px rgba(11,31,94,0.08)" }}>
+                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700, color: "#0b1f5e" }}>
+                  Purchase Code Logs
+                </Typography>
+                <List dense>
+                  {purchaseLogs.map((log) => (
+                    <ListItem key={log.id} sx={{ borderBottom: "1px solid #f0f0f0", py: 0.5 }}>
+                      <ListItemText
+                        primary={`${log.code} (${log.type})`}
+                        secondary={
+                          log.createdAt
+                            ? new Date(log.createdAt.seconds * 1000).toLocaleString("en-PH")
+                            : "Processing..."
+                        }
+                        primaryTypographyProps={{ color: "#0b1f5e", fontWeight: 600 }}
+                        secondaryTypographyProps={{ color: "#666", fontSize: 12 }}
+                      />
+                      <Chip
+                        size="small"
+                        label={log.status}
+                        color={getStatusColor(log.status)}
+                        sx={{ textTransform: "capitalize", fontWeight: 600, fontSize: 11 }}
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              </Box>
+            )}
+          </Box>
 
+          {/* Footer */}
           {!successMessage && (
-            <Button
-              onClick={handlePurchase}
-              variant="contained"
-              disabled={loading}
-              sx={{ bgcolor: "#4FC3F7", color: "#000", fontWeight: 600, "&:hover": { bgcolor: "#29B6F6" } }}
-            >
-              {loading ? <CircularProgress size={24} sx={{ color: "#000" }} /> : "Purchase"}
-            </Button>
+            <Box sx={{ p: 2, borderTop: "1px solid #e8eaf6" }}>
+              <Button
+                onClick={handlePurchase}
+                variant="contained"
+                fullWidth
+                disabled={loading}
+                sx={{
+                  py: 1.5,
+                  fontWeight: 700,
+                  fontSize: 16,
+                  background: "linear-gradient(135deg, #0b1f5e 0%, #173a8a 100%)",
+                  "&:hover": { background: "linear-gradient(135deg, #173a8a 0%, #0b1f5e 100%)" },
+                  "&:disabled": { background: "#ccc" },
+                }}
+              >
+                {loading ? <CircularProgress size={24} sx={{ color: "#fff" }} /> : "Purchase"}
+              </Button>
+            </Box>
           )}
-        </DialogActions>
-      </Dialog>
+        </Box>
+      </Drawer>
 
       {/* Insufficient Balance Prompt */}
       <Dialog

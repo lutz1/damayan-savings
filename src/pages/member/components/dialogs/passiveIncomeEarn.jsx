@@ -82,10 +82,21 @@ const PassiveIncomeEarn = ({ open, onClose, paybackEntries, setTransferAmount, s
                 return bTime - aTime;
               })
               .map((e) => {
+                // Safely coerce Firestore Timestamps, ISO strings, Date objects, or {seconds} shapes
+                const toSafeDate = (val) => {
+                  if (!val) return null;
+                  if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+                  if (typeof val.toDate === 'function') return val.toDate();
+                  if (val.seconds != null) return new Date(val.seconds * 1000);
+                  const parsed = new Date(val);
+                  return isNaN(parsed.getTime()) ? null : parsed;
+                };
+
                 const now = new Date();
-                const expirationDate = e.expirationDate instanceof Date ? e.expirationDate : new Date(e.expirationDate);
+                const expirationDate = toSafeDate(e.expirationDate);
                 let statusLabel, statusIcon, statusColor;
-                if (expirationDate > now) {
+                // Treat missing/invalid expiration date as Pending so Transfer is never shown
+                if (!expirationDate || expirationDate > now) {
                   statusLabel = "Pending";
                   statusIcon = "⏳";
                   statusColor = '#ff9800';
@@ -151,7 +162,7 @@ const PassiveIncomeEarn = ({ open, onClose, paybackEntries, setTransferAmount, s
                       <Box sx={{ textAlign: 'center' }}>
                         <Typography sx={{ fontSize: 8, color: '#90CAF9', fontWeight: 600, mb: 0.1 }}>Release</Typography>
                         <Typography sx={{ fontSize: 11 }}>
-                          {expirationDate ? expirationDate.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }) : "N/A"}
+                          {expirationDate ? expirationDate.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }) : "—"}
                         </Typography>
                       </Box>
                     </Box>

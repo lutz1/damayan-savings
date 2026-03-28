@@ -5,6 +5,8 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { sendReferralTransferAvailableNotification } from "../../utils/referralNotifications";
 import { sendOverrideTransferAvailableNotification } from "../../utils/overrideNotifications";
+import { cleanupOldNotifications } from "../../utils/notifications";
+import Alert from "@mui/material/Alert";
 import {
   Box,
   Toolbar,
@@ -27,6 +29,7 @@ import {
   MenuItem,
   Badge,
   Chip,
+  Snackbar,
   Drawer,
   Divider,
   Tooltip,
@@ -53,6 +56,7 @@ import HomeIcon from "@mui/icons-material/Home";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
 import RedeemIcon from "@mui/icons-material/Redeem";
+import StorefrontIcon from "@mui/icons-material/Storefront";
 import PersonIcon from "@mui/icons-material/Person";
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
@@ -213,6 +217,7 @@ const [eWallet, setEWallet] = useState(0);
 const [showBalance, setShowBalance] = useState(false);
 const [dashDialog, setDashDialog] = useState(null);
 const [availableCodes, setAvailableCodes] = useState([]);
+const [rewardsUnavailableOpen, setRewardsUnavailableOpen] = useState(false);
 const navigate = useNavigate();
 
 // ─── Notifications ───────────────────────────────────────────────────────────
@@ -323,6 +328,7 @@ useEffect(() => {
 
     setUser(currentUser);
     setLoading(true);
+    cleanupOldNotifications(currentUser.uid).catch(() => {});
 
     if (unsubscribeUser) unsubscribeUser();
     if (unsubscribeReferrals) unsubscribeReferrals();
@@ -734,6 +740,7 @@ useEffect(() => {
           sx={{
             background: `linear-gradient(135deg, ${memberPalette.navy} 0%, ${memberPalette.royal} 55%, ${memberPalette.gold} 100%)`,
             borderRadius: "28px",
+            border: "2px solid rgba(212,175,55,0.6)",
             p: 3.2,
             color: "#fff",
             boxShadow: "0 10px 24px rgba(25, 28, 30, 0.16)",
@@ -774,21 +781,21 @@ useEffect(() => {
                 </IconButton>
               </Box>
               <Button
-                onClick={() => navigate('/member/cash-in')}
-                sx={{
-                  backgroundColor: "#fff",
-                  color: memberPalette.navy,
-                  borderRadius: "999px",
-                  textTransform: "none",
-                  fontSize: 12,
-                  fontWeight: 700,
-                  px: 2,
-                  minWidth: "auto",
-                  "&:hover": { backgroundColor: "#f7f1dc" },
-                }}
-              >
-                + Cash In
-              </Button>
+                  onClick={() => navigate('/member/cash-in')}
+                  sx={{
+                    backgroundColor: "#fff",
+                    color: memberPalette.navy,
+                    borderRadius: "999px",
+                    textTransform: "none",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    px: 2,
+                    minWidth: "auto",
+                    "&:hover": { backgroundColor: "#f7f1dc" },
+                  }}
+                >
+                  + Cash In
+                </Button>
             </Box>
 
             <Box sx={{ mt: 2.5, pt: 1.6, borderTop: "1px solid rgba(255,255,255,0.22)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -815,7 +822,8 @@ useEffect(() => {
             { icon: <PaymentIcon />, label: "Purchase", dialog: "purchase" },
             { icon: <GroupAddIcon />, label: "Invite", dialog: "invite" },
             { icon: <HistoryIcon />, label: "History", dialog: "walletHistory" },
-            { icon: <RedeemIcon />, label: "Rewards +", action: () => navigate("/member/vouchers") },
+            { icon: <RedeemIcon />, label: "Rewards +", action: () => setRewardsUnavailableOpen(true) },
+            { icon: <StorefrontIcon />, label: "Market Place", action: () => navigate("/member/marketplace") },
           ].map((action) => (
             <Grid item xs={3} key={action.label}>
               <Box
@@ -1099,6 +1107,26 @@ useEffect(() => {
       {dashDialog === "walletHistory" && (
         <EwalletHistoryDialog open onClose={() => setDashDialog(null)} db={db} auth={auth} />
       )}
+
+      <Snackbar
+        open={rewardsUnavailableOpen}
+        autoHideDuration={2400}
+        onClose={() => setRewardsUnavailableOpen(false)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert
+          onClose={() => setRewardsUnavailableOpen(false)}
+          severity="info"
+          variant="filled"
+          sx={{
+            background: "linear-gradient(135deg, #0b1f5e 0%, #173a8a 100%)",
+            color: "#fff",
+            fontWeight: 700,
+          }}
+        >
+          Not Available right now
+        </Alert>
+      </Snackbar>
 
       {/* 👁 Referrals Dialog */}
       <Dialog

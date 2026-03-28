@@ -32,6 +32,7 @@ const MemberCapitalShare = lazy(() => import("./pages/member/memberCapitalShare"
 const MemberProfile = lazy(() => import("./pages/member/memberProfile"));
 const MemberVouchers = lazy(() => import("./pages/member/memberVouchers"));
 const MemberCashIn = lazy(() => import("./pages/member/memberCashIn"));
+const MemberMarketplace = lazy(() => import("./pages/member/memberMarketplace"));
 
 
 function App() {
@@ -289,6 +290,14 @@ function App() {
               element={
                 <MemberRoute>
                   <MemberCashIn />
+                </MemberRoute>
+              }
+            />
+            <Route
+              path="/member/marketplace"
+              element={
+                <MemberRoute>
+                  <MemberMarketplace />
                 </MemberRoute>
               }
             />

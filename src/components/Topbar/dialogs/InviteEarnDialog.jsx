@@ -1,8 +1,9 @@
 // src/components/Topbar/dialogs/InviteEarnDialog.jsx
 import React, { useState, useEffect } from "react";
-import {Dialog,DialogTitle,DialogContent,DialogActions,Box,Button,TextField,CircularProgress,Alert,FormControl,InputLabel,Select,MenuItem, Typography, Chip,
+import {Dialog,DialogTitle,DialogContent,DialogActions,Drawer,Box,Button,TextField,CircularProgress,Alert,FormControl,InputLabel,Select,MenuItem, Typography, Chip, IconButton,
 } from "@mui/material";
 import { PersonAdd } from "@mui/icons-material";
+import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import {collection,query,where,onSnapshot,addDoc,serverTimestamp,doc,updateDoc,limit,getDocs,
   runTransaction,
 } from "firebase/firestore";
@@ -236,42 +237,32 @@ const isValidEmail = (email) => {
   };
 
   return (
-    <Dialog
-      open={open}
-      onClose={handleClose}
-      maxWidth="sm"
-      fullWidth
-      PaperProps={{
-        sx: {
-          borderRadius: 3,
-          overflow: "hidden",
-          backgroundColor: "#f7f9fc",
-        },
-      }}
-    >
-      {/* Header — Blue Gradient with Icon */}
-      <DialogTitle sx={{ background: "linear-gradient(135deg,#003f8d,#0055ba)", color: "#fff", p: 0 }}>
-        <Box sx={{ px: 2.5, pt: 2.5, pb: 2.2 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, mb: 0.6 }}>
-            <Box sx={{ width: 36, height: 36, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.18)",
-              display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <PersonAdd sx={{ color: "#fff", fontSize: 20 }} />
+    <>
+      <Drawer
+        anchor="right"
+        open={open}
+        onClose={handleClose}
+        ModalProps={{ keepMounted: true }}
+        transitionDuration={{ enter: 360, exit: 260 }}
+        slotProps={{ backdrop: { sx: { backgroundColor: "rgba(0,0,0,0.4)" } } }}
+        PaperProps={{ sx: { width: { xs: "100%", sm: 430 }, maxWidth: "100%", backgroundColor: "#f7f9fc" } }}
+      >
+        <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+          {/* Header */}
+          <Box sx={{ minHeight: 70, px: 1, display: "flex", alignItems: "center", justifyContent: "space-between", color: "#fff", background: "linear-gradient(135deg, #0b1f5e 0%, #173a8a 55%, #d4af37 100%)" }}>
+            <IconButton onClick={handleClose} sx={{ color: "#fff" }}>
+              <ArrowBackIosNewIcon />
+            </IconButton>
+            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+              <Typography sx={{ fontSize: 18, fontWeight: 800, letterSpacing: 0.2 }}>Invite & Earn</Typography>
+              <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.8)", letterSpacing: 1 }}>BUILD YOUR NETWORK</Typography>
             </Box>
-            <Box>
-              <Typography sx={{ fontSize: 9, color: "rgba(255,255,255,0.72)", letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700 }}>Growth</Typography>
-              <Typography sx={{ fontSize: 19, fontWeight: 800, color: "#fff" }}>Invite & Earn</Typography>
-            </Box>
+            <Box sx={{ width: 40 }} />
           </Box>
-          <Chip
-            label="Build Your Network"
-            size="small"
-            sx={{ backgroundColor: "rgba(255,255,255,0.2)", color: "#fff", fontWeight: 700, fontSize: 10 }}
-          />
-        </Box>
-      </DialogTitle>
 
-      <DialogContent sx={{ p: 0, backgroundColor: "#f7f9fc" }}>
-        <Box sx={{ px: 2, py: 2 }}>
+          {/* Content */}
+          <Box sx={{ flex: 1, overflowY: "auto" }}>
+            <Box sx={{ px: 2, py: 2 }}>
           {error && (
             <Alert
               severity="error"
@@ -464,34 +455,37 @@ const isValidEmail = (email) => {
               <MenuItem value="Agent">Agent</MenuItem>
             </Select>
           </FormControl>
-        </Box>
-      </DialogContent>
+            </Box>
+          </Box>
 
-      <DialogActions sx={{ backgroundColor: "#fff", borderTop: "1px solid #eceef1", px: 2, py: 1.4 }}>
-        <Button
-          onClick={handleClose}
-          sx={{ borderRadius: 2, fontWeight: 700, color: "#105abf", textTransform: "none",
-            backgroundColor: "rgba(16,90,191,0.08)", px: 2.5, "&:hover": { backgroundColor: "rgba(16,90,191,0.14)" } }}
-        >
-          Close
-        </Button>
-        <Button
-          onClick={() => setConfirmOpen(true)}
-          variant="contained"
-          disabled={loading || Boolean(emailError) || !newUserEmail || !newUserUsername || !newUserName || !newUserContact || !newUserAddress}
-          sx={{ 
-            borderRadius: 2, 
-            textTransform: "none", 
-            fontWeight: 700,
-            backgroundColor: "#105abf", 
-            color: "#fff",
-            "&:hover": { backgroundColor: "#0b4eaa" },
-            "&:disabled": { backgroundColor: "rgba(16,90,191,0.5)", color: "rgba(255,255,255,0.6)" }
-          }}
-        >
-          {loading ? <CircularProgress size={20} sx={{ color: "#fff" }} /> : "Invite"}
-        </Button>
-      </DialogActions>
+          {/* Footer */}
+          <Box sx={{ backgroundColor: "#fff", borderTop: "1px solid #eceef1", px: 2, py: 1.4, display: "flex", justifyContent: "flex-end", gap: 1 }}>
+            <Button
+              onClick={handleClose}
+              sx={{ borderRadius: 2, fontWeight: 700, color: "#105abf", textTransform: "none",
+                backgroundColor: "rgba(16,90,191,0.08)", px: 2.5, "&:hover": { backgroundColor: "rgba(16,90,191,0.14)" } }}
+            >
+              Close
+            </Button>
+            <Button
+              onClick={() => setConfirmOpen(true)}
+              variant="contained"
+              disabled={loading || Boolean(emailError) || !newUserEmail || !newUserUsername || !newUserName || !newUserContact || !newUserAddress}
+              sx={{ 
+                borderRadius: 2, 
+                textTransform: "none", 
+                fontWeight: 700,
+                backgroundColor: "#105abf", 
+                color: "#fff",
+                "&:hover": { backgroundColor: "#0b4eaa" },
+                "&:disabled": { backgroundColor: "rgba(16,90,191,0.5)", color: "rgba(255,255,255,0.6)" }
+              }}
+            >
+              {loading ? <CircularProgress size={20} sx={{ color: "#fff" }} /> : "Invite"}
+            </Button>
+          </Box>
+        </Box>
+      </Drawer>
 
       {/* Confirmation Dialog */}
       <Dialog
@@ -542,7 +536,7 @@ const isValidEmail = (email) => {
           </Button>
         </DialogActions>
       </Dialog>
-    </Dialog>
+    </>
   );
 };
 

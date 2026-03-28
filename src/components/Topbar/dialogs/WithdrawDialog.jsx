@@ -1,6 +1,7 @@
 // src/components/Topbar/dialogs/WithdrawDialog.jsx
 import React, { useState, useEffect } from "react";
 import {
+  Drawer,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -9,8 +10,8 @@ import {
   Box,
   Typography,
   Button,
+  IconButton,
   CircularProgress,
-  Divider,
   Alert,
   List,
   ListItem,
@@ -18,7 +19,8 @@ import {
   Chip,
   MenuItem,
 } from "@mui/material";
-import { MonetizationOn, CheckCircle, UploadFile } from "@mui/icons-material";
+import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
+import { CheckCircle, UploadFile } from "@mui/icons-material";
 import {
   addDoc,
   collection,
@@ -215,49 +217,36 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
 
   return (
     <>
-      {/* 🧾 Withdraw Form Dialog */}
-      <Dialog
+      <Drawer
+        anchor="right"
         open={open}
         onClose={handleClose}
-        maxWidth="xs"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 3,
-            background: "rgba(30,30,30,0.9)",
-            backdropFilter: "blur(20px)",
-            color: "#fff",
-            p: 1,
-            boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
-          },
-        }}
+        ModalProps={{ keepMounted: true }}
+        transitionDuration={{ enter: 360, exit: 260 }}
+        slotProps={{ backdrop: { sx: { backgroundColor: "rgba(0,0,0,0.4)" } } }}
+        PaperProps={{ sx: { width: { xs: "100%", sm: 430 }, maxWidth: "100%", backgroundColor: "#f7f9fc" } }}
       >
-        <DialogTitle
-          sx={{
-            textAlign: "center",
-            fontWeight: 600,
-            borderBottom: "1px solid rgba(255,255,255,0.15)",
-          }}
-        >
-          Withdraw Funds
-        </DialogTitle>
-
-        <DialogContent>
-          {/* 💰 Wallet Balance */}
-          <Box sx={{ textAlign: "center", mt: 2 }}>
-            <MonetizationOn sx={{ fontSize: 40, color: "#FF7043" }} />
-            <Typography variant="h6" sx={{ mt: 1 }}>
-              Available Balance
+        <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+          {/* Header */}
+          <Box sx={{ minHeight: 70, px: 1, display: "flex", alignItems: "center", justifyContent: "space-between", color: "#fff", background: "linear-gradient(135deg, #0b1f5e 0%, #173a8a 55%, #d4af37 100%)" }}>
+            <IconButton onClick={handleClose} sx={{ color: "#fff" }}>
+              <ArrowBackIosNewIcon />
+            </IconButton>
+            <Typography sx={{ fontSize: 18, fontWeight: 800, letterSpacing: 0.2 }}>
+              Withdraw Funds
             </Typography>
-            <Typography variant="h5" sx={{ fontWeight: 700, color: "#4CAF50" }}>
-              ₱
-              {userData.eWallet?.toLocaleString("en-PH", {
-                minimumFractionDigits: 2,
-              })}
-            </Typography>
+            <Box sx={{ width: 40 }} />
           </Box>
 
-          <Divider sx={{ my: 2, borderColor: "rgba(255,255,255,0.1)" }} />
+          {/* Content */}
+          <Box sx={{ flex: 1, overflowY: "auto", p: 2 }}>
+            {/* 💰 Wallet Balance */}
+            <Box sx={{ background: "#fff", borderRadius: 2, p: 2, mb: 2, textAlign: "center", boxShadow: "0 1px 4px rgba(11,31,94,0.08)" }}>
+              <Typography variant="body2" sx={{ color: "#666", mb: 0.5 }}>Available Balance</Typography>
+              <Typography variant="h5" sx={{ fontWeight: 800, color: "#0b1f5e" }}>
+                ₱{userData.eWallet?.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+              </Typography>
+            </Box>
 
           {success ? (
             <Box sx={{ textAlign: "center", py: 4 }}>
@@ -265,24 +254,14 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
               <Typography sx={{ mt: 1, color: "#4CAF50", fontWeight: 600 }}>
                 Withdrawal Request Sent!
               </Typography>
-              <Typography
-                variant="body2"
-                sx={{ mt: 1, color: "rgba(255,255,255,0.7)" }}
-              >
+              <Typography variant="body2" sx={{ mt: 1, color: "#666" }}>
                 Please wait for admin approval.
               </Typography>
             </Box>
           ) : (
             <>
               {error && (
-                <Alert
-                  severity="error"
-                  sx={{
-                    mb: 2,
-                    background: "rgba(255,82,82,0.15)",
-                    color: "#FF8A80",
-                  }}
-                >
+                <Alert severity="error" sx={{ mb: 2 }}>
                   {error}
                 </Alert>
               )}
@@ -294,11 +273,7 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
                 label="Withdrawal Amount"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                sx={{
-                  mb: 2,
-                  "& .MuiInputBase-root": { color: "#fff" },
-                  "& .MuiInputLabel-root": { color: "rgba(255,255,255,0.7)" },
-                }}
+                sx={{ mb: 2, background: "#fff", borderRadius: 1 }}
               />
 
               <TextField
@@ -307,11 +282,7 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
                 label="Payment Method"
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
-                sx={{
-                  mb: 2,
-                  "& .MuiInputBase-root": { color: "#fff" },
-                  "& .MuiInputLabel-root": { color: "rgba(255,255,255,0.7)" },
-                }}
+                sx={{ mb: 2, background: "#fff", borderRadius: 1 }}
               >
                 <MenuItem value="GCash">GCash (5% charge)</MenuItem>
                 <MenuItem value="Bank">Bank ATM (5% charge)</MenuItem>
@@ -320,10 +291,11 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
               <Box
                 sx={{
                   mb: 2,
-                  border: "1px dashed rgba(255,255,255,0.3)",
+                  border: "1px dashed #173a8a",
                   borderRadius: 2,
                   p: 2,
                   textAlign: "center",
+                  background: "#fff",
                 }}
               >
                 {qrPreview ? (
@@ -338,22 +310,14 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
                     }}
                   />
                 ) : (
-                  <Typography
-                    variant="body2"
-                    sx={{ color: "rgba(255,255,255,0.6)" }}
-                  >
+                  <Typography variant="body2" sx={{ color: "#666" }}>
                     Upload your {paymentMethod || "GCash / Bank"} QR Code
                   </Typography>
                 )}
                 <Button
                   component="label"
                   startIcon={<UploadFile />}
-                  sx={{
-                    mt: 1,
-                    bgcolor: "rgba(255,255,255,0.1)",
-                    color: "#fff",
-                    "&:hover": { bgcolor: "rgba(255,255,255,0.2)" },
-                  }}
+                  sx={{ mt: 1, bgcolor: "#f0f4ff", color: "#173a8a", "&:hover": { bgcolor: "#dde8ff" } }}
                 >
                   Upload QR
                   <input type="file" accept="image/*" hidden onChange={handleQrUpload} />
@@ -361,13 +325,13 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
               </Box>
 
               {(paymentMethod === "GCash" || paymentMethod === "Bank") && (
-                <Typography variant="body2" sx={{ mb: 1, color: "#FFB74D" }}>
+                <Typography variant="body2" sx={{ mb: 1, color: "#e65100", fontWeight: 600 }}>
                   {paymentMethod} Charge (5%): ₱{(amount * 0.05 || 0).toFixed(2)}
                 </Typography>
               )}
 
               {amount && (
-                <Typography variant="body2" sx={{ color: "#81C784" }}>
+                <Typography variant="body2" sx={{ color: "#2e7d32", fontWeight: 600, mb: 2 }}>
                   Net Amount You’ll Receive: ₱{netAmount.toFixed(2)}
                 </Typography>
               )}
@@ -376,90 +340,59 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
 
           {/* 🧾 Withdrawal Logs */}
           {withdrawLogs.length > 0 && (
-            <>
-              <Divider sx={{ my: 2, borderColor: "rgba(255,255,255,0.1)" }} />
-              <Typography
-                variant="subtitle1"
-                sx={{ mb: 1, fontWeight: 600, color: "#90CAF9" }}
-              >
+            <Box sx={{ background: "#fff", borderRadius: 2, p: 2, boxShadow: "0 1px 4px rgba(11,31,94,0.08)" }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700, color: "#0b1f5e" }}>
                 Withdrawal Logs
               </Typography>
-              <List dense sx={{ maxHeight: 150, overflowY: "auto" }}>
+              <List dense>
                 {withdrawLogs.map((log) => (
-                  <ListItem
-                    key={log.id}
-                    sx={{
-                      borderBottom: "1px solid rgba(255,255,255,0.1)",
-                      py: 0.5,
-                    }}
-                  >
+                  <ListItem key={log.id} sx={{ borderBottom: "1px solid #f0f0f0", py: 0.5 }}>
                     <ListItemText
-                      primary={`₱${log.amount.toLocaleString("en-PH", {
-                        minimumFractionDigits: 2,
-                      })} • ${log.paymentMethod}`}
+                      primary={`₱${log.amount.toLocaleString("en-PH", { minimumFractionDigits: 2 })} • ${log.paymentMethod}`}
                       secondary={
                         log.createdAt
                           ? new Date(log.createdAt.seconds * 1000).toLocaleString("en-PH")
                           : "Pending..."
                       }
-                      primaryTypographyProps={{ color: "#fff" }}
-                      secondaryTypographyProps={{
-                        color: "rgba(255,255,255,0.6)",
-                        fontSize: 12,
-                      }}
+                      primaryTypographyProps={{ color: "#0b1f5e", fontWeight: 600 }}
+                      secondaryTypographyProps={{ color: "#666", fontSize: 12 }}
                     />
                     <Chip
                       size="small"
                       label={log.status}
                       color={getStatusColor(log.status)}
-                      sx={{
-                        textTransform: "capitalize",
-                        fontWeight: 600,
-                        fontSize: 11,
-                      }}
+                      sx={{ textTransform: "capitalize", fontWeight: 600, fontSize: 11 }}
                     />
                   </ListItem>
                 ))}
               </List>
-            </>
+            </Box>
           )}
-        </DialogContent>
+          </Box>
 
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button
-            onClick={handleClose}
-            variant="outlined"
-            color="inherit"
-            sx={{
-              borderColor: "rgba(255,255,255,0.3)",
-              color: "#fff",
-              "&:hover": { background: "rgba(255,255,255,0.1)" },
-            }}
-          >
-            {success ? "Close" : "Cancel"}
-          </Button>
-
+          {/* Footer */}
           {!success && (
-            <Button
-              onClick={handleWithdraw}
-              variant="contained"
-              disabled={loading}
-              sx={{
-                bgcolor: "#FF7043",
-                color: "#000",
-                fontWeight: 600,
-                "&:hover": { bgcolor: "#F4511E" },
-              }}
-            >
-              {loading ? (
-                <CircularProgress size={24} sx={{ color: "#000" }} />
-              ) : (
-                "Withdraw"
-              )}
-            </Button>
+            <Box sx={{ p: 2, borderTop: "1px solid #e8eaf6" }}>
+              <Button
+                onClick={handleWithdraw}
+                variant="contained"
+                fullWidth
+                disabled={loading}
+                sx={{
+                  py: 1.5,
+                  fontWeight: 700,
+                  fontSize: 16,
+                  background: "linear-gradient(135deg, #0b1f5e 0%, #173a8a 100%)",
+                  "&:hover": { background: "linear-gradient(135deg, #173a8a 0%, #0b1f5e 100%)" },
+                  "&:disabled": { background: "#ccc" },
+                }}
+              >
+                {loading ? <CircularProgress size={24} sx={{ color: "#fff" }} /> : "Withdraw"}
+              </Button>
+            </Box>
           )}
-        </DialogActions>
-      </Dialog>
+        </Box>
+      </Drawer>
 
       {/* ✅ Permission Confirmation Dialog */}
       <Dialog

@@ -1,9 +1,8 @@
 // src/pages/member/MemberPayback.jsx
 import React, { useState, useEffect, useCallback } from "react";
-import { Box, Toolbar, Typography, useMediaQuery, Grid, Card, Button, Dialog, DialogTitle, DialogContent, DialogActions } from "@mui/material";
+import { Box, Typography, useMediaQuery, Grid, Card, Button, Dialog, DialogTitle, DialogContent, DialogActions } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
-import Topbar from "../../components/Topbar";
-import AppBottomNav from "../../components/AppBottomNav";
+import MemberBottomNav from "../../components/MemberBottomNav";
 import bgImage from "../../assets/bg.jpg";
 import { collection, getDocs, doc, getDoc, updateDoc, query, where } from "firebase/firestore";
 import PaybackTransactions from "./components/paybackTransactions";
@@ -472,38 +471,32 @@ const fetchPaybackData = useCallback(async (userId) => {
         },
       }}
     >
-      <Box sx={{ position: "fixed", width: "100%", zIndex: 10 }}>
-        <Topbar open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
-      </Box>
-      <Box sx={{ zIndex: 5 }}>
-        <AppBottomNav open={sidebarOpen} onToggleSidebar={handleToggleSidebar} />
-      </Box>
+      <MemberBottomNav />
 
       <Box
         component="main"
         sx={{
           flexGrow: 1,
           p: { xs: 2, sm: 4 },
-          mt: 5,
+          pt: 3,
           pb: { xs: 12, sm: 12, md: 12 },
           color: "#f5f7fa",
           zIndex: 1,
           width: "100%",
           transition: "all 0.3s ease",
-          position: "relative",
+          position: 'relative',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           overflowY: 'auto',
           maxHeight: '100vh',
-          scrollbarWidth: 'none', // Firefox
-          msOverflowStyle: 'none', // IE and Edge
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
           '&::-webkit-scrollbar': {
-            display: 'none', // Chrome, Safari, Opera
+            display: 'none',
           },
         }}
       >
-        <Toolbar />
         {/* Header Section */}
         <Box sx={{ mb: 4, width: '100%', maxWidth: 900 }}>
           <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 900, letterSpacing: 1, mb: 1, color: '#fff', textShadow: '0 2px 12px #000a' }}>

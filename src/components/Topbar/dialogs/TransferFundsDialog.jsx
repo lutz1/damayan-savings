@@ -556,6 +556,8 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
         anchor="right"
         open={open}
         onClose={handleClose}
+        ModalProps={{ keepMounted: true }}
+        transitionDuration={{ enter: 360, exit: 260 }}
         slotProps={{
           backdrop: {
             sx: {
@@ -597,7 +599,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
               alignItems: "center",
               justifyContent: "space-between",
               color: "#fff",
-              background: "linear-gradient(135deg,#0058c9,#0050b3)",
+              background: "linear-gradient(135deg, #0b1f5e 0%, #173a8a 55%, #d4af37 100%)",
             }}
           >
             <IconButton
@@ -1355,6 +1357,8 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
 
       {/* ⚠️ Confirm Transfer Dialog */}
       <Dialog
+        ModalProps={{ keepMounted: true }}
+        transitionDuration={{ enter: 360, exit: 260 }}
         open={confirmDialog}
         onClose={() => setConfirmDialog(false)}
         maxWidth="sm"
