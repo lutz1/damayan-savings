@@ -4,20 +4,22 @@ import { initializeFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 
+const envValue = (key) => import.meta.env[`VITE_${key}`] || import.meta.env[`REACT_APP_${key}`] || "";
+
 // 🔹 Main Config
 const firebaseConfig = {
-  apiKey: import.meta.env.REACT_APP_FIREBASE_API_KEY,
-  authDomain: import.meta.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.REACT_APP_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.REACT_APP_FIREBASE_APP_ID,
+  apiKey: envValue("FIREBASE_API_KEY"),
+  authDomain: envValue("FIREBASE_AUTH_DOMAIN"),
+  projectId: envValue("FIREBASE_PROJECT_ID"),
+  storageBucket: envValue("FIREBASE_STORAGE_BUCKET"),
+  messagingSenderId: envValue("FIREBASE_MESSAGING_SENDER_ID"),
+  appId: envValue("FIREBASE_APP_ID"),
 };
 
 // 🔹 Secondary Config — use NEW key if available
 const secondaryConfig = {
   ...firebaseConfig,
-  apiKey: import.meta.env.REACT_APP_FIREBASE_SECONDARY_API_KEY || firebaseConfig.apiKey,
+  apiKey: envValue("FIREBASE_SECONDARY_API_KEY") || firebaseConfig.apiKey,
 };
 
 // Main app init

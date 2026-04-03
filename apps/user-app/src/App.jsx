@@ -24,19 +24,11 @@ export default function App() {
         />
         <Route
           path="/shop"
-          element={
-            <RequireAuth>
-              <ShopPage />
-            </RequireAuth>
-          }
+          element={<ShopPage />}
         />
         <Route
           path="/shop/store/:id"
-          element={
-            <RequireAuth>
-              <StoreDetailsPage />
-            </RequireAuth>
-          }
+          element={<StoreDetailsPage />}
         />
         <Route
           path="/orders"

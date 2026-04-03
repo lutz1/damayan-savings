@@ -1,23 +1,41 @@
 /* ========================================
-   LOGIN PAGE STYLES - RESPONSIVE DARK THEME
-   ======================================== */
+  LOGIN PAGE STYLES - Wallet Blue Glass
+  ======================================== */
 
 /* Page Container */
 .login-page-container {
   min-height: 100vh;
   min-height: 100dvh;
   width: 100%;
-  background-image: url('../assets/bownersbg.png');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-attachment: fixed;
+  background:
+    linear-gradient(180deg, rgba(3, 107, 244, 0.52) 0%, rgba(2, 82, 197, 0.62) 48%, rgba(1, 67, 170, 0.72) 100%),
+    url('../assets/bownersbg.png'),
+    linear-gradient(180deg, #1992ff 0%, #0a74ea 44%, #0559c4 100%);
+  background-size: cover, cover, cover;
+  background-position: center, center, center;
+  background-repeat: no-repeat, no-repeat, no-repeat;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  padding: clamp(12px, 2vh, 24px) 0;
+  padding:
+    max(14px, env(safe-area-inset-top))
+    0
+    max(14px, env(safe-area-inset-bottom));
   overflow-x: hidden;
   overflow-y: auto;
+  position: relative;
+}
+
+.login-page-container::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.32) 0, rgba(255, 255, 255, 0) 28%),
+    radial-gradient(circle at 82% 20%, rgba(136, 204, 255, 0.28) 0, rgba(136, 204, 255, 0) 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0));
+  opacity: 1;
 }
 
 .login-content-wrap {
@@ -130,28 +148,357 @@
 
 /* Card Styling */
 .login-card-new {
-  background: rgba(20, 30, 60, 0.7) !important;
-  border-radius: 24px !important;
-  box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.5),
-    inset 0 1px 1px rgba(255, 255, 255, 0.2),
-    0 0 0 1px rgba(255, 255, 255, 0.1) !important;
-  padding: 32px;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  max-width: 100%;
+  background: rgba(255, 255, 255, 0.16) !important;
+  border-radius: 32px !important;
+  box-shadow:
+    0 24px 60px rgba(1, 48, 132, 0.28),
+    0 2px 0 rgba(255, 255, 255, 0.2) inset,
+    0 0 0 1px rgba(255, 255, 255, 0.2) !important;
+  padding: 26px 22px 20px;
+  max-width: 360px;
   width: 100%;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.login-hero-shell {
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.login-hero-kicker {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.login-badge-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.login-badge-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(232, 243, 255, 0.84) 100%);
+  color: #0a63dc;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 10px 22px rgba(0, 76, 189, 0.22);
+}
+
+.login-badge-logo {
+  width: 80%;
+  height: 80%;
+  object-fit: contain;
+  image-rendering: auto;
+}
+
+.login-title {
+  text-align: center;
+  font-size: clamp(1.85rem, 6vw, 2.15rem);
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.login-subtitle {
+  text-align: center;
+  margin-top: 4px;
+  margin-bottom: 22px;
+  color: rgba(233, 244, 255, 0.82);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.login-form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field-heading-wrap {
+  margin-bottom: -4px;
+}
+
+.field-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: -2px;
+}
+
+.field-heading {
+  color: rgba(233, 245, 255, 0.82);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.forgot-switch-btn.MuiButton-root {
+  min-width: auto;
+  padding: 0;
+  color: rgba(234, 245, 255, 0.84);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: none;
+}
+
+.forgot-switch-btn.MuiButton-root:hover {
+  background: transparent;
+  color: #ffffff;
+}
+
+.mpin-section-wrap,
+.password-section-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mpin-grid-wrap {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mpin-dot-input {
+  width: 100%;
+  max-width: 62px;
+  height: 54px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.74);
+  text-align: center;
+  font-size: 1.35rem;
+  color: #055fd8;
+  font-weight: 800;
+  outline: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  transition: all 0.16s ease;
+}
+
+.mpin-dot-input:focus {
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 0 0 3px rgba(147, 203, 255, 0.28);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.mpin-dot-input.filled {
+  animation: mpinPop 0.16s ease;
+}
+
+@keyframes mpinPop {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes mpinPop {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.mpin-helper-text {
+  text-align: center;
+  color: rgba(233, 244, 255, 0.8);
+  font-size: 0.68rem;
+  margin-top: 7px;
+  font-weight: 600;
+}
+
+.login-submit-btn {
+  margin-top: 2px !important;
+  background: linear-gradient(180deg, #11a6ff 0%, #0573ef 100%) !important;
+  color: #fff !important;
+  border-radius: 999px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.03em !important;
+  padding: 13px 14px !important;
+  box-shadow: 0 12px 22px rgba(2, 91, 220, 0.34) !important;
+}
+
+.login-submit-btn:hover {
+  background: linear-gradient(180deg, #2bb3ff 0%, #0b7cf4 100%) !important;
+}
+
+.login-submit-btn.Mui-disabled {
+  background: linear-gradient(180deg, #8ec9ff 0%, #68adf5 100%) !important;
+  color: rgba(255, 255, 255, 0.88) !important;
+}
+
+.login-submit-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.login-switch-row {
+  display: flex;
+  justify-content: flex-start;
+  padding-left: 2px;
+}
+
+.login-switch-link.MuiButton-root {
+  min-width: auto;
+  padding: 7px 13px;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: none;
+  text-align: left;
+}
+
+.login-switch-link.MuiButton-root:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.portal-switcher {
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+.portal-switcher-label {
+  text-align: center;
+  color: rgba(236, 246, 255, 0.82);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.portal-switcher-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.portal-tile.MuiButton-root {
+  flex: 1;
+  min-height: 84px;
+  border-radius: 22px;
+  text-transform: none;
+  font-size: 0.78rem;
+  font-weight: 800;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 10px;
+  box-shadow: 0 10px 22px rgba(2, 57, 151, 0.18);
+}
+
+.portal-tile.MuiButton-root .MuiButton-startIcon {
+  margin: 0;
+}
+
+.portal-tile.rider.MuiButton-root {
+  color: #0c64da;
+  background: linear-gradient(180deg, rgba(242, 250, 255, 0.9) 0%, rgba(220, 240, 255, 0.82) 100%);
+}
+
+.portal-tile.merchant.MuiButton-root {
+  color: #0c64da;
+  background: linear-gradient(180deg, rgba(242, 250, 255, 0.9) 0%, rgba(220, 240, 255, 0.82) 100%);
+}
+
+.login-utility-links {
+  display: flex;
+  justify-content: center;
+  gap: 22px;
+  padding: 0 4px 4px;
+}
+
+.login-utility-links .MuiTypography-root {
+  color: rgba(235, 246, 255, 0.9);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.footer-link-btn.MuiButton-root {
+  min-width: auto;
+  padding: 0;
+  color: rgba(235, 246, 255, 0.92);
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: none;
+}
+
+.footer-link-btn.MuiButton-root:hover {
+  background: transparent;
+  color: #ffffff;
+}
+
+.login-footer-note {
+  margin-top: 14px;
+  text-align: center;
+  color: rgba(223, 238, 255, 0.74);
+  font-size: 0.62rem;
+  font-weight: 700;
 }
 
 /* Mobile - Extra Small (320px to 480px) */
 @media (max-width: 480px) {
   .login-page-container {
-    padding: 10px 0;
+    align-items: flex-start;
   }
 
   .login-card-new {
-    padding: 16px;
-    border-radius: 14px !important;
+    padding: 22px 18px 18px;
+    border-radius: 28px !important;
+  }
+
+  .login-title {
+    font-size: 1.7rem;
+  }
+
+  .mpin-dot-input {
+    max-width: none;
+    height: 50px;
+    border-radius: 10px;
+  }
+
+  .portal-switcher-actions {
+    gap: 10px;
+  }
+
+  .portal-tile.MuiButton-root {
+    min-height: 78px;
+    font-size: 0.72rem;
+  }
+
+  .login-utility-links {
+    gap: 16px;
+  }
+
+  .login-utility-links .MuiTypography-root {
+    font-size: 0.72rem;
   }
 }
 
@@ -166,15 +513,15 @@
 /* Tablet (600px to 899px) */
 @media (min-width: 600px) and (max-width: 899px) {
   .login-card-new {
-    padding: 28px;
-    border-radius: 20px !important;
+    padding: 22px;
+    border-radius: 24px !important;
   }
 }
 
 /* Desktop (900px and above) */
 @media (min-width: 900px) {
   .login-card-new {
-    padding: 32px;
+    padding: 25px;
     border-radius: 24px !important;
   }
 }

@@ -15,11 +15,11 @@ const memberPalette = {
 
 const getMarketplaceUrl = () => {
   if (window.location.hostname === "localhost") {
-    return "http://localhost:3001/shop";
+    return "http://localhost:3001/shop?embedded=member";
   }
 
   const origin = window.location.origin;
-  return `${origin}/damayan-savings/user/shop`;
+  return `${origin}/damayan-savings/user/shop?embedded=member`;
 };
 
 const MemberMarketplace = () => {

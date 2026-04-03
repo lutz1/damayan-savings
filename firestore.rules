@@ -130,6 +130,11 @@ service cloud.firestore {
             "coverImage",
             "logo",
             "capitalShareVoucherType",
+             "fcmToken",
+             "fcmTokens",
+             "pushToken",
+             "notificationToken",
+             "lastPushTokenUpdate",
             "capitalShareVoucherUpdatedAt",
             "capitalShareVoucherBranchId",
             "capitalShareVoucherBranchName",
@@ -711,11 +716,44 @@ service cloud.firestore {
     // �🔔 NOTIFICATIONS
     match /notifications/{notifId} {
       // Allow users to read their own notifications
-      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow read: if request.auth != null && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.recipientUid == request.auth.uid
+      );
       // Allow users to create their own notifications
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
       // Optionally, allow update/delete for marking as read or cleanup
-      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.recipientUid == request.auth.uid
+      );
+    }
+
+    // ==========================================
+    // 🔐 ACCOUNT RECOVERY REQUESTS
+    match /accountRecoveryRequests/{requestId} {
+      allow get: if request.auth != null && (
+        userRole() in ["admin", "ceo", "superadmin"] ||
+        resource.data.uid == request.auth.uid
+      );
+
+      allow list: if request.auth != null && (
+        userRole() in ["admin", "ceo", "superadmin"] ||
+        request.query.where("uid", "==", request.auth.uid)
+      );
+
+      // Created/updated by Admin SDK from Cloud Functions.
+      allow create: if request.auth == null ||
+        (
+          request.auth != null &&
+          (
+            userRole() in ["admin", "ceo", "superadmin"] ||
+            request.resource.data.uid == request.auth.uid
+          )
+        );
+
+      allow update, delete: if request.auth == null ||
+        (request.auth != null && userRole() in ["admin", "ceo", "superadmin"]);
     }
 
     // ==========================================

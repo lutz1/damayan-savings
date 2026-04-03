@@ -37,6 +37,7 @@ import {
   AccountBalance as DepositsIcon,
   FactCheck as ProductApprovalIcon,
   CardGiftcard as VoucherIcon,
+  LockReset as LockResetIcon,
 } from "@mui/icons-material";
 
 const AppBottomNav = ({ open, onToggleSidebar, layout = "bottom" }) => {
@@ -103,6 +104,7 @@ const AppBottomNav = ({ open, onToggleSidebar, layout = "bottom" }) => {
       { label: "Merchants", value: "merchants-menu", icon: <MerchantIcon />, isMenu: true },
       { label: "Product Management", value: "/admin/products", icon: <ProductApprovalIcon /> },
       { label: "Voucher Records", value: "/admin/voucher-records", icon: <VoucherIcon /> },
+      { label: "Password Reset", value: "/admin/password-reset-management", icon: <LockResetIcon /> },
       { label: "Transactions", value: "transactions-menu", icon: <TransactionIcon />, isMenu: true },
       { label: "Account", value: "/admin/profile", icon: <AccountCircleIcon /> },
     ];

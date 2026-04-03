@@ -1,5 +1,5 @@
 // src/pages/member/MemberProfile.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Box,
   Typography,
@@ -11,6 +11,8 @@ import {
   LinearProgress,
   IconButton,
   InputAdornment,
+  Snackbar,
+  Alert,
 } from "@mui/material";
 import { onAuthStateChanged, updatePassword, signOut } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
@@ -25,7 +27,13 @@ import HomeIcon from "@mui/icons-material/Home";
 import LockIcon from "@mui/icons-material/Lock";
 import EditIcon from "@mui/icons-material/Edit";
 import CameraAltIcon from "@mui/icons-material/CameraAlt";
+import PinIcon from "@mui/icons-material/Pin";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { useNavigate } from "react-router-dom";
+
+const CLOUD_FUNCTIONS_BASE =
+  (import.meta.env.VITE_CLOUD_FUNCTIONS_BASE_URL ||
+    "https://us-central1-amayan-savings.cloudfunctions.net").replace(/\/$/, "");
 
 const memberPalette = {
   navy: "#0b1f5e",
@@ -48,10 +56,70 @@ const MemberProfile = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordErrors, setPasswordErrors] = useState({});
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [profileError, setProfileError] = useState("");
+
+  // MPIN state
+  const [mpinDigits, setMpinDigits] = useState(["", "", "", ""]);
+  const [confirmMpinDigits, setConfirmMpinDigits] = useState(["", "", "", ""]);
+  const [mpinSaving, setMpinSaving] = useState(false);
+  const [mpinSuccess, setMpinSuccess] = useState(false);
+  const [mpinError, setMpinError] = useState("");
+  const [hasMpin, setHasMpin] = useState(false);
+  const mpinRefs = [useRef(), useRef(), useRef(), useRef()];
+  const confirmMpinRefs = [useRef(), useRef(), useRef(), useRef()];
+
+  const handleMpinDigitChange = (refs, digits, setDigits, index, value) => {
+    if (!/^\d?$/.test(value)) return;
+    const next = [...digits];
+    next[index] = value;
+    setDigits(next);
+    if (value && index < 3) refs[index + 1].current?.focus();
+    if (!value && index > 0) refs[index - 1].current?.focus();
+  };
+
+  const handleMpinKeyDown = (refs, digits, index, e) => {
+    if (e.key === "Backspace" && !digits[index] && index > 0) {
+      refs[index - 1].current?.focus();
+    }
+  };
+
+  const handleSetMpin = async () => {
+    const mpinValue = mpinDigits.join("");
+    const confirmValue = confirmMpinDigits.join("");
+    setMpinError("");
+    if (mpinValue.length !== 4) { setMpinError("Please enter all 4 digits."); return; }
+    if (mpinValue !== confirmValue) { setMpinError("MPINs do not match. Please try again."); return; }
+    setMpinSaving(true);
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      const res = await fetch(`${CLOUD_FUNCTIONS_BASE}/setMpin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken, mpin: mpinValue }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setMpinError(data.error || "Failed to set MPIN."); return; }
+      setMpinDigits(["", "", "", ""]);
+      setConfirmMpinDigits(["", "", "", ""]);
+      setHasMpin(true);
+      setMpinSuccess(true);
+      setTimeout(() => setMpinSuccess(false), 3500);
+    } catch (err) {
+      console.error(err);
+      if (err?.message?.includes("Failed to fetch")) {
+        setMpinError(`Cannot reach server. Please try again. (${CLOUD_FUNCTIONS_BASE})`);
+      } else {
+        setMpinError("Failed to set MPIN. Please try again.");
+      }
+    } finally {
+      setMpinSaving(false);
+    }
+  };
 
   const isPasswordValid = newPassword.length >= 6 && newPassword === confirmPassword;
 
   const handleLogout = async () => {
+    localStorage.removeItem("userRole");
     await signOut(auth);
     navigate("/");
   };
@@ -67,12 +135,29 @@ const MemberProfile = () => {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser) {
-        setUser(currentUser);
-        const snap = await getDoc(doc(db, "users", currentUser.uid));
-        if (snap.exists()) setUserData(snap.data());
+      try {
+        if (currentUser) {
+          setUser(currentUser);
+          setProfileError("");
+          const snap = await getDoc(doc(db, "users", currentUser.uid));
+          if (snap.exists()) {
+            setUserData(snap.data());
+            setHasMpin(!!snap.data().mpinHash);
+          }
+        } else {
+          setUser(null);
+          setUserData(null);
+        }
+      } catch (err) {
+        console.error("[memberProfile] Failed to load user profile:", err);
+        if (err?.code === "permission-denied") {
+          setProfileError("Profile access denied by Firestore rules. Please re-login or contact admin.");
+        } else {
+          setProfileError("Unable to load profile right now. Please try again.");
+        }
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
     return () => unsub();
   }, []);
@@ -210,6 +295,14 @@ const MemberProfile = () => {
           </IconButton>
         )}
       </Box>
+
+      {profileError && (
+        <Box sx={{ maxWidth: 460, mx: "auto", px: 2.5, pb: 1 }}>
+          <Alert severity="error" sx={{ borderRadius: 2 }}>
+            {profileError}
+          </Alert>
+        </Box>
+      )}
 
       <Box sx={{ maxWidth: 460, mx: "auto", px: 2.5 }}>
         {/* ─── Avatar section ─── */}
@@ -404,6 +497,7 @@ const MemberProfile = () => {
             borderRadius: "24px",
             p: 2.5,
             boxShadow: "0 8px 28px rgba(11,31,94,0.10)",
+            mb: 2,
           }}
         >
           <Typography sx={{ fontSize: 13, fontWeight: 700, color: memberPalette.navy, mb: 2, letterSpacing: 0.6, textTransform: "uppercase" }}>
@@ -494,7 +588,153 @@ const MemberProfile = () => {
             </Button>
           </Box>
         </Box>
+
+        {/* ─── MPIN Settings card ─── */}
+        <Box
+          sx={{
+            backgroundColor: "#fff",
+            borderRadius: "24px",
+            p: 2.5,
+            boxShadow: "0 8px 28px rgba(11,31,94,0.10)",
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+            <PinIcon sx={{ fontSize: 18, color: memberPalette.navy }} />
+            <Typography sx={{ fontSize: 13, fontWeight: 700, color: memberPalette.navy, letterSpacing: 0.6, textTransform: "uppercase" }}>
+              Security Settings (MPIN)
+            </Typography>
+            {hasMpin && (
+              <Box sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 0.4 }}>
+                <CheckCircleIcon sx={{ fontSize: 15, color: "#4caf50" }} />
+                <Typography sx={{ fontSize: 11, color: "#4caf50", fontWeight: 600 }}>MPIN Set</Typography>
+              </Box>
+            )}
+          </Box>
+
+          <Typography sx={{ fontSize: 12, color: "rgba(11,31,94,0.55)", mb: 2, lineHeight: 1.6 }}>
+            {hasMpin
+              ? "Your MPIN is active. You can update it below to set a new 4-digit PIN."
+              : "Set a 4-digit MPIN to enable quick login without your password."}
+          </Typography>
+
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            {/* New MPIN */}
+            <Box>
+              <Typography sx={{ fontSize: 12, fontWeight: 600, color: memberPalette.navy, mb: 1.2 }}>
+                {hasMpin ? "New MPIN" : "Set MPIN"}
+              </Typography>
+              <Box sx={{ display: "flex", gap: 1.2, justifyContent: "center" }}>
+                {mpinDigits.map((d, i) => (
+                  <Box
+                    key={i}
+                    component="input"
+                    ref={mpinRefs[i]}
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={d}
+                    onChange={(e) => handleMpinDigitChange(mpinRefs, mpinDigits, setMpinDigits, i, e.target.value)}
+                    onKeyDown={(e) => handleMpinKeyDown(mpinRefs, mpinDigits, i, e)}
+                    sx={{
+                      width: 52,
+                      height: 56,
+                      borderRadius: "12px",
+                      border: d ? `2px solid ${memberPalette.gold}` : `1.5px solid rgba(11,31,94,0.18)`,
+                      background: d ? `rgba(212,175,55,0.1)` : "#f7f9fc",
+                      color: memberPalette.navy,
+                      fontSize: "1.5rem",
+                      fontWeight: 700,
+                      textAlign: "center",
+                      outline: "none",
+                      caretColor: memberPalette.gold,
+                      transition: "all 0.18s ease",
+                      "&:focus": {
+                        border: `2px solid ${memberPalette.gold}`,
+                        background: `rgba(212,175,55,0.08)`,
+                        boxShadow: `0 0 0 3px rgba(212,175,55,0.2)`,
+                      },
+                      cursor: "text",
+                    }}
+                  />
+                ))}
+              </Box>
+            </Box>
+
+            {/* Confirm MPIN */}
+            <Box>
+              <Typography sx={{ fontSize: 12, fontWeight: 600, color: memberPalette.navy, mb: 1.2 }}>
+                Confirm MPIN
+              </Typography>
+              <Box sx={{ display: "flex", gap: 1.2, justifyContent: "center" }}>
+                {confirmMpinDigits.map((d, i) => (
+                  <Box
+                    key={i}
+                    component="input"
+                    ref={confirmMpinRefs[i]}
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={d}
+                    onChange={(e) => handleMpinDigitChange(confirmMpinRefs, confirmMpinDigits, setConfirmMpinDigits, i, e.target.value)}
+                    onKeyDown={(e) => handleMpinKeyDown(confirmMpinRefs, confirmMpinDigits, i, e)}
+                    sx={{
+                      width: 52,
+                      height: 56,
+                      borderRadius: "12px",
+                      border: d ? `2px solid ${memberPalette.royal}` : `1.5px solid rgba(11,31,94,0.18)`,
+                      background: d ? `rgba(23,58,138,0.07)` : "#f7f9fc",
+                      color: memberPalette.navy,
+                      fontSize: "1.5rem",
+                      fontWeight: 700,
+                      textAlign: "center",
+                      outline: "none",
+                      caretColor: memberPalette.royal,
+                      transition: "all 0.18s ease",
+                      "&:focus": {
+                        border: `2px solid ${memberPalette.royal}`,
+                        background: `rgba(23,58,138,0.06)`,
+                        boxShadow: `0 0 0 3px rgba(23,58,138,0.15)`,
+                      },
+                      cursor: "text",
+                    }}
+                  />
+                ))}
+              </Box>
+            </Box>
+
+            {mpinError && (
+              <Typography sx={{ fontSize: 12, color: "#f44336", fontWeight: 500, textAlign: "center" }}>
+                {mpinError}
+              </Typography>
+            )}
+
+            <Button
+              fullWidth
+              variant="contained"
+              onClick={handleSetMpin}
+              disabled={mpinSaving || mpinDigits.join("").length !== 4 || confirmMpinDigits.join("").length !== 4}
+              sx={{
+                borderRadius: "12px",
+                textTransform: "none",
+                fontWeight: 700,
+                py: 1.2,
+                background: `linear-gradient(90deg, ${memberPalette.navy}, ${memberPalette.royal})`,
+                color: "#fff",
+                boxShadow: "0 4px 14px rgba(11,31,94,0.3)",
+                "&.Mui-disabled": { background: "rgba(11,31,94,0.1)", color: "rgba(11,31,94,0.4)" },
+              }}
+            >
+              {mpinSaving ? "Saving…" : hasMpin ? "Update MPIN" : "Set MPIN"}
+            </Button>
+          </Box>
+        </Box>
       </Box>
+
+      <Snackbar open={mpinSuccess} autoHideDuration={3500} onClose={() => setMpinSuccess(false)} anchorOrigin={{ vertical: "bottom", horizontal: "center" }}>
+        <Alert severity="success" sx={{ borderRadius: "12px" }}>
+          MPIN {hasMpin ? "updated" : "set"} successfully! You can now use it to log in.
+        </Alert>
+      </Snackbar>
 
         {/* ─── Logout ─── */}
         <Box sx={{ mt: 2, mb: 1 }}>

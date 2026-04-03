@@ -180,22 +180,67 @@ const MemberCapitalShare = () => {
         return Number.isNaN(parsed.getTime()) ? null : parsed;
       };
 
+      const addCalendarMonths = (baseDate, monthsToAdd) => {
+        const result = new Date(baseDate);
+        const originalDay = result.getDate();
+        result.setDate(1);
+        result.setMonth(result.getMonth() + monthsToAdd);
+        const lastDayOfTargetMonth = new Date(
+          result.getFullYear(),
+          result.getMonth() + 1,
+          0
+        ).getDate();
+        result.setDate(Math.min(originalDay, lastDayOfTargetMonth));
+        return result;
+      };
+
+      const snapToMonthlyAnniversary = (createdAt, candidateDate) => {
+        let closest = null;
+        let closestDiff = Number.POSITIVE_INFINITY;
+
+        for (let month = 1; month <= 12; month += 1) {
+          const scheduleDate = addCalendarMonths(createdAt, month);
+          const diff = Math.abs(scheduleDate.getTime() - candidateDate.getTime());
+          if (diff < closestDiff) {
+            closest = scheduleDate;
+            closestDiff = diff;
+          }
+        }
+
+        // Normalize only small drifts from old fixed-30-day schedules.
+        return closestDiff <= 3 * 24 * 60 * 60 * 1000 ? closest : candidateDate;
+      };
+
       snap.docs.forEach((docEntry) => {
         const data = docEntry.data();
 
         const createdAt = toDateSafe(data.createdAt) || toDateSafe(data.date);
         if (!createdAt) return;
 
-        let nextProfitDate = toDateSafe(data.nextProfitDate);
-        if (!nextProfitDate) {
-          nextProfitDate = new Date(createdAt);
-          nextProfitDate.setMonth(nextProfitDate.getMonth() + 1);
+        const firstDueDate = addCalendarMonths(createdAt, 1);
+        const rawNextProfitDate = toDateSafe(data.nextProfitDate);
+        let nextProfitDate = rawNextProfitDate || firstDueDate;
+        nextProfitDate = snapToMonthlyAnniversary(createdAt, nextProfitDate);
+        if (nextProfitDate < firstDueDate) {
+          nextProfitDate = firstDueDate;
         }
+
+        const nextProfitDateChanged =
+          !rawNextProfitDate ||
+          rawNextProfitDate.getTime() !== nextProfitDate.getTime();
 
         const expireDate = new Date(createdAt);
         expireDate.setFullYear(expireDate.getFullYear() + 1);
 
-        if (now > expireDate || now < nextProfitDate) return;
+        if (now > expireDate || now < nextProfitDate) {
+          if (nextProfitDateChanged) {
+            updates.push({
+              id: docEntry.id,
+              nextProfitDate,
+            });
+          }
+          return;
+        }
 
         let profitBase = 0;
         if (data.transferredAmount && data.transferredAmount > 0) {
@@ -210,7 +255,8 @@ const MemberCapitalShare = () => {
         const nextDateAfterAccrual = new Date(nextProfitDate);
         while (nextDateAfterAccrual <= now && nextDateAfterAccrual <= expireDate) {
           monthsDue += 1;
-          nextDateAfterAccrual.setMonth(nextDateAfterAccrual.getMonth() + 1);
+          const nextMonthDate = addCalendarMonths(nextDateAfterAccrual, 1);
+          nextDateAfterAccrual.setTime(nextMonthDate.getTime());
         }
 
         if (monthsDue <= 0) return;
@@ -226,11 +272,16 @@ const MemberCapitalShare = () => {
 
       for (const u of updates) {
         const entryRef = doc(db, "capitalShareEntries", u.id);
-        await updateDoc(entryRef, {
-          profit: u.newProfit,
+        const payload = {
           nextProfitDate: u.nextProfitDate,
-          profitStatus: u.profitStatus,
-        });
+        };
+        if (typeof u.newProfit === "number") {
+          payload.profit = u.newProfit;
+        }
+        if (u.profitStatus) {
+          payload.profitStatus = u.profitStatus;
+        }
+        await updateDoc(entryRef, payload);
       }
     } catch (err) {
       console.error("Error processing monthly profit:", err);

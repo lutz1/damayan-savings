@@ -8,7 +8,7 @@ function envValue(key) {
   return import.meta.env[`VITE_${key}`] || import.meta.env[`REACT_APP_${key}`] || "";
 }
 
-export function createFirebaseClients(appName = "default") {
+export function createFirebaseClients(appName) {
   const firebaseConfig = {
     apiKey: envValue("FIREBASE_API_KEY"),
     authDomain: envValue("FIREBASE_AUTH_DOMAIN"),
@@ -37,7 +37,10 @@ export function createFirebaseClients(appName = "default") {
     apiKey: envValue("FIREBASE_SECONDARY_API_KEY") || firebaseConfig.apiKey,
   };
 
-  const app = getApps().find((item) => item.name === appName) || initializeApp(firebaseConfig, appName);
+  const shouldUseDefaultApp = !appName || appName === "default" || appName === "[DEFAULT]";
+  const app = shouldUseDefaultApp
+    ? (getApps().length ? getApp() : initializeApp(firebaseConfig))
+    : getApps().find((item) => item.name === appName) || initializeApp(firebaseConfig, appName);
   const auth = getAuth(app);
   const storage = getStorage(app);
   const db = initializeFirestore(app, {
@@ -46,7 +49,8 @@ export function createFirebaseClients(appName = "default") {
     cacheSizeBytes: 1048576, // Minimum allowed: 1 MB
   });
 
-  const secondaryName = `${appName}-Secondary`;
+  const secondaryBaseName = shouldUseDefaultApp ? "default" : appName;
+  const secondaryName = `${secondaryBaseName}-Secondary`;
   const secondaryApp =
     getApps().find((item) => item.name === secondaryName) || initializeApp(secondaryConfig, secondaryName);
   const secondaryAuth = getAuth(secondaryApp);

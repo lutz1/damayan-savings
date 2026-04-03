@@ -26,6 +26,7 @@ const AdminCategoryManagement = lazy(() => import("./pages/admin/adminCategoryMa
 const AdminProductManagement = lazy(() => import("./pages/admin/adminProductManagement"));
 const AdminPaybackEntries = lazy(() => import("./pages/admin/adminPaybackEntries"));
 const AdminVoucherRecords = lazy(() => import("./pages/admin/adminVoucherRecords"));
+const AdminPasswordResetManagement = lazy(() => import("./pages/admin/adminPasswordResetManagement"));
 const MemberDashboard = lazy(() => import("./pages/member/memberDashboard"));
 const MemberPayback = lazy(() => import("./pages/member/memberPayback"));
 const MemberCapitalShare = lazy(() => import("./pages/member/memberCapitalShare"));
@@ -239,6 +240,14 @@ function App() {
               element={
                 <AdminRoute>
                   <AdminVoucherRecords />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/password-reset-management"
+              element={
+                <AdminRoute>
+                  <AdminPasswordResetManagement />
                 </AdminRoute>
               }
             />

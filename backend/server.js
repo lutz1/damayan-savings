@@ -8,6 +8,7 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const { db, auth } = require("./firebaseAdmin.js");
 const os = require("os");
+const bcrypt = require("bcryptjs");
 
 dotenv.config();
 const app = express();
@@ -16,6 +17,7 @@ app.use(express.json());
 
 const SERVER_START_TS = Date.now();
 const DEFAULT_RESET_PASSWORD = "password123";
+const DEFAULT_RESET_MPIN = "1234";
 
 const logEvent = (level, event, meta = {}) => {
   const payload = {
@@ -1673,10 +1675,24 @@ app.post("/api/add-capital-share", async (req, res) => {
         const lockInPortion = numAmount * 0.25;
         const transferablePortion = numAmount - lockInPortion;
 
+        const addCalendarMonths = (baseDate, monthsToAdd) => {
+          const result = new Date(baseDate);
+          const originalDay = result.getDate();
+          result.setDate(1);
+          result.setMonth(result.getMonth() + monthsToAdd);
+          const lastDayOfTargetMonth = new Date(
+            result.getFullYear(),
+            result.getMonth() + 1,
+            0
+          ).getDate();
+          result.setDate(Math.min(originalDay, lastDayOfTargetMonth));
+          return result;
+        };
+
         // Calculate when the entry becomes transferable
         const now = new Date();
-        const transferableAfterDate = new Date(now);
-        transferableAfterDate.setMonth(transferableAfterDate.getMonth() + 1);
+        const transferableAfterDate = addCalendarMonths(now, 1);
+        const nextProfitDate = addCalendarMonths(now, 1);
 
         // Create capital share entry
         transaction.set(entryRef, {
@@ -1690,7 +1706,7 @@ app.post("/api/add-capital-share", async (req, res) => {
           status: "Approved",
           createdAt: new Date(),
           transferableAfterDate,
-          nextProfitDate: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+          nextProfitDate,
         });
 
         // Deduct from user wallet
@@ -1714,7 +1730,7 @@ app.post("/api/add-capital-share", async (req, res) => {
         // L1=3% (direct upline), L2=1%, L3=1%
         const levelPercentages = [0.03, 0.01, 0.01];
         let currentUplineUsername = userData.referredBy || referredBy || null;
-        const releaseDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+          const releaseDate = addCalendarMonths(now, 1);
         const visitedUplines = new Set();
 
         for (let i = 0; i < levelPercentages.length && currentUplineUsername; i += 1) {
@@ -2037,6 +2053,220 @@ app.post("/api/transfer-referral-reward", async (req, res) => {
 
 const normalizeStatus = (value) => String(value || "").trim().toUpperCase();
 
+app.post("/api/auth/recovery-request", async (req, res) => {
+  try {
+    const { email, requestType } = req.body || {};
+    const safeEmail = String(email || "").trim().toLowerCase();
+    const normalizedType = normalizeStatus(requestType);
+
+    if (!safeEmail || !/^\S+@\S+\.\S+$/.test(safeEmail)) {
+      return res.status(400).json({ error: "Valid email is required" });
+    }
+
+    if (!["PASSWORD", "MPIN"].includes(normalizedType)) {
+      return res.status(400).json({ error: "requestType must be PASSWORD or MPIN" });
+    }
+
+    let userRecord = null;
+    try {
+      userRecord = await auth.getUserByEmail(safeEmail);
+    } catch (_) {
+      userRecord = null;
+    }
+
+    // Always return success-like response to avoid account enumeration.
+    if (!userRecord?.uid) {
+      return res.json({
+        success: true,
+        message: "Request submitted. If your account exists, Admin will review it shortly.",
+      });
+    }
+
+    const userSnap = await db.collection("users").doc(userRecord.uid).get();
+    const userData = userSnap.exists ? userSnap.data() || {} : {};
+
+    const existingPending = await db
+      .collection("accountRecoveryRequests")
+      .where("uid", "==", userRecord.uid)
+      .where("requestType", "==", normalizedType)
+      .where("status", "==", "PENDING")
+      .limit(1)
+      .get();
+
+    if (!existingPending.empty) {
+      return res.json({
+        success: true,
+        requestId: existingPending.docs[0].id,
+        message: "You already have a pending request. Please wait for Admin approval.",
+      });
+    }
+
+    const requestRef = await db.collection("accountRecoveryRequests").add({
+      uid: userRecord.uid,
+      email: safeEmail,
+      username: userData.username || "",
+      role: normalizeStatus(userData.role || "MEMBER"),
+      requestType: normalizedType,
+      status: "PENDING",
+      requestedVia: "LOGIN",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    logEvent("info", "account_recovery_requested", {
+      requestId: req.requestId || null,
+      recoveryRequestId: requestRef.id,
+      targetUid: userRecord.uid,
+      requestType: normalizedType,
+    });
+
+    return res.json({
+      success: true,
+      requestId: requestRef.id,
+      message: "Request sent to Admin successfully.",
+    });
+  } catch (error) {
+    console.error("[recovery-request] error:", error);
+    return res.status(500).json({ error: "Failed to submit recovery request" });
+  }
+});
+
+app.post("/api/admin/recovery-requests/list", async (req, res) => {
+  try {
+    const { idToken } = req.body || {};
+    if (!idToken) {
+      return res.status(400).json({ error: "idToken is required" });
+    }
+
+    const decoded = await auth.verifyIdToken(idToken);
+    const requesterSnap = await db.collection("users").doc(decoded.uid).get();
+    if (!requesterSnap.exists) {
+      return res.status(403).json({ error: "Requester profile not found" });
+    }
+
+    const requesterRole = normalizeStatus(requesterSnap.data()?.role);
+    if (!["SUPERADMIN", "ADMIN", "CEO"].includes(requesterRole)) {
+      return res.status(403).json({ error: "Only SUPERADMIN/ADMIN/CEO can view recovery requests" });
+    }
+
+    const snap = await db.collection("accountRecoveryRequests").orderBy("createdAt", "desc").limit(500).get();
+    const requests = snap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+
+    return res.json({ success: true, requests });
+  } catch (error) {
+    if (error?.code === "auth/id-token-expired" || error?.code === "auth/argument-error") {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    console.error("[recovery-requests-list] error:", error);
+    return res.status(500).json({ error: "Failed to fetch recovery requests" });
+  }
+});
+
+app.post("/api/admin/recovery-requests/process", async (req, res) => {
+  try {
+    const { idToken, requestId } = req.body || {};
+
+    if (!idToken || !requestId) {
+      return res.status(400).json({ error: "idToken and requestId are required" });
+    }
+
+    const decoded = await auth.verifyIdToken(idToken);
+    const requesterSnap = await db.collection("users").doc(decoded.uid).get();
+    if (!requesterSnap.exists) {
+      return res.status(403).json({ error: "Requester profile not found" });
+    }
+
+    const requesterRole = normalizeStatus(requesterSnap.data()?.role);
+    if (requesterRole !== "SUPERADMIN") {
+      return res.status(403).json({ error: "Only SUPERADMIN can process recovery requests" });
+    }
+
+    const recoveryRef = db.collection("accountRecoveryRequests").doc(requestId);
+    const recoverySnap = await recoveryRef.get();
+    if (!recoverySnap.exists) {
+      return res.status(404).json({ error: "Recovery request not found" });
+    }
+
+    const requestData = recoverySnap.data() || {};
+    const status = normalizeStatus(requestData.status);
+    const requestType = normalizeStatus(requestData.requestType);
+    const targetUid = String(requestData.uid || "").trim();
+
+    if (status !== "PENDING") {
+      return res.status(400).json({ error: "Recovery request is already processed" });
+    }
+
+    if (!targetUid) {
+      return res.status(400).json({ error: "Recovery request has no target user" });
+    }
+
+    if (requestType === "PASSWORD") {
+      await auth.updateUser(targetUid, { password: DEFAULT_RESET_PASSWORD });
+    } else if (requestType === "MPIN") {
+      const mpinHash = await bcrypt.hash(DEFAULT_RESET_MPIN, 10);
+      await db.collection("users").doc(targetUid).set(
+        {
+          mpinHash,
+          mpinSetAt: new Date().toISOString(),
+          updatedAt: new Date(),
+        },
+        { merge: true }
+      );
+    } else {
+      return res.status(400).json({ error: "Unsupported request type" });
+    }
+
+    await recoveryRef.set(
+      {
+        status: "COMPLETED",
+        processedByUid: decoded.uid,
+        processedByRole: requesterRole,
+        processedAt: new Date(),
+        updatedAt: new Date(),
+        resolution:
+          requestType === "PASSWORD"
+            ? { type: "PASSWORD_DEFAULT", defaultPassword: DEFAULT_RESET_PASSWORD }
+            : { type: "MPIN_DEFAULT", defaultMpin: DEFAULT_RESET_MPIN },
+      },
+      { merge: true }
+    );
+
+    await db.collection("notifications").add({
+      userId: targetUid,
+      title: requestType === "PASSWORD" ? "Password Reset Processed" : "MPIN Reset Processed",
+      message:
+        requestType === "PASSWORD"
+          ? "Your password was reset by SUPERADMIN. Please login using the default password and change it immediately."
+          : "Your MPIN was reset by SUPERADMIN to default 1234. Please update it immediately in profile settings.",
+      type: "success",
+      read: false,
+      createdAt: new Date(),
+    });
+
+    logEvent("info", "account_recovery_processed", {
+      requestId: req.requestId || null,
+      recoveryRequestId: requestId,
+      targetUid,
+      requestType,
+      processedByUid: decoded.uid,
+    });
+
+    return res.json({
+      success: true,
+      requestId,
+      requestType,
+      defaultPassword: requestType === "PASSWORD" ? DEFAULT_RESET_PASSWORD : undefined,
+      defaultMpin: requestType === "MPIN" ? DEFAULT_RESET_MPIN : undefined,
+    });
+  } catch (error) {
+    if (error?.code === "auth/id-token-expired" || error?.code === "auth/argument-error") {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    console.error("[recovery-requests-process] error:", error);
+    return res.status(500).json({ error: "Failed to process recovery request" });
+  }
+});
+
 app.post("/api/admin/reset-user-password", async (req, res) => {
   try {
     const { idToken, targetUid } = req.body || {};
@@ -2307,7 +2537,83 @@ app.get("/health/ready", async (req, res) => {
   }
 });
 
-// 📊 Logging endpoint for Cloud Functions to log events to Render.com
+// � Set / Change MPIN (requires authenticated idToken)
+app.post("/api/set-mpin", async (req, res) => {
+  try {
+    const { idToken, mpin } = req.body || {};
+
+    if (!idToken || !mpin) {
+      return res.status(400).json({ error: "idToken and mpin are required" });
+    }
+
+    if (!/^\d{4}$/.test(mpin)) {
+      return res.status(400).json({ error: "MPIN must be exactly 4 digits" });
+    }
+
+    const decoded = await auth.verifyIdToken(idToken);
+    const hashed = await bcrypt.hash(mpin, 10);
+
+    await db.collection("users").doc(decoded.uid).update({
+      mpinHash: hashed,
+      mpinSetAt: new Date().toISOString(),
+    });
+
+    logEvent("info", "mpin_set", { uid: decoded.uid });
+    res.json({ success: true, message: "MPIN set successfully" });
+  } catch (err) {
+    logEvent("error", "mpin_set_error", { message: err.message });
+    res.status(500).json({ error: "Failed to set MPIN" });
+  }
+});
+
+// 🔐 MPIN Login — verify email + MPIN, return Firebase custom token
+app.post("/api/mpin-login", async (req, res) => {
+  try {
+    const { email, mpin } = req.body || {};
+
+    if (!email || !mpin) {
+      return res.status(400).json({ error: "email and mpin are required" });
+    }
+
+    if (!/^\d{4}$/.test(mpin)) {
+      return res.status(400).json({ error: "MPIN must be exactly 4 digits" });
+    }
+
+    // Look up user by email
+    let userRecord;
+    try {
+      userRecord = await auth.getUserByEmail(email);
+    } catch {
+      return res.status(401).json({ error: "Invalid email or MPIN" });
+    }
+
+    const userSnap = await db.collection("users").doc(userRecord.uid).get();
+    if (!userSnap.exists) {
+      return res.status(401).json({ error: "Invalid email or MPIN" });
+    }
+
+    const userData = userSnap.data();
+    if (!userData.mpinHash) {
+      return res.status(401).json({ error: "MPIN not set for this account. Please set your MPIN in Profile settings." });
+    }
+
+    const match = await bcrypt.compare(mpin, userData.mpinHash);
+    if (!match) {
+      return res.status(401).json({ error: "Invalid email or MPIN" });
+    }
+
+    const customToken = await auth.createCustomToken(userRecord.uid);
+    const role = (userData.role || "MEMBER").toUpperCase();
+
+    logEvent("info", "mpin_login_success", { uid: userRecord.uid, role });
+    res.json({ success: true, customToken, role });
+  } catch (err) {
+    logEvent("error", "mpin_login_error", { message: err.message });
+    res.status(500).json({ error: "Login failed. Please try again." });
+  }
+});
+
+// �📊 Logging endpoint for Cloud Functions to log events to Render.com
 app.post("/api/log-event", (req, res) => {
   try {
     const { level = "info", event, data = {} } = req.body;

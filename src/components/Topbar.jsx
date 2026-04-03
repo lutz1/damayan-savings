@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   AppBar,
   Toolbar,
@@ -21,6 +21,8 @@ import {
   DialogActions,
   Button,
   useMediaQuery,
+  Badge,
+  Drawer,
 } from "@mui/material";
 import {
   Logout as LogoutIcon,
@@ -35,6 +37,11 @@ import {
   VpnKey as CodeIcon,
   Menu as MenuIcon,
   ConfirmationNumber as VoucherIcon,
+  NotificationsNone as NotificationsNoneIcon,
+  NotificationsActive as NotificationsActiveIcon,
+  InfoOutlined as InfoOutlinedIcon,
+  CheckCircleOutline as CheckCircleOutlineIcon,
+  Celebration as CelebrationIcon,
 } from "@mui/icons-material";
 import { signOut } from "firebase/auth";
 import { auth, db } from "../firebase";
@@ -45,10 +52,14 @@ import {
   query,
   where,
   onSnapshot as listenCollection,
+  updateDoc,
+  getDocs,
+  or,
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "@mui/material/styles";
 import appLogo from "../assets/newlogo.png";
+import { onForegroundFcmMessage, setupFcmForCurrentUser } from "../utils/pushNotifications";
 
 // Dialog components
 import PurchaseCodesDialog from "./Topbar/dialogs/PurchaseCodesDialog";
@@ -69,7 +80,15 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
   const [slideIn, setSlideIn] = useState(false);
   const [dialog, setDialog] = useState(openDepositDialog ? "deposit" : null);
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
+  const [notifDrawerOpen, setNotifDrawerOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const knownNotificationIdsRef = useRef(new Set());
+  const notifListenerInitializedRef = useRef(false);
+  const [notifListenerFailed, setNotifListenerFailed] = useState(false);
+  const appBaseUrl = import.meta.env.BASE_URL || "/";
   const [userData, setUserData] = useState({
+    uid: "",
     username: "",
     email: "",
     eWallet: 0,
@@ -104,6 +123,7 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
           const data = docSnap.data();
           const normalizedUserRole = String(data.role || "").trim().toUpperCase();
           setUserData({
+            uid: currentUser.uid,
             username: data.username || "UnknownUser",
             email: data.email || currentUser.email || "No email",
             eWallet: isNaN(Number(data.eWallet)) ? 0 : Number(data.eWallet),
@@ -198,6 +218,216 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
   const normalizedRole = String(userData.role || localStorage.getItem("userRole") || "")
     .trim()
     .toUpperCase();
+  const isAdminLike = ["ADMIN", "CEO", "SUPERADMIN"].includes(normalizedRole);
+
+  const playNotificationSound = () => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(880, ctx.currentTime);
+      gain.gain.setValueAtTime(0.001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+      oscillator.start();
+      oscillator.stop(ctx.currentTime + 0.25);
+
+      oscillator.onended = () => {
+        ctx.close().catch(() => {});
+      };
+    } catch (_) {}
+  };
+
+  const showBrowserNotification = (item) => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+
+    const show = () => {
+      try {
+        const notification = new Notification(item?.title || "New notification", {
+          body: item?.message || "You have a new update.",
+          icon: `${appBaseUrl}logo192.png`,
+          badge: `${appBaseUrl}logo192.png`,
+          tag: `amayan-notif-${item?.id || Date.now()}`,
+        });
+        notification.onclick = () => {
+          window.focus();
+        };
+      } catch (_) {}
+    };
+
+    if (Notification.permission === "granted") {
+      show();
+      return;
+    }
+
+    if (Notification.permission === "default") {
+      Notification.requestPermission().then((permission) => {
+        if (permission === "granted") show();
+      }).catch(() => {});
+    }
+  };
+
+  const refreshNotifications = useCallback(async () => {
+    if (!isAdminLike || !userData.uid) return;
+    try {
+      const q = query(
+        collection(db, "notifications"),
+        or(where("userId", "==", userData.uid), where("recipientUid", "==", userData.uid))
+      );
+      const snap = await getDocs(q);
+      const items = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      setNotifications(items);
+      setUnreadCount(items.filter((n) => !n.read).length);
+    } catch (_) {}
+  }, [isAdminLike, userData.uid]);
+
+  useEffect(() => {
+    if (!isAdminLike || !userData.uid) {
+      setNotifications([]);
+      setUnreadCount(0);
+      knownNotificationIdsRef.current = new Set();
+      notifListenerInitializedRef.current = false;
+      setNotifListenerFailed(false);
+      return undefined;
+    }
+
+    refreshNotifications();
+
+    const q = query(
+      collection(db, "notifications"),
+      or(where("userId", "==", userData.uid), where("recipientUid", "==", userData.uid))
+    );
+    const unsub = listenCollection(
+      q,
+      (snap) => {
+        const items = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+        const currentIds = new Set(items.map((n) => n.id));
+        const newUnreadItems = items.filter((n) => !n.read && !knownNotificationIdsRef.current.has(n.id));
+
+        if (notifListenerInitializedRef.current && newUnreadItems.length > 0) {
+          playNotificationSound();
+          if (document.hidden) {
+            showBrowserNotification(newUnreadItems[0]);
+          }
+        }
+
+        knownNotificationIdsRef.current = currentIds;
+        notifListenerInitializedRef.current = true;
+        setNotifListenerFailed(false);
+
+        setNotifications(items);
+        setUnreadCount(items.filter((n) => !n.read).length);
+      },
+      () => {
+        setNotifListenerFailed(true);
+        refreshNotifications();
+      }
+    );
+
+    return () => unsub();
+  }, [isAdminLike, userData.uid, refreshNotifications]);
+
+  useEffect(() => {
+    if (!isAdminLike || !userData.uid || !notifListenerFailed) return undefined;
+    const interval = setInterval(() => {
+      refreshNotifications();
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [isAdminLike, userData.uid, notifListenerFailed, refreshNotifications]);
+
+  useEffect(() => {
+    if (!userData.uid) return undefined;
+
+    let fcmSynced = false;
+    const trySetupFcm = async () => {
+      if (fcmSynced) return;
+      const token = await setupFcmForCurrentUser().catch(() => null);
+      if (token) {
+        fcmSynced = true;
+      }
+    };
+
+    trySetupFcm();
+
+    const retryInterval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        trySetupFcm();
+      }
+    }, 15000);
+
+    const handleOnline = () => {
+      trySetupFcm();
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        trySetupFcm();
+      }
+    };
+
+    window.addEventListener("online", handleOnline);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    let unsubscribe = () => {};
+    let cancelled = false;
+
+    onForegroundFcmMessage((payload) => {
+      if (cancelled) return;
+      playNotificationSound();
+
+      if (document.hidden) {
+        showBrowserNotification({
+          id: payload?.messageId,
+          title: payload?.notification?.title || payload?.data?.title,
+          message: payload?.notification?.body || payload?.data?.body,
+        });
+      }
+    }).then((unsub) => {
+      if (cancelled) {
+        unsub?.();
+        return;
+      }
+      unsubscribe = unsub || (() => {});
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+      clearInterval(retryInterval);
+      window.removeEventListener("online", handleOnline);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [userData.uid]);
+
+  const handleOpenNotifications = async () => {
+    // Run setup from a user gesture so browsers can allow permission/token flow.
+    await setupFcmForCurrentUser().catch(() => null);
+
+    setNotifDrawerOpen(true);
+    notifications
+      .filter((n) => !n.read)
+      .forEach((n) => {
+        updateDoc(doc(db, "notifications", n.id), { read: true }).catch(() => {});
+      });
+    setUnreadCount(0);
+  };
+
+  const isPasswordRelatedNotification = (notification) => {
+    const text = `${notification?.title || ""} ${notification?.message || ""}`.toLowerCase();
+    return text.includes("password") || text.includes("reset") || text.includes("mpin");
+  };
 
   return (
     <>
@@ -257,6 +487,20 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
 
           {/* Right */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {isAdminLike && (
+              <Tooltip title="Notifications">
+                <IconButton color="inherit" onClick={handleOpenNotifications}>
+                  <Badge
+                    badgeContent={unreadCount > 0 ? unreadCount : null}
+                    color="error"
+                    max={9}
+                    sx={{ "& .MuiBadge-badge": { fontSize: 10, minWidth: 16, height: 16, top: 2, right: 2 } }}
+                  >
+                    {unreadCount > 0 ? <NotificationsActiveIcon /> : <NotificationsNoneIcon />}
+                  </Badge>
+                </IconButton>
+              </Tooltip>
+            )}
             <IconButton color="inherit" onClick={openDrawer}>
               <Avatar
                 alt={userData.username}
@@ -551,6 +795,139 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
       {dialog === "walletHistory" && (
         <EwalletHistoryDialog open onClose={handleCloseDialog} db={db} auth={auth} />
       )}
+
+      <Drawer
+        anchor="right"
+        open={notifDrawerOpen}
+        onClose={() => setNotifDrawerOpen(false)}
+        PaperProps={{
+          sx: {
+            width: { xs: "100vw", sm: 380 },
+            borderTopLeftRadius: { xs: 0, sm: 20 },
+            borderBottomLeftRadius: { xs: 0, sm: 20 },
+            backgroundColor: "#f7f9fc",
+          },
+        }}
+      >
+        <Box sx={{ background: "linear-gradient(135deg,#003f8d,#0055ba)", px: 2.5, pt: 3.5, pb: 2.5 }}>
+          <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.72)", letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700 }}>
+            Inbox
+          </Typography>
+          <Typography sx={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>Notifications</Typography>
+          {unreadCount > 0 && (
+            <Box
+              sx={{
+                mt: 0.8,
+                display: "inline-flex",
+                px: 1,
+                py: 0.2,
+                borderRadius: 999,
+                backgroundColor: "rgba(255,255,255,0.22)",
+                color: "#fff",
+                fontWeight: 700,
+                fontSize: 11,
+              }}
+            >
+              {unreadCount} new
+            </Box>
+          )}
+        </Box>
+
+        <Box sx={{ flex: 1, overflowY: "auto", p: 0 }}>
+          {notifications.length === 0 ? (
+            <Box sx={{ py: 8, textAlign: "center" }}>
+              <NotificationsNoneIcon sx={{ fontSize: 48, color: "#c2c6d5", mb: 1 }} />
+              <Typography sx={{ fontSize: 13, color: "#8b95a5" }}>No notifications yet.</Typography>
+            </Box>
+          ) : (
+            notifications.map((n) => {
+              const isUnread = !n.read;
+              const isPasswordRelated = isPasswordRelatedNotification(n);
+              const icon = n.type === "reward"
+                ? <CelebrationIcon sx={{ fontSize: 20, color: "#105abf" }} />
+                : n.type === "success"
+                  ? <CheckCircleOutlineIcon sx={{ fontSize: 20, color: "#2e7d32" }} />
+                  : <InfoOutlinedIcon sx={{ fontSize: 20, color: "#752a00" }} />;
+              const ts = n.createdAt?.seconds
+                ? new Date(n.createdAt.seconds * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+                : "";
+              return (
+                <Box key={n.id}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 1.5,
+                      px: 2,
+                      py: 1.8,
+                      backgroundColor: isUnread ? "rgba(16,90,191,0.05)" : "#fff",
+                      borderLeft: isUnread ? "3px solid #105abf" : "3px solid transparent",
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: "50%",
+                        backgroundColor: "rgba(16,90,191,0.10)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                        mt: 0.2,
+                      }}
+                    >
+                      {icon}
+                    </Box>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography sx={{ fontSize: 13, fontWeight: isUnread ? 700 : 600, color: "#1f2430", lineHeight: 1.3 }}>
+                        {n.title || "Notification"}
+                      </Typography>
+                      {n.message && (
+                        <Typography sx={{ fontSize: 12, color: "#5d646f", mt: 0.3, lineHeight: 1.5 }}>
+                          {n.message}
+                        </Typography>
+                      )}
+                      {ts && (
+                        <Typography sx={{ fontSize: 10, color: "#8b95a5", mt: 0.5, fontWeight: 600 }}>{ts}</Typography>
+                      )}
+                      {isAdminLike && isPasswordRelated && (
+                        <Button
+                          size="small"
+                          variant="contained"
+                          onClick={() => {
+                            setNotifDrawerOpen(false);
+                            navigate("/admin/password-reset-management");
+                          }}
+                          sx={{
+                            mt: 0.9,
+                            borderRadius: 999,
+                            textTransform: "none",
+                            fontWeight: 700,
+                            fontSize: 11,
+                            px: 1.4,
+                            py: 0.35,
+                          }}
+                        >
+                          Open Password Reset
+                        </Button>
+                      )}
+                    </Box>
+                    {isUnread && (
+                      <Box sx={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#105abf", mt: 0.8, flexShrink: 0 }} />
+                    )}
+                  </Box>
+                  <Divider sx={{ ml: 7 }} />
+                </Box>
+              );
+            })
+          )}
+        </Box>
+
+        <Box sx={{ p: 2, backgroundColor: "#fff", borderTop: "1px solid #eceef1" }}>
+          <Button fullWidth onClick={() => setNotifDrawerOpen(false)}>Close</Button>
+        </Box>
+      </Drawer>
 
       {/* 🔹 Logout Confirmation Dialog */}
       <Dialog open={logoutDialogOpen} onClose={handleCloseLogoutDialog}>

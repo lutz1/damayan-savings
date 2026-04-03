@@ -218,7 +218,6 @@ const [showBalance, setShowBalance] = useState(false);
 const [dashDialog, setDashDialog] = useState(null);
 const [availableCodes, setAvailableCodes] = useState([]);
 const [rewardsUnavailableOpen, setRewardsUnavailableOpen] = useState(false);
-const [marketplaceComingSoonOpen, setMarketplaceComingSoonOpen] = useState(false);
 const navigate = useNavigate();
 
 // ─── Notifications ───────────────────────────────────────────────────────────
@@ -824,7 +823,7 @@ useEffect(() => {
             { icon: <GroupAddIcon />, label: "Invite", dialog: "invite" },
             { icon: <HistoryIcon />, label: "History", dialog: "walletHistory" },
             { icon: <RedeemIcon />, label: "Rewards +", action: () => setRewardsUnavailableOpen(true) },
-            { icon: <StorefrontIcon />, label: "Market Place", action: () => setMarketplaceComingSoonOpen(true) },
+            { icon: <StorefrontIcon />, label: "Market Place", action: () => navigate('/member/marketplace') },
           ].map((action) => (
             <Grid item xs={3} key={action.label}>
               <Box
@@ -1126,26 +1125,6 @@ useEffect(() => {
           }}
         >
           Not Available right now
-        </Alert>
-      </Snackbar>
-
-      <Snackbar
-        open={marketplaceComingSoonOpen}
-        autoHideDuration={2800}
-        onClose={() => setMarketplaceComingSoonOpen(false)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      >
-        <Alert
-          onClose={() => setMarketplaceComingSoonOpen(false)}
-          severity="info"
-          variant="filled"
-          sx={{
-            background: "linear-gradient(135deg, #0b1f5e 0%, #d4af37 100%)",
-            color: "#fff",
-            fontWeight: 700,
-          }}
-        >
-          Coming Soon! Stay tuned 🚀
         </Alert>
       </Snackbar>
 
