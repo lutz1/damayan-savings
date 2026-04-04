@@ -178,11 +178,15 @@ const MemberProfile = () => {
   const handleSaveProfile = async () => {
     if (!user || !userData) return;
     setSaving(true);
+    setProfileError("");
     try {
       let photoURL = userData.profilePicture || "";
       if (profilePic) {
-        const picRef = ref(storage, `profilePictures/${user.uid}`);
-        await uploadBytes(picRef, profilePic);
+        const safeFileName = `${Date.now()}_${profilePic.name}`.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const picRef = ref(storage, `users/${user.uid}/profilePictures/${safeFileName}`);
+        await uploadBytes(picRef, profilePic, {
+          contentType: profilePic.type || "image/jpeg",
+        });
         photoURL = await getDownloadURL(picRef);
       }
       await updateDoc(doc(db, "users", user.uid), {
@@ -199,6 +203,11 @@ const MemberProfile = () => {
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
       console.error("Error updating profile:", err);
+      if (err?.code === "storage/unauthorized") {
+        setProfileError("Profile photo upload is not allowed right now. Please try again after the storage rules update.");
+      } else {
+        setProfileError("Unable to update your profile right now. Please try again.");
+      }
     }
     setSaving(false);
   };

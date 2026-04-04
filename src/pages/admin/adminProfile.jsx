@@ -108,8 +108,11 @@ const AdminProfile = () => {
     try {
       let photoURL = adminData.profilePicture || "";
       if (profilePic) {
-        const picRef = ref(storage, `profilePictures/${user.uid}`);
-        await uploadBytes(picRef, profilePic);
+        const safeFileName = `${Date.now()}_${profilePic.name}`.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const picRef = ref(storage, `users/${user.uid}/profilePictures/${safeFileName}`);
+        await uploadBytes(picRef, profilePic, {
+          contentType: profilePic.type || "image/jpeg",
+        });
         photoURL = await getDownloadURL(picRef);
       }
 

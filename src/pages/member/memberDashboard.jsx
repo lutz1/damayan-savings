@@ -11,6 +11,7 @@ import { memberPageTopInset, memberShellBackground, memberSoftPanelSx, memberGla
 import Alert from "@mui/material/Alert";
 import {
   Box,
+  Avatar,
   Toolbar,
   Typography,
   CircularProgress,
@@ -82,6 +83,7 @@ import {
   runTransaction
 } from "firebase/firestore";
 import { auth, db } from "../../firebase";
+import { getUserAvatarInitial, getUserAvatarUrl } from "../../utils/userAvatar";
 import { motion } from "framer-motion";
 import NetworkGroupSales from "./components/dialogs/networkGroupsales";
 
@@ -384,6 +386,7 @@ useEffect(() => {
                 username: refData.username || "",
                 email: refData.email || "",
                 contactNumber: refData.contactNumber || "",
+                profilePicture: getUserAvatarUrl(refData),
                 role: normalizeRole(refData.role),
               };
             });
@@ -685,6 +688,9 @@ useEffect(() => {
     return () => unsubscribe();
   }, [user]);
 
+  const currentUserAvatar = getUserAvatarUrl(userData);
+  const currentUserInitial = getUserAvatarInitial(userData);
+
   return (
     <Box
       sx={{
@@ -700,26 +706,25 @@ useEffect(() => {
             {loading ? (
               <Skeleton variant="circular" width={42} height={42} />
             ) : (
-              <Box
+              <Avatar
                 onClick={() => navigate('/member/profile')}
+                src={currentUserAvatar || undefined}
                 sx={{
                   width: 42,
                   height: 42,
-                  borderRadius: "50%",
                   background: "linear-gradient(140deg, #e8edff 0%, #f6f8ff 100%)",
                   color: memberPalette.navy,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
+                  cursor: "pointer",
                   fontWeight: 700,
                   fontSize: 16,
-                  cursor: "pointer",
+                  border: "1px solid rgba(255,255,255,0.3)",
+                  boxShadow: "0 8px 18px rgba(11,31,94,0.24)",
                   transition: "all 0.2s ease",
                   "&:hover": { transform: "scale(1.1)", boxShadow: "0 6px 16px rgba(11,31,94,0.24)" },
                 }}
               >
-                {(userData?.name || userData?.username || "U").charAt(0).toUpperCase()}
-              </Box>
+                {currentUserInitial}
+              </Avatar>
             )}
             <Box>
               <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.78)", letterSpacing: 0.8, textTransform: "uppercase", fontWeight: 700, textShadow: "0 1px 4px rgba(11,31,94,0.45)" }}>
@@ -1231,11 +1236,21 @@ useEffect(() => {
             <List disablePadding>
               {filteredReferrals.map((ref, i) => (
                 <ListItem key={i} divider sx={{ px: 2, py: 1.4, backgroundColor: i % 2 === 0 ? "rgba(8,26,62,0.42)" : "rgba(7,22,52,0.58)", borderColor: "rgba(217,233,255,0.12)" }}>
-                  <Box sx={{ width: 38, height: 38, borderRadius: "50%", background: "linear-gradient(135deg,#0f4ea8,#2f7de1)",
-                    display: "flex", alignItems: "center", justifyContent: "center", color: "#fff",
-                    fontWeight: 700, fontSize: 15, mr: 1.5, flexShrink: 0 }}>
-                    {(ref.name || ref.username || "?").charAt(0).toUpperCase()}
-                  </Box>
+                  <Avatar
+                    src={getUserAvatarUrl(ref) || undefined}
+                    sx={{
+                      width: 38,
+                      height: 38,
+                      mr: 1.5,
+                      flexShrink: 0,
+                      background: "linear-gradient(135deg,#0f4ea8,#2f7de1)",
+                      color: "#fff",
+                      fontWeight: 700,
+                      fontSize: 15,
+                    }}
+                  >
+                    {getUserAvatarInitial(ref, "?")}
+                  </Avatar>
                   <ListItemText
                     primary={
                       <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>

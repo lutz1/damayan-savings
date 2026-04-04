@@ -13,6 +13,17 @@ service firebase.storage {
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Allow profile picture uploads (legacy and current paths)
+    match /profilePictures/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /profilePictures/{userId}/{allPaths=**} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
     // Allow withdrawal QR uploads
     match /withdrawals_qr/{allPaths=**} {
       allow read: if request.auth != null;

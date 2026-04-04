@@ -39,6 +39,7 @@ import {
   limit,
 } from "firebase/firestore";
 import { sendTransferNotification } from "../../../utils/notifications";
+import { getUserAvatarInitial, getUserAvatarUrl } from "../../../utils/userAvatar";
 
 const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) => {
   const safeUserData = userData || {};
@@ -111,7 +112,14 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
     try {
       const snap = await getDocs(q);
       const results = snap.docs
-        .map((d) => ({ id: d.id, ...d.data() }))
+        .map((d) => {
+          const data = d.data() || {};
+          return {
+            id: d.id,
+            ...data,
+            profilePicture: getUserAvatarUrl(data),
+          };
+        })
         .filter((u) => u.username !== currentUsername);
       setSearchResults(results);
       setShowResults(true);
@@ -143,7 +151,12 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
 
   const handleSendBack = () => {
     if (sendMode === "express") {
-      if (expressStep <= 1) {
+      if (expressStep === 0) {
+        handleClose();
+        return;
+      }
+
+      if (expressStep === 1) {
         clearRecipientPicker();
         setExpressStep(0);
         return;
@@ -183,11 +196,18 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
 
     const loadContacts = async () => {
       try {
-        const snap = await getDocs(query(collection(db, "users"), limit(20)));
+        const snap = await getDocs(query(collection(db, "users"), limit(200)));
         if (!active) return;
 
         const contacts = snap.docs
-          .map((doc) => ({ id: doc.id, ...doc.data() }))
+          .map((doc) => {
+            const data = doc.data() || {};
+            return {
+              id: doc.id,
+              ...data,
+              profilePicture: getUserAvatarUrl(data),
+            };
+          })
           .filter((user) => user.username && user.username !== currentUsername);
 
         setAllContacts(contacts);
@@ -289,7 +309,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
         totalDeduction: numAmount + numAmount * 0.02,
         recipient: recipientUsername,
         recipientName: selectedRecipient?.name || recipientUsername,
-        recipientProfilePicture: selectedRecipient?.profilePicture || "",
+        recipientProfilePicture: getUserAvatarUrl(selectedRecipient),
         date: new Date(),
         transferId: data.transferId,
         message: messageText,
@@ -362,7 +382,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
         totalDeduction: numAmount + numAmount * 0.02,
         recipient: recipientUsername,
         recipientName: selectedRecipient?.name || recipientUsername,
-        recipientProfilePicture: selectedRecipient?.profilePicture || "",
+        recipientProfilePicture: getUserAvatarUrl(selectedRecipient),
         date: new Date(),
         transferId: data.transferId,
       });
@@ -434,20 +454,25 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
   const transferFee = amountValue * 0.02;
   const totalToDeduct = amountValue + transferFee;
   const recipientDirectory = recipientUsername.trim() ? searchResults : allContacts;
+  const recipientLookup = new Map(allContacts.map((user) => [user.username, user]));
+  const getLogRecipient = (log) => {
+    const matchedContact = recipientLookup.get(log?.recipientUsername);
+    return {
+      username: log?.recipientUsername || matchedContact?.username || "",
+      name: matchedContact?.name || log?.recipientName || log?.recipientUsername || "User",
+      profilePicture: getUserAvatarUrl({
+        ...matchedContact,
+        profilePicture: log?.recipientProfilePicture || matchedContact?.profilePicture || log?.profilePicture || "",
+      }),
+    };
+  };
   const recentRecipients = Array.from(
     new Map(
       transferLogs
         .filter((log) => log?.recipientUsername)
         .map((log) => {
-          const matchedContact = allContacts.find((user) => user.username === log.recipientUsername);
-          return [
-            log.recipientUsername,
-            {
-              username: log.recipientUsername,
-              name: matchedContact?.name || log.recipientUsername,
-              profilePicture: matchedContact?.profilePicture || "",
-            },
-          ];
+          const recipient = getLogRecipient(log);
+          return [recipient.username, recipient];
         })
     ).values()
   ).slice(0, 6);
@@ -949,58 +974,59 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
 
                     {previewTransferLogs.length > 0 ? (
                       <List dense disablePadding>
-                        {previewTransferLogs.map((log, index) => (
-                          <ListItem
-                            key={log.id}
-                            disableGutters
-                            sx={{
-                              py: 0.9,
-                              borderBottom: index === previewTransferLogs.length - 1 ? "none" : "1px solid rgba(16,90,191,0.08)",
-                              gap: 1,
-                            }}
-                          >
-                            <Box
+                        {previewTransferLogs.map((log, index) => {
+                          const logRecipient = getLogRecipient(log);
+
+                          return (
+                            <ListItem
+                              key={log.id}
+                              disableGutters
                               sx={{
-                                width: 34,
-                                height: 34,
-                                borderRadius: "50%",
-                                backgroundColor: "rgba(16,90,191,0.10)",
-                                color: "#105abf",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                fontWeight: 800,
-                                fontSize: 12,
-                                flexShrink: 0,
+                                py: 0.9,
+                                borderBottom: index === previewTransferLogs.length - 1 ? "none" : "1px solid rgba(16,90,191,0.08)",
+                                gap: 1,
                               }}
                             >
-                              {(log.recipientUsername || "U").charAt(0).toUpperCase()}
-                            </Box>
-                            <ListItemText
-                              primary={log.recipientUsername || "User"}
-                              secondary={
-                                log.createdAt
-                                  ? new Date(log.createdAt.seconds * 1000).toLocaleString("en-PH", {
-                                      month: "short",
-                                      day: "numeric",
-                                      hour: "numeric",
-                                      minute: "2-digit",
-                                    })
-                                  : "Processing..."
-                              }
-                              primaryTypographyProps={{ color: "#f8fbff", fontWeight: 700, fontSize: 13 }}
-                              secondaryTypographyProps={{ color: "rgba(220,232,255,0.72)", fontSize: 10.5 }}
-                            />
-                            <Box sx={{ textAlign: "right", minWidth: 70 }}>
-                              <Typography sx={{ fontWeight: 800, color: "#f8fbff", fontSize: 13 }}>
-                                -₱{Number(log.amount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
-                              </Typography>
-                              <Typography sx={{ fontSize: 10, fontWeight: 800, color: log.status === "Approved" ? "#2eaf72" : "#f0a63a" }}>
-                                {String(log.status || "Pending").toUpperCase()}
-                              </Typography>
-                            </Box>
-                          </ListItem>
-                        ))}
+                              <Avatar
+                                src={logRecipient.profilePicture || undefined}
+                                sx={{
+                                  width: 34,
+                                  height: 34,
+                                  bgcolor: "rgba(16,90,191,0.10)",
+                                  color: "#105abf",
+                                  fontWeight: 800,
+                                  fontSize: 12,
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {getUserAvatarInitial(logRecipient, log.recipientUsername || "U")}
+                              </Avatar>
+                              <ListItemText
+                                primary={logRecipient.name}
+                                secondary={
+                                  log.createdAt
+                                    ? `@${logRecipient.username} • ${new Date(log.createdAt.seconds * 1000).toLocaleString("en-PH", {
+                                        month: "short",
+                                        day: "numeric",
+                                        hour: "numeric",
+                                        minute: "2-digit",
+                                      })}`
+                                    : `@${logRecipient.username || "user"} • Processing...`
+                                }
+                                primaryTypographyProps={{ color: "#f8fbff", fontWeight: 700, fontSize: 13 }}
+                                secondaryTypographyProps={{ color: "rgba(220,232,255,0.72)", fontSize: 10.5 }}
+                              />
+                              <Box sx={{ textAlign: "right", minWidth: 70 }}>
+                                <Typography sx={{ fontWeight: 800, color: "#f8fbff", fontSize: 13 }}>
+                                  -₱{Number(log.totalDeduction ?? (Number(log.amount || 0) + Number(log.charge || 0))).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                                </Typography>
+                                <Typography sx={{ fontSize: 10, fontWeight: 800, color: log.status === "Approved" ? "#2eaf72" : "#f0a63a" }}>
+                                  {String(log.status || "Pending").toUpperCase()}
+                                </Typography>
+                              </Box>
+                            </ListItem>
+                          );
+                        })}
                       </List>
                     ) : (
                       <Typography sx={{ fontSize: 11.5, color: "#7a8392", py: 1 }}>
@@ -1142,7 +1168,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
                                 sx={{ minWidth: 70, textAlign: "center", cursor: "pointer" }}
                               >
                                 <Avatar
-                                  src={user.profilePicture || ""}
+                                  src={getUserAvatarUrl(user) || undefined}
                                   sx={{
                                     width: 54,
                                     height: 54,
@@ -1154,7 +1180,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
                                     border: "2px solid rgba(255,255,255,0.88)",
                                   }}
                                 >
-                                  {(user.name || user.username || "U").charAt(0).toUpperCase()}
+                                  {getUserAvatarInitial(user)}
                                 </Avatar>
                                 <Typography sx={{ fontSize: 10.5, fontWeight: 700, color: "rgba(240,247,255,0.96)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                                   {(user.name || user.username || "User").split(" ")[0]}
@@ -1193,10 +1219,10 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
                                 }}
                               >
                                 <Avatar
-                                  src={user.profilePicture || ""}
+                                  src={getUserAvatarUrl(user) || undefined}
                                   sx={{ width: 42, height: 42, bgcolor: "rgba(16,90,191,0.12)", color: "#105abf", fontWeight: 800 }}
                                 >
-                                  {(user.name || user.username || "U").charAt(0).toUpperCase()}
+                                  {getUserAvatarInitial(user)}
                                 </Avatar>
                                 <Box sx={{ minWidth: 0, flex: 1 }}>
                                   <Typography sx={{ fontSize: 13.5, fontWeight: 800, color: "#223047", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -1249,7 +1275,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
                         }}
                       >
                         <Avatar
-                          src={selectedRecipient?.profilePicture || ""}
+                          src={getUserAvatarUrl(selectedRecipient) || undefined}
                           sx={{
                             width: 48,
                             height: 48,
@@ -1258,7 +1284,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
                             fontWeight: 800,
                           }}
                         >
-                          {(selectedRecipient?.name || recipientUsername || "U").charAt(0).toUpperCase()}
+                          {getUserAvatarInitial(selectedRecipient, recipientUsername || "U")}
                         </Avatar>
                         <Box sx={{ minWidth: 0, flex: 1 }}>
                           <Typography sx={{ fontSize: 9.5, color: "#7a8392", fontWeight: 800, letterSpacing: 0.9 }}>
@@ -1498,10 +1524,10 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
                         </Typography>
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1.1 }}>
                           <Avatar
-                            src={selectedRecipient?.profilePicture || ""}
+                            src={getUserAvatarUrl(selectedRecipient) || undefined}
                             sx={{ width: 44, height: 44, bgcolor: "rgba(16,90,191,0.12)", color: "#105abf", fontWeight: 800 }}
                           >
-                            {(selectedRecipient?.name || recipientUsername || "R").charAt(0).toUpperCase()}
+                            {getUserAvatarInitial(selectedRecipient, recipientUsername || "R")}
                           </Avatar>
                           <Box sx={{ minWidth: 0, flex: 1 }}>
                             <Typography sx={{ fontSize: 15, fontWeight: 800, color: "#223047", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -1661,10 +1687,10 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
 
                         <Box sx={{ background: "#f4f6fa", borderRadius: 2.2, p: 1.2, mb: 1.4, display: "flex", alignItems: "center", gap: 1 }}>
                           <Avatar
-                            src={receiptData?.recipientProfilePicture || ""}
+                            src={receiptData?.recipientProfilePicture || undefined}
                             sx={{ width: 42, height: 42, bgcolor: "#12284c", color: "#fff", fontWeight: 800 }}
                           >
-                            {(receiptData?.recipientName || receiptData?.recipient || "R").charAt(0).toUpperCase()}
+                            {getUserAvatarInitial({ name: receiptData?.recipientName, username: receiptData?.recipient }, "R")}
                           </Avatar>
                           <Box sx={{ minWidth: 0, flex: 1 }}>
                             <Typography sx={{ fontSize: 10, color: "#7a8392", fontWeight: 800, letterSpacing: 0.8 }}>
@@ -1883,29 +1909,39 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
                   Transfer Logs
                 </Typography>
                 <List dense sx={{ maxHeight: 150, overflowY: "auto" }}>
-                  {transferLogs.map((log) => (
-                    <ListItem
-                      key={log.id}
-                      sx={{ borderBottom: "1px solid #eef2f7", py: 0.5 }}
-                    >
-                      <ListItemText
-                        primary={`₱${log.amount.toLocaleString("en-PH", { minimumFractionDigits: 2 })} → ${log.recipientUsername}`}
-                        secondary={
-                          log.createdAt
-                            ? new Date(log.createdAt.seconds * 1000).toLocaleString("en-PH")
-                            : "Pending..."
-                        }
-                        primaryTypographyProps={{ color: "#273142" }}
-                        secondaryTypographyProps={{ color: "#7a8392", fontSize: 12 }}
-                      />
-                      <Chip
-                        size="small"
-                        label={log.status}
-                        color={getStatusColor(log.status)}
-                        sx={{ textTransform: "capitalize", fontWeight: 600, fontSize: 11 }}
-                      />
-                    </ListItem>
-                  ))}
+                  {transferLogs.map((log) => {
+                    const logRecipient = getLogRecipient(log);
+
+                    return (
+                      <ListItem
+                        key={log.id}
+                        sx={{ borderBottom: "1px solid #eef2f7", py: 0.5, gap: 1 }}
+                      >
+                        <Avatar
+                          src={logRecipient.profilePicture || undefined}
+                          sx={{ width: 34, height: 34, bgcolor: "rgba(16,90,191,0.12)", color: "#105abf", fontWeight: 800, fontSize: 12 }}
+                        >
+                          {getUserAvatarInitial(logRecipient, log.recipientUsername || "U")}
+                        </Avatar>
+                        <ListItemText
+                          primary={logRecipient.name}
+                          secondary={
+                            log.createdAt
+                              ? `₱${Number(log.totalDeduction ?? (Number(log.amount || 0) + Number(log.charge || 0))).toLocaleString("en-PH", { minimumFractionDigits: 2 })} • ${new Date(log.createdAt.seconds * 1000).toLocaleString("en-PH")}`
+                              : `₱${Number(log.totalDeduction ?? (Number(log.amount || 0) + Number(log.charge || 0))).toLocaleString("en-PH", { minimumFractionDigits: 2 })} • Pending...`
+                          }
+                          primaryTypographyProps={{ color: "#273142", fontWeight: 700 }}
+                          secondaryTypographyProps={{ color: "#7a8392", fontSize: 12 }}
+                        />
+                        <Chip
+                          size="small"
+                          label={log.status}
+                          color={getStatusColor(log.status)}
+                          sx={{ textTransform: "capitalize", fontWeight: 600, fontSize: 11 }}
+                        />
+                      </ListItem>
+                    );
+                  })}
                 </List>
               </>
             )}

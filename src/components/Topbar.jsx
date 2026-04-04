@@ -61,6 +61,7 @@ import { useTheme } from "@mui/material/styles";
 import appLogo from "../assets/newlogo.png";
 import { syncAppBadgeCount } from "../utils/appBadge";
 import { onForegroundFcmMessage, setupFcmForCurrentUser } from "../utils/pushNotifications";
+import { getUserAvatarInitial, getUserAvatarUrl } from "../utils/userAvatar";
 
 // Dialog components
 import PurchaseCodesDialog from "./Topbar/dialogs/PurchaseCodesDialog";
@@ -134,7 +135,7 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
             email: data.email || currentUser.email || "No email",
             eWallet: isNaN(Number(data.eWallet)) ? 0 : Number(data.eWallet),
             role: data.role || "member",
-            profilePicture: data.profilePicture || "", // ✅ added
+            profilePicture: getUserAvatarUrl(data),
           });
 
           if (unsubscribeCodes) {
@@ -225,6 +226,8 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
     .trim()
     .toUpperCase();
   const isAdminLike = ["ADMIN", "CEO", "SUPERADMIN"].includes(normalizedRole);
+  const currentUserAvatar = getUserAvatarUrl(userData);
+  const currentUserInitial = getUserAvatarInitial(userData);
 
   const playNotificationSound = () => {
     try {
@@ -510,7 +513,7 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
             <IconButton color="inherit" onClick={openDrawer}>
               <Avatar
                 alt={userData.username}
-                src={userData.profilePicture || "/logo192.png"}
+                src={currentUserAvatar || undefined}
                 sx={{
                   bgcolor: "secondary.main",
                   border: "2px solid rgba(255,255,255,0.3)",
@@ -518,7 +521,9 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
                   transition: "transform 0.2s ease",
                   "&:hover": { transform: "scale(1.08)" },
                 }}
-              />
+              >
+                {currentUserInitial}
+              </Avatar>
             </IconButton>
           </Box>
         </Toolbar>
@@ -606,7 +611,7 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
                 <Box sx={{ textAlign: "center", mt: 2 }}>
                   <Avatar
                     alt={userData.username}
-                    src={userData.profilePicture || "/logo192.png"}
+                    src={currentUserAvatar || undefined}
                     sx={{
                       width: 80,
                       height: 80,
@@ -615,7 +620,9 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
                       bgcolor: "#1976d2",
                       boxShadow: "0 0 20px rgba(25,118,210,0.5)",
                     }}
-                  />
+                  >
+                    {currentUserInitial}
+                  </Avatar>
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
                     @{userData.username}
                   </Typography>

@@ -107,6 +107,7 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
           ...d,
           source: "transfer",
           displayType: `Transfer → ${d.recipientUsername || "User"}`,
+          displayAmount: Number(d.totalDeduction ?? (Number(d.amount || 0) + Number(d.charge || 0))),
           isCredit: false,
         })
       );
@@ -118,7 +119,8 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
         (d) => ({
           ...d,
           source: "received",
-          displayType: `Transfer credited ₱${d.netAmount || d.amount || 0} from ${d.senderUsername || d.senderName || "User"}`,
+          displayAmount: Number(d.amount || d.netAmount || 0),
+          displayType: `Transfer credited ₱${Number(d.amount || d.netAmount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })} from ${d.senderUsername || d.senderName || "User"}`,
           isCredit: true,
         })
       );
@@ -234,9 +236,10 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
               <List dense>
                 {history.map((item) => {
                   const amount =
-                    item.source === "received" && item.status === "Approved"
-                      ? item.netAmount || item.amount
-                      : item.netAmount || item.amount;
+                    item.displayAmount ??
+                    (item.source === "received"
+                      ? item.amount || item.netAmount
+                      : item.totalDeduction || (Number(item.amount || 0) + Number(item.charge || 0)));
                   const formattedAmount = Number(amount || 0).toLocaleString("en-PH", {
                     minimumFractionDigits: 2,
                   });
