@@ -809,8 +809,13 @@ const Login = () => {
 
   return (
     <Box className="login-page-container">
-      <Container maxWidth="sm" sx={{ py: 1.5, px: { xs: 1.5, sm: 2.5 } }}>
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+      <Container maxWidth="sm" className="login-page-inner" sx={{ py: 1.5, px: { xs: 1.5, sm: 2.5 } }}>
+        <motion.div
+          className="login-content-stack"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35 }}
+        >
           <Box className="login-hero-shell">
             <Typography className="login-hero-kicker">Bowners Member Access</Typography>
           </Box>

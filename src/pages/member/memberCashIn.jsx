@@ -27,6 +27,7 @@ import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { auth, db, storage } from "../../firebase";
 import bpiLogo from "../../assets/bpilogo.png";
 import bpiQr from "../../assets/bpi.jpg";
+import { memberStickyHeaderInset, memberShellBackground, memberGlassPanelSx, memberHeroBackground } from "./memberLayout";
 
 const METHOD_ITEMS = [
   {
@@ -62,11 +63,13 @@ const formatDate = (ts) => {
 
 const MemberCashIn = () => {
   const memberPalette = {
-    navy: "#0b1f5e",
-    royal: "#173a8a",
+    navy: "#0a1f44",
+    royal: "#0f4ea8",
+    azure: "#2f7de1",
+    cloud: "#d9e9ff",
+    softText: "rgba(217,233,255,0.78)",
     gold: "#d4af37",
     softGold: "#f2de9c",
-    surface: "#f4f7fb",
   };
 
   const navigate = useNavigate();
@@ -184,8 +187,10 @@ const MemberCashIn = () => {
         display: "flex",
         alignItems: "center",
         px: 1,
-        py: 1.2,
-        background: `linear-gradient(135deg, ${memberPalette.navy} 0%, ${memberPalette.royal} 55%, ${memberPalette.gold} 100%)`,
+        pt: memberStickyHeaderInset,
+        pb: 1.2,
+        background: memberHeroBackground,
+        borderBottom: "1px solid rgba(217,233,255,0.2)",
         color: "#fff",
         position: "sticky",
         top: 0,
@@ -203,13 +208,26 @@ const MemberCashIn = () => {
   );
 
   const AmountDialog = () => (
-    <Dialog open={!!selectedPartner} onClose={handleCloseDialog} maxWidth="xs" fullWidth>
-      <DialogTitle sx={{ fontWeight: 800, color: memberPalette.navy, pb: 0.5 }}>
+    <Dialog
+      open={!!selectedPartner}
+      onClose={handleCloseDialog}
+      maxWidth="xs"
+      fullWidth
+      PaperProps={{
+        sx: {
+          background: "linear-gradient(150deg, rgba(8,26,62,0.96) 0%, rgba(13,44,102,0.92) 100%)",
+          border: "1px solid rgba(217,233,255,0.22)",
+          borderRadius: 3,
+          color: "#fff",
+        },
+      }}
+    >
+      <DialogTitle sx={{ fontWeight: 800, color: "#fff", pb: 0.5 }}>
         Send
       </DialogTitle>
       <DialogContent>
         {success ? (
-          <Alert severity="success" sx={{ mt: 1 }}>
+          <Alert severity="success" sx={{ mt: 1, borderRadius: 2 }}>
             Request submitted! It will be reviewed within 1 hour.
           </Alert>
         ) : (
@@ -219,13 +237,13 @@ const MemberCashIn = () => {
                 component="img"
                 src={bpiQr}
                 alt="BPI QR code"
-                sx={{ width: 220, maxWidth: "100%", borderRadius: 2, border: "1px solid #e6ebf3" }}
+                sx={{ width: 220, maxWidth: "100%", borderRadius: 2, border: "1px solid rgba(217,233,255,0.28)" }}
               />
             </Box>
-            <Typography sx={{ color: memberPalette.navy, fontSize: 13, fontWeight: 700, mb: 0.75 }}>
+            <Typography sx={{ color: "#fff", fontSize: 13, fontWeight: 700, mb: 0.75 }}>
               Send to BPI
             </Typography>
-            <Typography sx={{ color: "#5f6f8f", fontSize: 12.5, mb: 2, mt: 0.5 }}>
+            <Typography sx={{ color: memberPalette.softText, fontSize: 12.5, mb: 2, mt: 0.5 }}>
               Scan the QR code, send your payment, then enter the amount and upload the receipt.
             </Typography>
             <TextField
@@ -249,13 +267,26 @@ const MemberCashIn = () => {
                   WebkitAppearance: "none",
                   margin: 0,
                 },
+                "& .MuiInputLabel-root": { color: "rgba(217,233,255,0.72)" },
+                "& .MuiOutlinedInput-root": {
+                  color: "#fff",
+                  backgroundColor: "rgba(6,20,52,0.42)",
+                  "& fieldset": { borderColor: "rgba(217,233,255,0.28)" },
+                  "&:hover fieldset": { borderColor: "rgba(217,233,255,0.52)" },
+                  "&.Mui-focused fieldset": { borderColor: memberPalette.cloud },
+                },
               }}
             />
             <Box sx={{ mt: 2 }}>
-              <Typography sx={{ fontSize: 13, color: memberPalette.navy, fontWeight: 700, mb: 1 }}>
+              <Typography sx={{ fontSize: 13, color: "#fff", fontWeight: 700, mb: 1 }}>
                 Upload Receipt
               </Typography>
-              <Button component="label" variant="outlined" fullWidth sx={{ textTransform: "none", borderRadius: 2 }}>
+              <Button
+                component="label"
+                variant="outlined"
+                fullWidth
+                sx={{ textTransform: "none", borderRadius: 2, borderColor: "rgba(217,233,255,0.42)", color: memberPalette.cloud }}
+              >
                 {receiptFile ? receiptFile.name : "Choose receipt image"}
                 <input hidden type="file" accept="image/*" onChange={handleReceiptChange} />
               </Button>
@@ -270,12 +301,12 @@ const MemberCashIn = () => {
                     maxHeight: 220,
                     objectFit: "contain",
                     borderRadius: 2,
-                    border: "1px solid #e6ebf3",
-                    backgroundColor: "#f8fbff",
+                    border: "1px solid rgba(217,233,255,0.28)",
+                    backgroundColor: "rgba(6,20,52,0.45)",
                   }}
                 />
               )}
-              <Typography sx={{ mt: 0.8, color: "#7a8faf", fontSize: 12 }}>
+              <Typography sx={{ mt: 0.8, color: memberPalette.softText, fontSize: 12 }}>
                 Receipt upload is required before deposit.
               </Typography>
             </Box>
@@ -283,8 +314,8 @@ const MemberCashIn = () => {
           </>
         )}
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
-            <Button onClick={handleCloseDialog} sx={{ textTransform: "none", color: "#5f7498" }}>
+      <DialogActions sx={{ px: 3, pb: 2, borderTop: "1px solid rgba(217,233,255,0.14)" }}>
+        <Button onClick={handleCloseDialog} sx={{ textTransform: "none", color: memberPalette.cloud }}>
           {success ? "Close" : "Cancel"}
         </Button>
         {!success && (
@@ -296,8 +327,8 @@ const MemberCashIn = () => {
               textTransform: "none",
               fontWeight: 800,
               borderRadius: 2,
-              backgroundColor: memberPalette.navy,
-              "&:hover": { backgroundColor: memberPalette.royal },
+              background: `linear-gradient(135deg, ${memberPalette.azure}, ${memberPalette.royal})`,
+              "&:hover": { background: "linear-gradient(135deg, #3b8cf2, #1a5fc5)" },
             }}
           >
             {processing ? (
@@ -314,20 +345,20 @@ const MemberCashIn = () => {
   // ── BANKS SCREEN ──────────────────────────────────────────────────────────
   if (screen === "banks") {
     return (
-      <Box sx={{ minHeight: "100vh", background: `linear-gradient(180deg, ${memberPalette.surface} 0%, #edf1fa 100%)` }}>
+      <Box sx={{ minHeight: "100vh", background: memberShellBackground }}>
         <Box sx={{ maxWidth: 460, mx: "auto", pb: 6 }}>
           <AppHeader />
 
           {/* Tabs */}
-          <Box sx={{ backgroundColor: "#fff", borderBottom: "1px solid #e6ebf3" }}>
+          <Box sx={{ ...memberGlassPanelSx, borderRadius: 0, borderBottom: "1px solid rgba(217,233,255,0.15)" }}>
             <Tabs
               value={bankTab}
               onChange={(_, v) => setBankTab(v)}
               sx={{
                 px: 1,
-                "& .MuiTabs-indicator": { backgroundColor: memberPalette.gold, height: 3 },
-                "& .MuiTab-root": { textTransform: "none", fontWeight: 600, fontSize: 13, color: "#7a8faf", minWidth: 0, px: 2 },
-                "& .Mui-selected": { color: memberPalette.navy, fontWeight: 800 },
+                "& .MuiTabs-indicator": { backgroundColor: memberPalette.cloud, height: 3 },
+                "& .MuiTab-root": { textTransform: "none", fontWeight: 600, fontSize: 13, color: "rgba(217,233,255,0.62)", minWidth: 0, px: 2 },
+                "& .Mui-selected": { color: "#fff", fontWeight: 800 },
               }}
             >
               <Tab label="Over-the-Counter" />
@@ -341,11 +372,11 @@ const MemberCashIn = () => {
               {/* InstaPay Cash In */}
               <Box sx={{ px: 2, mt: 2.5 }}>
                 <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
-                  <Typography sx={{ fontWeight: 800, color: memberPalette.navy, fontSize: 14.5 }}>InstaPay Cash In</Typography>
+                  <Typography sx={{ fontWeight: 800, color: "#fff", fontSize: 14.5 }}>InstaPay Cash In</Typography>
                   <Chip
                     label="FAST"
                     size="small"
-                    sx={{ backgroundColor: "#e6f9ee", color: "#1a9451", fontWeight: 800, fontSize: 10.5, height: 20 }}
+                    sx={{ backgroundColor: "rgba(171,235,196,0.2)", color: "#abebc4", fontWeight: 800, fontSize: 10.5, height: 20 }}
                   />
                 </Box>
                 <Box sx={{ display: "flex", gap: 2, overflowX: "auto", pb: 1 }}>
@@ -355,10 +386,10 @@ const MemberCashIn = () => {
                       onClick={() => openPartnerDialog(bank, "bank")}
                       sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.7, cursor: "pointer", minWidth: 58 }}
                     >
-                      <Avatar sx={{ width: 52, height: 52, backgroundColor: "#fff", boxShadow: "0 2px 8px rgba(0,0,0,0.13)" }}>
+                      <Avatar sx={{ width: 52, height: 52, backgroundColor: "rgba(7,22,52,0.8)", border: "1px solid rgba(217,233,255,0.2)", boxShadow: "0 6px 14px rgba(3,12,30,0.35)" }}>
                         <Box component="img" src={bank.logo} alt={bank.name} sx={{ width: 34, height: 34, objectFit: "contain" }} />
                       </Avatar>
-                      <Typography sx={{ fontSize: 11, color: "#1a2f52", fontWeight: 600, textAlign: "center" }}>
+                      <Typography sx={{ fontSize: 11, color: memberPalette.cloud, fontWeight: 600, textAlign: "center" }}>
                         {bank.name}
                       </Typography>
                     </Box>
@@ -370,7 +401,7 @@ const MemberCashIn = () => {
 
           {bankTab !== 1 && (
             <Box sx={{ p: 5, textAlign: "center" }}>
-              <Typography sx={{ color: "#8aa0bf", fontSize: 14 }}>Coming soon.</Typography>
+              <Typography sx={{ color: memberPalette.softText, fontSize: 14 }}>Coming soon.</Typography>
             </Box>
           )}
         </Box>
@@ -382,22 +413,22 @@ const MemberCashIn = () => {
   // ── EWALLET SCREEN ────────────────────────────────────────────────────────
   // ── MAIN SCREEN ───────────────────────────────────────────────────────────
   return (
-    <Box sx={{ minHeight: "100vh", background: `linear-gradient(180deg, ${memberPalette.surface} 0%, #edf1fa 100%)` }}>
+    <Box sx={{ minHeight: "100vh", background: memberShellBackground }}>
       <Box sx={{ maxWidth: 460, mx: "auto", pb: 6 }}>
         <AppHeader />
 
         <Box sx={{ px: 2, pt: 2.5 }}>
           {/* How to Cash In */}
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.4 }}>
-            <Typography sx={{ fontSize: 15.5, fontWeight: 800, color: memberPalette.navy }}>How to Cash In</Typography>
+            <Typography sx={{ fontSize: 15.5, fontWeight: 800, color: "#fff" }}>How to Cash In</Typography>
             <Chip
               label="1 HOUR"
               size="small"
-              sx={{ backgroundColor: "#fff3e0", color: "#e65100", fontWeight: 800, fontSize: 10.5, height: 22 }}
+              sx={{ backgroundColor: "rgba(255,218,145,0.2)", color: "#ffd483", fontWeight: 800, fontSize: 10.5, height: 22 }}
             />
           </Box>
 
-          <Box sx={{ backgroundColor: "#fff", borderRadius: 2.5, overflow: "hidden", border: "1px solid #e6ebf3" }}>
+          <Box sx={{ ...memberGlassPanelSx, borderRadius: 2.5, overflow: "hidden" }}>
             {METHOD_ITEMS.map((item, idx) => (
               <Box
                 key={item.id}
@@ -415,32 +446,32 @@ const MemberCashIn = () => {
                   alignItems: "center",
                   gap: 1.5,
                   cursor: "pointer",
-                  borderBottom: idx === METHOD_ITEMS.length - 1 ? "none" : "1px solid #eef1f5",
-                  "&:hover": { backgroundColor: "#f7faff" },
+                  borderBottom: idx === METHOD_ITEMS.length - 1 ? "none" : "1px solid rgba(217,233,255,0.14)",
+                  "&:hover": { backgroundColor: "rgba(18,56,118,0.42)" },
                 }}
               >
-                <Avatar sx={{ width: 44, height: 44, backgroundColor: "#eef5ff" }}>{item.icon}</Avatar>
+                <Avatar sx={{ width: 44, height: 44, backgroundColor: "rgba(8,26,62,0.7)", border: "1px solid rgba(217,233,255,0.2)" }}>{item.icon}</Avatar>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography sx={{ fontWeight: 700, color: "#1a2f52", fontSize: 14.5 }}>{item.title}</Typography>
-                  <Typography sx={{ color: "#7a8faf", fontSize: 12.5 }}>{item.subtitle}</Typography>
+                  <Typography sx={{ fontWeight: 700, color: "#fff", fontSize: 14.5 }}>{item.title}</Typography>
+                  <Typography sx={{ color: memberPalette.softText, fontSize: 12.5 }}>{item.subtitle}</Typography>
                 </Box>
-                <ChevronRightIcon sx={{ color: "#b0bdd0" }} />
+                <ChevronRightIcon sx={{ color: "rgba(217,233,255,0.68)" }} />
               </Box>
             ))}
           </Box>
 
           {/* Recent Cash In */}
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mt: 3, mb: 1.4 }}>
-            <Typography sx={{ fontSize: 15.5, fontWeight: 800, color: memberPalette.navy }}>Recent Cash In</Typography>
-            <Typography sx={{ fontSize: 12.5, color: memberPalette.navy, fontWeight: 700, cursor: "pointer" }}>See All</Typography>
+            <Typography sx={{ fontSize: 15.5, fontWeight: 800, color: "#fff" }}>Recent Cash In</Typography>
+            <Typography sx={{ fontSize: 12.5, color: memberPalette.cloud, fontWeight: 700, cursor: "pointer" }}>See All</Typography>
           </Box>
 
           {depositLogs.length === 0 ? (
-            <Box sx={{ backgroundColor: "#fff", borderRadius: 2.5, border: "1px solid #e6ebf3", p: 3, textAlign: "center" }}>
-              <Typography sx={{ color: "#8aa0bf", fontSize: 13 }}>No cash in records yet.</Typography>
+            <Box sx={{ ...memberGlassPanelSx, borderRadius: 2.5, p: 3, textAlign: "center" }}>
+              <Typography sx={{ color: memberPalette.softText, fontSize: 13 }}>No cash in records yet.</Typography>
             </Box>
           ) : (
-            <Box sx={{ backgroundColor: "#fff", borderRadius: 2.5, overflow: "hidden", border: "1px solid #e6ebf3" }}>
+            <Box sx={{ ...memberGlassPanelSx, borderRadius: 2.5, overflow: "hidden" }}>
               {depositLogs.slice(0, 5).map((log, idx) => {
                 const sc = statusColor(log.status);
                 const initial = (log.partner || log.paymentMethod || "B").charAt(0).toUpperCase();
@@ -453,7 +484,7 @@ const MemberCashIn = () => {
                       display: "flex",
                       alignItems: "center",
                       gap: 1.5,
-                      borderBottom: idx === Math.min(depositLogs.length, 5) - 1 ? "none" : "1px solid #eef1f5",
+                      borderBottom: idx === Math.min(depositLogs.length, 5) - 1 ? "none" : "1px solid rgba(217,233,255,0.14)",
                     }}
                   >
                     <Avatar
@@ -469,13 +500,13 @@ const MemberCashIn = () => {
                       {initial}
                     </Avatar>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography sx={{ fontWeight: 700, color: "#1a2f52", fontSize: 14 }}>
+                      <Typography sx={{ fontWeight: 700, color: "#fff", fontSize: 14 }}>
                         {log.partner || log.paymentMethod || "Bank"}
                       </Typography>
-                      <Typography sx={{ color: "#9aafc9", fontSize: 12 }}>{formatDate(log.createdAt)}</Typography>
+                      <Typography sx={{ color: memberPalette.softText, fontSize: 12 }}>{formatDate(log.createdAt)}</Typography>
                     </Box>
                     <Box sx={{ textAlign: "right" }}>
-                      <Typography sx={{ fontWeight: 800, color: "#1a2f52", fontSize: 14.5 }}>
+                      <Typography sx={{ fontWeight: 800, color: "#fff", fontSize: 14.5 }}>
                         ₱{Number(log.amount || 0).toLocaleString("en-PH")}
                       </Typography>
                       <Chip
@@ -505,7 +536,8 @@ const MemberCashIn = () => {
             mx: 2,
             mt: 3,
             borderRadius: 2.5,
-            background: `linear-gradient(135deg, ${memberPalette.navy} 0%, ${memberPalette.royal} 55%, ${memberPalette.gold} 100%)`,
+            background: memberHeroBackground,
+            border: "1px solid rgba(217,233,255,0.2)",
             p: 2.5,
             color: "#fff",
           }}
@@ -526,7 +558,7 @@ const MemberCashIn = () => {
               borderRadius: 1.5,
               px: 2.2,
               fontSize: 12,
-              "&:hover": { backgroundColor: memberPalette.softGold },
+              "&:hover": { backgroundColor: memberPalette.cloud },
             }}
           >
             GET STARTED
@@ -534,15 +566,27 @@ const MemberCashIn = () => {
         </Box>
       </Box>
 
-      <Dialog open={methodUnavailableOpen} onClose={() => setMethodUnavailableOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 800, color: memberPalette.navy }}>E-Wallet</DialogTitle>
+      <Dialog
+        open={methodUnavailableOpen}
+        onClose={() => setMethodUnavailableOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            background: "linear-gradient(150deg, rgba(8,26,62,0.96) 0%, rgba(13,44,102,0.92) 100%)",
+            border: "1px solid rgba(217,233,255,0.22)",
+            borderRadius: 3,
+          },
+        }}
+      >
+        <DialogTitle sx={{ fontWeight: 800, color: "#fff" }}>E-Wallet</DialogTitle>
         <DialogContent>
-          <Typography sx={{ color: "#5f7498", fontSize: 14 }}>
+          <Typography sx={{ color: memberPalette.softText, fontSize: 14 }}>
             This payment method is not available right now.
           </Typography>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setMethodUnavailableOpen(false)} sx={{ textTransform: "none", fontWeight: 700 }}>
+        <DialogActions sx={{ px: 3, pb: 2, borderTop: "1px solid rgba(217,233,255,0.14)" }}>
+          <Button onClick={() => setMethodUnavailableOpen(false)} sx={{ textTransform: "none", fontWeight: 700, color: memberPalette.cloud }}>
             OK
           </Button>
         </DialogActions>

@@ -26,6 +26,17 @@
   position: relative;
 }
 
+.login-page-inner {
+  width: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+.login-content-stack {
+  width: min(100%, 392px);
+  margin: 0 auto;
+}
+
 .login-page-container::before {
   content: "";
   position: absolute;
@@ -157,6 +168,9 @@
   padding: 26px 22px 20px;
   max-width: 360px;
   width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+  overflow: hidden;
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
 }
@@ -467,18 +481,58 @@
 @media (max-width: 480px) {
   .login-page-container {
     align-items: flex-start;
+    padding-top: max(10px, env(safe-area-inset-top));
+    padding-bottom: max(18px, env(safe-area-inset-bottom));
+  }
+
+  .login-page-inner {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .login-content-stack {
+    width: min(100%, 374px);
   }
 
   .login-card-new {
-    padding: 22px 18px 18px;
-    border-radius: 28px !important;
+    max-width: 100%;
+    padding: 20px 16px 18px;
+    border-radius: 26px !important;
+    box-shadow:
+      0 18px 38px rgba(1, 48, 132, 0.24),
+      0 2px 0 rgba(255, 255, 255, 0.18) inset,
+      0 0 0 1px rgba(255, 255, 255, 0.18) !important;
   }
 
   .login-title {
     font-size: 1.7rem;
   }
 
+  .login-subtitle {
+    margin-bottom: 18px;
+    font-size: 0.78rem;
+  }
+
+  .login-badge-wrap {
+    margin-bottom: 10px;
+  }
+
+  .login-badge-icon {
+    width: 64px;
+    height: 64px;
+  }
+
+  .login-form-stack {
+    gap: 12px;
+  }
+
+  .mpin-grid-wrap {
+    gap: 6px;
+  }
+
   .mpin-dot-input {
+    min-width: 0;
+    flex: 1 1 0;
     max-width: none;
     height: 50px;
     border-radius: 10px;
@@ -495,9 +549,38 @@
 
   .login-utility-links {
     gap: 16px;
+    flex-wrap: wrap;
   }
 
   .login-utility-links .MuiTypography-root {
+    font-size: 0.72rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .login-content-stack {
+    width: 100%;
+  }
+
+  .login-card-new {
+    padding: 18px 14px 16px;
+    border-radius: 22px !important;
+  }
+
+  .login-title {
+    font-size: 1.55rem;
+  }
+
+  .portal-switcher-actions {
+    gap: 8px;
+  }
+
+  .portal-tile.MuiButton-root {
+    min-height: 74px;
+    padding: 12px 8px;
+  }
+
+  .footer-link-btn.MuiButton-root {
     font-size: 0.72rem;
   }
 }

@@ -1588,7 +1588,8 @@ exports.transferFunds = functions.https.onRequest(async (req, res) => {
 
       const senderId = decodedToken.uid;
       const charge = numAmount * 0.02;
-      const netTransfer = numAmount - charge;
+      const totalDeduction = numAmount + charge;
+      const transferAmount = numAmount;
 
       const result = await db.runTransaction(async (transaction) => {
         const senderRef = db.collection("users").doc(senderId);
@@ -1612,7 +1613,7 @@ exports.transferFunds = functions.https.onRequest(async (req, res) => {
           };
         }
 
-        if (currentBalance < numAmount) throw new Error("Insufficient wallet balance");
+        if (currentBalance < totalDeduction) throw new Error("Insufficient wallet balance");
 
         const recipientQuery = await db
           .collection("users")
@@ -1629,12 +1630,12 @@ exports.transferFunds = functions.https.onRequest(async (req, res) => {
         const recipientData = recipientDoc.data();
 
         transaction.update(senderRef, {
-          eWallet: Number(currentBalance - numAmount),
+          eWallet: Number(currentBalance - totalDeduction),
         });
 
         const recipientBalance = Number(recipientData.eWallet || 0);
         transaction.update(recipientRef, {
-          eWallet: Number(recipientBalance + netTransfer),
+          eWallet: Number(recipientBalance + transferAmount),
         });
 
         transaction.set(transferRef, {
@@ -1644,19 +1645,20 @@ exports.transferFunds = functions.https.onRequest(async (req, res) => {
           recipientId: recipientDoc.id,
           amount: numAmount,
           charge,
-          netAmount: netTransfer,
+          netAmount: transferAmount,
+          totalDeduction,
           status: "Approved",
           createdAt: new Date(),
         });
 
         return {
           success: true,
-          newBalance: currentBalance - numAmount,
+          newBalance: currentBalance - totalDeduction,
           transferId: transferRef.id,
         };
       });
 
-      console.info(`[transfer-funds] ✅ SUCCESS - sender=${senderId} recipient=${recipientUsername} amount=₱${numAmount}`);
+      console.info(`[transfer-funds] ✅ SUCCESS - sender=${senderId} recipient=${recipientUsername} amount=₱${numAmount} charge=₱${charge} totalDeduction=₱${totalDeduction}`);
 
       // 📊 Log to Render
       try {
@@ -1670,7 +1672,9 @@ exports.transferFunds = functions.https.onRequest(async (req, res) => {
               senderId,
               recipientUsername,
               amount: numAmount,
-              netAmount: netTransfer,
+              charge,
+              netAmount: transferAmount,
+              totalDeduction,
               transferId: result.transferId,
               newBalance: result.newBalance,
               deduped: result.deduped || false,

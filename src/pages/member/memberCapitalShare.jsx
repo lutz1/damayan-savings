@@ -33,7 +33,6 @@ import {
 // 🔹 CHANGE: react-big-calendar imports
 
 import MemberBottomNav from "../../components/MemberBottomNav";
-import bgImage from "../../assets/bg.jpg";
 import { auth, db } from "../../firebase";
 import ProfitHistoryDialog from "./components/dialogs/ProfitHistoryDialog";
 import AddCapitalShareDialog from "./components/dialogs/AddCapitalShareDialog";
@@ -42,6 +41,7 @@ import CapitalShareVoucherDialog from "./components/dialogs/CapitalShareVoucherD
 import WalkInBranchDialog from "./components/dialogs/WalkInBranchDialog";
 import OFWRewardsDialog from "./components/dialogs/OFWRewardsDialog";
 import CapitalShareTransactions from "./components/CapitalShareTransactions";
+import { memberPageTopInset, memberShellBackground, memberGlassPanelSx, memberHeroBackground } from "./memberLayout";
 
 
 const MIN_AMOUNT = 1000;
@@ -49,10 +49,12 @@ const MIN_AMOUNT = 1000;
 
 const MemberCapitalShare = () => {
   const memberPalette = {
-    navy: "#0b1f5e",
-    royal: "#173a8a",
+    navy: "#0a1f44",
+    royal: "#0f4ea8",
+    azure: "#2f7de1",
+    cloud: "#d9e9ff",
     gold: "#d4af37",
-    softText: "#d9e2ff",
+    softText: "rgba(217,233,255,0.76)",
   };
 
   const navigate = useNavigate();
@@ -828,10 +830,7 @@ const MemberCapitalShare = () => {
       sx={{
         display: "flex",
         minHeight: "100vh",
-        backgroundImage: `linear-gradient(130deg, rgba(11, 31, 94, 0.95) 52%, rgba(23, 58, 138, 0.72) 78%, rgba(212, 175, 55, 0.32) 100%), url(${bgImage})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundAttachment: "fixed",
+        background: memberShellBackground,
         position: "relative",
         '&::before': {
           content: '""',
@@ -840,7 +839,7 @@ const MemberCapitalShare = () => {
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'linear-gradient(130deg, rgba(11, 31, 94, 0.95) 52%, rgba(23, 58, 138, 0.72) 78%, rgba(212, 175, 55, 0.32) 100%)',
+          background: 'linear-gradient(180deg, rgba(6,20,52,0.62) 0%, rgba(8,26,62,0.2) 36%, rgba(8,26,62,0) 58%)',
           zIndex: 0,
         },
       }}
@@ -852,7 +851,7 @@ const MemberCapitalShare = () => {
         sx={{
           flexGrow: 1,
           p: { xs: 2, sm: 4 },
-          pt: 3,
+          pt: { xs: memberPageTopInset, sm: 3 },
           pb: { xs: 12, sm: 12, md: 12 },
           color: "white",
           overflowY: "auto",
@@ -863,16 +862,16 @@ const MemberCapitalShare = () => {
         }}
       >
         {/* Header Section */}
-        <Box sx={{ mb: 4, width: '100%', maxWidth: 900 }}>
-          <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 900, letterSpacing: 1, mb: 1, color: '#fff', textShadow: '0 2px 12px #000a' }}>
-            Member <span style={{ color: '#d4af37' }}>Capital Share</span> Dashboard
+        <Box sx={{ mb: 4, width: '100%', maxWidth: 900, ...memberGlassPanelSx, borderRadius: 3, p: { xs: 2, sm: 2.6 }, border: '1px solid rgba(217,233,255,0.2)', background: memberHeroBackground }}>
+          <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 900, letterSpacing: 0.4, mb: 1, color: '#fff' }}>
+            Capital Share Portfolio
           </Typography>
-          <Typography variant="h6" sx={{ color: memberPalette.softText, fontWeight: 500, mb: 1.5, textShadow: '0 1px 8px #0006' }}>
-            <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>💰 Grow Capital</Box>
+          <Typography variant="h6" sx={{ color: memberPalette.softText, fontWeight: 500, mb: 0 }}>
+            <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>Grow Capital</Box>
             <Box component="span" sx={{ mx: 1, color: memberPalette.gold }}>•</Box>
-            <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>📈 Earn Monthly Profit</Box>
+            <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>Earn Monthly Profit</Box>
             <Box component="span" sx={{ mx: 1, color: memberPalette.gold }}>•</Box>
-            <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>📝 Manage Shares</Box>
+            <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>Manage Shares</Box>
           </Typography>
         </Box>
 
@@ -883,14 +882,14 @@ const MemberCapitalShare = () => {
           <Grid item xs={12} md={12} sx={{ mb: { xs: 2, md: 0 }, display: 'flex', width: '100%' }}>
             <Card
               sx={{
-                background: `linear-gradient(135deg, rgba(255,255,255,0.18), rgba(23,58,138,0.18), rgba(212,175,55,0.20))`,
+                background: `linear-gradient(135deg, rgba(10,31,68,0.84), rgba(15,78,168,0.42), rgba(212,175,55,0.18))`,
                 backdropFilter: "blur(14px)",
-                border: `2px solid rgba(212,175,55,0.30)`,
+                border: `1px solid rgba(212,175,55,0.34)`,
                 borderRadius: "18px",
                 p: 3,
                 width: '100%',
                 minWidth: 0,
-                boxShadow: `0 4px 24px 0 rgba(11,31,94,0.22)`,
+                boxShadow: "0 14px 30px rgba(4,16,40,0.28)",
                 transition: "transform 0.3s, box-shadow 0.3s",
                 position: "relative",
                 overflow: "hidden",
@@ -905,9 +904,9 @@ const MemberCapitalShare = () => {
                   borderRadius: "50%",
                 },
                 '&:hover': {
-                  transform: "translateY(-10px) scale(1.03)",
-                  boxShadow: `0 20px 50px rgba(212,175,55,0.35)`,
-                  border: `2.5px solid rgba(212,175,55,0.45)`,
+                  transform: "translateY(-6px)",
+                  boxShadow: `0 22px 40px rgba(212,175,55,0.3)`,
+                  border: `1px solid rgba(212,175,55,0.52)`,
                 },
               }}
             >
@@ -927,7 +926,7 @@ const MemberCapitalShare = () => {
                       const totalLockIn = transactionHistory.reduce((sum, t) => sum + (t.lockInPortion || 0), 0);
                       return (
                         <>
-                          <Typography variant="body2" sx={{ color: '#b0bec5', fontWeight: 600, fontSize: 13, mb: 0.5 }}>
+                          <Typography variant="body2" sx={{ color: memberPalette.softText, fontWeight: 600, fontSize: 13, mb: 0.5 }}>
                             🔒 Total Lock-in: ₱{totalLockIn.toLocaleString()}
                           </Typography>
                           <Typography variant="body2" sx={{ color: '#81C784', fontWeight: 600, fontSize: 13 }}>
@@ -969,14 +968,14 @@ const MemberCapitalShare = () => {
           <Grid item xs={12} md={6} sx={{ display: 'flex', width: '100%' }}>
             <Card
               sx={{
-                background: `linear-gradient(120deg, rgba(255,255,255,0.16) 55%, rgba(23,58,138,0.35) 100%)`,
+                background: `linear-gradient(120deg, rgba(10,31,68,0.78) 48%, rgba(15,78,168,0.46) 100%)`,
                 backdropFilter: "blur(14px)",
-                border: `2px solid rgba(217,226,255,0.35)`,
+                border: `1px solid rgba(217,226,255,0.35)`,
                 borderRadius: "18px",
                 p: 3,
                 width: '100%',
                 minWidth: 0,
-                boxShadow: `0 4px 24px 0 rgba(11,31,94,0.22)`,
+                boxShadow: "0 14px 30px rgba(4,16,40,0.28)",
                 transition: "transform 0.3s, box-shadow 0.3s",
                 position: "relative",
                 overflow: "hidden",
@@ -991,9 +990,9 @@ const MemberCapitalShare = () => {
                   borderRadius: "50%",
                 },
                 '&:hover': {
-                  transform: "translateY(-10px) scale(1.03)",
-                  boxShadow: `0 20px 50px rgba(23,58,138,0.35)`,
-                  border: `2.5px solid rgba(217,226,255,0.45)` ,
+                  transform: "translateY(-6px)",
+                  boxShadow: `0 22px 40px rgba(15,78,168,0.32)`,
+                  border: `1px solid rgba(217,226,255,0.55)` ,
                 },
               }}
             >
@@ -1009,7 +1008,7 @@ const MemberCapitalShare = () => {
                 </Typography>
                 <Button
                   variant="contained"
-                  sx={{ mt: 2, width: "100%", fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 2.5, py: 1, fontSize: 15 }}
+                  sx={{ mt: 2, width: "100%", fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 2.5, py: 1, fontSize: 15, background: `linear-gradient(135deg, ${memberPalette.azure}, ${memberPalette.royal})` }}
                   onClick={() => setProfitHistoryOpen(true)}
                 >
                   View Monthly Profit History
@@ -1021,38 +1020,40 @@ const MemberCapitalShare = () => {
           <Grid item xs={12} md={6} sx={{ display: 'flex', width: '100%' }}>
             <Card
               sx={{
-                background: `linear-gradient(120deg, rgba(231,237,241,0.27), rgba(33,150,243,0.08))`,
+                ...memberGlassPanelSx,
+                background: `linear-gradient(140deg, rgba(8,26,62,0.86) 0%, rgba(12,46,106,0.76) 100%)`,
+                border: "1px solid rgba(217,233,255,0.2)",
                 borderRadius: 3,
                 p: 3,
                 minHeight: 220,
                 width: '100%',
                 maxWidth: 900,
-                boxShadow: '0 4px 24px 0 rgba(33,150,243,0.10)',
+                boxShadow: '0 14px 30px rgba(4,16,40,0.28)',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'flex-start',
               }}
             >
-              <Typography variant="body2" sx={{ opacity: 1, mb: 1, color: "#1976d2", fontSize: "0.85rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, textShadow: '1px 1px 4px #0001' }}>
+              <Typography variant="body2" sx={{ opacity: 1, mb: 1, color: memberPalette.cloud, fontSize: "0.85rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>
                 Instruction
               </Typography>
-              <Typography variant="body2" sx={{ mt: 1, mb: 2, color: "#607d8b", fontWeight: 600, fontSize: 13 }}>
+              <Typography variant="body2" sx={{ mt: 1, mb: 2, color: memberPalette.softText, fontWeight: 600, fontSize: 13 }}>
                 📝 To add a capital share entry:
               </Typography>
-              <Typography variant="body2" sx={{ mb: 1, color: "#607d8b", fontWeight: 600, fontSize: 13 }}>
+              <Typography variant="body2" sx={{ mb: 1, color: memberPalette.softText, fontWeight: 600, fontSize: 13 }}>
                 1. Click "Add Capital Share" button below
               </Typography>
-              <Typography variant="body2" sx={{ mb: 1, color: "#607d8b", fontWeight: 600, fontSize: 13 }}>
+              <Typography variant="body2" sx={{ mb: 1, color: memberPalette.softText, fontWeight: 600, fontSize: 13 }}>
                 2. Select the date and enter amount (min ₱1,000)
               </Typography>
-              <Typography variant="body2" sx={{ mb: 2, color: "#607d8b", fontWeight: 600, fontSize: 13 }}>
+              <Typography variant="body2" sx={{ mb: 2, color: memberPalette.softText, fontWeight: 600, fontSize: 13 }}>
                 3. Confirm to deduct from your E-Wallet
               </Typography>
               <Button
                 variant="contained"
                 color="primary"
                 fullWidth
-                sx={{ mt: 1, fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 2.5, py: 1, fontSize: 15 }}
+                sx={{ mt: 1, fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 2.5, py: 1, fontSize: 15, background: `linear-gradient(135deg, ${memberPalette.azure}, ${memberPalette.royal})` }}
                 onClick={() => {
                   if (!userData?.capitalShareActive) {
                     alert("Activate Capital Share first.");
@@ -1139,12 +1140,12 @@ const MemberCapitalShare = () => {
         {/* Activate Dialog */}
         <Dialog open={openDialog} onClose={() => setOpenDialog(false)} fullWidth maxWidth="xs" PaperProps={{
           sx: {
-            background: `linear-gradient(120deg, rgba(30, 41, 59, 0.95), rgba(33, 47, 61, 0.9))`,
+            background: "linear-gradient(150deg, rgba(8,26,62,0.96) 0%, rgba(13,44,102,0.92) 100%)",
             backdropFilter: "blur(14px)",
-            border: `1px solid rgba(79, 195, 247, 0.2)`,
+            border: "1px solid rgba(217,233,255,0.22)",
           }
         }}>
-          <DialogTitle sx={{ bgcolor: "rgba(31, 150, 243, 0.15)", color: "#4FC3F7", fontWeight: 700, borderBottom: "1px solid rgba(79, 195, 247, 0.15)" }}>Activate Capital Share</DialogTitle>
+          <DialogTitle sx={{ bgcolor: "rgba(8,31,76,0.75)", color: "#d9e9ff", fontWeight: 700, borderBottom: "1px solid rgba(217,233,255,0.15)" }}>Activate Capital Share</DialogTitle>
           <DialogContent sx={{ bgcolor: "transparent", mt: 2 }}>
             <Box sx={{ mb: 2, p: 1.5, bgcolor: 'rgba(255, 193, 7, 0.1)', border: '1px solid rgba(255, 193, 7, 0.3)', borderRadius: 1 }}>
               <Typography variant="body2" sx={{ mb: 1, color: "#FFB74D", fontWeight: 600 }}>
@@ -1169,7 +1170,7 @@ const MemberCapitalShare = () => {
               SelectProps={{ native: true }}
               value={selectedCode}
               onChange={(e) => setSelectedCode(e.target.value)}
-              sx={{ '& .MuiOutlinedInput-root': { color: '#b0bec5' }, '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(79, 195, 247, 0.3)' }, '& .MuiInputBase-input': { color: '#b0bec5' } }}
+              sx={{ '& .MuiOutlinedInput-root': { color: '#d9e9ff', background: 'rgba(6,20,52,0.42)' }, '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(217,233,255,0.35)' }, '& .MuiInputBase-input': { color: '#d9e9ff' } }}
               inputProps={{ style: { color: '#b0bec5' } }}
             >
               <option value="">-- Select Code --</option>
@@ -1180,9 +1181,9 @@ const MemberCapitalShare = () => {
               ))}
             </TextField>
           </DialogContent>
-          <DialogActions sx={{ borderTop: "1px solid rgba(79, 195, 247, 0.15)", pt: 2 }}>
-            <Button onClick={() => setOpenDialog(false)} sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: 'none', color: '#4FC3F7' }}>Cancel</Button>
-            <Button variant="contained" onClick={handleActivate} sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: 'none', bgcolor: '#1976d2' }}>
+          <DialogActions sx={{ borderTop: "1px solid rgba(217,233,255,0.15)", pt: 2 }}>
+            <Button onClick={() => setOpenDialog(false)} sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: 'none', color: '#d9e9ff' }}>Cancel</Button>
+            <Button variant="contained" onClick={handleActivate} sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: 'none', background: `linear-gradient(135deg, ${memberPalette.azure}, ${memberPalette.royal})` }}>
               Activate
             </Button>
           </DialogActions>
@@ -1274,26 +1275,26 @@ const MemberCapitalShare = () => {
           maxWidth="xs"
           PaperProps={{
             sx: {
-              background: `linear-gradient(120deg, rgba(30, 41, 59, 0.95), rgba(33, 47, 61, 0.9))`,
+              background: "linear-gradient(150deg, rgba(8,26,62,0.96) 0%, rgba(13,44,102,0.92) 100%)",
               backdropFilter: "blur(14px)",
-              border: `1px solid rgba(79, 195, 247, 0.2)`,
+              border: "1px solid rgba(217,233,255,0.22)",
             }
           }}
         >
-          <DialogTitle sx={{ bgcolor: "rgba(31, 150, 243, 0.15)", color: "#4FC3F7", fontWeight: 700, borderBottom: "1px solid rgba(79, 195, 247, 0.15)" }}>Confirm Transfer</DialogTitle>
+          <DialogTitle sx={{ bgcolor: "rgba(8,31,76,0.75)", color: "#d9e9ff", fontWeight: 700, borderBottom: "1px solid rgba(217,233,255,0.15)" }}>Confirm Transfer</DialogTitle>
           <DialogContent sx={{ bgcolor: "transparent", mt: 2 }}>
-            <Typography sx={{ color: '#b0bec5' }}>
+            <Typography sx={{ color: '#d9e9ff' }}>
               Transfer profit of ₱{Number(selectedProfitEntry?.profit || 0).toLocaleString()} to your wallet?
             </Typography>
           </DialogContent>
-          <DialogActions sx={{ borderTop: "1px solid rgba(79, 195, 247, 0.15)", pt: 2 }}>
+          <DialogActions sx={{ borderTop: "1px solid rgba(217,233,255,0.15)", pt: 2 }}>
             <Button
               onClick={() => {
                 setProfitConfirmOpen(false);
                 setSelectedProfitEntry(null);
               }}
               disabled={profitTransferLoading}
-              sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: 'none', color: '#4FC3F7' }}
+              sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: 'none', color: '#d9e9ff' }}
             >
               Cancel
             </Button>
@@ -1311,7 +1312,7 @@ const MemberCapitalShare = () => {
                   setProfitTransferLoading(false);
                 }
               }}
-              sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: 'none', bgcolor: '#1976d2' }}
+              sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: 'none', background: `linear-gradient(135deg, ${memberPalette.azure}, ${memberPalette.royal})` }}
             >
               {profitTransferLoading ? (
                 <CircularProgress size={20} color="inherit" />

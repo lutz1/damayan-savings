@@ -22,18 +22,19 @@ const EntryDetailsDialog = ({
       maxWidth="xs"
       PaperProps={{
         sx: {
-          background: `linear-gradient(120deg, rgba(30, 41, 59, 0.95), rgba(33, 47, 61, 0.9))`,
+          background: "linear-gradient(150deg, rgba(8,26,62,0.96) 0%, rgba(13,44,102,0.92) 100%)",
           backdropFilter: "blur(14px)",
-          border: `1px solid rgba(79, 195, 247, 0.2)`,
+          border: "1px solid rgba(217,233,255,0.22)",
+          color: "#fff",
         },
       }}
     >
       <DialogTitle
         sx={{
-          bgcolor: "rgba(31, 150, 243, 0.15)",
-          color: "#4FC3F7",
+          bgcolor: "rgba(8,31,76,0.75)",
+          color: "#d9e9ff",
           fontWeight: 700,
-          borderBottom: "1px solid rgba(79, 195, 247, 0.15)",
+          borderBottom: "1px solid rgba(217,233,255,0.15)",
         }}
       >
         Capital Share Entry Details
@@ -58,7 +59,7 @@ const EntryDetailsDialog = ({
               variant="h5"
               sx={{
                 fontWeight: 800,
-                color: "#4FC3F7",
+                color: "#d9e9ff",
                 mb: 2,
                 textShadow: "1px 1px 4px #000",
               }}
@@ -306,7 +307,7 @@ const EntryDetailsDialog = ({
           </Box>
         )}
       </DialogContent>
-      <DialogActions sx={{ borderTop: "1px solid rgba(79, 195, 247, 0.15)", pt: 2 }}>
+      <DialogActions sx={{ borderTop: "1px solid rgba(217,233,255,0.15)", pt: 2 }}>
         <Button
           onClick={onClose}
           variant="contained"
@@ -314,7 +315,7 @@ const EntryDetailsDialog = ({
             fontWeight: 700,
             borderRadius: 1.5,
             textTransform: "none",
-            bgcolor: "#1976d2",
+            background: "linear-gradient(135deg, #2f7de1, #0f4ea8)",
           }}
         >
           Close

@@ -1,5 +1,5 @@
 // src/components/TransferFundsDialog.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   Drawer,
@@ -14,6 +14,7 @@ import {
   CircularProgress,
   Divider,
   Alert,
+  Avatar,
   List,
   ListItem,
   ListItemButton,
@@ -22,8 +23,9 @@ import {
   Paper,
   Fade,
   Slide,
+  InputAdornment,
 } from "@mui/material";
-import { Send, CheckCircle, QrCode2, Share } from "@mui/icons-material";
+import { Send, CheckCircle, QrCode2, Share, Search as SearchIcon } from "@mui/icons-material";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import DownloadIcon from "@mui/icons-material/Download";
@@ -60,6 +62,9 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
   const [expressStep, setExpressStep] = useState(0); // 0=mode, 1=recipient, 2=amount, 3=review, 4=receipt
   const [messageText, setMessageText] = useState("");
   const [confirmReview, setConfirmReview] = useState(false); // 🎯 Checkbox confirmation
+  const [infoDialogOpen, setInfoDialogOpen] = useState(false);
+  const [allContacts, setAllContacts] = useState([]);
+  const allContactsRef = useRef(null);
   const walletBalance = Number(safeUserData.eWallet || 0);
   const currentUsername = safeUserData.username || "";
 
@@ -87,7 +92,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
   // ✅ Compute net amount (after 2% charge)
   useEffect(() => {
     const amt = parseFloat(amount) || 0;
-    setNetAmount(amt - amt * 0.02);
+    setNetAmount(amt);
   }, [amount]);
 
   // ✅ Search usernames
@@ -121,6 +126,83 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
     setRecipientUsername(username);
     setShowResults(false);
   };
+
+  const clearRecipientPicker = () => {
+    setRecipientUsername("");
+    setSearchResults([]);
+    setShowResults(false);
+    setSearching(false);
+  };
+
+  const handleViewAllRecipients = () => {
+    clearRecipientPicker();
+    requestAnimationFrame(() => {
+      allContactsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
+  const handleSendBack = () => {
+    if (sendMode === "express") {
+      if (expressStep <= 1) {
+        clearRecipientPicker();
+        setExpressStep(0);
+        return;
+      }
+
+      if (expressStep === 2) {
+        clearRecipientPicker();
+        setExpressStep(1);
+        return;
+      }
+
+      if (expressStep === 3) {
+        setExpressStep(2);
+        return;
+      }
+
+      if (expressStep === 4) {
+        setExpressStep(0);
+        return;
+      }
+    }
+
+    if (sendMode === "qr") {
+      setSendMode("express");
+      setQrAmount("");
+      setExpressStep(0);
+      return;
+    }
+
+    handleClose();
+  };
+
+  useEffect(() => {
+    if (!open || !db) return;
+
+    let active = true;
+
+    const loadContacts = async () => {
+      try {
+        const snap = await getDocs(query(collection(db, "users"), limit(20)));
+        if (!active) return;
+
+        const contacts = snap.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() }))
+          .filter((user) => user.username && user.username !== currentUsername);
+
+        setAllContacts(contacts);
+      } catch (err) {
+        console.error("Failed to load contacts:", err);
+        if (active) setAllContacts([]);
+      }
+    };
+
+    loadContacts();
+
+    return () => {
+      active = false;
+    };
+  }, [open, db, currentUsername]);
 
   // 🎯 Move to Review step (Step 3) - validation only
   const handleSubmitRequest = () => {
@@ -203,8 +285,11 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
         referenceNumber,
         amount: numAmount,
         charge: numAmount * 0.02,
-        netAmount: numAmount - (numAmount * 0.02),
+        netAmount: numAmount,
+        totalDeduction: numAmount + numAmount * 0.02,
         recipient: recipientUsername,
+        recipientName: selectedRecipient?.name || recipientUsername,
+        recipientProfilePicture: selectedRecipient?.profilePicture || "",
         date: new Date(),
         transferId: data.transferId,
         message: messageText,
@@ -273,8 +358,11 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
         referenceNumber,
         amount: numAmount,
         charge: numAmount * 0.02,
-        netAmount: numAmount - (numAmount * 0.02),
+        netAmount: numAmount,
+        totalDeduction: numAmount + numAmount * 0.02,
         recipient: recipientUsername,
+        recipientName: selectedRecipient?.name || recipientUsername,
+        recipientProfilePicture: selectedRecipient?.profilePicture || "",
         date: new Date(),
         transferId: data.transferId,
       });
@@ -308,6 +396,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
     setExpressStep(0); // 🎯 Reset Express Send step
     setMessageText(""); // 🎯 Reset message text
     setConfirmReview(false); // 🎯 Reset confirmation checkbox
+    setInfoDialogOpen(false);
     onClose();
   };
 
@@ -336,6 +425,33 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
 
   const qrData = encodeURIComponent(buildQrPayload());
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${qrData}`;
+  const previewTransferLogs = transferLogs.slice(0, 3);
+  const selectedRecipient =
+    allContacts.find((user) => user.username === recipientUsername) ||
+    searchResults.find((user) => user.username === recipientUsername) ||
+    null;
+  const amountValue = parseFloat(amount) || 0;
+  const transferFee = amountValue * 0.02;
+  const totalToDeduct = amountValue + transferFee;
+  const recipientDirectory = recipientUsername.trim() ? searchResults : allContacts;
+  const recentRecipients = Array.from(
+    new Map(
+      transferLogs
+        .filter((log) => log?.recipientUsername)
+        .map((log) => {
+          const matchedContact = allContacts.find((user) => user.username === log.recipientUsername);
+          return [
+            log.recipientUsername,
+            {
+              username: log.recipientUsername,
+              name: matchedContact?.name || log.recipientUsername,
+              profilePicture: matchedContact?.profilePicture || "",
+            },
+          ];
+        })
+    ).values()
+  ).slice(0, 6);
+  const featuredRecipients = recentRecipients.length > 0 ? recentRecipients : allContacts.slice(0, 6);
 
   const handleDownloadMyQr = async () => {
     try {
@@ -371,173 +487,167 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
     } catch (_) {}
   };
 
-  const handleDownloadReceipt = () => {
-    if (!receiptData) return;
+  const buildReceiptCanvas = () => {
+    if (!receiptData) return null;
 
-    // Create canvas
     const canvas = document.createElement("canvas");
-    canvas.width = 600;
-    canvas.height = 800;
+    canvas.width = 1080;
+    canvas.height = 1680;
     const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
 
-    // Background
-    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    gradient.addColorStop(0, "#2d2d2d");
-    gradient.addColorStop(1, "#1e1e1e");
-    ctx.fillStyle = gradient;
+    const totalAmount = Number(receiptData.amount || 0) + Number(receiptData.charge || 0);
+    const receiptDate = receiptData?.date ? new Date(receiptData.date) : new Date();
+    const recipientLabel = receiptData?.recipientName || receiptData?.recipient || "Recipient";
+    const recipientHandle = `@${receiptData?.recipient || "member"}`;
+    const initials = (recipientLabel || "R").charAt(0).toUpperCase();
+
+    ctx.fillStyle = "#eef2f8";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Border
-    ctx.strokeStyle = "#4CAF50";
-    ctx.lineWidth = 3;
-    ctx.strokeRect(20, 20, canvas.width - 40, canvas.height - 40);
+    ctx.fillStyle = "#0f57d5";
+    ctx.beginPath();
+    ctx.arc(canvas.width / 2, 120, 48, 0, Math.PI * 2);
+    ctx.fill();
 
-    // Header
-    ctx.fillStyle = "#4CAF50";
-    ctx.font = "bold 32px Arial";
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 34px Arial";
     ctx.textAlign = "center";
-    ctx.fillText("✓ TRANSFER RECEIPT", canvas.width / 2, 80);
+    ctx.fillText("✓", canvas.width / 2, 132);
 
-    // Divider
-    ctx.strokeStyle = "#4CAF50";
-    ctx.lineWidth = 2;
+    ctx.fillStyle = "#1e2430";
+    ctx.font = "bold 50px Arial";
+    ctx.fillText("Transfer Successful!", canvas.width / 2, 230);
+
+    ctx.fillStyle = "#6e7787";
+    ctx.font = "26px Arial";
+    ctx.fillText("Your funds have been sent securely.", canvas.width / 2, 276);
+
+    const cardX = 90;
+    const cardY = 335;
+    const cardW = canvas.width - 180;
+    const cardH = 940;
+
+    ctx.fillStyle = "#ffffff";
+    roundRect(ctx, cardX, cardY, cardW, cardH, 28, true, false);
+
+    ctx.fillStyle = "#7a8191";
+    ctx.font = "bold 18px Arial";
+    ctx.fillText("TOTAL AMOUNT", canvas.width / 2, cardY + 70);
+
+    ctx.fillStyle = "#0f57d5";
+    ctx.font = "bold 66px Arial";
+    ctx.fillText(`₱${totalAmount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`, canvas.width / 2, cardY + 140);
+
+    roundRect(ctx, cardX + 40, cardY + 190, cardW - 80, 120, 22, true, false, "#f4f6fa");
+    ctx.fillStyle = "#12284c";
     ctx.beginPath();
-    ctx.moveTo(50, 110);
-    ctx.lineTo(canvas.width - 50, 110);
-    ctx.stroke();
+    ctx.arc(cardX + 94, cardY + 250, 28, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 26px Arial";
+    ctx.fillText(initials, cardX + 94, cardY + 259);
 
-    // Reference Number
-    ctx.fillStyle = "#9E9E9E";
-    ctx.font = "14px Arial";
-    ctx.fillText("Reference Number", canvas.width / 2, 145);
-    
-    ctx.fillStyle = "#4FC3F7";
-    ctx.font = "bold 18px monospace";
-    ctx.fillText(receiptData.referenceNumber, canvas.width / 2, 170);
-
-    // Date & Time
-    ctx.fillStyle = "#FFFFFF";
-    ctx.font = "16px Arial";
+    ctx.fillStyle = "#7a8191";
+    ctx.font = "bold 16px Arial";
     ctx.textAlign = "left";
-    ctx.fillText("Date & Time:", 60, 220);
-    ctx.textAlign = "right";
-    ctx.fillText(
-      receiptData.date.toLocaleString("en-PH", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      }),
-      canvas.width - 60,
-      220
-    );
+    ctx.fillText("RECIPIENT", cardX + 145, cardY + 230);
+    ctx.fillStyle = "#1e2430";
+    ctx.font = "bold 30px Arial";
+    ctx.fillText(recipientLabel, cardX + 145, cardY + 268);
+    ctx.fillStyle = "#6e7787";
+    ctx.font = "22px Arial";
+    ctx.fillText(`${recipientHandle} • ${receiptData?.transferId || receiptData?.referenceNumber || "TRANSFER"}`, cardX + 145, cardY + 298);
 
-    // Divider
-    ctx.strokeStyle = "#555";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(50, 240);
-    ctx.lineTo(canvas.width - 50, 240);
-    ctx.stroke();
+    ctx.fillStyle = "#7a8191";
+    ctx.font = "bold 16px Arial";
+    ctx.fillText("REF NUMBER", cardX + 40, cardY + 370);
+    ctx.fillStyle = "#1e2430";
+    ctx.font = "bold 26px monospace";
+    ctx.fillText(receiptData.referenceNumber || "-", cardX + 40, cardY + 410);
 
-    // Transaction Details Header
-    ctx.fillStyle = "#4FC3F7";
+    roundRect(ctx, cardX + cardW - 150, cardY + 352, 110, 42, 18, true, false, "#ecf3ff");
+    ctx.fillStyle = "#0f57d5";
     ctx.font = "bold 20px Arial";
     ctx.textAlign = "center";
-    ctx.fillText("TRANSACTION DETAILS", canvas.width / 2, 280);
+    ctx.fillText("Copy", cardX + cardW - 95, cardY + 380);
 
-    // From
-    ctx.fillStyle = "#9E9E9E";
-    ctx.font = "16px Arial";
     ctx.textAlign = "left";
-    ctx.fillText("From:", 60, 320);
-    ctx.fillStyle = "#FFFFFF";
-    ctx.textAlign = "right";
-    ctx.fillText(`@${currentUsername || "-"}`, canvas.width - 60, 320);
+    ctx.fillStyle = "#7a8191";
+    ctx.font = "bold 16px Arial";
+    ctx.fillText("DATE", cardX + 40, cardY + 490);
+    ctx.fillText("TIME", cardX + cardW - 210, cardY + 490);
 
-    // To
-    ctx.fillStyle = "#9E9E9E";
-    ctx.textAlign = "left";
-    ctx.fillText("To:", 60, 355);
-    ctx.fillStyle = "#FFFFFF";
-    ctx.textAlign = "right";
-    ctx.fillText(`@${receiptData.recipient}`, canvas.width - 60, 355);
-
-    // Divider
-    ctx.strokeStyle = "#555";
-    ctx.beginPath();
-    ctx.moveTo(50, 380);
-    ctx.lineTo(canvas.width - 50, 380);
-    ctx.stroke();
-
-    // Amount Details
-    ctx.fillStyle = "#9E9E9E";
-    ctx.textAlign = "left";
-    ctx.fillText("Amount:", 60, 420);
-    ctx.fillStyle = "#FFFFFF";
-    ctx.textAlign = "right";
-    ctx.fillText(
-      `₱${receiptData.amount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`,
-      canvas.width - 60,
-      420
-    );
-
-    // Service Charge
-    ctx.fillStyle = "#9E9E9E";
-    ctx.textAlign = "left";
-    ctx.fillText("Service Charge (2%):", 60, 455);
-    ctx.fillStyle = "#FFB74D";
-    ctx.textAlign = "right";
-    ctx.fillText(
-      `-₱${receiptData.charge.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`,
-      canvas.width - 60,
-      455
-    );
-
-    // Divider
-    ctx.strokeStyle = "#4CAF50";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(50, 480);
-    ctx.lineTo(canvas.width - 50, 480);
-    ctx.stroke();
-
-    // Net Amount
-    ctx.fillStyle = "#FFFFFF";
-    ctx.font = "bold 18px Arial";
-    ctx.textAlign = "left";
-    ctx.fillText("Net Amount Sent:", 60, 520);
-    ctx.fillStyle = "#4CAF50";
+    ctx.fillStyle = "#1e2430";
     ctx.font = "bold 24px Arial";
-    ctx.textAlign = "right";
-    ctx.fillText(
-      `₱${receiptData.netAmount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`,
-      canvas.width - 60,
-      520
-    );
+    ctx.fillText(receiptDate.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" }), cardX + 40, cardY + 530);
+    ctx.fillText(receiptDate.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" }), cardX + cardW - 210, cardY + 530);
 
-    // Status Box
-    ctx.fillStyle = "rgba(76, 175, 80, 0.2)";
-    ctx.fillRect(60, 560, canvas.width - 120, 50);
-    ctx.strokeStyle = "#4CAF50";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(60, 560, canvas.width - 120, 50);
-    
-    ctx.fillStyle = "#4CAF50";
-    ctx.font = "bold 18px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText("✓ Status: Approved", canvas.width / 2, 592);
+    ctx.fillStyle = "#7a8191";
+    ctx.font = "bold 16px Arial";
+    ctx.fillText("SUMMARY", cardX + 40, cardY + 620);
 
-    // Footer
-    ctx.fillStyle = "#9E9E9E";
-    ctx.font = "12px Arial";
-    ctx.fillText("Keep this receipt for your records", canvas.width / 2, 660);
-    ctx.fillText("This is an official transaction receipt", canvas.width / 2, 680);
+    const summaryRows = [
+      ["Amount", `₱${Number(receiptData.amount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`],
+      ["Service Fee", `₱${Number(receiptData.charge || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`],
+      ["Total", `₱${totalAmount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`],
+    ];
 
-    // Timestamp
-    ctx.font = "10px Arial";
-    ctx.fillText(`Generated on ${new Date().toLocaleString("en-PH")}`, canvas.width / 2, 720);
+    summaryRows.forEach(([label, value], index) => {
+      const y = cardY + 675 + index * 62;
+      ctx.fillStyle = "#6e7787";
+      ctx.font = "22px Arial";
+      ctx.fillText(label, cardX + 40, y);
+      ctx.fillStyle = index === 2 ? "#0f57d5" : "#1e2430";
+      ctx.font = "bold 24px Arial";
+      ctx.textAlign = "right";
+      ctx.fillText(value, cardX + cardW - 40, y);
+      ctx.textAlign = "left";
 
-    // Convert canvas to blob and download
-    canvas.toBlob((blob) => {
+      if (index < summaryRows.length - 1) {
+        ctx.strokeStyle = "#e8edf5";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cardX + 40, y + 22);
+        ctx.lineTo(cardX + cardW - 40, y + 22);
+        ctx.stroke();
+      }
+    });
+
+    return canvas;
+  };
+
+  const roundRect = (ctx, x, y, width, height, radius, fill, stroke, fillColor) => {
+    if (fillColor) ctx.fillStyle = fillColor;
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + width - radius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+    ctx.lineTo(x + width, y + height - radius);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    ctx.lineTo(x + radius, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+    if (fill) ctx.fill();
+    if (stroke) ctx.stroke();
+  };
+
+  const canvasToBlob = (canvas) =>
+    new Promise((resolve) => {
+      canvas.toBlob((blob) => resolve(blob), "image/png");
+    });
+
+  const handleDownloadReceipt = async () => {
+    if (!receiptData) return;
+
+    try {
+      const canvas = buildReceiptCanvas();
+      if (!canvas) return;
+      const blob = await canvasToBlob(canvas);
+      if (!blob) throw new Error("Failed to create receipt image.");
+
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -546,7 +656,59 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-    });
+    } catch (err) {
+      console.error("Receipt save failed:", err);
+      setError("Failed to save receipt.");
+    }
+  };
+
+  const handleShareReceipt = async () => {
+    if (!receiptData) return;
+
+    try {
+      const canvas = buildReceiptCanvas();
+      if (!canvas) return;
+      const blob = await canvasToBlob(canvas);
+      if (!blob) throw new Error("Failed to create receipt image.");
+
+      const totalAmount = Number(receiptData.amount || 0) + Number(receiptData.charge || 0);
+      const shareText = `Transfer receipt\nReference: ${receiptData.referenceNumber}\nRecipient: @${receiptData.recipient}\nTotal: ₱${totalAmount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
+      const file = new File([blob], `Transfer_Receipt_${receiptData.referenceNumber}.png`, { type: "image/png" });
+
+      if (navigator.share) {
+        if (navigator.canShare?.({ files: [file] })) {
+          await navigator.share({
+            title: "Transfer Receipt",
+            text: shareText,
+            files: [file],
+          });
+        } else {
+          await navigator.share({
+            title: "Transfer Receipt",
+            text: shareText,
+          });
+        }
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareText);
+        if (typeof window !== "undefined") {
+          window.alert("Receipt details copied to clipboard. You can now paste and share it.");
+        }
+      }
+    } catch (err) {
+      if (err?.name !== "AbortError") {
+        console.error("Receipt share failed:", err);
+        setError("Failed to share receipt.");
+      }
+    }
+  };
+
+  const handleCopyReceiptReference = async () => {
+    if (!receiptData?.referenceNumber || !navigator.clipboard?.writeText) return;
+    try {
+      await navigator.clipboard.writeText(receiptData.referenceNumber);
+    } catch (err) {
+      console.error("Failed to copy reference number:", err);
+    }
   };
 
   return (
@@ -569,7 +731,9 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
           sx: {
             width: { xs: "100%", sm: 430 },
             maxWidth: "100%",
-            backgroundColor: "#f7f9fc",
+            background: "linear-gradient(180deg, rgba(4,12,30,0.98) 0%, rgba(8,23,52,0.98) 44%, rgba(15,42,99,0.97) 100%)",
+            color: "#f8fbff",
+            borderLeft: "1px solid rgba(138,199,255,0.14)",
             animation: open ? "slideIn 0.35s cubic-bezier(0.4, 0, 0.2, 1)" : "slideOut 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
             "@keyframes slideIn": {
               "0%": {
@@ -595,37 +759,41 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
             sx={{
               minHeight: 70,
               px: 1,
+              pt: "calc(env(safe-area-inset-top, 0px) + 10px)",
+              pb: 1,
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
               color: "#fff",
-              background: "linear-gradient(135deg, #0b1f5e 0%, #173a8a 55%, #d4af37 100%)",
+              background: "linear-gradient(135deg, rgba(6,19,46,0.98) 0%, rgba(13,47,118,0.96) 58%, rgba(37,101,214,0.90) 100%)",
+              borderBottom: "1px solid rgba(138,199,255,0.16)",
             }}
           >
-            <IconButton
-              onClick={() => {
-                if (sendMode === "express" && expressStep > 0) {
-                  setExpressStep(0); // Go back to mode selection
-                } else {
-                  handleClose(); // Close drawer
-                }
-              }}
-              sx={{ color: "#fff" }}
-            >
+            <IconButton onClick={handleSendBack} sx={{ color: "#fff" }}>
               <ArrowBackIosNewIcon />
             </IconButton>
             <Typography sx={{ fontSize: 18, fontWeight: 800, letterSpacing: 0.2, lineHeight: 1 }}>
-              {sendMode === "express" && expressStep > 0 
-                ? expressStep === 1 
-                  ? "Recipient" 
-                  : expressStep === 2 
+              {sendMode === "express" && expressStep > 0
+                ? expressStep === 1
+                  ? "Select Recipient"
+                  : expressStep === 2
                   ? "Send Details"
                   : expressStep === 3
-                  ? "Review"
+                  ? "Review Transfer"
                   : "Receipt"
+                : sendMode === "qr"
+                ? "Scan To Pay"
                 : "Send"}
             </Typography>
-            <IconButton sx={{ color: "#fff" }}>
+            <IconButton
+              onClick={() => setInfoDialogOpen(true)}
+              sx={{
+                color: "#fff",
+                backgroundColor: "rgba(138,199,255,0.12)",
+                border: "1px solid rgba(138,199,255,0.20)",
+                "&:hover": { backgroundColor: "rgba(138,199,255,0.20)" },
+              }}
+            >
               <InfoOutlinedIcon />
             </IconButton>
           </Box>
@@ -635,82 +803,242 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
             {(sendMode !== "express" || expressStep === 0) ? (
               <Fade in={expressStep === 0} timeout={300}>
                 <Box>
-                  <Typography sx={{ fontSize: 12, color: "#556070", mb: 1, fontWeight: 700 }}>
-                    Send to any Bowners account
-                  </Typography>
-                  <Paper
-                    onClick={() => {
-                      setSendMode("express");
-                      setExpressStep(1); // Go to step 1
-                    }}
+                  <Box
                     sx={{
-                      mb: 1.5,
-                      p: 1.6,
-                      borderRadius: 2,
-                      border: sendMode === "express" && expressStep > 0 ? "1.5px solid #105abf" : "1px solid #dbe2ef",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1.3,
-                      backgroundColor: "#fff",
-                      transition: "all 0.2s ease",
-                      "&:hover": {
-                        transform: "translateY(-2px)",
-                        boxShadow: "0 4px 12px rgba(16, 90, 191, 0.15)",
-                      },
+                      mb: 1.7,
+                      borderRadius: 3.5,
+                      p: 2,
+                      color: "#fff",
+                      background: "linear-gradient(145deg, rgba(8,23,52,0.98) 0%, rgba(16,42,99,0.95) 52%, rgba(33,86,201,0.88) 100%)",
+                      border: "1px solid rgba(138,199,255,0.16)",
+                      boxShadow: "0 18px 38px rgba(2, 14, 38, 0.34)",
                     }}
                   >
-                    <Box sx={{ width: 44, height: 44, borderRadius: 1.5, backgroundColor: "rgba(16,90,191,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <Send sx={{ color: "#105abf" }} />
+                    <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1.2 }}>
+                      <Box>
+                        <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 1.1, color: "rgba(255,255,255,0.78)" }}>
+                          AVAILABLE BALANCE
+                        </Typography>
+                        <Typography sx={{ fontSize: 28, fontWeight: 900, lineHeight: 1.1, letterSpacing: -0.4, mt: 0.3 }}>
+                          ₱{walletBalance.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                        </Typography>
+                      </Box>
+                      <Box
+                        sx={{
+                          px: 1.1,
+                          py: 0.45,
+                          borderRadius: 999,
+                          backgroundColor: "rgba(255,255,255,0.16)",
+                          fontSize: 10,
+                          fontWeight: 700,
+                          letterSpacing: 0.7,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        VERIFIED ACCOUNT
+                      </Box>
                     </Box>
-                    <Box sx={{ flex: 1 }}>
-                      <Typography sx={{ fontWeight: 800, color: "#223047" }}>Express Send</Typography>
-                      <Typography sx={{ fontSize: 12, color: "#7a8392" }}>Send money quickly</Typography>
-                    </Box>
-                    <ChevronRightIcon sx={{ color: "#105abf", opacity: 0.6 }} />
-                  </Paper>
 
-                  <Typography sx={{ fontSize: 12, color: "#556070", mb: 1, fontWeight: 700 }}>
-                    Request money
-                  </Typography>
-                  <Paper
-                    onClick={() => setSendMode("qr")}
+                    <Box sx={{ mt: 2.2 }}>
+                      <Typography sx={{ fontSize: 9.5, color: "rgba(255,255,255,0.74)", letterSpacing: 1 }}>
+                        ACCOUNT HOLDER
+                      </Typography>
+                      <Typography sx={{ fontSize: 13.5, fontWeight: 700, mt: 0.35 }}>
+                        {safeUserData.name || safeUserData.username || "Member"}
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  <Box
                     sx={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                      gap: 1.2,
                       mb: 1.8,
-                      p: 1.6,
-                      borderRadius: 2,
-                      border: sendMode === "qr" ? "1.5px solid #105abf" : "1px solid #dbe2ef",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1.3,
-                      backgroundColor: "#fff",
-                      transition: "all 0.2s ease",
-                      "&:hover": {
-                        transform: "translateY(-2px)",
-                        boxShadow: "0 4px 12px rgba(16, 90, 191, 0.15)",
-                      },
                     }}
                   >
-                    <Box sx={{ width: 44, height: 44, borderRadius: 1.5, backgroundColor: "rgba(16,90,191,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <QrCode2 sx={{ color: "#105abf" }} />
-                    </Box>
-                    <Box sx={{ flex: 1 }}>
-                      <Typography sx={{ fontWeight: 800, color: "#223047" }}>Generate QR</Typography>
-                      <Typography sx={{ fontSize: 12, color: "#7a8392" }}>Request easily using your QR code</Typography>
-                    </Box>
-                    <ChevronRightIcon sx={{ color: "#105abf", opacity: 0.6 }} />
-                  </Paper>
+                    <Paper
+                      onClick={() => {
+                        setSendMode("express");
+                        setExpressStep(1);
+                      }}
+                      sx={{
+                        p: 1.5,
+                        minHeight: 132,
+                        borderRadius: 3,
+                        cursor: "pointer",
+                        background: "linear-gradient(145deg, rgba(8,23,52,0.94) 0%, rgba(15,42,99,0.90) 100%)",
+                        border: "1px solid rgba(138,199,255,0.12)",
+                        boxShadow: "0 12px 22px rgba(2,10,24,0.18)",
+                        transition: "all 0.2s ease",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        textAlign: "center",
+                        "&:hover": {
+                          transform: "translateY(-2px)",
+                          boxShadow: "0 16px 28px rgba(2,10,24,0.24)",
+                        },
+                      }}
+                    >
+                      <Box sx={{ width: 52, height: 52, borderRadius: 2.2, backgroundColor: "rgba(138,199,255,0.16)", display: "flex", alignItems: "center", justifyContent: "center", mb: 1.1 }}>
+                        <Send sx={{ color: "#8ac7ff", fontSize: 28 }} />
+                      </Box>
+                      <Typography sx={{ fontWeight: 800, color: "#f8fbff", fontSize: 14, lineHeight: 1.2 }}>
+                        Express
+                        <br />
+                        Send
+                      </Typography>
+                      <Typography sx={{ fontSize: 11, color: "rgba(220,232,255,0.72)", mt: 0.55 }}>
+                        Instant transfer
+                      </Typography>
+                    </Paper>
 
-                  {/* 💰 Balance */}
-                  <Box sx={{ textAlign: "center", mt: 2 }}>
-                    <Send sx={{ fontSize: 40, color: "#105abf" }} />
-                    <Typography variant="h6" sx={{ mt: 1, color: "#4e5663" }}>
-                      Available Balance
+                    <Paper
+                      onClick={() => setSendMode("qr")}
+                      sx={{
+                        p: 1.5,
+                        minHeight: 132,
+                        borderRadius: 3,
+                        cursor: "pointer",
+                        background: "linear-gradient(145deg, rgba(8,23,52,0.94) 0%, rgba(15,42,99,0.90) 100%)",
+                        border: "1px solid rgba(138,199,255,0.12)",
+                        boxShadow: "0 12px 22px rgba(2,10,24,0.18)",
+                        transition: "all 0.2s ease",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        textAlign: "center",
+                        "&:hover": {
+                          transform: "translateY(-2px)",
+                          boxShadow: "0 16px 28px rgba(2,10,24,0.24)",
+                        },
+                      }}
+                    >
+                      <Box sx={{ width: 52, height: 52, borderRadius: 2.2, backgroundColor: "rgba(138,199,255,0.16)", display: "flex", alignItems: "center", justifyContent: "center", mb: 1.1 }}>
+                        <QrCode2 sx={{ color: "#8ac7ff", fontSize: 28 }} />
+                      </Box>
+                      <Typography sx={{ fontWeight: 800, color: "#f8fbff", fontSize: 14, lineHeight: 1.2 }}>
+                        Scan To Pay
+                      </Typography>
+                      <Typography sx={{ fontSize: 11, color: "rgba(220,232,255,0.72)", mt: 0.55 }}>
+                        Generate QR
+                      </Typography>
+                    </Paper>
+                  </Box>
+
+                  <Box
+                    sx={{
+                      borderRadius: 3,
+                      p: 1.4,
+                      background: "linear-gradient(145deg, rgba(8,23,52,0.94) 0%, rgba(15,42,99,0.90) 100%)",
+                      border: "1px solid rgba(138,199,255,0.12)",
+                      boxShadow: "0 12px 22px rgba(2,10,24,0.18)",
+                    }}
+                  >
+                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 0.8 }}>
+                      <Typography sx={{ fontWeight: 800, color: "#f8fbff", fontSize: 14 }}>
+                        Transfer Logs
+                      </Typography>
+                      <Typography sx={{ fontSize: 11, color: "#105abf", fontWeight: 700 }}>
+                        View All
+                      </Typography>
+                    </Box>
+
+                    {previewTransferLogs.length > 0 ? (
+                      <List dense disablePadding>
+                        {previewTransferLogs.map((log, index) => (
+                          <ListItem
+                            key={log.id}
+                            disableGutters
+                            sx={{
+                              py: 0.9,
+                              borderBottom: index === previewTransferLogs.length - 1 ? "none" : "1px solid rgba(16,90,191,0.08)",
+                              gap: 1,
+                            }}
+                          >
+                            <Box
+                              sx={{
+                                width: 34,
+                                height: 34,
+                                borderRadius: "50%",
+                                backgroundColor: "rgba(16,90,191,0.10)",
+                                color: "#105abf",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontWeight: 800,
+                                fontSize: 12,
+                                flexShrink: 0,
+                              }}
+                            >
+                              {(log.recipientUsername || "U").charAt(0).toUpperCase()}
+                            </Box>
+                            <ListItemText
+                              primary={log.recipientUsername || "User"}
+                              secondary={
+                                log.createdAt
+                                  ? new Date(log.createdAt.seconds * 1000).toLocaleString("en-PH", {
+                                      month: "short",
+                                      day: "numeric",
+                                      hour: "numeric",
+                                      minute: "2-digit",
+                                    })
+                                  : "Processing..."
+                              }
+                              primaryTypographyProps={{ color: "#f8fbff", fontWeight: 700, fontSize: 13 }}
+                              secondaryTypographyProps={{ color: "rgba(220,232,255,0.72)", fontSize: 10.5 }}
+                            />
+                            <Box sx={{ textAlign: "right", minWidth: 70 }}>
+                              <Typography sx={{ fontWeight: 800, color: "#f8fbff", fontSize: 13 }}>
+                                -₱{Number(log.amount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                              </Typography>
+                              <Typography sx={{ fontSize: 10, fontWeight: 800, color: log.status === "Approved" ? "#2eaf72" : "#f0a63a" }}>
+                                {String(log.status || "Pending").toUpperCase()}
+                              </Typography>
+                            </Box>
+                          </ListItem>
+                        ))}
+                      </List>
+                    ) : (
+                      <Typography sx={{ fontSize: 11.5, color: "#7a8392", py: 1 }}>
+                        No transfers yet.
+                      </Typography>
+                    )}
+                  </Box>
+
+                  <Box
+                    sx={{
+                      mt: 1.8,
+                      borderRadius: 3,
+                      p: 1.5,
+                      background: "linear-gradient(145deg, rgba(11,31,94,0.96) 0%, rgba(18,56,135,0.90) 62%, rgba(45,110,225,0.82) 100%)",
+                      border: "1px solid rgba(138,199,255,0.14)",
+                    }}
+                  >
+                    <Typography sx={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.8, color: "rgba(220,232,255,0.74)", mb: 0.4 }}>
+                      GROWTH INSIGHTS
                     </Typography>
-                    <Typography variant="h5" sx={{ fontWeight: 800, color: "#105abf" }}>
-                      ₱{walletBalance.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                    <Typography sx={{ fontSize: 16, fontWeight: 800, color: "#f8fbff", lineHeight: 1.25, mb: 1 }}>
+                      Maximize your savings with Vaults
                     </Typography>
+                    <Box
+                      sx={{
+                        display: "inline-flex",
+                        px: 1.3,
+                        py: 0.5,
+                        borderRadius: 999,
+                        backgroundColor: "#105abf",
+                        color: "#fff",
+                        fontSize: 10.5,
+                        fontWeight: 800,
+                        letterSpacing: 0.4,
+                      }}
+                    >
+                      LEARN MORE
+                    </Box>
                   </Box>
                 </Box>
               </Fade>
@@ -748,91 +1076,155 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
                 {sendMode === "express" && expressStep === 1 && (
                   <Fade in={expressStep === 1} timeout={300}>
                     <Box>
-                      <Divider sx={{ my: 2, borderColor: "#e4e8f0" }} />
-                      <Typography sx={{ fontSize: 12, color: "#556070", mb: 2, fontWeight: 700 }}>
-                        Enter username or find a Bowner
-                      </Typography>
-
-                      {/* 🧑‍ Recipient Search */}
-                      <Box sx={{ position: "relative", mb: 3 }}>
+                      <Box sx={{ mb: 2.2 }}>
                         <TextField
                           fullWidth
                           autoFocus
-                          placeholder="Search username..."
+                          placeholder="Enter username or find a Bowner"
                           value={recipientUsername}
                           onChange={(e) => handleSearchUser(e.target.value)}
+                          InputProps={{
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <SearchIcon sx={{ color: "#8ca2c8", fontSize: 20 }} />
+                              </InputAdornment>
+                            ),
+                          }}
                           sx={{
-                            "& .MuiInputBase-root": { color: "#1f2430", backgroundColor: "#fff" },
-                            "& .MuiInputLabel-root": { color: "#6a7280" },
+                            "& .MuiInputBase-root": {
+                              color: "#1f2430",
+                              backgroundColor: "rgba(255,255,255,0.98)",
+                              borderRadius: 999,
+                              height: 46,
+                            },
                             "& .MuiOutlinedInput-notchedOutline": { borderColor: "#d8deea" },
                           }}
                         />
                         {searching && (
-                          <CircularProgress
-                            size={20}
-                            sx={{ position: "absolute", right: 10, top: 15, color: "#4FC3F7" }}
-                          />
-                        )}
-
-                        {showResults && searchResults.length > 0 && (
-                          <Paper
-                            sx={{
-                              position: "absolute",
-                              top: "100%",
-                              left: 0,
-                              right: 0,
-                              zIndex: 5,
-                              bgcolor: "#fff",
-                              color: "#1f2430",
-                              mt: 1,
-                              borderRadius: 2,
-                              border: "1px solid #dbe2ef",
-                              maxHeight: 200,
-                              overflowY: "auto",
-                            }}
-                          >
-                            {searchResults.map((u) => (
-                              <ListItem
-                                key={u.id}
-                              >
-                                <ListItemButton
-                                  onClick={() => {
-                                    handleSelectUser(u.username);
-                                    setExpressStep(2); // Move to amount step
-                                  }}
-                                  sx={{ "&:hover": { background: "#f3f6fc" } }}
-                                  disabled={loading}
-                                >
-                                  <ListItemText
-                                    primary={u.username}
-                                    secondary={u.name}
-                                    secondaryTypographyProps={{ color: "#7a8392" }}
-                                  />
-                                </ListItemButton>
-                              </ListItem>
-                            ))}
-                          </Paper>
+                          <CircularProgress size={18} sx={{ mt: 1, ml: 1, color: "#8ac7ff" }} />
                         )}
                       </Box>
 
-                      {recipientUsername && !showResults && (
-                        <Button
-                          fullWidth
-                          onClick={() => setExpressStep(2)}
-                          variant="contained"
-                          sx={{
-                            borderRadius: 2,
-                            textTransform: "none",
-                            bgcolor: "#105abf",
-                            color: "#fff",
-                            fontWeight: 700,
-                            py: 1.3,
-                            "&:hover": { bgcolor: "#0b4eaa" },
-                          }}
-                        >
-                          Done
-                        </Button>
+                      {featuredRecipients.length > 0 && (
+                        <Box sx={{ mb: 2.2 }}>
+                          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
+                            <Typography sx={{ fontSize: 13, fontWeight: 800, color: "rgba(240,247,255,0.96)" }}>
+                              Recent Recipients
+                            </Typography>
+                            <Button
+                              onClick={handleViewAllRecipients}
+                              sx={{ minWidth: 0, p: 0, fontSize: 11, color: "#8ac7ff", fontWeight: 700, textTransform: "none" }}
+                            >
+                              View All
+                            </Button>
+                          </Box>
+
+                          <Box
+                            sx={{
+                              display: "flex",
+                              gap: 1.2,
+                              overflowX: "auto",
+                              pb: 0.5,
+                              "&::-webkit-scrollbar": { height: 6 },
+                              "&::-webkit-scrollbar-thumb": {
+                                backgroundColor: "rgba(138,199,255,0.28)",
+                                borderRadius: 999,
+                              },
+                            }}
+                          >
+                            {featuredRecipients.map((user) => (
+                              <Box
+                                key={user.username}
+                                onClick={() => {
+                                  handleSelectUser(user.username);
+                                  setExpressStep(2);
+                                }}
+                                sx={{ minWidth: 70, textAlign: "center", cursor: "pointer" }}
+                              >
+                                <Avatar
+                                  src={user.profilePicture || ""}
+                                  sx={{
+                                    width: 54,
+                                    height: 54,
+                                    mx: "auto",
+                                    mb: 0.7,
+                                    bgcolor: "rgba(138,199,255,0.16)",
+                                    color: "#0b1f5e",
+                                    fontWeight: 800,
+                                    border: "2px solid rgba(255,255,255,0.88)",
+                                  }}
+                                >
+                                  {(user.name || user.username || "U").charAt(0).toUpperCase()}
+                                </Avatar>
+                                <Typography sx={{ fontSize: 10.5, fontWeight: 700, color: "rgba(240,247,255,0.96)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                  {(user.name || user.username || "User").split(" ")[0]}
+                                </Typography>
+                              </Box>
+                            ))}
+                          </Box>
+                        </Box>
                       )}
+
+                      <Box ref={allContactsRef}>
+                        <Typography sx={{ fontSize: 13, fontWeight: 800, color: "rgba(240,247,255,0.96)", mb: 1 }}>
+                          All Contacts
+                        </Typography>
+
+                        {recipientDirectory.length > 0 ? (
+                          <Box sx={{ display: "grid", gap: 1 }}>
+                            {recipientDirectory.slice(0, 10).map((user) => (
+                              <Paper
+                                key={user.id || user.username}
+                                onClick={() => {
+                                  handleSelectUser(user.username);
+                                  setExpressStep(2);
+                                }}
+                                sx={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 1.1,
+                                  p: 1.1,
+                                  borderRadius: 2.4,
+                                  background: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(245,248,255,0.98) 100%)",
+                                  border: "1px solid rgba(16,90,191,0.10)",
+                                  boxShadow: "0 10px 18px rgba(6,18,45,0.08)",
+                                  cursor: "pointer",
+                                  "&:hover": { background: "#f7faff" },
+                                }}
+                              >
+                                <Avatar
+                                  src={user.profilePicture || ""}
+                                  sx={{ width: 42, height: 42, bgcolor: "rgba(16,90,191,0.12)", color: "#105abf", fontWeight: 800 }}
+                                >
+                                  {(user.name || user.username || "U").charAt(0).toUpperCase()}
+                                </Avatar>
+                                <Box sx={{ minWidth: 0, flex: 1 }}>
+                                  <Typography sx={{ fontSize: 13.5, fontWeight: 800, color: "#223047", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    {user.name || user.username}
+                                  </Typography>
+                                  <Typography sx={{ fontSize: 11, color: "#7a8392", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    @{user.username}
+                                  </Typography>
+                                </Box>
+                                <ChevronRightIcon sx={{ color: "#8da8d6", fontSize: 18 }} />
+                              </Paper>
+                            ))}
+                          </Box>
+                        ) : (
+                          <Paper
+                            sx={{
+                              p: 1.4,
+                              borderRadius: 2.4,
+                              background: "rgba(255,255,255,0.96)",
+                              border: "1px solid rgba(16,90,191,0.10)",
+                            }}
+                          >
+                            <Typography sx={{ fontSize: 12, color: "#6f7f9b" }}>
+                              {recipientUsername.trim() ? "No matching members found." : "No contacts available yet."}
+                            </Typography>
+                          </Paper>
+                        )}
+                      </Box>
                     </Box>
                   </Fade>
                 )}
@@ -843,29 +1235,66 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
                     <Box>
                       <Divider sx={{ my: 2, borderColor: "#e4e8f0" }} />
 
-                      {/* Display selected recipient */}
-                      <Box sx={{ background: "#fff", borderRadius: 2, p: 2, mb: 2, border: "1px solid #dbe2ef" }}>
-                        <Typography sx={{ fontSize: 11, color: "#556070", fontWeight: 700, mb: 0.5 }}>
-                          Sending to
-                        </Typography>
-                        <Typography sx={{ fontSize: 16, fontWeight: 800, color: "#105abf" }}>
-                          @{recipientUsername}
-                        </Typography>
+                      <Box
+                        sx={{
+                          background: "rgba(255,255,255,0.98)",
+                          borderRadius: 2.6,
+                          p: 1.4,
+                          mb: 2,
+                          border: "1px solid rgba(16,90,191,0.10)",
+                          boxShadow: "0 10px 18px rgba(6,18,45,0.08)",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 1.1,
+                        }}
+                      >
+                        <Avatar
+                          src={selectedRecipient?.profilePicture || ""}
+                          sx={{
+                            width: 48,
+                            height: 48,
+                            bgcolor: "rgba(16,90,191,0.12)",
+                            color: "#105abf",
+                            fontWeight: 800,
+                          }}
+                        >
+                          {(selectedRecipient?.name || recipientUsername || "U").charAt(0).toUpperCase()}
+                        </Avatar>
+                        <Box sx={{ minWidth: 0, flex: 1 }}>
+                          <Typography sx={{ fontSize: 9.5, color: "#7a8392", fontWeight: 800, letterSpacing: 0.9 }}>
+                            SENDING TO
+                          </Typography>
+                          <Typography sx={{ fontSize: 17, fontWeight: 800, color: "#223047", lineHeight: 1.1 }}>
+                            {selectedRecipient?.name || recipientUsername}
+                          </Typography>
+                          <Typography sx={{ fontSize: 11, color: "#7a8392" }}>
+                            @{recipientUsername}
+                          </Typography>
+                        </Box>
+                        <Button
+                          onClick={() => {
+                            clearRecipientPicker();
+                            setExpressStep(1);
+                          }}
+                          sx={{
+                            minWidth: 0,
+                            px: 1.2,
+                            py: 0.45,
+                            borderRadius: 999,
+                            textTransform: "none",
+                            fontSize: 10.5,
+                            fontWeight: 800,
+                            color: "#105abf",
+                            backgroundColor: "rgba(16,90,191,0.08)",
+                            "&:hover": { backgroundColor: "rgba(16,90,191,0.14)" },
+                          }}
+                        >
+                          Change
+                        </Button>
                       </Box>
 
-                      {/* 💰 Available Balance */}
-                      <Box sx={{ background: "rgba(16, 90, 191, 0.08)", borderRadius: 2, p: 1.5, mb: 2, border: "1px solid rgba(16, 90, 191, 0.2)" }}>
-                        <Typography sx={{ fontSize: 11, color: "#556070", fontWeight: 700, mb: 0.3 }}>
-                          Available Balance
-                        </Typography>
-                        <Typography sx={{ fontSize: 18, fontWeight: 800, color: "#105abf" }}>
-                          ₱{walletBalance.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
-                        </Typography>
-                      </Box>
-
-                      {/* 💸 Amount */}
-                      <Typography sx={{ fontSize: 12, color: "#556070", mb: 0.8, fontWeight: 700 }}>
-                        Amount to Send
+                      <Typography sx={{ textAlign: "center", fontSize: 11, color: "rgba(220,232,255,0.72)", fontWeight: 800, letterSpacing: 1, mb: 1 }}>
+                        ENTER AMOUNT (PHP)
                       </Typography>
                       <TextField
                         type="number"
@@ -874,66 +1303,156 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
                         placeholder="0.00"
                         value={amount}
                         onChange={(e) => setAmount(e.target.value)}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <Typography sx={{ fontSize: 24, fontWeight: 800, color: "#9aa8c4" }}>₱</Typography>
+                            </InputAdornment>
+                          ),
+                        }}
                         sx={{
-                          mb: 2.5,
-                          "& .MuiInputBase-root": { color: "#1f2430", backgroundColor: "#fff", fontSize: 18, fontWeight: 700 },
-                          "& .MuiOutlinedInput-notchedOutline": { borderColor: "#d8deea" },
+                          mb: 1.5,
+                          "& .MuiInputBase-root": {
+                            color: "#dfe8ff",
+                            backgroundColor: "transparent",
+                            fontSize: 30,
+                            fontWeight: 900,
+                          },
+                          "& .MuiInputBase-input": {
+                            textAlign: "center",
+                            color: "#dfe8ff",
+                            py: 1,
+                          },
+                          "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(138,199,255,0.18)" },
                         }}
                       />
 
-                      {amount && (
-                        <Box sx={{ background: "#fff", borderRadius: 2, p: 1.5, mb: 2, border: "1px solid #e4e8f0" }}>
-                          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
-                            <Typography sx={{ fontSize: 12, color: "#556070" }}>2% Service Charge:</Typography>
-                            <Typography sx={{ fontSize: 12, color: "#FFB74D", fontWeight: 600 }}>
-                              -₱{(amount * 0.02 || 0).toFixed(2)}
-                            </Typography>
-                          </Box>
-                          <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-                            <Typography sx={{ fontSize: 12, color: "#556070", fontWeight: 700 }}>Net Amount:</Typography>
-                            <Typography sx={{ fontSize: 14, color: "#81C784", fontWeight: 800 }}>
-                              ₱{netAmount.toFixed(2)}
-                            </Typography>
-                          </Box>
-                        </Box>
-                      )}
+                      <Box sx={{ display: "flex", justifyContent: "center", gap: 1, mb: 2 }}>
+                        {[500, 1000, 5000].map((quickAmount) => (
+                          <Button
+                            key={quickAmount}
+                            onClick={() => setAmount(String((parseFloat(amount) || 0) + quickAmount))}
+                            sx={{
+                              minWidth: 0,
+                              px: 1.15,
+                              py: 0.45,
+                              borderRadius: 999,
+                              backgroundColor: "rgba(255,255,255,0.08)",
+                              color: "#d7e4ff",
+                              fontSize: 10.5,
+                              fontWeight: 800,
+                              textTransform: "none",
+                              border: "1px solid rgba(138,199,255,0.14)",
+                              "&:hover": { backgroundColor: "rgba(255,255,255,0.14)" },
+                            }}
+                          >
+                            +₱{quickAmount.toLocaleString("en-PH")}
+                          </Button>
+                        ))}
+                      </Box>
 
-                      {/* Optional Message */}
-                      <Typography sx={{ fontSize: 12, color: "#556070", mb: 0.8, fontWeight: 700 }}>
-                        Add an optional message
-                      </Typography>
-                      <TextField
-                        fullWidth
-                        multiline
-                        rows={2}
-                        placeholder="Your message here..."
-                        value={messageText}
-                        onChange={(e) => setMessageText(e.target.value)}
+                      <Box
                         sx={{
+                          background: "rgba(255,255,255,0.98)",
+                          borderRadius: 2.6,
+                          p: 1.4,
                           mb: 2,
-                          "& .MuiInputBase-root": { color: "#1f2430", backgroundColor: "#fff" },
-                          "& .MuiOutlinedInput-notchedOutline": { borderColor: "#d8deea" },
+                          border: "1px solid rgba(16,90,191,0.10)",
+                          boxShadow: "0 10px 18px rgba(6,18,45,0.08)",
                         }}
-                      />
+                      >
+                        <Typography sx={{ fontSize: 11, fontWeight: 800, color: "#556070", mb: 0.7 }}>
+                          Purpose of Transfer
+                        </Typography>
+                        <TextField
+                          fullWidth
+                          multiline
+                          rows={2}
+                          placeholder={`Add an optional note for ${selectedRecipient?.name || recipientUsername}...`}
+                          value={messageText}
+                          onChange={(e) => setMessageText(e.target.value)}
+                          sx={{
+                            "& .MuiInputBase-root": { color: "#1f2430", backgroundColor: "#f8fbff", borderRadius: 1.8 },
+                            "& .MuiOutlinedInput-notchedOutline": { borderColor: "#d8deea" },
+                          }}
+                        />
+                      </Box>
 
-                      {/* Next Button */}
+                      <Box
+                        sx={{
+                          background: "rgba(255,255,255,0.98)",
+                          borderRadius: 2.6,
+                          p: 1.4,
+                          mb: 2,
+                          border: "1px solid rgba(16,90,191,0.10)",
+                          boxShadow: "0 10px 18px rgba(6,18,45,0.08)",
+                        }}
+                      >
+                        <Typography sx={{ fontSize: 11, fontWeight: 800, color: "#556070", mb: 1 }}>
+                          Summary
+                        </Typography>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.8 }}>
+                          <Typography sx={{ fontSize: 11.5, color: "#6b7484" }}>Transfer Fee</Typography>
+                          <Typography sx={{ fontSize: 11.5, fontWeight: 800, color: "#f0a63a" }}>+₱{transferFee.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</Typography>
+                        </Box>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.8 }}>
+                          <Typography sx={{ fontSize: 11.5, color: "#6b7484" }}>Exchange Rate</Typography>
+                          <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: "#223047" }}>1 PHP = 1 PHP</Typography>
+                        </Box>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1.1 }}>
+                          <Typography sx={{ fontSize: 11.5, color: "#6b7484" }}>Processing Time</Typography>
+                          <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: "#223047" }}>Instant</Typography>
+                        </Box>
+                        <Divider sx={{ my: 1.1, borderColor: "#e4e8f0" }} />
+                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <Typography sx={{ fontSize: 11.5, color: "#6b7484", fontWeight: 800 }}>TOTAL TO DEDUCT</Typography>
+                          <Typography sx={{ fontSize: 21, fontWeight: 900, color: "#105abf" }}>
+                            ₱{totalToDeduct.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                          </Typography>
+                        </Box>
+                      </Box>
+
+                      <Box
+                        sx={{
+                          display: "flex",
+                          gap: 1,
+                          p: 1.25,
+                          mb: 2,
+                          borderRadius: 2.2,
+                          background: "rgba(138,199,255,0.10)",
+                          border: "1px solid rgba(138,199,255,0.14)",
+                        }}
+                      >
+                        <InfoOutlinedIcon sx={{ color: "#8ac7ff", fontSize: 18, mt: 0.2 }} />
+                        <Box>
+                          <Typography sx={{ fontSize: 11.2, color: "#f8fbff", fontWeight: 800 }}>
+                            Bowners Financial Security Protocol
+                          </Typography>
+                          <Typography sx={{ fontSize: 10.8, color: "rgba(220,232,255,0.74)", lineHeight: 1.5, mt: 0.25 }}>
+                            This transaction is secured by BOWNERS system encryption. Transfer funds only to trusted recipients.
+                          </Typography>
+                        </Box>
+                      </Box>
+
                       <Button
                         fullWidth
                         onClick={handleSubmitRequest}
                         variant="contained"
                         disabled={loading || !amount || !recipientUsername}
+                        endIcon={<ChevronRightIcon />}
                         sx={{
-                          borderRadius: 2,
+                          borderRadius: 2.4,
                           textTransform: "none",
                           bgcolor: "#105abf",
                           color: "#fff",
-                          fontWeight: 700,
-                          py: 1.3,
+                          fontWeight: 800,
+                          py: 1.35,
+                          fontSize: 14,
                           "&:hover": { bgcolor: "#0b4eaa" },
                           "&:disabled": { bgcolor: "rgba(16, 90, 191, 0.4)" },
                         }}
                       >
-                        {loading ? <CircularProgress size={24} sx={{ color: "#fff" }} /> : "Next"}
+                        {loading ? <CircularProgress size={24} sx={{ color: "#fff" }} /> : "Review Transfer"}
                       </Button>
                     </Box>
                   </Fade>
@@ -945,99 +1464,130 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
                     <Box>
                       <Divider sx={{ my: 2, borderColor: "#e4e8f0" }} />
 
-                      {/* You're about to send message */}
-                      <Box sx={{ background: "rgba(16, 90, 191, 0.08)", borderRadius: 2, p: 2, mb: 2, border: "1px solid rgba(16, 90, 191, 0.2)", textAlign: "center" }}>
-                        <Typography sx={{ fontSize: 14, color: "#556070", fontWeight: 700 }}>
-                          You're about to send
+                      <Typography sx={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.9, color: "#8ac7ff", mb: 0.4 }}>
+                        REVIEW TRANSACTION
+                      </Typography>
+                      <Typography sx={{ fontSize: 29, fontWeight: 900, color: "#f8fbff", lineHeight: 1.15, mb: 2 }}>
+                        Confirm your transfer
+                      </Typography>
+
+                      <Box
+                        sx={{
+                          mb: 2,
+                          borderRadius: 3,
+                          p: 2,
+                          background: "linear-gradient(135deg, #0f57d5 0%, #1d67eb 100%)",
+                          color: "#fff",
+                          boxShadow: "0 16px 30px rgba(15, 87, 213, 0.28)",
+                        }}
+                      >
+                        <Typography sx={{ fontSize: 11, color: "rgba(255,255,255,0.78)", fontWeight: 700, mb: 0.35 }}>
+                          Total amount to send
+                        </Typography>
+                        <Typography sx={{ fontSize: 31, fontWeight: 900, lineHeight: 1.1 }}>
+                          ₱{amountValue.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                          <Typography component="span" sx={{ ml: 0.4, fontSize: 15, fontWeight: 700, color: "rgba(255,255,255,0.82)" }}>
+                            PHP
+                          </Typography>
                         </Typography>
                       </Box>
 
-                      {/* Recipient Display */}
-                      <Box sx={{ background: "#fff", borderRadius: 2, p: 2, mb: 2, border: "1px solid #dbe2ef" }}>
-                        <Typography sx={{ fontSize: 11, color: "#556070", fontWeight: 700, mb: 0.5 }}>
-                          To
+                      <Box sx={{ background: "#fff", borderRadius: 2.6, p: 1.5, mb: 1.5, border: "1px solid #dbe2ef" }}>
+                        <Typography sx={{ fontSize: 10, color: "#7a8392", fontWeight: 800, letterSpacing: 0.8, mb: 0.55 }}>
+                          RECIPIENT
                         </Typography>
-                        <Typography sx={{ fontSize: 16, fontWeight: 800, color: "#105abf" }}>
-                          @{recipientUsername}
-                        </Typography>
-                      </Box>
-
-                      {/* Amount Summary */}
-                      <Box sx={{ background: "#fff", borderRadius: 2, p: 2, mb: 2, border: "1px solid #dbe2ef" }}>
-                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1.2 }}>
-                          <Typography sx={{ fontSize: 12, color: "#556070" }}>Amount:</Typography>
-                          <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#1f2430" }}>
-                            ₱{parseFloat(amount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
-                          </Typography>
-                        </Box>
-                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1.2 }}>
-                          <Typography sx={{ fontSize: 12, color: "#556070" }}>2% Service Charge:</Typography>
-                          <Typography sx={{ fontSize: 12, color: "#FFB74D", fontWeight: 600 }}>
-                            -₱{(parseFloat(amount || 0) * 0.02).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
-                          </Typography>
-                        </Box>
-                        <Divider sx={{ my: 1.2, borderColor: "#e4e8f0" }} />
-                        <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-                          <Typography sx={{ fontSize: 13, color: "#556070", fontWeight: 700 }}>Total to Pay:</Typography>
-                          <Typography sx={{ fontSize: 16, fontWeight: 800, color: "#105abf" }}>
-                            ₱{netAmount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
-                          </Typography>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.1 }}>
+                          <Avatar
+                            src={selectedRecipient?.profilePicture || ""}
+                            sx={{ width: 44, height: 44, bgcolor: "rgba(16,90,191,0.12)", color: "#105abf", fontWeight: 800 }}
+                          >
+                            {(selectedRecipient?.name || recipientUsername || "R").charAt(0).toUpperCase()}
+                          </Avatar>
+                          <Box sx={{ minWidth: 0, flex: 1 }}>
+                            <Typography sx={{ fontSize: 15, fontWeight: 800, color: "#223047", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {selectedRecipient?.name || recipientUsername}
+                            </Typography>
+                            <Typography sx={{ fontSize: 11, color: "#6f7f9b" }}>
+                              @{recipientUsername}
+                            </Typography>
+                          </Box>
                         </Box>
                       </Box>
 
-                      {/* Message Display (if any) */}
+                      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 1.2, mb: 1.5 }}>
+                        <Box sx={{ background: "#fff", borderRadius: 2.4, p: 1.4, border: "1px solid #dbe2ef" }}>
+                          <Typography sx={{ fontSize: 10, color: "#7a8392", fontWeight: 800, letterSpacing: 0.7, mb: 0.4 }}>
+                            DELIVERY DATE
+                          </Typography>
+                          <Typography sx={{ fontSize: 13.5, fontWeight: 800, color: "#223047" }}>
+                            {new Date().toLocaleDateString("en-PH", { month: "short", day: "numeric" })}
+                          </Typography>
+                          <Typography sx={{ fontSize: 11, color: "#6f7f9b" }}>Instant Transfer</Typography>
+                        </Box>
+                        <Box sx={{ background: "#fff", borderRadius: 2.4, p: 1.4, border: "1px solid #dbe2ef" }}>
+                          <Typography sx={{ fontSize: 10, color: "#7a8392", fontWeight: 800, letterSpacing: 0.7, mb: 0.4 }}>
+                            TRANSFER FEE
+                          </Typography>
+                          <Typography sx={{ fontSize: 13.5, fontWeight: 800, color: "#223047" }}>
+                            ₱{transferFee.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                          </Typography>
+                          <Typography sx={{ fontSize: 11, color: "#2eaf72", fontWeight: 700 }}>BOWNERS Fee</Typography>
+                        </Box>
+                      </Box>
+
+                      <Box sx={{ background: "#fff", borderRadius: 2.6, p: 1.5, mb: 1.5, border: "1px solid #dbe2ef", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+                        <Box>
+                          <Typography sx={{ fontSize: 10, color: "#7a8392", fontWeight: 800, letterSpacing: 0.7, mb: 0.3 }}>
+                            FROM ACCOUNT
+                          </Typography>
+                          <Typography sx={{ fontSize: 14, fontWeight: 800, color: "#223047" }}>
+                            E-Wallet • @{currentUsername || "member"}
+                          </Typography>
+                        </Box>
+                        <ChevronRightIcon sx={{ color: "#8da8d6", fontSize: 18 }} />
+                      </Box>
+
                       {messageText && (
-                        <Box sx={{ background: "#fff", borderRadius: 2, p: 2, mb: 2, border: "1px solid #dbe2ef" }}>
-                          <Typography sx={{ fontSize: 11, color: "#556070", fontWeight: 700, mb: 0.5 }}>
-                            Message
+                        <Box sx={{ background: "#fff", borderRadius: 2.6, p: 1.4, mb: 1.5, border: "1px solid #dbe2ef" }}>
+                          <Typography sx={{ fontSize: 10, color: "#7a8392", fontWeight: 800, letterSpacing: 0.7, mb: 0.4 }}>
+                            NOTE
                           </Typography>
-                          <Typography sx={{ fontSize: 13, color: "#1f2430", fontStyle: "italic" }}>
-                            "{messageText}"
+                          <Typography sx={{ fontSize: 12.5, color: "#223047" }}>
+                            {messageText}
                           </Typography>
                         </Box>
                       )}
 
-                      {/* Confirmation Checkbox */}
-                      <Box sx={{ 
-                        background: "#fff", 
-                        borderRadius: 2, 
-                        p: 2, 
-                        mb: 2, 
-                        border: "1px solid #dbe2ef",
-                        display: "flex",
-                        alignItems: "flex-start",
-                        gap: 1.2,
-                        cursor: "pointer"
-                      }}
-                      onClick={() => setConfirmReview(!confirmReview)}
+                      <Box
+                        sx={{
+                          background: "#fff",
+                          borderRadius: 2.6,
+                          p: 1.5,
+                          mb: 1.5,
+                          border: "1px solid #dbe2ef",
+                          display: "flex",
+                          alignItems: "flex-start",
+                          gap: 1.1,
+                          cursor: "pointer",
+                        }}
+                        onClick={() => setConfirmReview(!confirmReview)}
                       >
                         <input
                           type="checkbox"
                           checked={confirmReview}
                           onChange={() => setConfirmReview(!confirmReview)}
-                          style={{
-                            width: 20,
-                            height: 20,
-                            cursor: "pointer",
-                            marginTop: 2,
-                            accentColor: "#105abf",
-                          }}
+                          style={{ width: 18, height: 18, cursor: "pointer", marginTop: 2, accentColor: "#105abf" }}
                         />
-                        <Box>
-                          <Typography sx={{ fontSize: 12, color: "#1f2430", fontWeight: 700 }}>
-                            I confirm the transaction details
-                          </Typography>
-                          <Typography sx={{ fontSize: 11, color: "#7a8392", mt: 0.3 }}>
-                            Please review all information carefully before confirming
-                          </Typography>
-                        </Box>
+                        <Typography sx={{ fontSize: 12, color: "#4a5568", lineHeight: 1.55, fontWeight: 600 }}>
+                          I confirm the transaction details are correct and authorize BOWNERS to proceed with this transfer.
+                        </Typography>
                       </Box>
 
                       {error && (
                         <Alert
                           severity="error"
                           sx={{
-                            mb: 2,
+                            mb: 1.5,
                             backgroundColor: "rgba(239,54,54,0.09)",
                             color: "#c62828",
                           }}
@@ -1046,24 +1596,38 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
                         </Alert>
                       )}
 
-                      {/* Send Button - Enabled only after checkbox confirmed */}
                       <Button
                         fullWidth
                         onClick={handleConfirmAndSend}
                         variant="contained"
                         disabled={loading || !confirmReview}
+                        endIcon={<ChevronRightIcon />}
                         sx={{
-                          borderRadius: 2,
+                          borderRadius: 2.4,
                           textTransform: "none",
                           bgcolor: "#105abf",
                           color: "#fff",
-                          fontWeight: 700,
-                          py: 1.3,
+                          fontWeight: 800,
+                          py: 1.35,
+                          fontSize: 14,
                           "&:hover": { bgcolor: "#0b4eaa" },
                           "&:disabled": { bgcolor: "rgba(16, 90, 191, 0.4)", cursor: "not-allowed" },
                         }}
                       >
-                        {loading ? <CircularProgress size={24} sx={{ color: "#fff" }} /> : "Send Now"}
+                        {loading ? <CircularProgress size={24} sx={{ color: "#fff" }} /> : "Confirm Transfer"}
+                      </Button>
+
+                      <Button
+                        fullWidth
+                        onClick={handleClose}
+                        sx={{
+                          mt: 0.6,
+                          color: "rgba(220,232,255,0.82)",
+                          textTransform: "none",
+                          fontWeight: 700,
+                        }}
+                      >
+                        Cancel Transaction
                       </Button>
                     </Box>
                   </Fade>
@@ -1075,69 +1639,121 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
                     <Box>
                       <Divider sx={{ my: 2, borderColor: "#e4e8f0" }} />
 
-                      {/* Success Message */}
-                      <Box sx={{ textAlign: "center", mb: 3 }}>
-                        <CheckCircle sx={{ fontSize: 50, color: "#4CAF50", mb: 1 }} />
-                        <Typography sx={{ fontSize: 16, fontWeight: 800, color: "#4CAF50" }}>
+                      <Box sx={{ textAlign: "center", mb: 2.2 }}>
+                        <Box sx={{ width: 60, height: 60, mx: "auto", mb: 1.1, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "#0f57d5", boxShadow: "0 14px 28px rgba(15,87,213,0.24)" }}>
+                          <CheckCircle sx={{ fontSize: 34, color: "#fff" }} />
+                        </Box>
+                        <Typography sx={{ fontSize: 27, fontWeight: 900, color: "#f8fbff" }}>
                           Transfer Successful!
                         </Typography>
-                        <Typography sx={{ fontSize: 12, color: "#7a8392", mt: 0.5 }}>
-                          Your payment has been sent
+                        <Typography sx={{ fontSize: 12, color: "rgba(220,232,255,0.76)", mt: 0.4 }}>
+                          Your funds have been sent securely.
                         </Typography>
                       </Box>
 
-                      {/* Receipt Details */}
-                      <Box sx={{ background: "#fff", borderRadius: 2, p: 2, mb: 2, border: "1px solid #dbe2ef" }}>
-                        <Box sx={{ mb: 1.5 }}>
-                          <Typography sx={{ fontSize: 11, color: "#556070", fontWeight: 700, mb: 0.3 }}>
-                            Reference Number
-                          </Typography>
-                          <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#105abf", fontFamily: "monospace" }}>
-                            {receiptData?.referenceNumber || "-"}
+                      <Box sx={{ background: "#fff", borderRadius: 2.8, p: 1.8, mb: 2, border: "1px solid #dbe2ef", boxShadow: "0 14px 26px rgba(6,18,45,0.10)" }}>
+                        <Typography sx={{ textAlign: "center", fontSize: 10.5, color: "#7a8392", fontWeight: 800, letterSpacing: 0.8 }}>
+                          TOTAL AMOUNT
+                        </Typography>
+                        <Typography sx={{ textAlign: "center", fontSize: 33, fontWeight: 900, color: "#105abf", mb: 1.4 }}>
+                          ₱{(Number(receiptData?.amount || 0) + Number(receiptData?.charge || 0)).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                        </Typography>
+
+                        <Box sx={{ background: "#f4f6fa", borderRadius: 2.2, p: 1.2, mb: 1.4, display: "flex", alignItems: "center", gap: 1 }}>
+                          <Avatar
+                            src={receiptData?.recipientProfilePicture || ""}
+                            sx={{ width: 42, height: 42, bgcolor: "#12284c", color: "#fff", fontWeight: 800 }}
+                          >
+                            {(receiptData?.recipientName || receiptData?.recipient || "R").charAt(0).toUpperCase()}
+                          </Avatar>
+                          <Box sx={{ minWidth: 0, flex: 1 }}>
+                            <Typography sx={{ fontSize: 10, color: "#7a8392", fontWeight: 800, letterSpacing: 0.8 }}>
+                              RECIPIENT
+                            </Typography>
+                            <Typography sx={{ fontSize: 14, fontWeight: 800, color: "#223047", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {receiptData?.recipientName || receiptData?.recipient || "-"}
+                            </Typography>
+                            <Typography sx={{ fontSize: 11, color: "#6f7f9b" }}>
+                              @{receiptData?.recipient || "-"}
+                            </Typography>
+                          </Box>
+                        </Box>
+
+                        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.1 }}>
+                          <Box>
+                            <Typography sx={{ fontSize: 10, color: "#7a8392", fontWeight: 800, letterSpacing: 0.8 }}>
+                              REF NUMBER
+                            </Typography>
+                            <Typography sx={{ fontSize: 12.5, color: "#223047", fontWeight: 800, fontFamily: "monospace" }}>
+                              {receiptData?.referenceNumber || "-"}
+                            </Typography>
+                          </Box>
+                          <Button
+                            onClick={handleCopyReceiptReference}
+                            sx={{ minWidth: 0, px: 1.1, py: 0.45, borderRadius: 999, textTransform: "none", fontSize: 10.5, fontWeight: 800, color: "#105abf", backgroundColor: "#ecf3ff" }}
+                          >
+                            Copy
+                          </Button>
+                        </Box>
+
+                        <Box sx={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 1.2, mb: 1.2 }}>
+                          <Box>
+                            <Typography sx={{ fontSize: 10, color: "#7a8392", fontWeight: 800, letterSpacing: 0.8 }}>DATE</Typography>
+                            <Typography sx={{ fontSize: 12.5, color: "#223047", fontWeight: 700 }}>
+                              {receiptData?.date?.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" }) || "-"}
+                            </Typography>
+                          </Box>
+                          <Box>
+                            <Typography sx={{ fontSize: 10, color: "#7a8392", fontWeight: 800, letterSpacing: 0.8 }}>TIME</Typography>
+                            <Typography sx={{ fontSize: 12.5, color: "#223047", fontWeight: 700 }}>
+                              {receiptData?.date?.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" }) || "-"}
+                            </Typography>
+                          </Box>
+                        </Box>
+
+                        <Typography sx={{ fontSize: 10, color: "#7a8392", fontWeight: 800, letterSpacing: 0.8, mb: 0.65 }}>
+                          SUMMARY
+                        </Typography>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.55 }}>
+                          <Typography sx={{ fontSize: 12, color: "#6b7484" }}>Amount</Typography>
+                          <Typography sx={{ fontSize: 12, color: "#223047", fontWeight: 700 }}>
+                            ₱{Number(receiptData?.amount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                           </Typography>
                         </Box>
-                        <Divider sx={{ my: 1.5, borderColor: "#e4e8f0" }} />
-                        <Box sx={{ mb: 1 }}>
-                          <Typography sx={{ fontSize: 11, color: "#556070", fontWeight: 700, mb: 0.3 }}>
-                            Sent to
-                          </Typography>
-                          <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#1f2430" }}>
-                            @{receiptData?.recipient || "-"}
+                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.55 }}>
+                          <Typography sx={{ fontSize: 12, color: "#6b7484" }}>Service Fee</Typography>
+                          <Typography sx={{ fontSize: 12, color: "#223047", fontWeight: 700 }}>
+                            ₱{Number(receiptData?.charge || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                           </Typography>
                         </Box>
-                        <Divider sx={{ my: 1.5, borderColor: "#e4e8f0" }} />
-                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.8 }}>
-                          <Typography sx={{ fontSize: 11, color: "#556070" }}>Amount:</Typography>
-                          <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#1f2430" }}>
-                            ₱{receiptData?.amount?.toLocaleString("en-PH", { minimumFractionDigits: 2 }) || "-"}
-                          </Typography>
-                        </Box>
-                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1.5 }}>
-                          <Typography sx={{ fontSize: 11, color: "#556070" }}>Service Charge:</Typography>
-                          <Typography sx={{ fontSize: 11, color: "#FFB74D", fontWeight: 600 }}>
-                            -₱{receiptData?.charge?.toLocaleString("en-PH", { minimumFractionDigits: 2 }) || "-"}
-                          </Typography>
-                        </Box>
-                        <Divider sx={{ my: 1.5, borderColor: "#e4e8f0" }} />
+                        <Divider sx={{ my: 0.9, borderColor: "#e4e8f0" }} />
                         <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-                          <Typography sx={{ fontSize: 12, color: "#556070", fontWeight: 700 }}>Net Sent:</Typography>
-                          <Typography sx={{ fontSize: 14, fontWeight: 800, color: "#4CAF50" }}>
-                            ₱{receiptData?.netAmount?.toLocaleString("en-PH", { minimumFractionDigits: 2 }) || "-"}
+                          <Typography sx={{ fontSize: 12.5, color: "#6b7484", fontWeight: 800 }}>Total</Typography>
+                          <Typography sx={{ fontSize: 14, color: "#105abf", fontWeight: 900 }}>
+                            ₱{(Number(receiptData?.amount || 0) + Number(receiptData?.charge || 0)).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                           </Typography>
                         </Box>
                       </Box>
 
-                      {/* Date & Time */}
-                      <Box sx={{ background: "#fff", borderRadius: 2, p: 2, mb: 2, border: "1px solid #dbe2ef" }}>
-                        <Typography sx={{ fontSize: 11, color: "#556070", fontWeight: 700, mb: 0.3 }}>
-                          Date & Time
-                        </Typography>
-                        <Typography sx={{ fontSize: 12, color: "#1f2430" }}>
-                          {receiptData?.date?.toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" }) || "-"}
-                        </Typography>
-                      </Box>
+                      <Button
+                        fullWidth
+                        onClick={handleClose}
+                        variant="contained"
+                        sx={{
+                          borderRadius: 2.4,
+                          textTransform: "none",
+                          bgcolor: "#105abf",
+                          color: "#fff",
+                          fontWeight: 800,
+                          py: 1.25,
+                          mb: 1.2,
+                          fontSize: 14,
+                          "&:hover": { bgcolor: "#0b4eaa" },
+                        }}
+                      >
+                        Back to Home
+                      </Button>
 
-                      {/* Action Buttons */}
                       <Box sx={{ display: "flex", gap: 1.2 }}>
                         <Button
                           fullWidth
@@ -1145,23 +1761,25 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
                           variant="outlined"
                           startIcon={<DownloadIcon />}
                           sx={{
-                            color: "#4FC3F7",
-                            borderColor: "rgba(79,195,247,0.5)",
+                            color: "#223047",
+                            borderColor: "#d5dfef",
+                            backgroundColor: "rgba(255,255,255,0.96)",
                             fontWeight: 700,
                             textTransform: "none",
                             borderRadius: 2,
                           }}
                         >
-                          Download
+                          Save
                         </Button>
                         <Button
                           fullWidth
-                          onClick={handleShareMyQr}
+                          onClick={handleShareReceipt}
                           variant="outlined"
                           startIcon={<Share />}
                           sx={{
-                            color: "#4FC3F7",
-                            borderColor: "rgba(79,195,247,0.5)",
+                            color: "#223047",
+                            borderColor: "#d5dfef",
+                            backgroundColor: "rgba(255,255,255,0.96)",
                             fontWeight: 700,
                             textTransform: "none",
                             borderRadius: 2,
@@ -1257,8 +1875,8 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
               </>
             )}
 
-            {/* 📜 Logs - Show only in main/QR view */}
-            {(sendMode !== "express" || expressStep === 0) && transferLogs.length > 0 && (
+            {/* 📜 Logs - Show only in QR view */}
+            {sendMode === "qr" && transferLogs.length > 0 && (
               <>
                 <Divider sx={{ my: 2, borderColor: "#e4e8f0" }} />
                 <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 700, color: "#105abf" }}>
@@ -1294,7 +1912,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
           </Box>
 
         {/* 🔘 Actions */}
-        <Box sx={{ px: 3, py: 2, backgroundColor: "#fff", borderTop: "1px solid #eceef1", display: "flex", justifyContent: "flex-end", gap: 1.2 }}>
+        <Box sx={{ px: 3, py: 2, background: "rgba(6,19,46,0.90)", borderTop: "1px solid rgba(138,199,255,0.14)", display: "flex", justifyContent: "flex-end", gap: 1.2, backdropFilter: "blur(18px)" }}>
           {success ? (
             <Button
               onClick={handleClose}
@@ -1312,14 +1930,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
             </Button>
           ) : (
             <>
-              <Button
-                onClick={() => {
-                  if (sendMode === "express" && expressStep > 0) {
-                    setExpressStep(0);
-                  } else {
-                    handleClose();
-                  }
-                }}
+              <Button onClick={handleSendBack}
                 sx={{
                   borderRadius: 2,
                   fontWeight: 700,
@@ -1355,6 +1966,105 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
       </Box>
       </Drawer>
 
+      <Drawer
+        anchor="right"
+        open={infoDialogOpen}
+        onClose={() => setInfoDialogOpen(false)}
+        ModalProps={{ keepMounted: true }}
+        transitionDuration={{ enter: 320, exit: 220 }}
+        PaperProps={{
+          sx: {
+            width: { xs: "100%", sm: 420 },
+            maxWidth: "100%",
+            background: "linear-gradient(180deg, rgba(4,12,30,0.98) 0%, rgba(8,23,52,0.98) 44%, rgba(15,42,99,0.97) 100%)",
+            color: "#f8fbff",
+            borderLeft: "1px solid rgba(138,199,255,0.14)",
+          },
+        }}
+      >
+        <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+          <Box
+            sx={{
+              minHeight: 70,
+              px: 1,
+              pt: "calc(env(safe-area-inset-top, 0px) + 10px)",
+              pb: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              color: "#fff",
+              background: "linear-gradient(135deg, rgba(6,19,46,0.98) 0%, rgba(13,47,118,0.96) 58%, rgba(37,101,214,0.90) 100%)",
+              borderBottom: "1px solid rgba(138,199,255,0.16)",
+            }}
+          >
+            <IconButton onClick={() => setInfoDialogOpen(false)} sx={{ color: "#fff" }}>
+              <ArrowBackIosNewIcon />
+            </IconButton>
+            <Typography sx={{ fontSize: 18, fontWeight: 800, letterSpacing: 0.2 }}>
+              Send Guide
+            </Typography>
+            <Box sx={{ width: 40 }} />
+          </Box>
+
+          <Box sx={{ flex: 1, overflowY: "auto", p: 2, display: "grid", gap: 1.3 }}>
+            {[
+              {
+                title: "Express Send",
+                desc: "Transfer directly to another member using their username for instant wallet delivery.",
+              },
+              {
+                title: "Service Charge",
+                desc: "Every send transaction includes a 2% service charge before confirmation.",
+              },
+              {
+                title: "Scan To Pay",
+                desc: "Generate your QR code so others can send to you or scan your payment request.",
+              },
+              {
+                title: "Safety Reminder",
+                desc: "Always verify the recipient and amount before you continue the transfer.",
+              },
+            ].map((item, index) => (
+              <Box
+                key={index}
+                sx={{
+                  p: 1.4,
+                  borderRadius: 2.4,
+                  background: "linear-gradient(145deg, rgba(8,23,52,0.94) 0%, rgba(15,42,99,0.90) 100%)",
+                  border: "1px solid rgba(138,199,255,0.12)",
+                  boxShadow: "0 12px 22px rgba(2,10,24,0.18)",
+                }}
+              >
+                <Typography sx={{ fontSize: 13, fontWeight: 800, color: "#f8fbff", mb: 0.55 }}>
+                  {item.title}
+                </Typography>
+                <Typography sx={{ fontSize: 12.2, color: "rgba(220,232,255,0.78)", lineHeight: 1.55 }}>
+                  {item.desc}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+
+          <Box sx={{ p: 2, borderTop: "1px solid rgba(138,199,255,0.14)", background: "rgba(6,19,46,0.90)" }}>
+            <Button
+              onClick={() => setInfoDialogOpen(false)}
+              fullWidth
+              variant="contained"
+              sx={{
+                borderRadius: 2,
+                textTransform: "none",
+                fontWeight: 700,
+                bgcolor: "#105abf",
+                py: 1.2,
+                "&:hover": { bgcolor: "#0b4eaa" },
+              }}
+            >
+              Close Guide
+            </Button>
+          </Box>
+        </Box>
+      </Drawer>
+
       {/* ⚠️ Confirm Transfer Dialog */}
       <Dialog
         ModalProps={{ keepMounted: true }}
@@ -1367,8 +2077,9 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
           sx: {
             borderRadius: 3,
             overflow: "hidden",
-            backgroundColor: "#f7f9fc",
-            boxShadow: "0 10px 28px rgba(25,28,30,0.14)",
+            background: "linear-gradient(180deg, rgba(6,19,46,0.98) 0%, rgba(13,47,118,0.92) 100%)",
+            boxShadow: "0 10px 28px rgba(25,28,30,0.24)",
+            border: "1px solid rgba(138,199,255,0.14)",
           },
         }}
       >
@@ -1460,7 +2171,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
           </Typography>
         </DialogContent>
 
-        <DialogActions sx={{ justifyContent: "center", gap: 2, pb: 2, backgroundColor: "#fff", borderTop: "1px solid #eceef1" }}>
+        <DialogActions sx={{ justifyContent: "center", gap: 2, pb: 2, background: "rgba(6,19,46,0.88)", borderTop: "1px solid rgba(138,199,255,0.14)" }}>
           <Button
             onClick={() => setConfirmDialog(false)}
             sx={{
@@ -1503,8 +2214,9 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
           sx: {
             borderRadius: 3,
             overflow: "hidden",
-            backgroundColor: "#f7f9fc",
-            boxShadow: "0 10px 28px rgba(25,28,30,0.14)",
+            background: "linear-gradient(180deg, rgba(6,19,46,0.98) 0%, rgba(13,47,118,0.92) 100%)",
+            boxShadow: "0 10px 28px rgba(25,28,30,0.24)",
+            border: "1px solid rgba(138,199,255,0.14)",
           },
         }}
       >
@@ -1623,7 +2335,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
           </Typography>
         </DialogContent>
 
-        <DialogActions sx={{ justifyContent: "center", gap: 2, pb: 2, backgroundColor: "#fff", borderTop: "1px solid #eceef1" }}>
+        <DialogActions sx={{ justifyContent: "center", gap: 2, pb: 2, background: "rgba(6,19,46,0.88)", borderTop: "1px solid rgba(138,199,255,0.14)" }}>
           <Button
             onClick={handleDownloadReceipt}
             variant="outlined"
@@ -1637,7 +2349,22 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
               },
             }}
           >
-            Download Receipt
+            Save Receipt
+          </Button>
+          <Button
+            onClick={handleShareReceipt}
+            variant="outlined"
+            startIcon={<Share />}
+            sx={{
+              color: "#105abf",
+              borderColor: "#105abf",
+              "&:hover": {
+                borderColor: "#0b4eaa",
+                background: "rgba(16, 90, 191, 0.08)",
+              },
+            }}
+          >
+            Share Receipt
           </Button>
           <Button
             onClick={() => {

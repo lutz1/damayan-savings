@@ -118,10 +118,10 @@ const NetworkGroupSales = ({ open, onClose, username, user }) => {
       onClose={onClose}
       fullWidth
       maxWidth="sm"
-      PaperProps={{ sx: { borderRadius: 3, overflow: "hidden", backgroundColor: "#f7f9fc" } }}
+      PaperProps={{ sx: { borderRadius: 3, overflow: "hidden", background: "linear-gradient(150deg, rgba(8,26,62,0.96) 0%, rgba(13,44,102,0.92) 100%)", border: "1px solid rgba(217,233,255,0.22)", color: "#fff" } }}
     >
       {/* Header */}
-      <DialogTitle sx={{ background: "linear-gradient(135deg,#003f8d,#0055ba)", color: "#fff", p: 0 }}>
+      <DialogTitle sx={{ background: "rgba(8,31,76,0.75)", color: "#fff", p: 0, borderBottom: "1px solid rgba(217,233,255,0.15)" }}>
         <Box sx={{ px: 2.5, pt: 2.5, pb: 2.2 }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, mb: 0.6 }}>
             <Box sx={{ width: 36, height: 36, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.18)",
@@ -144,23 +144,23 @@ const NetworkGroupSales = ({ open, onClose, username, user }) => {
       <DialogContent sx={{ p: 0 }}>
         {loading ? (
           <Box sx={{ py: 8, display: "flex", justifyContent: "center" }}>
-            <CircularProgress sx={{ color: "#105abf" }} />
+            <CircularProgress sx={{ color: "#d9e9ff" }} />
           </Box>
         ) : (
           <>
             {/* Summary card */}
             <Box sx={{ mx: 2, mt: 2, mb: 1.5, p: 2, borderRadius: 2.5,
-              background: "linear-gradient(135deg,#e8eeff,#fff)",
-              border: "1px solid rgba(16,90,191,0.12)",
+              background: "linear-gradient(140deg, rgba(8,26,62,0.72), rgba(14,54,123,0.58))",
+              border: "1px solid rgba(217,233,255,0.16)",
               display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-                <Box sx={{ width: 40, height: 40, borderRadius: 2, backgroundColor: "rgba(16,90,191,0.10)",
+                <Box sx={{ width: 40, height: 40, borderRadius: 2, backgroundColor: "rgba(217,233,255,0.12)",
                   display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <PeopleAltIcon sx={{ color: "#105abf", fontSize: 22 }} />
+                  <PeopleAltIcon sx={{ color: "#d9e9ff", fontSize: 22 }} />
                 </Box>
                 <Box>
-                  <Typography sx={{ fontSize: 11, color: "#616975", fontWeight: 600 }}>Overall Group Sales</Typography>
-                  <Typography sx={{ fontSize: 24, fontWeight: 800, color: "#105abf", lineHeight: 1.1 }}>
+                  <Typography sx={{ fontSize: 11, color: "rgba(217,233,255,0.76)", fontWeight: 600 }}>Overall Group Sales</Typography>
+                  <Typography sx={{ fontSize: 24, fontWeight: 800, color: "#d9e9ff", lineHeight: 1.1 }}>
                     ₱{overallTotal.toLocaleString()}
                   </Typography>
                 </Box>
@@ -168,14 +168,14 @@ const NetworkGroupSales = ({ open, onClose, username, user }) => {
               <Chip
                 label={`${networkMembers.length} member${networkMembers.length !== 1 ? "s" : ""}`}
                 size="small"
-                sx={{ fontWeight: 700, fontSize: 11, backgroundColor: "rgba(16,90,191,0.10)", color: "#105abf" }}
+                sx={{ fontWeight: 700, fontSize: 11, backgroundColor: "rgba(217,233,255,0.14)", color: "#d9e9ff" }}
               />
             </Box>
 
             {/* Members list */}
             {networkMembers.length === 0 ? (
               <Box sx={{ py: 6, textAlign: "center" }}>
-                <Typography sx={{ fontSize: 13, color: "#8b95a5" }}>No members with Capital Share.</Typography>
+                <Typography sx={{ fontSize: 13, color: "rgba(217,233,255,0.74)" }}>No members with Capital Share.</Typography>
               </Box>
             ) : (
               <Box component="ul" sx={{ m: 0, p: 0, listStyle: "none" }}>
@@ -186,8 +186,8 @@ const NetworkGroupSales = ({ open, onClose, username, user }) => {
                     sx={{
                       display: "flex", alignItems: "center", gap: 1.4,
                       px: 2, py: 1.6,
-                      backgroundColor: i % 2 === 0 ? "#fff" : "#f7f9fc",
-                      borderBottom: "1px solid #eceef1",
+                      backgroundColor: i % 2 === 0 ? "rgba(8,26,62,0.42)" : "rgba(7,22,52,0.58)",
+                      borderBottom: "1px solid rgba(217,233,255,0.12)",
                     }}
                   >
                     <Box sx={{ width: 40, height: 40, borderRadius: "50%",
@@ -198,7 +198,7 @@ const NetworkGroupSales = ({ open, onClose, username, user }) => {
                     </Box>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Box sx={{ display:"flex", alignItems:"center", gap: 0.8 }}>
-                        <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#1f2430" }} noWrap>
+                        <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#ffffff" }} noWrap>
                           {m.name || m.username}
                         </Typography>
                         {m.role && (
@@ -207,13 +207,13 @@ const NetworkGroupSales = ({ open, onClose, username, user }) => {
                               backgroundColor: "rgba(16,90,191,0.10)", color: "#105abf" }} />
                         )}
                       </Box>
-                      <Typography sx={{ fontSize: 11, color: "#8b95a5" }}>@{m.username}</Typography>
+                      <Typography sx={{ fontSize: 11, color: "rgba(217,233,255,0.68)" }}>@{m.username}</Typography>
                     </Box>
                     <Box sx={{ textAlign: "right", flexShrink: 0 }}>
-                      <Typography sx={{ fontSize: 14, fontWeight: 800, color: "#105abf" }}>
+                      <Typography sx={{ fontSize: 14, fontWeight: 800, color: "#d9e9ff" }}>
                         ₱{m.totalCapitalShare.toLocaleString()}
                       </Typography>
-                      <Typography sx={{ fontSize: 10, color: "#8b95a5", fontWeight: 600, textTransform: "uppercase" }}>Cap Share</Typography>
+                      <Typography sx={{ fontSize: 10, color: "rgba(217,233,255,0.58)", fontWeight: 600, textTransform: "uppercase" }}>Cap Share</Typography>
                     </Box>
                   </Box>
                 ))}
@@ -223,11 +223,11 @@ const NetworkGroupSales = ({ open, onClose, username, user }) => {
         )}
       </DialogContent>
 
-      <DialogActions sx={{ backgroundColor: "#fff", borderTop: "1px solid #eceef1", px: 2, py: 1.4 }}>
+      <DialogActions sx={{ backgroundColor: "rgba(7,22,52,0.55)", borderTop: "1px solid rgba(217,233,255,0.14)", px: 2, py: 1.4 }}>
         <Button
           onClick={onClose}
-          sx={{ borderRadius: 2, fontWeight: 700, color: "#105abf", textTransform: "none",
-            backgroundColor: "rgba(16,90,191,0.08)", px: 2.5, "&:hover": { backgroundColor: "rgba(16,90,191,0.14)" } }}
+          sx={{ borderRadius: 2, fontWeight: 700, color: "#d9e9ff", textTransform: "none",
+            backgroundColor: "rgba(16,90,191,0.2)", px: 2.5, "&:hover": { backgroundColor: "rgba(16,90,191,0.3)" } }}
         >
           Close
         </Button>

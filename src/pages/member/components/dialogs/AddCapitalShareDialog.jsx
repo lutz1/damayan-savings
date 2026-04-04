@@ -48,18 +48,19 @@ const AddCapitalShareDialog = ({
         maxWidth="xs"
         PaperProps={{
           sx: {
-            background: `linear-gradient(120deg, rgba(30, 41, 59, 0.95), rgba(33, 47, 61, 0.9))`,
+            background: "linear-gradient(150deg, rgba(8,26,62,0.96) 0%, rgba(13,44,102,0.92) 100%)",
             backdropFilter: "blur(14px)",
-            border: `1px solid rgba(79, 195, 247, 0.2)`,
+            border: "1px solid rgba(217,233,255,0.22)",
+            color: "#fff",
           },
         }}
       >
         <DialogTitle
           sx={{
-            bgcolor: "rgba(31, 150, 243, 0.15)",
-            color: "#4FC3F7",
+            bgcolor: "rgba(8,31,76,0.75)",
+            color: "#d9e9ff",
             fontWeight: 700,
-            borderBottom: "1px solid rgba(79, 195, 247, 0.15)",
+            borderBottom: "1px solid rgba(217,233,255,0.15)",
           }}
         >
           Add Capital Share Entry
@@ -74,15 +75,15 @@ const AddCapitalShareDialog = ({
             sx={{
               mb: 2,
               mt: 1,
-              "& .MuiOutlinedInput-root": { color: "#b0bec5" },
+              "& .MuiOutlinedInput-root": { color: "#d9e9ff", background: "rgba(6,20,52,0.42)" },
               "& .MuiOutlinedInput-notchedOutline": {
-                borderColor: "rgba(79, 195, 247, 0.3)",
+                borderColor: "rgba(217,233,255,0.3)",
               },
-              "& .MuiInputBase-input": { color: "#b0bec5" },
-              "& label": { color: "#90CAF9" },
+              "& .MuiInputBase-input": { color: "#d9e9ff" },
+              "& label": { color: "rgba(217,233,255,0.74)" },
             }}
-            InputLabelProps={{ shrink: true, style: { color: "#90CAF9" } }}
-            inputProps={{ style: { color: "#b0bec5" } }}
+            InputLabelProps={{ shrink: true, style: { color: "rgba(217,233,255,0.74)" } }}
+            inputProps={{ style: { color: "#d9e9ff" } }}
           />
           <TextField
             label="Amount (₱)"
@@ -92,44 +93,44 @@ const AddCapitalShareDialog = ({
             onChange={(e) => setAmount(e.target.value)}
             sx={{
               mb: 2,
-              "& .MuiOutlinedInput-root": { color: "#b0bec5" },
+              "& .MuiOutlinedInput-root": { color: "#d9e9ff", background: "rgba(6,20,52,0.42)" },
               "& .MuiOutlinedInput-notchedOutline": {
-                borderColor: "rgba(79, 195, 247, 0.3)",
+                borderColor: "rgba(217,233,255,0.3)",
               },
-              "& .MuiInputBase-input": { color: "#b0bec5" },
-              "& label": { color: "#90CAF9" },
+              "& .MuiInputBase-input": { color: "#d9e9ff" },
+              "& label": { color: "rgba(217,233,255,0.74)" },
             }}
-            InputLabelProps={{ style: { color: "#90CAF9" } }}
-            inputProps={{ min: MIN_AMOUNT, style: { color: "#b0bec5" } }}
+            InputLabelProps={{ style: { color: "rgba(217,233,255,0.74)" } }}
+            inputProps={{ min: MIN_AMOUNT, style: { color: "#d9e9ff" } }}
           />
           <TextField
             label="Upline Username"
             fullWidth
             value={userData?.referredBy || "No Upline"}
-            InputProps={{ readOnly: true, style: { color: "#b0bec5" } }}
+            InputProps={{ readOnly: true, style: { color: "#d9e9ff" } }}
             sx={{
               mb: 2,
-              "& .MuiOutlinedInput-root": { color: "#b0bec5" },
+              "& .MuiOutlinedInput-root": { color: "#d9e9ff", background: "rgba(6,20,52,0.42)" },
               "& .MuiOutlinedInput-notchedOutline": {
-                borderColor: "rgba(79, 195, 247, 0.3)",
+                borderColor: "rgba(217,233,255,0.3)",
               },
-              "& .MuiInputBase-input": { color: "#b0bec5" },
-              "& label": { color: "#90CAF9" },
+              "& .MuiInputBase-input": { color: "#d9e9ff" },
+              "& label": { color: "rgba(217,233,255,0.74)" },
             }}
-            InputLabelProps={{ style: { color: "#90CAF9" } }}
+            InputLabelProps={{ style: { color: "rgba(217,233,255,0.74)" } }}
           />
         </DialogContent>
-        <DialogActions sx={{ borderTop: "1px solid rgba(79, 195, 247, 0.15)", pt: 2 }}>
+        <DialogActions sx={{ borderTop: "1px solid rgba(217,233,255,0.15)", pt: 2 }}>
           <Button
             onClick={onClose}
-            sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: "none", color: "#4FC3F7" }}
+            sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: "none", color: "#d9e9ff" }}
           >
             Cancel
           </Button>
           <Button
             variant="contained"
             onClick={handleSubmit}
-            sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: "none", bgcolor: "#1976d2" }}
+            sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: "none", background: "linear-gradient(135deg, #2f7de1, #0f4ea8)" }}
           >
             Submit
           </Button>
@@ -144,33 +145,34 @@ const AddCapitalShareDialog = ({
         maxWidth="xs"
         PaperProps={{
           sx: {
-            background: `linear-gradient(120deg, rgba(30, 41, 59, 0.95), rgba(33, 47, 61, 0.9))`,
+            background: "linear-gradient(150deg, rgba(8,26,62,0.96) 0%, rgba(13,44,102,0.92) 100%)",
             backdropFilter: "blur(14px)",
-            border: `1px solid rgba(79, 195, 247, 0.2)`,
+            border: "1px solid rgba(217,233,255,0.22)",
+            color: "#fff",
           },
         }}
       >
         <DialogTitle
           sx={{
-            bgcolor: "rgba(31, 150, 243, 0.15)",
-            color: "#4FC3F7",
+            bgcolor: "rgba(8,31,76,0.75)",
+            color: "#d9e9ff",
             fontWeight: 700,
-            borderBottom: "1px solid rgba(79, 195, 247, 0.15)",
+            borderBottom: "1px solid rgba(217,233,255,0.15)",
           }}
         >
           Confirm Submission
         </DialogTitle>
         <DialogContent sx={{ bgcolor: "transparent", mt: 2 }}>
-          <Typography sx={{ color: "#b0bec5" }}>
+          <Typography sx={{ color: "rgba(217,233,255,0.8)" }}>
             Are you sure you want to add a capital share entry of ₱
             {Number(amount).toLocaleString()} on {selectedDate?.toDateString()}?
           </Typography>
         </DialogContent>
-        <DialogActions sx={{ borderTop: "1px solid rgba(79, 195, 247, 0.15)", pt: 2 }}>
+        <DialogActions sx={{ borderTop: "1px solid rgba(217,233,255,0.15)", pt: 2 }}>
           <Button
             onClick={() => setConfirmDialogOpen(false)}
             disabled={isLoading}
-            sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: "none", color: "#4FC3F7" }}
+            sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: "none", color: "#d9e9ff" }}
           >
             Cancel
           </Button>
@@ -178,7 +180,7 @@ const AddCapitalShareDialog = ({
             variant="contained"
             onClick={handleConfirm}
             disabled={isLoading}
-            sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: "none", bgcolor: "#1976d2" }}
+            sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: "none", background: "linear-gradient(135deg, #2f7de1, #0f4ea8)" }}
           >
             {isLoading ? <CircularProgress size={20} color="inherit" /> : "Confirm"}
           </Button>

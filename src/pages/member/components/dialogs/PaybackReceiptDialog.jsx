@@ -53,7 +53,7 @@ const PaybackReceiptDialog = ({ open, onClose, receiptData, onDownload }) => {
       ctx.fillStyle = "#9E9E9E";
       ctx.font = "14px Arial";
       ctx.fillText("Reference Number", canvas.width / 2, 145);
-      ctx.fillStyle = "#4FC3F7";
+      ctx.fillStyle = "#d9e9ff";
       ctx.font = "bold 18px monospace";
       ctx.fillText(reference, canvas.width / 2, 170);
     }
@@ -146,27 +146,27 @@ const PaybackReceiptDialog = ({ open, onClose, receiptData, onDownload }) => {
       PaperProps={{
         sx: {
           borderRadius: 3,
-          background: "linear-gradient(135deg, rgba(40,40,40,0.98) 0%, rgba(30,30,30,0.98) 100%)",
+          background: "linear-gradient(150deg, rgba(8,26,62,0.96) 0%, rgba(13,44,102,0.92) 100%)",
           color: "#fff",
           p: 2,
           boxShadow: "0 12px 40px rgba(0,0,0,0.6)",
-          border: "1px solid rgba(76, 175, 80, 0.3)",
+          border: "1px solid rgba(217,233,255,0.24)",
         },
       }}
     >
       <DialogTitle sx={{ textAlign: "center", pb: 1 }}>
-        <Box sx={{ fontSize: 60, color: "#4CAF50", mb: 1, textAlign: "center" }}>🧾</Box>
-        <Typography variant="h5" sx={{ fontWeight: 700, color: "#4CAF50" }}>
+        <Box sx={{ fontSize: 60, color: "#d9e9ff", mb: 1, textAlign: "center" }}>🧾</Box>
+        <Typography variant="h5" sx={{ fontWeight: 700, color: "#d9e9ff" }}>
           Payback Entry Receipt
         </Typography>
       </DialogTitle>
       <DialogContent>
         <Box
           sx={{
-            background: "rgba(76, 175, 80, 0.1)",
+            background: "rgba(217,233,255,0.08)",
             borderRadius: 2,
             p: 3,
-            border: "1px dashed rgba(76, 175, 80, 0.3)",
+            border: "1px dashed rgba(217,233,255,0.28)",
           }}
         >
           {/* Reference Number */}
@@ -180,7 +180,7 @@ const PaybackReceiptDialog = ({ open, onClose, receiptData, onDownload }) => {
                   variant="h6"
                   sx={{
                     fontFamily: "monospace",
-                    color: "#4FC3F7",
+                    color: "#d9e9ff",
                     fontWeight: 700,
                     letterSpacing: 1,
                     maxWidth: 260,
@@ -197,7 +197,7 @@ const PaybackReceiptDialog = ({ open, onClose, receiptData, onDownload }) => {
                 <Tooltip title="Copy Reference" arrow>
                   <IconButton
                     size="small"
-                    sx={{ color: '#4FC3F7', ml: 0.5, p: 0.5 }}
+                    sx={{ color: '#d9e9ff', ml: 0.5, p: 0.5 }}
                     onClick={() => {
                       navigator.clipboard.writeText(reference);
                     }}
@@ -232,12 +232,12 @@ const PaybackReceiptDialog = ({ open, onClose, receiptData, onDownload }) => {
             sx={{
               mt: 2,
               p: 1.5,
-              background: "rgba(76, 175, 80, 0.15)",
+              background: "rgba(47,125,225,0.22)",
               borderRadius: 1,
               textAlign: "center",
             }}
           >
-            <Typography variant="body2" sx={{ color: "#4CAF50", fontWeight: 600 }}>
+            <Typography variant="body2" sx={{ color: "#9fd5ff", fontWeight: 600 }}>
               ✓ Status: Approved
             </Typography>
           </Box>
@@ -259,8 +259,8 @@ const PaybackReceiptDialog = ({ open, onClose, receiptData, onDownload }) => {
           onClick={handleDownloadReceipt}
           variant="outlined"
           sx={{
-            color: "#4FC3F7",
-            borderColor: "#4FC3F7",
+            color: "#d9e9ff",
+            borderColor: "rgba(217,233,255,0.6)",
             "&:hover": {
               borderColor: "#29B6F6",
               background: "rgba(79, 195, 247, 0.1)",
@@ -273,7 +273,7 @@ const PaybackReceiptDialog = ({ open, onClose, receiptData, onDownload }) => {
           onClick={onClose}
           variant="contained"
           sx={{
-            bgcolor: "#4CAF50",
+            background: "linear-gradient(135deg, #2f7de1, #0f4ea8)",
             color: "#fff",
             fontWeight: 600,
             "&:hover": { bgcolor: "#45A049" },

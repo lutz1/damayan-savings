@@ -224,11 +224,19 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
         ModalProps={{ keepMounted: true }}
         transitionDuration={{ enter: 360, exit: 260 }}
         slotProps={{ backdrop: { sx: { backgroundColor: "rgba(0,0,0,0.4)" } } }}
-        PaperProps={{ sx: { width: { xs: "100%", sm: 430 }, maxWidth: "100%", backgroundColor: "#f7f9fc" } }}
+        PaperProps={{
+          sx: {
+            width: { xs: "100%", sm: 430 },
+            maxWidth: "100%",
+            background: "linear-gradient(180deg, rgba(4,12,30,0.98) 0%, rgba(8,23,52,0.98) 44%, rgba(15,42,99,0.97) 100%)",
+            color: "#f8fbff",
+            borderLeft: "1px solid rgba(138,199,255,0.14)",
+          },
+        }}
       >
         <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
           {/* Header */}
-          <Box sx={{ minHeight: 70, px: 1, display: "flex", alignItems: "center", justifyContent: "space-between", color: "#fff", background: "linear-gradient(135deg, #0b1f5e 0%, #173a8a 55%, #d4af37 100%)" }}>
+          <Box sx={{ minHeight: 70, px: 1, pt: "calc(env(safe-area-inset-top, 0px) + 10px)", pb: 1, display: "flex", alignItems: "center", justifyContent: "space-between", color: "#fff", background: "linear-gradient(135deg, rgba(6,19,46,0.98) 0%, rgba(13,47,118,0.96) 58%, rgba(37,101,214,0.90) 100%)", borderBottom: "1px solid rgba(138,199,255,0.16)" }}>
             <IconButton onClick={handleClose} sx={{ color: "#fff" }}>
               <ArrowBackIosNewIcon />
             </IconButton>
@@ -241,16 +249,16 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
           {/* Content */}
           <Box sx={{ flex: 1, overflowY: "auto", p: 2 }}>
             {/* 💰 Wallet Balance */}
-            <Box sx={{ background: "#fff", borderRadius: 2, p: 2, mb: 2, textAlign: "center", boxShadow: "0 1px 4px rgba(11,31,94,0.08)" }}>
-              <Typography variant="body2" sx={{ color: "#666", mb: 0.5 }}>Available Balance</Typography>
+            <Box sx={{ background: "linear-gradient(145deg, rgba(255,255,255,0.96) 0%, rgba(241,246,255,0.98) 100%)", borderRadius: 2.5, p: 2, mb: 2, textAlign: "center", border: "1px solid rgba(138,199,255,0.18)", boxShadow: "0 12px 24px rgba(2,10,24,0.16)" }}>
+              <Typography variant="body2" sx={{ color: "#4f6589", mb: 0.5, fontWeight: 600 }}>Available Balance</Typography>
               <Typography variant="h5" sx={{ fontWeight: 800, color: "#0b1f5e" }}>
                 ₱{userData.eWallet?.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
               </Typography>
             </Box>
 
           {success ? (
-            <Box sx={{ textAlign: "center", py: 4 }}>
-              <CheckCircle sx={{ fontSize: 50, color: "#4CAF50" }} />
+            <Box sx={{ textAlign: "center", py: 4, px: 2, borderRadius: 2.5, background: "rgba(22, 88, 48, 0.18)", border: "1px solid rgba(110, 214, 151, 0.24)" }}>
+              <CheckCircle sx={{ fontSize: 50, color: "#7ae3a7" }} />
               <Typography sx={{ mt: 1, color: "#4CAF50", fontWeight: 600 }}>
                 Withdrawal Request Sent!
               </Typography>
@@ -273,7 +281,11 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
                 label="Withdrawal Amount"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                sx={{ mb: 2, background: "#fff", borderRadius: 1 }}
+                sx={{
+                  mb: 2,
+                  "& .MuiOutlinedInput-root": { background: "rgba(255,255,255,0.96)", borderRadius: 1.6 },
+                  "& .MuiInputLabel-root": { color: "#4f6589", fontSize: 12 },
+                }}
               />
 
               <TextField
@@ -282,7 +294,11 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
                 label="Payment Method"
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
-                sx={{ mb: 2, background: "#fff", borderRadius: 1 }}
+                sx={{
+                  mb: 2,
+                  "& .MuiOutlinedInput-root": { background: "rgba(255,255,255,0.96)", borderRadius: 1.6 },
+                  "& .MuiInputLabel-root": { color: "#4f6589", fontSize: 12 },
+                }}
               >
                 <MenuItem value="GCash">GCash (5% charge)</MenuItem>
                 <MenuItem value="Bank">Bank ATM (5% charge)</MenuItem>
@@ -291,11 +307,12 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
               <Box
                 sx={{
                   mb: 2,
-                  border: "1px dashed #173a8a",
-                  borderRadius: 2,
+                  border: "1px dashed rgba(23,58,138,0.38)",
+                  borderRadius: 2.2,
                   p: 2,
                   textAlign: "center",
-                  background: "#fff",
+                  background: "rgba(255,255,255,0.96)",
+                  boxShadow: "0 10px 22px rgba(2,10,24,0.10)",
                 }}
               >
                 {qrPreview ? (
@@ -340,7 +357,7 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
 
           {/* 🧾 Withdrawal Logs */}
           {withdrawLogs.length > 0 && (
-            <Box sx={{ background: "#fff", borderRadius: 2, p: 2, boxShadow: "0 1px 4px rgba(11,31,94,0.08)" }}>
+            <Box sx={{ background: "linear-gradient(145deg, rgba(255,255,255,0.96) 0%, rgba(241,246,255,0.98) 100%)", borderRadius: 2.5, p: 2, border: "1px solid rgba(138,199,255,0.18)", boxShadow: "0 12px 24px rgba(2,10,24,0.16)" }}>
               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700, color: "#0b1f5e" }}>
                 Withdrawal Logs
               </Typography>
@@ -372,7 +389,7 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
 
           {/* Footer */}
           {!success && (
-            <Box sx={{ p: 2, borderTop: "1px solid #e8eaf6" }}>
+            <Box sx={{ p: 2, borderTop: "1px solid rgba(138,199,255,0.14)", background: "rgba(6,19,46,0.90)", backdropFilter: "blur(18px)" }}>
               <Button
                 onClick={handleWithdraw}
                 variant="contained"
@@ -403,8 +420,9 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
         PaperProps={{
           sx: {
             borderRadius: 3,
-            background: "rgba(20,20,20,0.95)",
+            background: "linear-gradient(180deg, rgba(6,19,46,0.98) 0%, rgba(13,47,118,0.92) 100%)",
             color: "#fff",
+            border: "1px solid rgba(138,199,255,0.14)",
             p: 2,
           },
         }}

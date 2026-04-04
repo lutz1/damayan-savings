@@ -65,22 +65,30 @@
       (function () {
         if (!('serviceWorker' in navigator)) return;
 
+        var host = window.location.hostname;
+        var isLocalhost = host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+
+        // Keep production service workers intact for FCM push delivery.
+        if (!isLocalhost) return;
+
         window.addEventListener('load', function () {
           navigator.serviceWorker.getRegistrations()
             .then(function (registrations) {
               return Promise.all(
-                registrations.map(function (registration) {
-                  return registration.unregister();
-                })
+                registrations
+                  .filter(function (registration) {
+                    var script = String(
+                      registration.active?.scriptURL ||
+                      registration.installing?.scriptURL ||
+                      registration.waiting?.scriptURL ||
+                      ''
+                    );
+                    return !script.includes('firebase-messaging-sw.js');
+                  })
+                  .map(function (registration) {
+                    return registration.unregister();
+                  })
               );
-            })
-            .then(function () {
-              if (!('caches' in window)) return;
-              return caches.keys().then(function (keys) {
-                return Promise.all(keys.map(function (key) {
-                  return caches.delete(key);
-                }));
-              });
             })
             .catch(function () {
               // Ignore cleanup errors to avoid blocking app startup
@@ -88,12 +96,12 @@
         });
       })();
     </script>
-    <script type="module" crossorigin src="/damayan-savings/assets/index-BwToAVz4.js"></script>
+    <script type="module" crossorigin src="/damayan-savings/assets/index-BxlNtSHC.js"></script>
     <link rel="modulepreload" crossorigin href="/damayan-savings/assets/vendor-emotion-CzXs6gIp.js">
     <link rel="modulepreload" crossorigin href="/damayan-savings/assets/vendor-mui-x-BduF647V.js">
     <link rel="modulepreload" crossorigin href="/damayan-savings/assets/vendor-mui-core-CXFVQDqm.js">
     <link rel="stylesheet" crossorigin href="/damayan-savings/assets/vendor-mui-x-BU3nLhQd.css">
-    <link rel="stylesheet" crossorigin href="/damayan-savings/assets/index-BZMnqUO_.css">
+    <link rel="stylesheet" crossorigin href="/damayan-savings/assets/index-gWO-DhY9.css">
   </head>
 
   <body>

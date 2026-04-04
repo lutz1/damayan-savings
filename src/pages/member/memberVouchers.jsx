@@ -3,6 +3,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../../firebase";
 import { useNavigate } from "react-router-dom";
+import { memberStickyHeaderInset, memberShellBackground } from "./memberLayout";
 
 const OFW_PERKS = [
   {
@@ -212,35 +213,40 @@ const MemberVouchers = () => {
   };
 
   return (
-    <div className="font-display text-slate-900 min-h-screen bg-[linear-gradient(180deg,#f5f8ff_0%,#eef2fb_72%,#f8f2df_100%)]">
-      <div className="relative flex h-screen max-w-md mx-auto flex-col overflow-hidden bg-[linear-gradient(180deg,#f5f8ff_0%,#eef2fb_72%,#f8f2df_100%)] border-x border-blue-900/10 shadow-xl">
+    <div className="font-display text-slate-900 min-h-screen" style={{ background: memberShellBackground }}>
+      <div className="relative flex h-screen max-w-md mx-auto flex-col overflow-hidden border-x border-white/10 shadow-xl" style={{ background: memberShellBackground }}>
         <div className="absolute -top-24 -right-20 h-64 w-64 rounded-full bg-blue-900/15 blur-3xl pointer-events-none" />
         <div className="absolute -bottom-28 -left-16 h-64 w-64 rounded-full bg-amber-300/30 blur-3xl pointer-events-none" />
 
-        <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-blue-900/10 pt-[max(env(safe-area-inset-top),0px)]">
+        <header
+          className="sticky top-0 z-20 border-b border-white/10 backdrop-blur-md"
+          
+          style={{ paddingTop: memberStickyHeaderInset }}
+        >
+          <div className="absolute inset-0 bg-[linear-gradient(145deg,rgba(8,23,52,0.94),rgba(16,42,99,0.90),rgba(33,86,201,0.82))]" />
           <div className="flex items-center p-4 justify-between">
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="text-blue-900 flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-blue-50 transition-colors"
+            className="relative z-10 text-white flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-white/10 transition-colors"
           >
             <span className="material-symbols-outlined">arrow_back</span>
           </button>
-          <h1 className="text-blue-950 text-lg font-bold leading-tight tracking-tight flex-1 text-center pr-10">My Vouchers</h1>
+          <h1 className="relative z-10 text-white text-lg font-bold leading-tight tracking-tight flex-1 text-center pr-10">My Vouchers</h1>
           </div>
 
-          <div className="flex px-4 pb-1">
+          <div className="relative z-10 flex px-4 pb-1">
           <button
             type="button"
             onClick={() => setActiveTab("ACTIVE")}
-            className={`flex-1 py-3 text-xs font-black uppercase tracking-widest transition-colors ${activeTab === "ACTIVE" ? "text-blue-900 border-b-2 border-amber-500" : "text-slate-500"}`}
+            className={`flex-1 py-3 text-xs font-black uppercase tracking-widest transition-colors ${activeTab === "ACTIVE" ? "text-white border-b-2 border-amber-400" : "text-white/60"}`}
           >
             Active
           </button>
           <button
             type="button"
             onClick={() => setActiveTab("ARCHIVED")}
-            className={`flex-1 py-3 text-xs font-black uppercase tracking-widest transition-colors ${activeTab !== "ACTIVE" ? "text-blue-900 border-b-2 border-amber-500" : "text-slate-500"}`}
+            className={`flex-1 py-3 text-xs font-black uppercase tracking-widest transition-colors ${activeTab !== "ACTIVE" ? "text-white border-b-2 border-amber-400" : "text-white/60"}`}
           >
             Used / Expired
           </button>
@@ -255,7 +261,7 @@ const MemberVouchers = () => {
               {/* Display all vouchers matching active tab */}
               {vouchers.map((voucher, index) => 
                 matchesActiveTab(voucher) && (
-                  <div key={index} className="p-4 rounded-3xl bg-white/85 border border-blue-900/10 shadow-[0_12px_30px_rgba(15,23,42,0.10)] backdrop-blur-xl">
+                  <div key={index} className="p-4 rounded-3xl border border-white/10 shadow-[0_18px_34px_rgba(6,18,45,0.18)] backdrop-blur-xl bg-[linear-gradient(145deg,rgba(255,255,255,0.90),rgba(248,250,255,0.96),rgba(244,238,216,0.94))]">
                     <div className="flex gap-4">
                       <div className="h-16 w-16 flex-shrink-0 rounded-2xl flex items-center justify-center border border-slate-200 bg-slate-50">
                         <span className="material-symbols-outlined text-blue-900 text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>{voucher.icon}</span>

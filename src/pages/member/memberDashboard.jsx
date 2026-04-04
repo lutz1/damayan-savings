@@ -6,6 +6,8 @@ import { useNavigate } from "react-router-dom";
 import { sendReferralTransferAvailableNotification } from "../../utils/referralNotifications";
 import { sendOverrideTransferAvailableNotification } from "../../utils/overrideNotifications";
 import { cleanupOldNotifications } from "../../utils/notifications";
+import { syncAppBadgeCount } from "../../utils/appBadge";
+import { memberPageTopInset, memberShellBackground, memberSoftPanelSx, memberGlassPanelSx, memberHeroBackground } from "./memberLayout";
 import Alert from "@mui/material/Alert";
 import {
   Box,
@@ -87,10 +89,13 @@ const MemberDashboard = () => {
     const memberPalette = {
       navy: "#0b1f5e",
       royal: "#173a8a",
+      cobalt: "#2156c9",
       white: "#ffffff",
       gold: "#d4af37",
       softGold: "#f2de9c",
       surface: "#f7f9fc",
+      mist: "#eef3ff",
+      slate: "#50607a",
       ink: "#191c1e",
     };
 
@@ -212,7 +217,7 @@ const [loadingTransfer, setLoadingTransfer] = useState(false);
 
 const [groupSalesOpen, setGroupSalesOpen] = useState(false);
 
-// GCash-style dashboard state
+// Member dashboard wallet state
 const [eWallet, setEWallet] = useState(0);
 const [showBalance, setShowBalance] = useState(false);
 const [dashDialog, setDashDialog] = useState(null);
@@ -224,6 +229,10 @@ const navigate = useNavigate();
 const [notifDrawerOpen, setNotifDrawerOpen] = useState(false);
 const [notifications, setNotifications] = useState([]);
 const [unreadCount, setUnreadCount] = useState(0);
+
+useEffect(() => {
+  syncAppBadgeCount(unreadCount);
+}, [unreadCount]);
 
 useEffect(() => {
   if (!user) return;
@@ -680,12 +689,12 @@ useEffect(() => {
     <Box
       sx={{
         minHeight: "100vh",
-        background: "linear-gradient(160deg, #0b1f5e 0%, #173a8a 28%, #ffffff 62%, #f2de9c 100%)",
+        background: memberShellBackground,
         color: memberPalette.ink,
         pb: 14,
       }}
     >
-      <Box sx={{ maxWidth: { xs: "100%", sm: 460 }, mx: "auto", px: { xs: 2.25, sm: 2.75 }, pt: 3 }}>
+      <Box sx={{ maxWidth: { xs: "100%", sm: 460 }, mx: "auto", px: { xs: 2.25, sm: 2.75 }, pt: { xs: memberPageTopInset, sm: 3 } }}>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2.6 }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
             {loading ? (
@@ -714,7 +723,7 @@ useEffect(() => {
             )}
             <Box>
               <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.78)", letterSpacing: 0.8, textTransform: "uppercase", fontWeight: 700, textShadow: "0 1px 4px rgba(11,31,94,0.45)" }}>
-                Welcome back,
+                Member hub
               </Typography>
               {loading ? (
                 <Skeleton variant="text" width={140} height={32} sx={{ borderRadius: 1 }} />
@@ -738,12 +747,12 @@ useEffect(() => {
 
         <Box
           sx={{
-            background: `linear-gradient(135deg, ${memberPalette.navy} 0%, ${memberPalette.royal} 55%, ${memberPalette.gold} 100%)`,
-            borderRadius: "28px",
-            border: "2px solid rgba(212,175,55,0.6)",
-            p: 3.2,
+            background: memberHeroBackground,
+            borderRadius: "32px 24px 30px 24px",
+            border: "1px solid rgba(255,255,255,0.16)",
+            p: { xs: 2.6, sm: 3.2 },
             color: "#fff",
-            boxShadow: "0 10px 24px rgba(25, 28, 30, 0.16)",
+            boxShadow: "0 22px 44px rgba(6, 18, 45, 0.28)",
             position: "relative",
             overflow: "hidden",
             mb: 3.2,
@@ -757,17 +766,25 @@ useEffect(() => {
               width: 170,
               height: 170,
               borderRadius: "50%",
-              background: "rgba(255,255,255,0.10)",
-              filter: "blur(8px)",
+              background: "rgba(255,255,255,0.08)",
+              filter: "blur(10px)",
+            }}
+          />
+          <Box
+            sx={{
+              position: "absolute",
+              inset: 0,
+              pointerEvents: "none",
+              background: "linear-gradient(120deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0) 32%)",
             }}
           />
           <Box sx={{ position: "relative", zIndex: 1 }}>
-            <Typography sx={{ fontSize: 11, color: "rgba(255,255,255,0.75)", letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700 }}>
-              Available Balance
+            <Typography sx={{ fontSize: 11, color: "rgba(255,255,255,0.72)", letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 800 }}>
+              Wallet Overview
             </Typography>
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mt: 0.8 }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.6 }}>
-                <Typography sx={{ fontSize: 33, fontWeight: 800, letterSpacing: -0.6, lineHeight: 1 }}>
+                <Typography sx={{ fontSize: { xs: 29, sm: 33 }, fontWeight: 800, letterSpacing: -0.8, lineHeight: 1 }}>
                   {showBalance
                     ? `₱${(eWallet || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                     : "₱ ••••••"}
@@ -783,31 +800,32 @@ useEffect(() => {
               <Button
                   onClick={() => navigate('/member/cash-in')}
                   sx={{
-                    backgroundColor: "#fff",
-                    color: memberPalette.navy,
+                    backgroundColor: "rgba(255,255,255,0.14)",
+                    color: "#fff",
                     borderRadius: "999px",
+                    border: "1px solid rgba(255,255,255,0.18)",
                     textTransform: "none",
                     fontSize: 12,
                     fontWeight: 700,
                     px: 2,
                     minWidth: "auto",
-                    "&:hover": { backgroundColor: "#f7f1dc" },
+                    "&:hover": { backgroundColor: "rgba(255,255,255,0.22)" },
                   }}
                 >
                   + Cash In
                 </Button>
             </Box>
 
-            <Box sx={{ mt: 2.5, pt: 1.6, borderTop: "1px solid rgba(255,255,255,0.22)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <Box sx={{ mt: 2.4, p: 1.6, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.10)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 2 }}>
               <Box>
-                <Typography sx={{ fontSize: 11, color: "rgba(255,255,255,0.9)", fontWeight: 600, textShadow: "0 1px 4px rgba(11,31,94,0.35)" }}>Total Capital Share</Typography>
-                <Typography sx={{ fontSize: 18, fontWeight: 700 }}>
+                <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.76)", fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase" }}>Capital Share</Typography>
+                <Typography sx={{ fontSize: 18, fontWeight: 800 }}>
                   ₱{Number(displayCapitalShare).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </Typography>
               </Box>
               <Box sx={{ textAlign: "right" }}>
-                <Typography sx={{ fontSize: 11, color: "rgba(255,255,255,0.9)", fontWeight: 600, textShadow: "0 1px 4px rgba(11,31,94,0.35)" }}>Payback Contribution</Typography>
-                <Typography sx={{ fontSize: 18, fontWeight: 700 }}>
+                <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.76)", fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase" }}>Payback</Typography>
+                <Typography sx={{ fontSize: 18, fontWeight: 800 }}>
                   ₱{Number(displayContribution).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </Typography>
               </Box>
@@ -815,7 +833,7 @@ useEffect(() => {
           </Box>
         </Box>
 
-        <Grid container spacing={2} sx={{ mb: 1.8 }}>
+        <Grid container spacing={1.6} sx={{ mb: 2.3 }}>
           {[
             { icon: <SendMoneyIcon />, label: "Send", dialog: "transfer" },
             { icon: <CallReceivedIcon />, label: "Withdraw", dialog: "withdraw" },
@@ -828,52 +846,65 @@ useEffect(() => {
             <Grid item xs={3} key={action.label}>
               <Box
                 onClick={() => (action.dialog ? setDashDialog(action.dialog) : action.action?.())}
-                sx={{ textAlign: "center", cursor: "pointer", py: 1.1, "&:active": { transform: "scale(0.95)" } }}
+                sx={{
+                  textAlign: "center",
+                  cursor: "pointer",
+                  py: 1.2,
+                  px: 0.5,
+                  borderRadius: 3,
+                  background: "linear-gradient(155deg, rgba(8,26,62,0.88) 0%, rgba(14,54,123,0.76) 100%)",
+                  border: "1px solid rgba(217,233,255,0.14)",
+                  boxShadow: "0 12px 24px rgba(4,16,40,0.24)",
+                  "&:active": { transform: "scale(0.95)" },
+                }}
               >
                 <Box
                   sx={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 1.8,
-                    border: "1px solid #d6c17a",
-                    color: memberPalette.navy,
-                    backgroundColor: "#fff",
+                    width: 50,
+                    height: 50,
+                    borderRadius: "16px",
+                    color: memberPalette.white,
+                    background: `linear-gradient(145deg, ${memberPalette.navy} 0%, ${memberPalette.cobalt} 100%)`,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     mx: "auto",
                     mb: 0.95,
+                    boxShadow: "0 10px 18px rgba(16,42,99,0.18)",
                   }}
                 >
-                  {React.cloneElement(action.icon, { sx: { fontSize: 31 } })}
+                  {React.cloneElement(action.icon, { sx: { fontSize: 26 } })}
                 </Box>
-                <Typography sx={{ fontSize: 11, color: "rgba(255,255,255,0.95)", fontWeight: 700, lineHeight: 1.25, textShadow: "0 1px 4px rgba(11,31,94,0.45)" }}>{action.label}</Typography>
+                <Typography sx={{ fontSize: 11, color: "#d9e9ff", fontWeight: 800, lineHeight: 1.25 }}>{action.label}</Typography>
               </Box>
             </Grid>
           ))}
         </Grid>
 
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }}>
-          <Typography sx={{ fontSize: 17, fontWeight: 800, color: "#ffffff", mt: 1.6, mb: 1.8, textShadow: "0 2px 8px rgba(11,31,94,0.45)" }}>
+          <Typography sx={{ fontSize: 17, fontWeight: 800, color: "#ffffff", mt: 1.6, mb: 1.8 }}>
             Earnings Analytics
           </Typography>
 
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mb: 2.6 }}>
             {/* Referral Earnings — full width */}
               <Card
-                sx={{ borderRadius: 2.5, boxShadow: "0 10px 24px rgba(11,31,94,0.12)",
-                  background: "linear-gradient(135deg,#f5f8ff 0%,#ffffff 70%,#f6edd0 100%)", cursor: "pointer" }}
+                sx={{
+                  ...memberGlassPanelSx,
+                  borderRadius: 3,
+                  cursor: "pointer"
+                }}
                 onClick={() => setRewardDialogOpen(true)}
               >
                 <CardContent sx={{ p: { xs: 1.5, sm: 2 }, display: "flex", alignItems: "center", justifyContent: "space-between", "&:last-child": { pb: { xs: 1.5, sm: 2 } } }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                    <Box sx={{ width: 44, height: 44, borderRadius: 2, backgroundColor: "rgba(11,31,94,0.12)",
+                    <Box sx={{ width: 44, height: 44, borderRadius: 2, backgroundColor: "rgba(217,233,255,0.12)",
                       display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <GroupAddIcon sx={{ color: memberPalette.navy, fontSize: 24 }} />
+                      <GroupAddIcon sx={{ color: "#d9e9ff", fontSize: 24 }} />
                     </Box>
                     <Box>
-                      <Typography sx={{ fontSize: 11, color: "#3e4658", fontWeight: 700 }}>Referral Earnings</Typography>
-                      <Typography sx={{ fontSize: 26, fontWeight: 800, color: memberPalette.navy, lineHeight: 1.1, mt: 0.3 }}>
+                      <Typography sx={{ fontSize: 11, color: "rgba(217,233,255,0.76)", fontWeight: 700 }}>Referral Earnings</Typography>
+                      <Typography sx={{ fontSize: 26, fontWeight: 800, color: "#ffffff", lineHeight: 1.1, mt: 0.3 }}>
                         ₱{Number(displayEarnings).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </Typography>
                     </Box>
@@ -882,8 +913,8 @@ useEffect(() => {
                     invisible={!rewardHistory.some((r) => r.payoutReleased && !r.transferredAmount)}
                     anchorOrigin={{ vertical: "top", horizontal: "right" }}>
                     <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center",
-                      width: 36, height: 36, borderRadius: "50%", backgroundColor: "rgba(11,31,94,0.08)" }}>
-                      <VisibilityIcon sx={{ color: memberPalette.navy, fontSize: 20 }} />
+                      width: 36, height: 36, borderRadius: "50%", backgroundColor: "rgba(217,233,255,0.12)" }}>
+                      <VisibilityIcon sx={{ color: "#d9e9ff", fontSize: 20 }} />
                     </Box>
                   </Badge>
                 </CardContent>
@@ -891,19 +922,23 @@ useEffect(() => {
 
             {/* Override Earnings — full width */}
               <Card
-                sx={{ borderRadius: 2.5, boxShadow: "0 10px 24px rgba(11,31,94,0.12)",
-                  background: "linear-gradient(135deg,#fffaf0 0%,#ffffff 68%,#f6edd0 100%)", cursor: "pointer" }}
+                sx={{
+                  ...memberGlassPanelSx,
+                  borderRadius: 3,
+                  border: "1px solid rgba(212,175,55,0.22)",
+                  cursor: "pointer"
+                }}
                 onClick={() => setOverrideDialogOpen(true)}
               >
                 <CardContent sx={{ p: { xs: 1.5, sm: 2 }, display: "flex", alignItems: "center", justifyContent: "space-between", "&:last-child": { pb: { xs: 1.5, sm: 2 } } }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                     <Box sx={{ width: 44, height: 44, borderRadius: 2, backgroundColor: "rgba(212,175,55,0.18)",
                       display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <AccountTreeIcon sx={{ color: memberPalette.gold, fontSize: 24 }} />
+                      <AccountTreeIcon sx={{ color: "#ffd483", fontSize: 24 }} />
                     </Box>
                     <Box>
-                      <Typography sx={{ fontSize: 11, color: "#3e4658", fontWeight: 700 }}>Override Earnings</Typography>
-                      <Typography sx={{ fontSize: 26, fontWeight: 800, color: memberPalette.gold, lineHeight: 1.1, mt: 0.3 }}>
+                      <Typography sx={{ fontSize: 11, color: "rgba(217,233,255,0.76)", fontWeight: 700 }}>Override Earnings</Typography>
+                      <Typography sx={{ fontSize: 26, fontWeight: 800, color: "#ffd483", lineHeight: 1.1, mt: 0.3 }}>
                         ₱{Number(displayOverride).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </Typography>
                     </Box>
@@ -920,16 +955,16 @@ useEffect(() => {
                     anchorOrigin={{ vertical: "top", horizontal: "right" }}>
                     <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center",
                       width: 36, height: 36, borderRadius: "50%", backgroundColor: "rgba(212,175,55,0.14)" }}>
-                      <VisibilityIcon sx={{ color: memberPalette.gold, fontSize: 20 }} />
+                      <VisibilityIcon sx={{ color: "#ffd483", fontSize: 20 }} />
                     </Box>
                   </Badge>
                 </CardContent>
               </Card>
           </Box>
 
-          <Box sx={{ background: "linear-gradient(160deg, #f2f5fb 0%, #ffffff 100%)", borderRadius: 3, p: 2.4, mb: 2.4, border: "1px solid rgba(11,31,94,0.08)" }}>
+          <Box sx={{ background: "linear-gradient(145deg, rgba(8,23,52,0.92) 0%, rgba(16,42,99,0.88) 58%, rgba(33,86,201,0.78) 100%)", borderRadius: 3, p: 2.4, mb: 2.4, border: "1px solid rgba(255,255,255,0.10)", boxShadow: "0 18px 34px rgba(6,18,45,0.18)" }}>
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.4 }}>
-              <Typography sx={{ fontSize: 17, fontWeight: 800, color: "#1b1f23" }}>Network Summary</Typography>
+              <Typography sx={{ fontSize: 17, fontWeight: 800, color: "#ffffff" }}>Network Summary</Typography>
               <Button
                 onClick={() => setGroupSalesOpen(true)}
                 sx={{
@@ -938,8 +973,8 @@ useEffect(() => {
                   borderRadius: "999px",
                   px: 1.4,
                   py: 0.4,
-                  color: memberPalette.navy,
-                  backgroundColor: "rgba(11,31,94,0.10)",
+                  color: "#ffffff",
+                  backgroundColor: "rgba(255,255,255,0.12)",
                 }}
               >
                 Group Sales
@@ -962,7 +997,7 @@ useEffect(() => {
                     key={item.role}
                     sx={{
                       borderRadius: 2,
-                      backgroundColor: "#fff",
+                      background: "linear-gradient(145deg, rgba(255,255,255,0.92) 0%, rgba(243,246,255,0.96) 100%)",
                       px: 1.8,
                       py: 1.4,
                       display: "flex",
@@ -1010,17 +1045,18 @@ useEffect(() => {
                 ))}
               </Box>
             ) : (
-              <Typography sx={{ fontSize: 13, color: "#5d646f", py: 1 }}>Unable to load user data.</Typography>
+              <Typography sx={{ fontSize: 13, color: "rgba(217,233,255,0.74)", py: 1 }}>Unable to load user data.</Typography>
             )}
           </Box>
 
           <Box
             sx={{
-              border: "1px solid rgba(212,175,55,0.32)",
+              border: "1px solid rgba(255,255,255,0.10)",
               borderRadius: 3,
               p: 2.2,
               mb: 2.6,
-              background: "linear-gradient(135deg, rgba(11,31,94,0.05) 0%, rgba(212,175,55,0.10) 100%)",
+              background: "linear-gradient(145deg, rgba(8,23,52,0.94) 0%, rgba(16,42,99,0.88) 62%, rgba(212,175,55,0.22) 100%)",
+              boxShadow: "0 18px 34px rgba(6,18,45,0.18)",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
@@ -1028,8 +1064,8 @@ useEffect(() => {
             }}
           >
             <Box>
-              <Typography sx={{ fontSize: 15, fontWeight: 800, color: memberPalette.navy }}>Expand Sanctuary</Typography>
-              <Typography sx={{ fontSize: 12, color: "#5f6673", mt: 0.3 }}>
+              <Typography sx={{ fontSize: 15, fontWeight: 800, color: "#ffffff" }}>Expand Sanctuary</Typography>
+              <Typography sx={{ fontSize: 12, color: "rgba(255,255,255,0.74)", mt: 0.3 }}>
                 Share your referral link and grow your earning network.
               </Typography>
             </Box>
@@ -1056,35 +1092,36 @@ useEffect(() => {
           bottom: 0,
           left: 0,
           width: "100%",
-          backgroundColor: "rgba(255,255,255,0.88)",
-          backdropFilter: "blur(8px)",
-          borderTopLeftRadius: 24,
-          borderTopRightRadius: 24,
-          boxShadow: "0 -8px 22px rgba(25,28,30,0.08)",
-          py: 1,
+          background: "linear-gradient(180deg, rgba(8,23,52,0.94) 0%, rgba(11,31,94,0.98) 100%)",
+          backdropFilter: "blur(12px)",
+          borderTopLeftRadius: 26,
+          borderTopRightRadius: 26,
+          borderTop: "1px solid rgba(255,255,255,0.10)",
+          boxShadow: "0 -12px 32px rgba(6,18,45,0.22)",
+          py: 1.1,
           zIndex: 20,
         }}
       >
         <Box sx={{ maxWidth: 460, mx: "auto", px: 1.5, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Button sx={{ minWidth: 0, color: memberPalette.navy, display: "flex", flexDirection: "column", gap: 0.4 }}>
+          <Button sx={{ minWidth: 0, color: "rgba(255,255,255,0.95)", display: "flex", flexDirection: "column", gap: 0.4 }}>
             <HomeIcon sx={{ fontSize: 22 }} />
             <Typography sx={{ fontSize: 10, fontWeight: 700, lineHeight: 1 }}>Home</Typography>
           </Button>
-          <Button onClick={() => navigate('/member/income/payback')} sx={{ minWidth: 0, color: "#8b95a5", display: "flex", flexDirection: "column", gap: 0.4, '&:hover': { color: memberPalette.navy } }}>
+          <Button onClick={() => navigate('/member/income/payback')} sx={{ minWidth: 0, color: "rgba(255,255,255,0.66)", display: "flex", flexDirection: "column", gap: 0.4, '&:hover': { color: '#fff' } }}>
             <ReceiptLongIcon sx={{ fontSize: 22 }} />
             <Typography sx={{ fontSize: 10, fontWeight: 700, lineHeight: 1 }}>PAYBACK</Typography>
           </Button>
-          <Button sx={{ minWidth: 0, color: "#fff", mt: -2.5, display: "flex", flexDirection: "column", gap: 0.7 }}>
-            <Box sx={{ width: 52, height: 52, borderRadius: "50%", backgroundColor: memberPalette.gold, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 10px 18px rgba(212,175,55,0.35)" }}>
+          <Button sx={{ minWidth: 0, color: "#fff", mt: -2.2, display: "flex", flexDirection: "column", gap: 0.7 }}>
+            <Box sx={{ width: 52, height: 52, borderRadius: "18px", background: `linear-gradient(145deg, ${memberPalette.gold} 0%, #e6c565 100%)`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 12px 22px rgba(212,175,55,0.28)" }}>
               <QrCodeScannerIcon sx={{ fontSize: 28 }} />
             </Box>
-            <Typography sx={{ fontSize: 10, fontWeight: 700, color: "#8b95a5", lineHeight: 1 }}>Scan</Typography>
+            <Typography sx={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.72)", lineHeight: 1 }}>Scan</Typography>
           </Button>
-          <Button onClick={() => navigate('/member/income/capital-share')} sx={{ minWidth: 0, color: "#8b95a5", display: "flex", flexDirection: "column", gap: 0.4, '&:hover': { color: memberPalette.navy } }}>
+          <Button onClick={() => navigate('/member/income/capital-share')} sx={{ minWidth: 0, color: "rgba(255,255,255,0.66)", display: "flex", flexDirection: "column", gap: 0.4, '&:hover': { color: '#fff' } }}>
             <RedeemIcon sx={{ fontSize: 22 }} />
             <Typography sx={{ fontSize: 10, fontWeight: 700, lineHeight: 1 }}>CAPITAL</Typography>
           </Button>
-          <Button onClick={() => navigate('/member/profile')} sx={{ minWidth: 0, color: "#8b95a5", display: "flex", flexDirection: "column", gap: 0.4, '&:hover': { color: memberPalette.navy } }}>
+          <Button onClick={() => navigate('/member/profile')} sx={{ minWidth: 0, color: "rgba(255,255,255,0.66)", display: "flex", flexDirection: "column", gap: 0.4, '&:hover': { color: '#fff' } }}>
             <PersonIcon sx={{ fontSize: 22 }} />
             <Typography sx={{ fontSize: 10, fontWeight: 700, lineHeight: 1 }}>Profile</Typography>
           </Button>
@@ -1134,9 +1171,9 @@ useEffect(() => {
         onClose={() => setOpenDialog(false)}
         fullWidth
         maxWidth="sm"
-        PaperProps={{ sx: { borderRadius: 3, overflow: "hidden" } }}
+        PaperProps={{ sx: { borderRadius: 3, overflow: "hidden", background: "linear-gradient(150deg, rgba(8,26,62,0.96) 0%, rgba(13,44,102,0.92) 100%)", border: "1px solid rgba(217,233,255,0.2)", color: "#fff" } }}
       >
-        <DialogTitle sx={{ background: "linear-gradient(135deg,#003f8d,#0055ba)", color: "#fff", p: 0 }}>
+        <DialogTitle sx={{ background: "rgba(8,31,76,0.75)", color: "#fff", p: 0, borderBottom: "1px solid rgba(217,233,255,0.15)" }}>
           <Box sx={{ px: 2.5, pt: 2.5, pb: 2 }}>
             <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.72)", letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700 }}>
               Network View
@@ -1153,8 +1190,8 @@ useEffect(() => {
             />
           </Box>
         </DialogTitle>
-        <DialogContent sx={{ p: 0, backgroundColor: "#f7f9fc" }}>
-          <Box sx={{ px: 2, pt: 2, pb: 1, backgroundColor: "#fff", borderBottom: "1px solid #eceef1", display: "flex", gap: 1 }}>
+        <DialogContent sx={{ p: 0, backgroundColor: "transparent" }}>
+          <Box sx={{ px: 2, pt: 2, pb: 1, backgroundColor: "rgba(7,22,52,0.55)", borderBottom: "1px solid rgba(217,233,255,0.15)", display: "flex", gap: 1 }}>
             <TextField
               placeholder="Search name or username…"
               variant="outlined"
@@ -1162,31 +1199,39 @@ useEffect(() => {
               size="small"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: 2,
+                  color: "#fff",
+                  backgroundColor: "rgba(6,20,52,0.42)",
+                  "& fieldset": { borderColor: "rgba(217,233,255,0.24)" },
+                },
+                "& .MuiInputBase-input::placeholder": { color: "rgba(217,233,255,0.68)", opacity: 1 },
+              }}
             />
             <TextField
               select
               size="small"
               value={sortField}
               onChange={(e) => setSortField(e.target.value)}
-              sx={{ minWidth: 110, "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+              sx={{ minWidth: 110, "& .MuiOutlinedInput-root": { borderRadius: 2, color: "#fff", backgroundColor: "rgba(6,20,52,0.42)", "& fieldset": { borderColor: "rgba(217,233,255,0.24)" } } }}
             >
               <MenuItem value="name">Name</MenuItem>
               <MenuItem value="username">Username</MenuItem>
             </TextField>
-            <IconButton onClick={handleToggleSortOrder} sx={{ color: "#105abf", border: "1px solid #d8deea", borderRadius: 2, px: 1 }}>
+            <IconButton onClick={handleToggleSortOrder} sx={{ color: "#d9e9ff", border: "1px solid rgba(217,233,255,0.24)", borderRadius: 2, px: 1 }}>
               <SortIcon sx={{ transform: sortOrder === "asc" ? "rotate(0deg)" : "rotate(180deg)", transition: "transform 0.3s" }} />
             </IconButton>
           </Box>
           {filteredReferrals.length === 0 ? (
             <Box sx={{ py: 6, textAlign: "center" }}>
-              <Typography sx={{ fontSize: 13, color: "#8b95a5" }}>No members found.</Typography>
+              <Typography sx={{ fontSize: 13, color: "rgba(217,233,255,0.74)" }}>No members found.</Typography>
             </Box>
           ) : (
             <List disablePadding>
               {filteredReferrals.map((ref, i) => (
-                <ListItem key={i} divider sx={{ px: 2, py: 1.4, backgroundColor: i % 2 === 0 ? "#fff" : "#f7f9fc" }}>
-                  <Box sx={{ width: 38, height: 38, borderRadius: "50%", background: "linear-gradient(135deg,#003f8d,#0055ba)",
+                <ListItem key={i} divider sx={{ px: 2, py: 1.4, backgroundColor: i % 2 === 0 ? "rgba(8,26,62,0.42)" : "rgba(7,22,52,0.58)", borderColor: "rgba(217,233,255,0.12)" }}>
+                  <Box sx={{ width: 38, height: 38, borderRadius: "50%", background: "linear-gradient(135deg,#0f4ea8,#2f7de1)",
                     display: "flex", alignItems: "center", justifyContent: "center", color: "#fff",
                     fontWeight: 700, fontSize: 15, mr: 1.5, flexShrink: 0 }}>
                     {(ref.name || ref.username || "?").charAt(0).toUpperCase()}
@@ -1194,19 +1239,19 @@ useEffect(() => {
                   <ListItemText
                     primary={
                       <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
-                        <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#1f2430" }}>
+                        <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#ffffff" }}>
                           {ref.name || ref.username}
                         </Typography>
                         <Chip label={ref.role} size="small"
                           sx={{ fontSize: 9, fontWeight: 700, height: 18, px: 0.5,
-                            backgroundColor: ref.role === "MD" ? "rgba(16,90,191,0.12)" : ref.role === "MS" ? "rgba(117,42,0,0.10)" : ref.role === "MI" ? "rgba(46,125,50,0.10)" : "rgba(0,0,0,0.06)",
-                            color: ref.role === "MD" ? "#105abf" : ref.role === "MS" ? "#752a00" : ref.role === "MI" ? "#2e7d32" : "#5d646f",
+                            backgroundColor: ref.role === "MD" ? "rgba(16,90,191,0.18)" : ref.role === "MS" ? "rgba(255,212,131,0.18)" : ref.role === "MI" ? "rgba(46,125,50,0.18)" : "rgba(217,233,255,0.12)",
+                            color: ref.role === "MD" ? "#9fd5ff" : ref.role === "MS" ? "#ffd483" : ref.role === "MI" ? "#9ddfb1" : "#d9e9ff",
                           }}
                         />
                       </Box>
                     }
                     secondary={
-                      <Typography component="span" sx={{ fontSize: 12, color: "#8b95a5" }}>
+                      <Typography component="span" sx={{ fontSize: 12, color: "rgba(217,233,255,0.68)" }}>
                         @{ref.username}{ref.email ? ` · ${ref.email}` : ""}
                       </Typography>
                     }
@@ -1216,7 +1261,7 @@ useEffect(() => {
             </List>
           )}
         </DialogContent>
-        <DialogActions sx={{ backgroundColor: "#fff", borderTop: "1px solid #eceef1", px: 2, py: 1.4 }}>
+        <DialogActions sx={{ backgroundColor: "rgba(7,22,52,0.55)", borderTop: "1px solid rgba(217,233,255,0.14)", px: 2, py: 1.4 }}>
           <Button onClick={() => setOpenDialog(false)}
             sx={{ borderRadius: 2, fontWeight: 700, color: "#105abf", textTransform: "none",
               backgroundColor: "rgba(16,90,191,0.08)", px: 2.5, "&:hover": { backgroundColor: "rgba(16,90,191,0.14)" } }}>
@@ -1267,12 +1312,14 @@ useEffect(() => {
             width: { xs: "100vw", sm: 380 },
             borderTopLeftRadius: { xs: 0, sm: 20 },
             borderBottomLeftRadius: { xs: 0, sm: 20 },
-            backgroundColor: "#f7f9fc",
+            background: "linear-gradient(150deg, rgba(8,26,62,0.96) 0%, rgba(13,44,102,0.92) 100%)",
+            color: "#fff",
+            borderLeft: "1px solid rgba(217,233,255,0.18)",
           },
         }}
       >
         {/* Header */}
-        <Box sx={{ background: "linear-gradient(135deg,#003f8d,#0055ba)", px: 2.5, pt: 3.5, pb: 2.5 }}>
+        <Box sx={{ background: "rgba(8,31,76,0.82)", borderBottom: "1px solid rgba(217,233,255,0.16)", px: 2.5, pt: 3.5, pb: 2.5 }}>
           <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.72)", letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700 }}>Inbox</Typography>
           <Typography sx={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>Notifications</Typography>
           {unreadCount > 0 && (
@@ -1286,7 +1333,7 @@ useEffect(() => {
           {notifications.length === 0 ? (
             <Box sx={{ py: 8, textAlign: "center" }}>
               <NotificationsNoneIcon sx={{ fontSize: 48, color: "#c2c6d5", mb: 1 }} />
-              <Typography sx={{ fontSize: 13, color: "#8b95a5" }}>No notifications yet.</Typography>
+              <Typography sx={{ fontSize: 13, color: "rgba(217,233,255,0.74)" }}>No notifications yet.</Typography>
             </Box>
           ) : (
             notifications.map((n, idx) => {
@@ -1302,24 +1349,24 @@ useEffect(() => {
                   <Box sx={{
                     display: "flex", alignItems: "flex-start", gap: 1.5,
                     px: 2, py: 1.8,
-                    backgroundColor: isUnread ? "rgba(16,90,191,0.05)" : "#fff",
+                    backgroundColor: isUnread ? "rgba(36,103,202,0.2)" : "rgba(7,22,52,0.35)",
                     borderLeft: isUnread ? "3px solid #105abf" : "3px solid transparent",
                   }}>
-                    <Box sx={{ width: 38, height: 38, borderRadius: "50%", backgroundColor: "rgba(16,90,191,0.10)",
+                    <Box sx={{ width: 38, height: 38, borderRadius: "50%", backgroundColor: "rgba(217,233,255,0.12)",
                       display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, mt: 0.2 }}>
                       {icon}
                     </Box>
                     <Box sx={{ flex: 1 }}>
-                      <Typography sx={{ fontSize: 13, fontWeight: isUnread ? 700 : 600, color: "#1f2430", lineHeight: 1.3 }}>
+                      <Typography sx={{ fontSize: 13, fontWeight: isUnread ? 700 : 600, color: "#ffffff", lineHeight: 1.3 }}>
                         {n.title || "Notification"}
                       </Typography>
                       {n.message && (
-                        <Typography sx={{ fontSize: 12, color: "#5d646f", mt: 0.3, lineHeight: 1.5 }}>
+                        <Typography sx={{ fontSize: 12, color: "rgba(217,233,255,0.74)", mt: 0.3, lineHeight: 1.5 }}>
                           {n.message}
                         </Typography>
                       )}
                       {ts && (
-                        <Typography sx={{ fontSize: 10, color: "#8b95a5", mt: 0.5, fontWeight: 600 }}>{ts}</Typography>
+                        <Typography sx={{ fontSize: 10, color: "rgba(217,233,255,0.58)", mt: 0.5, fontWeight: 600 }}>{ts}</Typography>
                       )}
                     </Box>
                     {isUnread && (
@@ -1334,10 +1381,10 @@ useEffect(() => {
         </Box>
 
         {/* Footer */}
-        <Box sx={{ p: 2, backgroundColor: "#fff", borderTop: "1px solid #eceef1" }}>
+        <Box sx={{ p: 2, backgroundColor: "rgba(7,22,52,0.55)", borderTop: "1px solid rgba(217,233,255,0.14)" }}>
           <Button fullWidth onClick={() => setNotifDrawerOpen(false)}
-            sx={{ borderRadius: 2.5, textTransform: "none", fontWeight: 700, color: "#105abf",
-              backgroundColor: "rgba(16,90,191,0.08)", py: 1.2, "&:hover": { backgroundColor: "rgba(16,90,191,0.14)" } }}>
+            sx={{ borderRadius: 2.5, textTransform: "none", fontWeight: 700, color: "#d9e9ff",
+              backgroundColor: "rgba(16,90,191,0.2)", py: 1.2, "&:hover": { backgroundColor: "rgba(16,90,191,0.3)" } }}>
             Close
           </Button>
         </Box>

@@ -10,11 +10,11 @@ import {
 
 const PassiveIncomeEarn = ({ open, onClose, paybackEntries, setTransferAmount, setTransferDialogOpen, loadingTransferId }) => {
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" PaperProps={{ sx: { background: `linear-gradient(120deg, rgba(30, 41, 59, 0.95), rgba(33, 47, 61, 0.9))`, backdropFilter: "blur(14px)", border: `1px solid rgba(79, 195, 247, 0.2)`, borderRadius: 2, boxShadow: '0 4px 24px rgba(0,0,0,0.3)', overflow: 'hidden', maxWidth: { xs: '100%', sm: 500, md: 500 } } }}>
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" PaperProps={{ sx: { background: "linear-gradient(150deg, rgba(8,26,62,0.96) 0%, rgba(13,44,102,0.92) 100%)", backdropFilter: "blur(14px)", border: "1px solid rgba(217,233,255,0.22)", borderRadius: 2, boxShadow: '0 4px 24px rgba(0,0,0,0.3)', overflow: 'hidden', maxWidth: { xs: '100%', sm: 500, md: 500 } } }}>
       {/* Reduced header with X button */}
       <Box sx={{
-        bgcolor: 'rgba(31, 150, 243, 0.15)',
-        color: '#4FC3F7',
+        bgcolor: 'rgba(8,31,76,0.75)',
+        color: '#d9e9ff',
         px: { xs: 1.5, sm: 2 },
         py: 1.2,
         display: 'flex',
@@ -25,17 +25,17 @@ const PassiveIncomeEarn = ({ open, onClose, paybackEntries, setTransferAmount, s
         boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
         position: 'relative',
         zIndex: 1,
-        borderBottom: '1px solid rgba(79, 195, 247, 0.2)',
+        borderBottom: '1px solid rgba(217,233,255,0.2)',
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
           <Box sx={{ fontSize: 24, mb: 0 }}>📈</Box>
-          <Typography variant="subtitle1" sx={{ fontWeight: 800, fontSize: 14, letterSpacing: 0.3, color: '#4FC3F7', textShadow: '0 2px 12px rgba(0,0,0,0.3)' }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 800, fontSize: 14, letterSpacing: 0.3, color: '#d9e9ff', textShadow: '0 2px 12px rgba(0,0,0,0.3)' }}>
             Passive Income Earn
           </Typography>
         </Box>
         <Button
           onClick={onClose}
-          sx={{ minWidth: 0, p: 0.3, color: '#4FC3F7', bgcolor: 'transparent', '&:hover': { bgcolor: 'rgba(79, 195, 247, 0.15)' } }}
+            sx={{ minWidth: 0, p: 0.3, color: '#d9e9ff', bgcolor: 'transparent', '&:hover': { bgcolor: 'rgba(16,90,191,0.22)' } }}
           aria-label="Close"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -136,7 +136,7 @@ const PassiveIncomeEarn = ({ open, onClose, paybackEntries, setTransferAmount, s
                   >
                     {/* Amount */}
                     <Box sx={{ minWidth: 'auto', flex: 0 }}>
-                      <Typography sx={{ fontWeight: 800, fontSize: 20, color: '#4FC3F7', lineHeight: 1 }}>
+                      <Typography sx={{ fontWeight: 800, fontSize: 20, color: '#d9e9ff', lineHeight: 1 }}>
                         ₱{profit.toFixed(0)}
                       </Typography>
                     </Box>
@@ -180,7 +180,7 @@ const PassiveIncomeEarn = ({ open, onClose, paybackEntries, setTransferAmount, s
                         variant="contained"
                         size="small"
                         disabled={loadingTransferId === e.id}
-                        sx={{ fontWeight: 700, borderRadius: 1, textTransform: 'none', py: 0.5, px: 1, fontSize: 10, bgcolor: '#4CAF50', color: '#fff', minWidth: 'fit-content', flex: 0, whiteSpace: 'nowrap', '&:hover': { bgcolor: '#388e3c' }, '&:disabled': { bgcolor: 'rgba(76, 175, 80, 0.5)', color: 'rgba(255,255,255,0.7)' } }}
+                        sx={{ fontWeight: 700, borderRadius: 1, textTransform: 'none', py: 0.5, px: 1, fontSize: 10, background: 'linear-gradient(135deg, #2f7de1, #0f4ea8)', color: '#fff', minWidth: 'fit-content', flex: 0, whiteSpace: 'nowrap', '&:hover': { background: 'linear-gradient(135deg, #3b8cf2, #1a5fc5)' }, '&:disabled': { bgcolor: 'rgba(76, 175, 80, 0.5)', color: 'rgba(255,255,255,0.7)' } }}
                         onClick={() => {
                           setTransferAmount((e.amount * 0.02).toFixed(2));
                           setTransferDialogOpen(true);
@@ -199,7 +199,7 @@ const PassiveIncomeEarn = ({ open, onClose, paybackEntries, setTransferAmount, s
         ) : (
           <Box sx={{ textAlign: 'center', py: 2 }}>
             <Box sx={{ fontSize: 36, mb: 1, opacity: 0.6 }}>📊</Box>
-            <Typography sx={{ color: '#4FC3F7', fontWeight: 600, fontSize: 13, mb: 0.4 }}>
+            <Typography sx={{ color: '#d9e9ff', fontWeight: 600, fontSize: 13, mb: 0.4 }}>
               No Passive Income
             </Typography>
             <Typography sx={{ color: '#b0bec5', fontSize: 10, lineHeight: 1.4 }}>

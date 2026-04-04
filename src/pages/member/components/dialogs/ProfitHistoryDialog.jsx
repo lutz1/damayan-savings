@@ -24,18 +24,19 @@ const ProfitHistoryDialog = ({
       maxWidth="sm"
       PaperProps={{
         sx: {
-          background: `linear-gradient(120deg, rgba(30, 41, 59, 0.95), rgba(33, 47, 61, 0.9))`,
+          background: "linear-gradient(150deg, rgba(8,26,62,0.96) 0%, rgba(13,44,102,0.92) 100%)",
           backdropFilter: "blur(14px)",
-          border: `1px solid rgba(79, 195, 247, 0.2)`,
+          border: "1px solid rgba(217,233,255,0.22)",
+          color: "#fff",
         },
       }}
     >
       <DialogTitle
         sx={{
-          bgcolor: "rgba(31, 150, 243, 0.15)",
-          color: "#4FC3F7",
+          bgcolor: "rgba(8,31,76,0.75)",
+          color: "#d9e9ff",
           fontWeight: 700,
-          borderBottom: "1px solid rgba(79, 195, 247, 0.15)",
+          borderBottom: "1px solid rgba(217,233,255,0.15)",
         }}
       >
         Monthly Profit History
@@ -135,10 +136,10 @@ const ProfitHistoryDialog = ({
               >
                 <Typography
                   variant="body2"
-                  sx={{ color: "#b0bec5", fontWeight: 600 }}
+                  sx={{ color: "rgba(217,233,255,0.74)", fontWeight: 600 }}
                 >
                   Capital:{" "}
-                  <strong style={{ color: "#4FC3F7" }}>
+                  <strong style={{ color: "#d9e9ff" }}>
                     ₱{Number(t.amount || 0).toLocaleString()}
                   </strong>
                 </Typography>
@@ -156,8 +157,8 @@ const ProfitHistoryDialog = ({
                     borderRadius: 1.5,
                     textTransform: "none",
                     fontSize: 12,
-                    bgcolor: "#4CAF50",
-                    "&:hover": { bgcolor: "#45a049" },
+                    background: "linear-gradient(135deg, #2f7de1, #0f4ea8)",
+                    "&:hover": { background: "linear-gradient(135deg, #3b8cf2, #1a5fc5)" },
                   }}
                   onClick={() => onTransferProfit(t)}
                 >
@@ -172,7 +173,7 @@ const ProfitHistoryDialog = ({
           </Typography>
         )}
       </DialogContent>
-      <DialogActions sx={{ borderTop: "1px solid rgba(79, 195, 247, 0.15)", pt: 2 }}>
+      <DialogActions sx={{ borderTop: "1px solid rgba(217,233,255,0.15)", pt: 2 }}>
         <Button
           onClick={onClose}
           variant="contained"

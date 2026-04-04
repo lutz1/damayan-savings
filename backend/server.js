@@ -981,7 +981,8 @@ app.post("/api/transfer-funds", async (req, res) => {
 
     // Calculate charges
     const charge = numAmount * 0.02;
-    const netTransfer = numAmount - charge;
+    const totalDeduction = numAmount + charge;
+    const transferAmount = numAmount;
 
     // Run transaction
     try {
@@ -1013,7 +1014,7 @@ app.post("/api/transfer-funds", async (req, res) => {
         }
 
         // Check balance
-        if (currentBalance < numAmount) {
+        if (currentBalance < totalDeduction) {
           throw new Error("Insufficient wallet balance");
         }
 
@@ -1039,12 +1040,12 @@ app.post("/api/transfer-funds", async (req, res) => {
 
         // Update balances
         transaction.update(senderRef, {
-          eWallet: Number(currentBalance - numAmount),
+          eWallet: Number(currentBalance - totalDeduction),
         });
 
         const recipientBalance = Number(recipientData.eWallet);
         transaction.update(recipientRef, {
-          eWallet: isNaN(recipientBalance) ? netTransfer : Number(recipientBalance + netTransfer),
+          eWallet: isNaN(recipientBalance) ? transferAmount : Number(recipientBalance + transferAmount),
         });
 
         transaction.set(transferRef, {
@@ -1055,7 +1056,8 @@ app.post("/api/transfer-funds", async (req, res) => {
           recipientId: recipientDoc.id,
           amount: numAmount,
           charge: charge,
-          netAmount: netTransfer,
+          netAmount: transferAmount,
+          totalDeduction: totalDeduction,
           clientRequestId: clientRequestId || null,
           status: "Approved",
           createdAt: new Date(),
@@ -1063,13 +1065,13 @@ app.post("/api/transfer-funds", async (req, res) => {
 
         return {
           success: true,
-          newBalance: currentBalance - numAmount,
+          newBalance: currentBalance - totalDeduction,
           transferId: transferRef.id,
         };
       });
 
       console.info(
-        `[transfer] sender=${senderId} recipient=${recipientUsername} amount=${numAmount.toFixed(2)} net=${(numAmount - numAmount * 0.02).toFixed(2)} id=${result.transferId}`
+        `[transfer] sender=${senderId} recipient=${recipientUsername} amount=${numAmount.toFixed(2)} charge=${charge.toFixed(2)} total=${totalDeduction.toFixed(2)} id=${result.transferId}`
       );
 
       logTransactionEvent({

@@ -5,6 +5,14 @@ import StorefrontIcon from "@mui/icons-material/Storefront";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import { useNavigate } from "react-router-dom";
 import MemberBottomNav from "../../components/MemberBottomNav";
+import {
+  memberPageTopInset,
+  memberStickyHeaderInset,
+  memberShellBackground,
+  memberHeroBackground,
+  memberGlassPanelSx,
+  memberSoftPanelSx,
+} from "./memberLayout";
 
 const memberPalette = {
   navy: "#0b1f5e",
@@ -35,7 +43,8 @@ const MemberMarketplace = () => {
     <Box
       sx={{
         minHeight: "100vh",
-        background: "linear-gradient(180deg, #0b1f5e 0%, #173a8a 22%, #f4f7fb 22%, #f7f9fc 100%)",
+        background: memberShellBackground,
+        pt: memberPageTopInset,
         pb: 11,
       }}
     >
@@ -48,9 +57,12 @@ const MemberMarketplace = () => {
             alignItems: "center",
             justifyContent: "space-between",
             color: "#fff",
-            background: "linear-gradient(135deg, #0b1f5e 0%, #173a8a 55%, #d4af37 100%)",
+            background: memberHeroBackground,
+            borderBottom: "1px solid rgba(148, 190, 255, 0.16)",
+            backdropFilter: "blur(18px)",
             position: "sticky",
             top: 0,
+            pt: memberStickyHeaderInset,
             zIndex: 5,
           }}
         >
@@ -76,9 +88,7 @@ const MemberMarketplace = () => {
             sx={{
               borderRadius: 3,
               p: 2,
-              color: "#fff",
-              background: "linear-gradient(135deg, rgba(11,31,94,0.96) 0%, rgba(23,58,138,0.94) 58%, rgba(212,175,55,0.88) 100%)",
-              boxShadow: "0 18px 40px rgba(11,31,94,0.24)",
+              ...memberGlassPanelSx,
             }}
           >
             <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, mb: 1 }}>
@@ -117,9 +127,7 @@ const MemberMarketplace = () => {
               minHeight: 640,
               borderRadius: 3,
               overflow: "hidden",
-              border: "1px solid rgba(11,31,94,0.08)",
-              backgroundColor: memberPalette.surface,
-              boxShadow: "0 14px 34px rgba(11,31,94,0.12)",
+              ...memberSoftPanelSx,
             }}
           >
             {!frameLoaded && (
@@ -132,12 +140,12 @@ const MemberMarketplace = () => {
                   alignItems: "center",
                   justifyContent: "center",
                   gap: 1.5,
-                  backgroundColor: "rgba(247,249,252,0.96)",
+                  background: "linear-gradient(180deg, rgba(6,19,46,0.95) 0%, rgba(10,29,69,0.96) 100%)",
                   zIndex: 1,
                 }}
               >
-                <CircularProgress sx={{ color: memberPalette.royal }} />
-                <Typography sx={{ fontSize: 13, color: memberPalette.navy, fontWeight: 700 }}>
+                <CircularProgress sx={{ color: "#8ac7ff" }} />
+                <Typography sx={{ fontSize: 13, color: "#f8fbff", fontWeight: 700 }}>
                   Loading marketplace...
                 </Typography>
               </Box>

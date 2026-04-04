@@ -98,7 +98,7 @@ const getTokenWithRecovery = async () => {
   }
 };
 
-export const setupFcmForCurrentUser = async () => {
+export const setupFcmForCurrentUser = async ({ requestPermissionIfDefault = false } = {}) => {
   try {
     if (!canUseMessaging()) return null;
     if (!hasCompleteMessagingConfig()) return null;
@@ -116,7 +116,7 @@ export const setupFcmForCurrentUser = async () => {
 
     if (Notification.permission === "denied") return null;
     let permission = Notification.permission;
-    if (permission !== "granted") {
+    if (permission === "default" && requestPermissionIfDefault) {
       permission = await Notification.requestPermission();
     }
     if (permission !== "granted") return null;

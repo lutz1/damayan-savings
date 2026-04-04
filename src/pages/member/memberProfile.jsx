@@ -30,17 +30,22 @@ import CameraAltIcon from "@mui/icons-material/CameraAlt";
 import PinIcon from "@mui/icons-material/Pin";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { useNavigate } from "react-router-dom";
+import { memberPageTopInset, memberShellBackground, memberGlassPanelSx, memberHeroBackground } from "./memberLayout";
 
 const CLOUD_FUNCTIONS_BASE =
   (import.meta.env.VITE_CLOUD_FUNCTIONS_BASE_URL ||
     "https://us-central1-amayan-savings.cloudfunctions.net").replace(/\/$/, "");
 
 const memberPalette = {
-  navy: "#0b1f5e",
-  royal: "#173a8a",
+  navy: "#0a1f44",
+  royal: "#0f4ea8",
+  azure: "#2f7de1",
+  cloud: "#d9e9ff",
   gold: "#d4af37",
   softGold: "#f2de9c",
-  surface: "#f7f9fc",
+  textPrimary: "#f4f8ff",
+  textMuted: "rgba(222,235,255,0.74)",
+  inputBg: "rgba(7,22,52,0.62)",
 };
 
 const MemberProfile = () => {
@@ -235,27 +240,39 @@ const MemberProfile = () => {
     );
 
   const fieldSx = {
-    "& .MuiInputBase-input": { color: memberPalette.navy },
-    "& .MuiInputLabel-root": { color: "rgba(11,31,94,0.6)" },
-    "& .MuiInputLabel-root.Mui-focused": { color: memberPalette.navy },
+    "& .MuiInputBase-input": { color: memberPalette.textPrimary },
+    "& .MuiInputLabel-root": { color: "rgba(231,239,255,0.74)" },
+    "& .MuiInputLabel-root.Mui-focused": { color: memberPalette.softGold },
     "& .MuiOutlinedInput-root": {
-      backgroundColor: "#fff",
+      backgroundColor: memberPalette.inputBg,
       borderRadius: "12px",
-      "& fieldset": { borderColor: "rgba(11,31,94,0.15)" },
-      "&:hover fieldset": { borderColor: memberPalette.gold },
+      "& fieldset": { borderColor: "rgba(231,239,255,0.22)" },
+      "&:hover fieldset": { borderColor: "rgba(212,175,55,0.8)" },
       "&.Mui-focused fieldset": { borderColor: memberPalette.gold },
     },
     "& .MuiOutlinedInput-root.Mui-disabled": {
-      backgroundColor: "rgba(247,249,252,0.9)",
+      backgroundColor: "rgba(6,18,45,0.36)",
     },
-    "& .MuiInputBase-input.Mui-disabled": { color: "rgba(11,31,94,0.5)", WebkitTextFillColor: "rgba(11,31,94,0.5)" },
+    "& .MuiInputBase-input.Mui-disabled": {
+      color: "rgba(231,239,255,0.58)",
+      WebkitTextFillColor: "rgba(231,239,255,0.58)",
+    },
+  };
+
+  const panelCardSx = {
+    ...memberGlassPanelSx,
+    borderRadius: "18px",
+    p: 2.5,
+    mb: 2,
+    border: "1px solid rgba(186,215,255,0.2)",
+    boxShadow: "0 16px 30px rgba(5,18,46,0.28)",
   };
 
   return (
     <Box
       sx={{
         minHeight: "100vh",
-        background: `linear-gradient(160deg, ${memberPalette.navy} 0%, ${memberPalette.royal} 30%, ${memberPalette.surface} 65%, ${memberPalette.softGold} 100%)`,
+        background: memberShellBackground,
         pb: 12,
       }}
     >
@@ -265,7 +282,7 @@ const MemberProfile = () => {
           maxWidth: 460,
           mx: "auto",
           px: 2.5,
-          pt: 3,
+          pt: { xs: memberPageTopInset, sm: 3 },
           pb: 2,
           display: "flex",
           alignItems: "center",
@@ -286,7 +303,8 @@ const MemberProfile = () => {
             onClick={() => setEditMode(true)}
             sx={{
               color: memberPalette.gold,
-              border: "1.5px solid rgba(212,175,55,0.5)",
+              border: "1.5px solid rgba(212,175,55,0.6)",
+              background: "rgba(6,18,45,0.42)",
               borderRadius: "12px",
               p: 0.8,
             }}
@@ -305,60 +323,90 @@ const MemberProfile = () => {
       )}
 
       <Box sx={{ maxWidth: 460, mx: "auto", px: 2.5 }}>
-        {/* ─── Avatar section ─── */}
-        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", mb: 3 }}>
-          <Box sx={{ position: "relative" }}>
-            <Avatar
-              src={preview || userData?.profilePicture}
-              sx={{
-                width: 96,
-                height: 96,
-                border: `3px solid ${memberPalette.gold}`,
-                boxShadow: "0 4px 20px rgba(212,175,55,0.4)",
-              }}
-            />
-            {editMode && (
-              <Box
-                component="label"
+        {/* ─── Azure-style profile hero ─── */}
+        <Box
+          sx={{
+            background: memberHeroBackground,
+            border: "1px solid rgba(194,219,255,0.22)",
+            borderRadius: "22px",
+            p: 2.2,
+            mb: 2.2,
+            boxShadow: "0 18px 34px rgba(6,20,52,0.33)",
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.8 }}>
+            <Box sx={{ position: "relative" }}>
+              <Avatar
+                src={preview || userData?.profilePicture}
                 sx={{
-                  position: "absolute",
-                  bottom: 0,
-                  right: 0,
-                  width: 32,
-                  height: 32,
-                  borderRadius: "50%",
-                  background: memberPalette.gold,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
+                  width: 84,
+                  height: 84,
+                  border: "2px solid rgba(217,233,255,0.95)",
+                  boxShadow: "0 8px 18px rgba(6,18,45,0.35)",
                 }}
-              >
-                <CameraAltIcon sx={{ fontSize: 16, color: memberPalette.navy }} />
-                <input hidden type="file" accept="image/*" onChange={handleFileChange} />
-              </Box>
-            )}
+              />
+              {editMode && (
+                <Box
+                  component="label"
+                  sx={{
+                    position: "absolute",
+                    bottom: -2,
+                    right: -2,
+                    width: 30,
+                    height: 30,
+                    borderRadius: "50%",
+                    background: "linear-gradient(145deg, #e6f1ff 0%, #b8d5ff 100%)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    boxShadow: "0 4px 10px rgba(0,0,0,0.25)",
+                  }}
+                >
+                  <CameraAltIcon sx={{ fontSize: 16, color: memberPalette.navy }} />
+                  <input hidden type="file" accept="image/*" onChange={handleFileChange} />
+                </Box>
+              )}
+            </Box>
+
+            <Box sx={{ minWidth: 0, flex: 1 }}>
+              <Typography sx={{ fontSize: 18, fontWeight: 800, color: "#fff", lineHeight: 1.1 }}>
+                {userData?.username || "Member"}
+              </Typography>
+              <Typography sx={{ fontSize: 12, color: memberPalette.textMuted, mt: 0.4 }}>
+                {userData?.email || ""}
+              </Typography>
+              <Typography sx={{ fontSize: 11, color: "rgba(222,235,255,0.72)", mt: 0.9 }}>
+                Financial Profile Center
+              </Typography>
+            </Box>
           </Box>
-          <Typography sx={{ mt: 1.5, fontSize: 17, fontWeight: 700, color: "#fff" }}>
-            {userData?.username || "Member"}
-          </Typography>
-          <Typography sx={{ fontSize: 12, color: "rgba(255,255,255,0.65)" }}>
-            {userData?.email || ""}
-          </Typography>
+
+          <Box sx={{ mt: 2, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
+            <Box sx={{ background: "rgba(8,26,62,0.45)", border: "1px solid rgba(206,226,255,0.2)", borderRadius: "12px", p: 1.1 }}>
+              <Typography sx={{ fontSize: 10, letterSpacing: 0.45, textTransform: "uppercase", color: "rgba(222,235,255,0.68)" }}>
+                Verification
+              </Typography>
+              <Typography sx={{ fontSize: 12, fontWeight: 700, color: memberPalette.cloud, mt: 0.2 }}>
+                Active Member
+              </Typography>
+            </Box>
+            <Box sx={{ background: "rgba(8,26,62,0.45)", border: "1px solid rgba(206,226,255,0.2)", borderRadius: "12px", p: 1.1 }}>
+              <Typography sx={{ fontSize: 10, letterSpacing: 0.45, textTransform: "uppercase", color: "rgba(222,235,255,0.68)" }}>
+                Security
+              </Typography>
+              <Typography sx={{ fontSize: 12, fontWeight: 700, color: hasMpin ? "#a4f0b0" : "#ffd28b", mt: 0.2 }}>
+                {hasMpin ? "MPIN Enabled" : "MPIN Pending"}
+              </Typography>
+            </Box>
+          </Box>
         </Box>
 
         {/* ─── Profile info card ─── */}
         <Box
-          sx={{
-            backgroundColor: "#fff",
-            borderRadius: "24px",
-            p: 2.5,
-            boxShadow: "0 8px 28px rgba(11,31,94,0.10)",
-            mb: 2,
-          }}
+          sx={panelCardSx}
         >
-          <Typography sx={{ fontSize: 13, fontWeight: 700, color: memberPalette.navy, mb: 2, letterSpacing: 0.6, textTransform: "uppercase" }}>
+          <Typography sx={{ fontSize: 13, fontWeight: 700, color: memberPalette.softGold, mb: 2, letterSpacing: 0.6, textTransform: "uppercase" }}>
             Personal Information
           </Typography>
 
@@ -459,8 +507,10 @@ const MemberProfile = () => {
                   borderRadius: "12px",
                   textTransform: "none",
                   fontWeight: 600,
-                  borderColor: "rgba(11,31,94,0.25)",
-                  color: memberPalette.navy,
+                  borderColor: "rgba(231,239,255,0.3)",
+                  color: memberPalette.textPrimary,
+                  background: "rgba(6,18,45,0.3)",
+                  "&:hover": { borderColor: "rgba(217,233,255,0.7)", background: "rgba(6,18,45,0.48)" },
                 }}
               >
                 Cancel
@@ -474,8 +524,8 @@ const MemberProfile = () => {
                   borderRadius: "12px",
                   textTransform: "none",
                   fontWeight: 700,
-                  background: `linear-gradient(90deg, ${memberPalette.navy}, ${memberPalette.royal})`,
-                  boxShadow: "0 4px 14px rgba(11,31,94,0.3)",
+                  background: `linear-gradient(90deg, ${memberPalette.azure}, ${memberPalette.royal})`,
+                  boxShadow: "0 12px 22px rgba(20,79,163,0.32)",
                 }}
               >
                 {saving ? "Saving…" : "Save Changes"}
@@ -484,7 +534,7 @@ const MemberProfile = () => {
           )}
 
           {saveSuccess && (
-            <Typography sx={{ mt: 1.5, fontSize: 13, color: "#4caf50", textAlign: "center", fontWeight: 600 }}>
+            <Typography sx={{ mt: 1.5, fontSize: 13, color: "#91e59f", textAlign: "center", fontWeight: 600 }}>
               Profile updated successfully.
             </Typography>
           )}
@@ -492,15 +542,9 @@ const MemberProfile = () => {
 
         {/* ─── Change password card ─── */}
         <Box
-          sx={{
-            backgroundColor: "#fff",
-            borderRadius: "24px",
-            p: 2.5,
-            boxShadow: "0 8px 28px rgba(11,31,94,0.10)",
-            mb: 2,
-          }}
+          sx={panelCardSx}
         >
-          <Typography sx={{ fontSize: 13, fontWeight: 700, color: memberPalette.navy, mb: 2, letterSpacing: 0.6, textTransform: "uppercase" }}>
+          <Typography sx={{ fontSize: 13, fontWeight: 700, color: memberPalette.softGold, mb: 2, letterSpacing: 0.6, textTransform: "uppercase" }}>
             Change Password
           </Typography>
 
@@ -532,7 +576,7 @@ const MemberProfile = () => {
                     height: 6,
                     borderRadius: 3,
                     flexGrow: 1,
-                    backgroundColor: "rgba(11,31,94,0.1)",
+                    backgroundColor: "rgba(231,239,255,0.2)",
                     "& .MuiLinearProgress-bar": {
                       backgroundColor: getPasswordColor(getPasswordStrength(newPassword)),
                     },
@@ -581,7 +625,7 @@ const MemberProfile = () => {
                 background: `linear-gradient(90deg, ${memberPalette.gold}, ${memberPalette.softGold})`,
                 color: memberPalette.navy,
                 boxShadow: "0 4px 14px rgba(212,175,55,0.3)",
-                "&.Mui-disabled": { background: "rgba(11,31,94,0.1)", color: "rgba(11,31,94,0.4)" },
+                "&.Mui-disabled": { background: "rgba(231,239,255,0.2)", color: "rgba(231,239,255,0.5)" },
               }}
             >
               {saving ? "Updating…" : "Update Password"}
@@ -591,16 +635,11 @@ const MemberProfile = () => {
 
         {/* ─── MPIN Settings card ─── */}
         <Box
-          sx={{
-            backgroundColor: "#fff",
-            borderRadius: "24px",
-            p: 2.5,
-            boxShadow: "0 8px 28px rgba(11,31,94,0.10)",
-          }}
+          sx={panelCardSx}
         >
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
-            <PinIcon sx={{ fontSize: 18, color: memberPalette.navy }} />
-            <Typography sx={{ fontSize: 13, fontWeight: 700, color: memberPalette.navy, letterSpacing: 0.6, textTransform: "uppercase" }}>
+            <PinIcon sx={{ fontSize: 18, color: memberPalette.softGold }} />
+            <Typography sx={{ fontSize: 13, fontWeight: 700, color: memberPalette.softGold, letterSpacing: 0.6, textTransform: "uppercase" }}>
               Security Settings (MPIN)
             </Typography>
             {hasMpin && (
@@ -611,7 +650,7 @@ const MemberProfile = () => {
             )}
           </Box>
 
-          <Typography sx={{ fontSize: 12, color: "rgba(11,31,94,0.55)", mb: 2, lineHeight: 1.6 }}>
+          <Typography sx={{ fontSize: 12, color: memberPalette.textMuted, mb: 2, lineHeight: 1.6 }}>
             {hasMpin
               ? "Your MPIN is active. You can update it below to set a new 4-digit PIN."
               : "Set a 4-digit MPIN to enable quick login without your password."}
@@ -620,7 +659,7 @@ const MemberProfile = () => {
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
             {/* New MPIN */}
             <Box>
-              <Typography sx={{ fontSize: 12, fontWeight: 600, color: memberPalette.navy, mb: 1.2 }}>
+              <Typography sx={{ fontSize: 12, fontWeight: 600, color: memberPalette.textPrimary, mb: 1.2 }}>
                 {hasMpin ? "New MPIN" : "Set MPIN"}
               </Typography>
               <Box sx={{ display: "flex", gap: 1.2, justifyContent: "center" }}>
@@ -639,9 +678,9 @@ const MemberProfile = () => {
                       width: 52,
                       height: 56,
                       borderRadius: "12px",
-                      border: d ? `2px solid ${memberPalette.gold}` : `1.5px solid rgba(11,31,94,0.18)`,
-                      background: d ? `rgba(212,175,55,0.1)` : "#f7f9fc",
-                      color: memberPalette.navy,
+                      border: d ? `2px solid ${memberPalette.gold}` : `1.5px solid rgba(231,239,255,0.28)`,
+                      background: d ? `rgba(212,175,55,0.16)` : "rgba(6,18,45,0.42)",
+                      color: memberPalette.textPrimary,
                       fontSize: "1.5rem",
                       fontWeight: 700,
                       textAlign: "center",
@@ -650,7 +689,7 @@ const MemberProfile = () => {
                       transition: "all 0.18s ease",
                       "&:focus": {
                         border: `2px solid ${memberPalette.gold}`,
-                        background: `rgba(212,175,55,0.08)`,
+                        background: `rgba(212,175,55,0.14)`,
                         boxShadow: `0 0 0 3px rgba(212,175,55,0.2)`,
                       },
                       cursor: "text",
@@ -662,7 +701,7 @@ const MemberProfile = () => {
 
             {/* Confirm MPIN */}
             <Box>
-              <Typography sx={{ fontSize: 12, fontWeight: 600, color: memberPalette.navy, mb: 1.2 }}>
+              <Typography sx={{ fontSize: 12, fontWeight: 600, color: memberPalette.textPrimary, mb: 1.2 }}>
                 Confirm MPIN
               </Typography>
               <Box sx={{ display: "flex", gap: 1.2, justifyContent: "center" }}>
@@ -681,9 +720,9 @@ const MemberProfile = () => {
                       width: 52,
                       height: 56,
                       borderRadius: "12px",
-                      border: d ? `2px solid ${memberPalette.royal}` : `1.5px solid rgba(11,31,94,0.18)`,
-                      background: d ? `rgba(23,58,138,0.07)` : "#f7f9fc",
-                      color: memberPalette.navy,
+                      border: d ? `2px solid #4f8cff` : `1.5px solid rgba(231,239,255,0.28)`,
+                      background: d ? `rgba(79,140,255,0.16)` : "rgba(6,18,45,0.42)",
+                      color: memberPalette.textPrimary,
                       fontSize: "1.5rem",
                       fontWeight: 700,
                       textAlign: "center",
@@ -691,9 +730,9 @@ const MemberProfile = () => {
                       caretColor: memberPalette.royal,
                       transition: "all 0.18s ease",
                       "&:focus": {
-                        border: `2px solid ${memberPalette.royal}`,
-                        background: `rgba(23,58,138,0.06)`,
-                        boxShadow: `0 0 0 3px rgba(23,58,138,0.15)`,
+                        border: `2px solid #4f8cff`,
+                        background: `rgba(79,140,255,0.14)`,
+                        boxShadow: `0 0 0 3px rgba(79,140,255,0.22)`,
                       },
                       cursor: "text",
                     }}
@@ -718,10 +757,10 @@ const MemberProfile = () => {
                 textTransform: "none",
                 fontWeight: 700,
                 py: 1.2,
-                background: `linear-gradient(90deg, ${memberPalette.navy}, ${memberPalette.royal})`,
+                background: `linear-gradient(90deg, ${memberPalette.azure}, ${memberPalette.royal})`,
                 color: "#fff",
-                boxShadow: "0 4px 14px rgba(11,31,94,0.3)",
-                "&.Mui-disabled": { background: "rgba(11,31,94,0.1)", color: "rgba(11,31,94,0.4)" },
+                boxShadow: "0 12px 22px rgba(20,79,163,0.32)",
+                "&.Mui-disabled": { background: "rgba(231,239,255,0.2)", color: "rgba(231,239,255,0.5)" },
               }}
             >
               {mpinSaving ? "Saving…" : hasMpin ? "Update MPIN" : "Set MPIN"}
@@ -737,7 +776,7 @@ const MemberProfile = () => {
       </Snackbar>
 
         {/* ─── Logout ─── */}
-        <Box sx={{ mt: 2, mb: 1 }}>
+        <Box sx={{ maxWidth: 460, mx: "auto", px: 2.5, mt: 2, mb: 1 }}>
           <Button
             fullWidth
             variant="outlined"
@@ -748,12 +787,12 @@ const MemberProfile = () => {
               fontWeight: 700,
               py: 1.3,
               fontSize: 15,
-              borderColor: "rgba(244,67,54,0.5)",
-              color: "#f44336",
-              background: "rgba(244,67,54,0.06)",
+              borderColor: "rgba(255,120,120,0.6)",
+              color: "#ffb0b0",
+              background: "rgba(70,14,20,0.45)",
               "&:hover": {
-                borderColor: "#f44336",
-                background: "rgba(244,67,54,0.12)",
+                borderColor: "#ff8f8f",
+                background: "rgba(96,22,30,0.58)",
               },
             }}
           >

@@ -245,11 +245,19 @@ const isValidEmail = (email) => {
         ModalProps={{ keepMounted: true }}
         transitionDuration={{ enter: 360, exit: 260 }}
         slotProps={{ backdrop: { sx: { backgroundColor: "rgba(0,0,0,0.4)" } } }}
-        PaperProps={{ sx: { width: { xs: "100%", sm: 430 }, maxWidth: "100%", backgroundColor: "#f7f9fc" } }}
+        PaperProps={{
+          sx: {
+            width: { xs: "100%", sm: 430 },
+            maxWidth: "100%",
+            background: "linear-gradient(180deg, rgba(4,12,30,0.98) 0%, rgba(8,23,52,0.98) 44%, rgba(15,42,99,0.97) 100%)",
+            color: "#f8fbff",
+            borderLeft: "1px solid rgba(138,199,255,0.14)",
+          },
+        }}
       >
         <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
           {/* Header */}
-          <Box sx={{ minHeight: 70, px: 1, display: "flex", alignItems: "center", justifyContent: "space-between", color: "#fff", background: "linear-gradient(135deg, #0b1f5e 0%, #173a8a 55%, #d4af37 100%)" }}>
+          <Box sx={{ minHeight: 70, px: 1, pt: "calc(env(safe-area-inset-top, 0px) + 10px)", pb: 1, display: "flex", alignItems: "center", justifyContent: "space-between", color: "#fff", background: "linear-gradient(135deg, rgba(6,19,46,0.98) 0%, rgba(13,47,118,0.96) 58%, rgba(37,101,214,0.90) 100%)", borderBottom: "1px solid rgba(138,199,255,0.16)" }}>
             <IconButton onClick={handleClose} sx={{ color: "#fff" }}>
               <ArrowBackIosNewIcon />
             </IconButton>
@@ -459,7 +467,7 @@ const isValidEmail = (email) => {
           </Box>
 
           {/* Footer */}
-          <Box sx={{ backgroundColor: "#fff", borderTop: "1px solid #eceef1", px: 2, py: 1.4, display: "flex", justifyContent: "flex-end", gap: 1 }}>
+          <Box sx={{ background: "rgba(6,19,46,0.90)", borderTop: "1px solid rgba(138,199,255,0.14)", px: 2, py: 1.4, display: "flex", justifyContent: "flex-end", gap: 1, backdropFilter: "blur(18px)" }}>
             <Button
               onClick={handleClose}
               sx={{ borderRadius: 2, fontWeight: 700, color: "#105abf", textTransform: "none",
@@ -497,17 +505,18 @@ const isValidEmail = (email) => {
           sx: {
             borderRadius: 3,
             overflow: "hidden",
-            backgroundColor: "#f7f9fc",
+            background: "linear-gradient(180deg, rgba(6,19,46,0.98) 0%, rgba(13,47,118,0.92) 100%)",
+            border: "1px solid rgba(138,199,255,0.14)",
           },
         }}
       >
         <DialogTitle sx={{ background: "linear-gradient(135deg,#003f8d,#0055ba)", color: "#fff", p: 2, fontWeight: 700 }}>
           Confirm Invite
         </DialogTitle>
-        <DialogContent sx={{ py: 2.5, textAlign: "center", color: "#1f2430" }}>
+        <DialogContent sx={{ py: 2.5, textAlign: "center", color: "rgba(220,232,255,0.86)" }}>
           <Typography>Are you sure you want to send this invite to <strong>{newUserName}</strong>?</Typography>
         </DialogContent>
-        <DialogActions sx={{ backgroundColor: "#fff", borderTop: "1px solid #eceef1", px: 2, py: 1.4 }}>
+        <DialogActions sx={{ background: "rgba(6,19,46,0.88)", borderTop: "1px solid rgba(138,199,255,0.14)", px: 2, py: 1.4 }}>
           <Button
             onClick={() => setConfirmOpen(false)}
             sx={{ borderRadius: 2, fontWeight: 700, color: "#105abf", textTransform: "none",

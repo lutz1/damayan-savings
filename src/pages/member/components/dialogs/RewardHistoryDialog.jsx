@@ -77,12 +77,14 @@ const RewardHistoryDialog = ({
         sx: {
           borderRadius: 3,
           overflow: "hidden",
-          backgroundColor: "#f7f9fc",
+          background: "linear-gradient(150deg, rgba(8,26,62,0.96) 0%, rgba(13,44,102,0.92) 100%)",
+          border: "1px solid rgba(217,233,255,0.22)",
+          color: "#fff",
         },
       }}
     >
       {/* Header */}
-      <DialogTitle sx={{ background: "linear-gradient(135deg,#003f8d,#0055ba)", color: "#fff", p: 0 }}>
+      <DialogTitle sx={{ background: "rgba(8,31,76,0.75)", color: "#fff", p: 0, borderBottom: "1px solid rgba(217,233,255,0.15)" }}>
         <Box sx={{ px: 2.5, pt: 2.5, pb: 2.2 }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, mb: 0.6 }}>
             <Box sx={{ width: 36, height: 36, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.18)",
@@ -103,11 +105,11 @@ const RewardHistoryDialog = ({
       </DialogTitle>
 
       {/* Content */}
-      <DialogContent sx={{ p: 0, backgroundColor: "#f7f9fc" }}>
+      <DialogContent sx={{ p: 0, backgroundColor: "transparent" }}>
         {rewardHistory.length === 0 ? (
           <Box sx={{ py: 8, textAlign: "center" }}>
-            <HourglassEmptyIcon sx={{ fontSize: 44, color: "#c2c6d5", mb: 1 }} />
-            <Typography sx={{ fontSize: 13, color: "#8b95a5" }}>No approved rewards yet.</Typography>
+            <HourglassEmptyIcon sx={{ fontSize: 44, color: "rgba(217,233,255,0.46)", mb: 1 }} />
+            <Typography sx={{ fontSize: 13, color: "rgba(217,233,255,0.74)" }}>No approved rewards yet.</Typography>
           </Box>
         ) : (
           <Box component="ul" sx={{ m: 0, p: 0, listStyle: "none" }}>
@@ -166,8 +168,8 @@ const RewardHistoryDialog = ({
                     sx={{
                       display: "flex", alignItems: "center", gap: 1.5,
                       px: 2, py: 1.8,
-                      backgroundColor: idx % 2 === 0 ? "#fff" : "#f7f9fc",
-                      borderBottom: "1px solid #eceef1",
+                      backgroundColor: idx % 2 === 0 ? "rgba(8,26,62,0.42)" : "rgba(7,22,52,0.58)",
+                      borderBottom: "1px solid rgba(217,233,255,0.12)",
                     }}
                   >
                     {/* Icon */}
@@ -176,13 +178,13 @@ const RewardHistoryDialog = ({
                       backgroundColor: "rgba(16,90,191,0.08)",
                       display: "flex", alignItems: "center", justifyContent: "center",
                     }}>
-                      <GroupAddIcon sx={{ color: "#105abf", fontSize: 20 }} />
+                      <GroupAddIcon sx={{ color: "#d9e9ff", fontSize: 20 }} />
                     </Box>
 
                     {/* Details */}
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, flexWrap: "wrap" }}>
-                        <Typography sx={{ fontSize: 15, fontWeight: 800, color: "#105abf" }}>
+                        <Typography sx={{ fontSize: 15, fontWeight: 800, color: "#d9e9ff" }}>
                           ₱{formatAmount(reward.amount)}
                         </Typography>
                         <Chip
@@ -193,13 +195,13 @@ const RewardHistoryDialog = ({
                         />
                       </Box>
                       {sourceLabel && (
-                        <Typography sx={{ fontSize: 11, color: "#5d646f", mt: 0.3 }}
+                        <Typography sx={{ fontSize: 11, color: "rgba(217,233,255,0.74)", mt: 0.3 }}
                           noWrap title={sourceLabel}>
                           From: {sourceLabel}
                         </Typography>
                       )}
                       {dateLabel && (
-                        <Typography sx={{ fontSize: 10, color: "#8b95a5", mt: 0.2, fontWeight: 600 }}>
+                        <Typography sx={{ fontSize: 10, color: "rgba(217,233,255,0.58)", mt: 0.2, fontWeight: 600 }}>
                           {dateLabel}
                         </Typography>
                       )}
@@ -214,7 +216,7 @@ const RewardHistoryDialog = ({
                       sx={{
                         borderRadius: 2, textTransform: "none", fontWeight: 700,
                         minWidth: 72, fontSize: 12,
-                        backgroundColor: "#105abf", "&:hover": { backgroundColor: "#0b4eaa" },
+                        background: "linear-gradient(135deg, #2f7de1, #0f4ea8)", "&:hover": { background: "linear-gradient(135deg, #3b8cf2, #1a5fc5)" },
                         boxShadow: "none",
                       }}
                     >
@@ -228,11 +230,11 @@ const RewardHistoryDialog = ({
       </DialogContent>
 
       {/* Footer */}
-      <DialogActions sx={{ backgroundColor: "#fff", borderTop: "1px solid #eceef1", px: 2, py: 1.4 }}>
+      <DialogActions sx={{ backgroundColor: "rgba(7,22,52,0.55)", borderTop: "1px solid rgba(217,233,255,0.14)", px: 2, py: 1.4 }}>
         <Button
           onClick={onClose}
-          sx={{ borderRadius: 2, fontWeight: 700, color: "#105abf", textTransform: "none",
-            backgroundColor: "rgba(16,90,191,0.08)", px: 2.5, "&:hover": { backgroundColor: "rgba(16,90,191,0.14)" } }}
+          sx={{ borderRadius: 2, fontWeight: 700, color: "#d9e9ff", textTransform: "none",
+            backgroundColor: "rgba(16,90,191,0.2)", px: 2.5, "&:hover": { backgroundColor: "rgba(16,90,191,0.3)" } }}
         >
           Close
         </Button>

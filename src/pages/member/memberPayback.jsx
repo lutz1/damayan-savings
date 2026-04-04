@@ -3,20 +3,22 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Box, Typography, useMediaQuery, Grid, Card, Button, Dialog, DialogTitle, DialogContent, DialogActions } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import MemberBottomNav from "../../components/MemberBottomNav";
-import bgImage from "../../assets/bg.jpg";
 import { collection, getDocs, doc, getDoc, updateDoc, query, where } from "firebase/firestore";
 import PaybackTransactions from "./components/paybackTransactions";
 import AddPaybackEntryDialog from "./components/dialogs/AddPaybackEntryDialog";
 import PassiveIncomeEarn from "./components/dialogs/passiveIncomeEarn";
 import { db, auth } from "../../firebase";
+import { memberShellBackground, memberPageTopInset, memberHeroBackground, memberGlassPanelSx } from "./memberLayout";
 
 
 const MemberPayback = () => {
   const memberPalette = {
-    navy: "#0b1f5e",
-    royal: "#173a8a",
+    navy: "#0a1f44",
+    royal: "#0f4ea8",
+    azure: "#2f7de1",
+    cloud: "#d9e9ff",
     gold: "#d4af37",
-    softText: "#d9e2ff",
+    softText: "rgba(217,233,255,0.76)",
   };
 
   const theme = useTheme();
@@ -453,12 +455,8 @@ const fetchPaybackData = useCallback(async (userId) => {
       sx={{
         display: "flex",
         minHeight: "100vh",
-        backgroundImage: `linear-gradient(130deg, rgba(11, 31, 94, 0.95) 52%, rgba(23, 58, 138, 0.72) 78%, rgba(212, 175, 55, 0.32) 100%), url(${bgImage})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundAttachment: "fixed",
+        background: memberShellBackground,
         position: "relative",
-        // No overflow here; let content scroll
         '&::before': {
           content: '""',
           position: "absolute",
@@ -466,7 +464,7 @@ const fetchPaybackData = useCallback(async (userId) => {
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'linear-gradient(130deg, rgba(11, 31, 94, 0.95) 52%, rgba(23, 58, 138, 0.72) 78%, rgba(212, 175, 55, 0.32) 100%)',
+          background: 'linear-gradient(180deg, rgba(6,20,52,0.62) 0%, rgba(8,26,62,0.2) 36%, rgba(8,26,62,0) 58%)',
           zIndex: 0,
         },
       }}
@@ -478,7 +476,7 @@ const fetchPaybackData = useCallback(async (userId) => {
         sx={{
           flexGrow: 1,
           p: { xs: 2, sm: 4 },
-          pt: 3,
+          pt: { xs: memberPageTopInset, sm: 3 },
           pb: { xs: 12, sm: 12, md: 12 },
           color: "#f5f7fa",
           zIndex: 1,
@@ -498,16 +496,16 @@ const fetchPaybackData = useCallback(async (userId) => {
         }}
       >
         {/* Header Section */}
-        <Box sx={{ mb: 4, width: '100%', maxWidth: 900 }}>
-          <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 900, letterSpacing: 1, mb: 1, color: '#fff', textShadow: '0 2px 12px #000a' }}>
-            Member <span style={{ color: '#d4af37' }}>Payback</span> Dashboard
+        <Box sx={{ mb: 4, width: '100%', maxWidth: 900, ...memberGlassPanelSx, borderRadius: 3, p: { xs: 2, sm: 2.6 }, border: '1px solid rgba(217,233,255,0.2)' }}>
+          <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 900, letterSpacing: 0.4, mb: 1, color: '#fff' }}>
+            Payback Portfolio Center
           </Typography>
-          <Typography variant="h6" sx={{ color: memberPalette.softText, fontWeight: 500, mb: 1.5, textShadow: '0 1px 8px #0006' }}>
-            <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>💸 Track Contributions</Box>
+          <Typography variant="h6" sx={{ color: memberPalette.softText, fontWeight: 500, mb: 0 }}>
+            <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>Track Contributions</Box>
             <Box component="span" sx={{ mx: 1, color: memberPalette.gold }}>•</Box>
-            <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>📈 Earn Passive Income</Box>
+            <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>Earn Passive Income</Box>
             <Box component="span" sx={{ mx: 1, color: memberPalette.gold }}>•</Box>
-            <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>📝 Manage Paybacks</Box>
+            <Box component="span" sx={{ color: '#fff', fontWeight: 700 }}>Manage Paybacks</Box>
           </Typography>
         </Box>
 
@@ -516,28 +514,28 @@ const fetchPaybackData = useCallback(async (userId) => {
           {[{
             label: "Total Contribution",
             value: `₱${Number(displayContribution).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-            icon: "💸",
-            color: "#d4af37",
-            bg: "rgba(212,175,55,0.17)",
+            icon: "01",
+            color: "#ffd57f",
+            bg: "rgba(212,175,55,0.13)",
           }, {
             label: "Total Passive Income",
             value: `₱${Number(displayPassiveIncome).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-            icon: "📈",
-            color: "#e8eefe",
-            bg: "rgba(23,58,138,0.30)",
+            icon: "02",
+            color: "#d9e9ff",
+            bg: "rgba(21,70,150,0.32)",
           }].map((item, index) => (
             <Grid item xs={6} key={index} sx={{ display: "flex", width: '100%', flexBasis: 0, flexGrow: 1, flexShrink: 0 }}>
               <Card
                 sx={{
-                  background: `linear-gradient(120deg, ${item.bg} 80%, rgba(255,255,255,0.04))`,
+                  background: `linear-gradient(130deg, ${item.bg} 0%, rgba(9,27,65,0.66) 100%)`,
                   backdropFilter: "blur(14px)",
-                  border: `2px solid ${item.color}33`,
+                  border: `1px solid ${item.color}3a`,
                   borderRadius: "18px",
                   p: 3,
                   height: "100%",
                   width: "100%",
                   minWidth: 0,
-                  boxShadow: `0 4px 24px 0 ${item.color}22`,
+                  boxShadow: "0 14px 30px rgba(4,16,40,0.28)",
                   transition: "transform 0.3s, box-shadow 0.3s",
                   position: "relative",
                   overflow: "hidden",
@@ -552,20 +550,20 @@ const fetchPaybackData = useCallback(async (userId) => {
                     borderRadius: "50%",
                   },
                   '&:hover': {
-                    transform: "translateY(-10px) scale(1.03)",
-                    boxShadow: `0 20px 50px ${item.color}55`,
-                    border: `2.5px solid ${item.color}66`,
+                    transform: "translateY(-6px)",
+                    boxShadow: `0 22px 40px ${item.color}3d`,
+                    border: `1px solid ${item.color}70`,
                   },
                 }}
               >
                 <Box sx={{ position: "relative", zIndex: 1 }}>
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 2 }}>
-                    <Box sx={{ fontSize: "2.5rem" }}>{item.icon}</Box>
+                    <Box sx={{ fontSize: "1rem", px: 1, py: 0.3, borderRadius: 1, color: "#fff", background: "rgba(6,20,52,0.42)", border: "1px solid rgba(217,233,255,0.2)", fontWeight: 700 }}>{item.icon}</Box>
                   </Box>
-                  <Typography variant="body2" sx={{ opacity: 1, mb: 1, color: "#fff", fontSize: "0.85rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, textShadow: '1px 1px 4px #000' }}>
+                  <Typography variant="body2" sx={{ opacity: 1, mb: 1, color: memberPalette.softText, fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.7 }}>
                     {item.label}
                   </Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 800, color: item.color, mb: 1, lineHeight: 1, textShadow: '1px 1px 4px #000' }}>
+                  <Typography variant="h5" sx={{ fontWeight: 800, color: item.color, mb: 1, lineHeight: 1 }}>
                     {item.value}
                   </Typography>
                 </Box>
@@ -579,7 +577,7 @@ const fetchPaybackData = useCallback(async (userId) => {
           <Button
             variant="contained"
             color="primary"
-            sx={{ fontWeight: 700, borderRadius: 2, boxShadow: 2, textTransform: 'none', px: 3, py: 1.2, fontSize: 16, background: 'linear-gradient(135deg, #d4af37, #b9901e)', color: '#0b1f5e', '&:hover': { background: 'linear-gradient(135deg, #e0be52, #c19a2b)' } }}
+            sx={{ fontWeight: 700, borderRadius: 2, boxShadow: 2, textTransform: 'none', px: 3, py: 1.2, fontSize: 16, background: 'linear-gradient(135deg, #f2de9c, #d4af37)', color: '#0a1f44', '&:hover': { background: 'linear-gradient(135deg, #ffe6ad, #debc4b)' } }}
             onClick={() => setOpenAddDialog(true)}
           >
             + Add Payback Entry
@@ -588,7 +586,7 @@ const fetchPaybackData = useCallback(async (userId) => {
 
             variant="contained"
             color="success"
-            sx={{ position: 'relative', fontWeight: 700, borderRadius: 2, boxShadow: 2, textTransform: 'none', px: 3, py: 1.2, fontSize: 16, background: 'linear-gradient(135deg, #173a8a, #0b1f5e)', '&:hover': { background: 'linear-gradient(135deg, #1e469f, #122a70)' } }}
+            sx={{ position: 'relative', fontWeight: 700, borderRadius: 2, boxShadow: 2, textTransform: 'none', px: 3, py: 1.2, fontSize: 16, background: `linear-gradient(135deg, ${memberPalette.azure}, ${memberPalette.royal})`, '&:hover': { background: 'linear-gradient(135deg, #3b8cf2, #1a5fc5)' } }}
             onClick={() => setHistoryDialogOpen(true)}
           >
             Passive Income Earn
@@ -624,41 +622,68 @@ const fetchPaybackData = useCallback(async (userId) => {
       />
 
       {/* Transfer Dialog */}
-      <Dialog open={transferDialogOpen} onClose={() => setTransferDialogOpen(false)} fullWidth maxWidth="xs" PaperProps={{ sx: { borderRadius: 4, boxShadow: 12, overflow: 'hidden', background: 'none' } }}>
+      <Dialog
+        open={transferDialogOpen}
+        onClose={() => setTransferDialogOpen(false)}
+        fullWidth
+        maxWidth="xs"
+        PaperProps={{
+          sx: {
+            borderRadius: 4,
+            boxShadow: 12,
+            overflow: 'hidden',
+            background: 'linear-gradient(150deg, rgba(8,26,62,0.96) 0%, rgba(13,44,102,0.92) 100%)',
+            border: '1px solid rgba(217,233,255,0.22)',
+          },
+        }}
+      >
               {/* Transfer Success/Receipt Dialog */}
-              <Dialog open={transferSuccessDialog} onClose={() => setTransferSuccessDialog(false)} maxWidth="xs" fullWidth>
-                <DialogTitle sx={{ bgcolor: '#388e3c', color: '#fff', fontWeight: 700, textAlign: 'center', pb: 2, borderTopLeftRadius: 4, borderTopRightRadius: 4, boxShadow: 2 }}>
+              <Dialog
+                open={transferSuccessDialog}
+                onClose={() => setTransferSuccessDialog(false)}
+                maxWidth="xs"
+                fullWidth
+                PaperProps={{
+                  sx: {
+                    borderRadius: 3,
+                    background: 'linear-gradient(150deg, rgba(8,26,62,0.96) 0%, rgba(13,44,102,0.92) 100%)',
+                    border: '1px solid rgba(217,233,255,0.22)',
+                    color: '#fff',
+                  },
+                }}
+              >
+                <DialogTitle sx={{ bgcolor: 'rgba(8,31,76,0.8)', color: '#fff', fontWeight: 700, textAlign: 'center', pb: 2, borderTopLeftRadius: 4, borderTopRightRadius: 4, boxShadow: 2, borderBottom: '1px solid rgba(217,233,255,0.16)' }}>
                   <Box display="flex" flexDirection="column" alignItems="center" gap={1}>
                     <Box sx={{ fontSize: 38, mb: 0.5 }}>✅</Box>
                     Transfer Successful
                   </Box>
                 </DialogTitle>
-                <DialogContent dividers sx={{ bgcolor: '#f8fafc', px: 4, py: 3, borderBottom: '1px solid #e3e8ee' }}>
+                <DialogContent dividers sx={{ bgcolor: 'transparent', px: 4, py: 3, borderBottom: '1px solid rgba(217,233,255,0.14)' }}>
                   {lastTransferReceipt && (
                     <Box display="flex" flexDirection="column" alignItems="center" gap={2}>
-                      <Typography variant="h6" sx={{ fontWeight: 800, color: '#388e3c', mb: 0.5, fontSize: 22, letterSpacing: 0.1 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 800, color: '#9fd5ff', mb: 0.5, fontSize: 22, letterSpacing: 0.1 }}>
                         ₱{Number(lastTransferReceipt.net).toFixed(2)}
                       </Typography>
-                      <Typography variant="body2" sx={{ color: '#333', mb: 0.5 }}>
+                      <Typography variant="body2" sx={{ color: 'rgba(217,233,255,0.82)', mb: 0.5 }}>
                         Net Amount Transferred
                       </Typography>
                       <Box sx={{ width: '100%', mt: 1, mb: 1 }}>
-                        <Typography variant="body2" sx={{ color: '#666' }}>Gross: ₱{Number(lastTransferReceipt.amount).toFixed(2)}</Typography>
-                        <Typography variant="body2" sx={{ color: '#666' }}>Fee: ₱{Number(lastTransferReceipt.fee).toFixed(2)}</Typography>
-                        <Typography variant="body2" sx={{ color: '#666' }}>Date: {lastTransferReceipt.date}</Typography>
-                        <Typography variant="body2" sx={{ color: '#666' }}>Transaction ID: {lastTransferReceipt.id}</Typography>
+                        <Typography variant="body2" sx={{ color: 'rgba(217,233,255,0.74)' }}>Gross: ₱{Number(lastTransferReceipt.amount).toFixed(2)}</Typography>
+                        <Typography variant="body2" sx={{ color: 'rgba(217,233,255,0.74)' }}>Fee: ₱{Number(lastTransferReceipt.fee).toFixed(2)}</Typography>
+                        <Typography variant="body2" sx={{ color: 'rgba(217,233,255,0.74)' }}>Date: {lastTransferReceipt.date}</Typography>
+                        <Typography variant="body2" sx={{ color: 'rgba(217,233,255,0.74)' }}>Transaction ID: {lastTransferReceipt.id}</Typography>
                       </Box>
                     </Box>
                   )}
                 </DialogContent>
-                <DialogActions sx={{ px: 4, pb: 2, bgcolor: '#f8fafc', borderBottomLeftRadius: 4, borderBottomRightRadius: 4, boxShadow: 1 }}>
-                  <Button onClick={() => setTransferSuccessDialog(false)} color="success" variant="contained" sx={{ borderRadius: 2, minWidth: 100, fontWeight: 600, boxShadow: 2 }}>
+                <DialogActions sx={{ px: 4, pb: 2, bgcolor: 'transparent', borderBottomLeftRadius: 4, borderBottomRightRadius: 4, boxShadow: 1 }}>
+                  <Button onClick={() => setTransferSuccessDialog(false)} variant="contained" sx={{ borderRadius: 2, minWidth: 100, fontWeight: 600, boxShadow: 2, background: `linear-gradient(135deg, ${memberPalette.azure}, ${memberPalette.royal})` }}>
                     Done
                   </Button>
                 </DialogActions>
               </Dialog>
         <Box sx={{
-          bgcolor: '#388e3c',
+          background: memberHeroBackground,
           color: '#fff',
           px: { xs: 2, sm: 4 },
           py: 2,
@@ -679,7 +704,7 @@ const fetchPaybackData = useCallback(async (userId) => {
           </Box>
           <Button
             onClick={() => setTransferDialogOpen(false)}
-            sx={{ minWidth: 0, p: 0.5, color: '#fff', bgcolor: 'transparent', '&:hover': { bgcolor: '#2e7d32' } }}
+            sx={{ minWidth: 0, p: 0.5, color: '#fff', bgcolor: 'transparent', '&:hover': { bgcolor: 'rgba(14,54,123,0.7)' } }}
             aria-label="Close"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -690,7 +715,7 @@ const fetchPaybackData = useCallback(async (userId) => {
           sx={{
             px: { xs: 2, sm: 4 },
             py: 3,
-            background: '#f8fafc',
+            background: 'transparent',
             position: 'relative',
             minHeight: 120,
             borderBottomLeftRadius: 4,
@@ -703,22 +728,22 @@ const fetchPaybackData = useCallback(async (userId) => {
           }}
         >
           <Box display="flex" flexDirection="column" alignItems="center" gap={2}>
-            <Typography variant="h4" sx={{ fontWeight: 900, color: '#388e3c', mb: 0.5, fontSize: 28, letterSpacing: 0.1, textShadow: '0 2px 8px #388e3c22' }}>
+            <Typography variant="h4" sx={{ fontWeight: 900, color: '#9fd5ff', mb: 0.5, fontSize: 28, letterSpacing: 0.1 }}>
               ₱{Number(transferAmount).toFixed(2)}
             </Typography>
-            <Typography variant="body1" sx={{ color: '#333', mb: 0.5, fontWeight: 600 }}>
+            <Typography variant="body1" sx={{ color: '#fff', mb: 0.5, fontWeight: 600 }}>
               1% fee will be deducted
             </Typography>
-            <Typography variant="body2" sx={{ color: '#666', mb: 0.5 }}>
-              Net Amount: <b style={{color:'#388e3c'}}>₱{(Number(transferAmount) - Number(transferAmount) * 0.01).toFixed(2)}</b>
+            <Typography variant="body2" sx={{ color: 'rgba(217,233,255,0.76)', mb: 0.5 }}>
+              Net Amount: <b style={{color:'#9fd5ff'}}>₱{(Number(transferAmount) - Number(transferAmount) * 0.01).toFixed(2)}</b>
             </Typography>
           </Box>
         </DialogContent>
-        <DialogActions sx={{ px: 4, pb: 2, bgcolor: '#f8fafc', borderBottomLeftRadius: 4, borderBottomRightRadius: 4, boxShadow: 1 }}>
-          <Button onClick={() => setTransferDialogOpen(false)} color="error" variant="outlined" sx={{ borderRadius: 2, minWidth: 100, fontWeight: 600 }}>
+        <DialogActions sx={{ px: 4, pb: 2, bgcolor: 'transparent', borderBottomLeftRadius: 4, borderBottomRightRadius: 4, boxShadow: 1, borderTop: '1px solid rgba(217,233,255,0.14)' }}>
+          <Button onClick={() => setTransferDialogOpen(false)} variant="outlined" sx={{ borderRadius: 2, minWidth: 100, fontWeight: 600, borderColor: 'rgba(217,233,255,0.4)', color: '#d9e9ff' }}>
             Cancel
           </Button>
-          <Button onClick={handleTransfer} disabled={Boolean(loadingTransfer)} color="success" variant="contained" sx={{ borderRadius: 2, minWidth: 100, fontWeight: 600, boxShadow: 2 }}>
+          <Button onClick={handleTransfer} disabled={Boolean(loadingTransfer)} variant="contained" sx={{ borderRadius: 2, minWidth: 100, fontWeight: 600, boxShadow: 2, background: `linear-gradient(135deg, ${memberPalette.azure}, ${memberPalette.royal})` }}>
             {loadingTransfer ? "Processing..." : "Confirm"}
           </Button>
         </DialogActions>

@@ -59,6 +59,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "@mui/material/styles";
 import appLogo from "../assets/newlogo.png";
+import { syncAppBadgeCount } from "../utils/appBadge";
 import { onForegroundFcmMessage, setupFcmForCurrentUser } from "../utils/pushNotifications";
 
 // Dialog components
@@ -95,6 +96,11 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
     role: "member",
     profilePicture: "",
   });
+
+  useEffect(() => {
+    syncAppBadgeCount(unreadCount);
+  }, [unreadCount]);
+
   const [availableCodes, setAvailableCodes] = useState([]);
   // Emails that should have some actions disabled
   const restrictedEmails = [
@@ -353,7 +359,7 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
     let fcmSynced = false;
     const trySetupFcm = async () => {
       if (fcmSynced) return;
-      const token = await setupFcmForCurrentUser().catch(() => null);
+      const token = await setupFcmForCurrentUser({ requestPermissionIfDefault: false }).catch(() => null);
       if (token) {
         fcmSynced = true;
       }
@@ -413,7 +419,7 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
 
   const handleOpenNotifications = async () => {
     // Run setup from a user gesture so browsers can allow permission/token flow.
-    await setupFcmForCurrentUser().catch(() => null);
+    await setupFcmForCurrentUser({ requestPermissionIfDefault: true }).catch(() => null);
 
     setNotifDrawerOpen(true);
     notifications
@@ -549,10 +555,11 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
               sx={{
                 width: "100%",
                 height: "100%",
-                borderRadius: "20px 0 0 20px",
-                background: "rgba(25,25,25,0.85)",
-                backdropFilter: "blur(20px)",
-                boxShadow: "0 8px 25px rgba(0,0,0,0.5)",
+                borderRadius: "24px 0 0 24px",
+                background: "linear-gradient(180deg, rgba(4,12,30,0.98) 0%, rgba(8,23,52,0.98) 44%, rgba(15,42,99,0.97) 100%)",
+                borderLeft: "1px solid rgba(138,199,255,0.14)",
+                backdropFilter: "blur(22px)",
+                boxShadow: "0 16px 36px rgba(0,0,0,0.45)",
                 color: "#fff",
                 display: "flex",
                 flexDirection: "column",
@@ -566,12 +573,12 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
                   onClick={closeDrawer}
                   sx={{
                     position: "absolute",
-                    top: 10,
+                    top: "calc(env(safe-area-inset-top, 0px) + 10px)",
                     right: 10,
-                    bgcolor: "rgba(255,255,255,0.1)",
-                    border: "1px solid rgba(255,255,255,0.2)",
+                    bgcolor: "rgba(138,199,255,0.12)",
+                    border: "1px solid rgba(138,199,255,0.24)",
                     "&:hover": {
-                      bgcolor: "rgba(255,255,255,0.25)",
+                      bgcolor: "rgba(138,199,255,0.22)",
                       transform: "scale(1.05)",
                     },
                   }}
@@ -587,6 +594,7 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
                   flex: 1,
                   overflowY: "auto",
                   p: 2,
+                  pt: "calc(env(safe-area-inset-top, 0px) + 18px)",
                   "&::-webkit-scrollbar": { width: 6 },
                   "&::-webkit-scrollbar-thumb": {
                     background: "rgba(255,255,255,0.2)",
@@ -636,10 +644,12 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
                 {!["ADMIN", "CEO", "SUPERADMIN"].includes(normalizedRole) && (
                   <Box
                     sx={{
-                      background: "rgba(255,255,255,0.08)",
-                      borderRadius: 2,
+                      background: "linear-gradient(145deg, rgba(9,23,52,0.92) 0%, rgba(13,37,87,0.88) 64%, rgba(20,58,138,0.76) 100%)",
+                      border: "1px solid rgba(138,199,255,0.12)",
+                      borderRadius: 2.5,
                       p: 2,
                       mb: 2,
+                      boxShadow: "0 16px 28px rgba(2,10,24,0.22)",
                     }}
                   >
                     <Typography
@@ -683,10 +693,12 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
                 {availableCodes.length > 0 && (
                   <Box
                     sx={{
-                      background: "rgba(255,255,255,0.1)",
-                      borderRadius: 2,
+                      background: "linear-gradient(145deg, rgba(9,23,52,0.92) 0%, rgba(13,37,87,0.88) 64%, rgba(20,58,138,0.76) 100%)",
+                      border: "1px solid rgba(138,199,255,0.12)",
+                      borderRadius: 2.5,
                       p: 2,
                       mb: 2,
+                      boxShadow: "0 16px 28px rgba(2,10,24,0.22)",
                     }}
                   >
                     <Typography
@@ -805,11 +817,13 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
             width: { xs: "100vw", sm: 380 },
             borderTopLeftRadius: { xs: 0, sm: 20 },
             borderBottomLeftRadius: { xs: 0, sm: 20 },
-            backgroundColor: "#f7f9fc",
+            background: "linear-gradient(180deg, rgba(4,12,30,0.98) 0%, rgba(8,23,52,0.98) 44%, rgba(15,42,99,0.97) 100%)",
+            color: "#f8fbff",
+            borderLeft: "1px solid rgba(138,199,255,0.14)",
           },
         }}
       >
-        <Box sx={{ background: "linear-gradient(135deg,#003f8d,#0055ba)", px: 2.5, pt: 3.5, pb: 2.5 }}>
+        <Box sx={{ background: "linear-gradient(135deg, rgba(6,19,46,0.98) 0%, rgba(13,47,118,0.96) 58%, rgba(37,101,214,0.90) 100%)", px: 2.5, pt: "calc(env(safe-area-inset-top, 0px) + 14px)", pb: 2.5, borderBottom: "1px solid rgba(138,199,255,0.16)" }}>
           <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.72)", letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700 }}>
             Inbox
           </Typography>
@@ -836,8 +850,8 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
         <Box sx={{ flex: 1, overflowY: "auto", p: 0 }}>
           {notifications.length === 0 ? (
             <Box sx={{ py: 8, textAlign: "center" }}>
-              <NotificationsNoneIcon sx={{ fontSize: 48, color: "#c2c6d5", mb: 1 }} />
-              <Typography sx={{ fontSize: 13, color: "#8b95a5" }}>No notifications yet.</Typography>
+              <NotificationsNoneIcon sx={{ fontSize: 48, color: "rgba(167, 203, 255, 0.88)", mb: 1 }} />
+              <Typography sx={{ fontSize: 13, color: "rgba(220, 232, 255, 0.72)" }}>No notifications yet.</Typography>
             </Box>
           ) : (
             notifications.map((n) => {
@@ -860,8 +874,10 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
                       gap: 1.5,
                       px: 2,
                       py: 1.8,
-                      backgroundColor: isUnread ? "rgba(16,90,191,0.05)" : "#fff",
-                      borderLeft: isUnread ? "3px solid #105abf" : "3px solid transparent",
+                      background: isUnread
+                        ? "linear-gradient(145deg, rgba(12,34,78,0.94) 0%, rgba(18,53,122,0.86) 100%)"
+                        : "rgba(8,23,52,0.74)",
+                      borderLeft: isUnread ? "3px solid #8ac7ff" : "3px solid transparent",
                     }}
                   >
                     <Box
@@ -869,7 +885,7 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
                         width: 38,
                         height: 38,
                         borderRadius: "50%",
-                        backgroundColor: "rgba(16,90,191,0.10)",
+                        backgroundColor: "rgba(138,199,255,0.12)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -880,16 +896,16 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
                       {icon}
                     </Box>
                     <Box sx={{ flex: 1 }}>
-                      <Typography sx={{ fontSize: 13, fontWeight: isUnread ? 700 : 600, color: "#1f2430", lineHeight: 1.3 }}>
+                      <Typography sx={{ fontSize: 13, fontWeight: isUnread ? 700 : 600, color: "#f8fbff", lineHeight: 1.3 }}>
                         {n.title || "Notification"}
                       </Typography>
                       {n.message && (
-                        <Typography sx={{ fontSize: 12, color: "#5d646f", mt: 0.3, lineHeight: 1.5 }}>
+                        <Typography sx={{ fontSize: 12, color: "rgba(220,232,255,0.78)", mt: 0.3, lineHeight: 1.5 }}>
                           {n.message}
                         </Typography>
                       )}
                       {ts && (
-                        <Typography sx={{ fontSize: 10, color: "#8b95a5", mt: 0.5, fontWeight: 600 }}>{ts}</Typography>
+                        <Typography sx={{ fontSize: 10, color: "rgba(167,203,255,0.82)", mt: 0.5, fontWeight: 600 }}>{ts}</Typography>
                       )}
                       {isAdminLike && isPasswordRelated && (
                         <Button
@@ -917,7 +933,7 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
                       <Box sx={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#105abf", mt: 0.8, flexShrink: 0 }} />
                     )}
                   </Box>
-                  <Divider sx={{ ml: 7 }} />
+                  <Divider sx={{ ml: 7, borderColor: "rgba(138,199,255,0.10)" }} />
                 </Box>
               );
             })
