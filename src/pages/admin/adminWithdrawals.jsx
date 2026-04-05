@@ -31,13 +31,12 @@ import {
   collection,
   onSnapshot,
   doc,
-  updateDoc,
   getDoc,
   query,
-  runTransaction,
 } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-import { db } from "../../firebase";
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { app, db } from "../../firebase";
 import Topbar from "../../components/Topbar";
 import AppBottomNav from "../../components/AppBottomNav";
 import AdminSidebarToggle from "../../components/AdminSidebarToggle";
@@ -64,6 +63,7 @@ const AdminWithdrawals = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const auth = getAuth();
+  const functions = getFunctions(app, "us-central1");
   const normalizedRole = String(userRole || "").toUpperCase().trim();
   const isSuperAdmin = normalizedRole === "SUPERADMIN";
 
@@ -181,106 +181,27 @@ const AdminWithdrawals = () => {
   const handleViewQR = (url) => setQrImage(url);
   const closeQRDialog = () => setQrImage(null);
 
-  const getReviewerMetadata = async () => {
-    const currentUser = auth.currentUser;
-    const reviewerUid = currentUser?.uid || "";
-    const reviewerEmail = currentUser?.email || "";
-
-    if (!reviewerUid) {
-      return {
-        reviewedByUid: "",
-        reviewedByEmail: reviewerEmail,
-        reviewedByUsername: "",
-        reviewedByRole: "",
-      };
-    }
-
-    try {
-      const reviewerSnap = await getDoc(doc(db, "users", reviewerUid));
-      const reviewerData = reviewerSnap.exists() ? reviewerSnap.data() || {} : {};
-      return {
-        reviewedByUid: reviewerUid,
-        reviewedByEmail: reviewerEmail,
-        reviewedByUsername: reviewerData.username || reviewerData.name || "",
-        reviewedByRole: String(reviewerData.role || "").toUpperCase(),
-      };
-    } catch (err) {
-      console.warn("[adminWithdrawals] Failed to fetch reviewer metadata:", err);
-      return {
-        reviewedByUid: reviewerUid,
-        reviewedByEmail: reviewerEmail,
-        reviewedByUsername: "",
-        reviewedByRole: "",
-      };
-    }
-  };
-
   const handleAction = async (status) => {
     if (!selectedWithdrawal) return;
     if (!canApproveReject) {
       alert("Approve/Reject is disabled for this admin account.");
       return;
     }
-    const { id } = selectedWithdrawal;
 
     try {
-      const nextStatus = status.toLowerCase();
-      const withdrawalRef = doc(db, "withdrawals", id);
-      const reviewerMeta = await getReviewerMetadata();
-      const reviewPayload = {
-        ...reviewerMeta,
-        reviewedAt: new Date(),
+      const processWithdrawalApproval = httpsCallable(functions, "processWithdrawalApproval");
+      await processWithdrawalApproval({
+        withdrawalId: selectedWithdrawal.id,
+        action: status.toLowerCase(),
         remarks,
-      };
-
-      if (nextStatus === "rejected") {
-        // ✅ Reject: refund wallet (reverse the deduction from request time)
-        await runTransaction(db, async (transaction) => {
-          const withdrawalSnap = await transaction.get(withdrawalRef);
-          if (!withdrawalSnap.exists()) {
-            throw new Error("Withdrawal request not found.");
-          }
-
-          const withdrawalData = withdrawalSnap.data();
-          const currentStatus = (withdrawalData.status || "").toLowerCase();
-          if (currentStatus !== "pending") {
-            throw new Error("This withdrawal has already been reviewed.");
-          }
-
-          const amount = Number(withdrawalData.amount || 0);
-          if (!amount || amount <= 0) {
-            throw new Error("Invalid withdrawal amount.");
-          }
-
-          const userRef = doc(db, "users", withdrawalData.userId);
-          const userSnap = await transaction.get(userRef);
-          if (!userSnap.exists()) {
-            throw new Error("User account not found.");
-          }
-
-          const userData = userSnap.data();
-          const currentBalance = Number(userData.eWallet || 0);
-
-          // Refund the deducted amount
-          transaction.update(userRef, {
-            eWallet: currentBalance + amount,
-            updatedAt: new Date(),
-          });
-
-          transaction.update(withdrawalRef, {
-            status: nextStatus,
-            ...reviewPayload,
-          });
-        });
-      } else {
-        // ✅ Approve: just mark as approved (wallet already deducted at request time)
-        await updateDoc(withdrawalRef, {
-          status: nextStatus,
-          ...reviewPayload,
-        });
-      }
+      });
 
       closeDialog();
+      window.alert(
+        status.toLowerCase() === "approved"
+          ? "Withdrawal approved successfully. The user has been notified."
+          : "Withdrawal rejected successfully. The user has been notified."
+      );
     } catch (err) {
       console.error("Error updating withdrawal:", err);
       alert(err?.message || "Failed to update withdrawal.");

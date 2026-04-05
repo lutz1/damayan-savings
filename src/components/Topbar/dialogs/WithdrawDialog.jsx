@@ -18,6 +18,7 @@ import {
   ListItemText,
   Chip,
   MenuItem,
+  Divider,
 } from "@mui/material";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import { CheckCircle, UploadFile } from "@mui/icons-material";
@@ -249,7 +250,7 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
 
   const availableBalance = Number(userData?.eWallet || 0);
   const amountValue = parseFloat(amount) || 0;
-  const feeAmount = paymentMethod ? amountValue * 0.02 : 0;
+  const feeAmount = paymentMethod ? amountValue * 0.05 : 0;
   const totalDeductionAmount = amountValue + feeAmount;
   const paymentGroups = [
     {
@@ -544,7 +545,7 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
                 {(paymentMethod || amount) && (
                   <Box sx={{ background: "rgba(255,255,255,0.98)", borderRadius: 2.8, p: 1.5, mb: 1.4, border: "1px solid #dbe2ef", boxShadow: "0 10px 18px rgba(6,18,45,0.08)" }}>
                     <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.7 }}>
-                      <Typography sx={{ fontSize: 11.5, color: "#6b7484" }}>Service Fee (2%)</Typography>
+                      <Typography sx={{ fontSize: 11.5, color: "#6b7484" }}>Service Fee (5%)</Typography>
                       <Typography sx={{ fontSize: 11.5, color: "#f0a63a", fontWeight: 800 }}>
                         ₱{feeAmount.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </Typography>

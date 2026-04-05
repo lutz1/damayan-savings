@@ -285,6 +285,153 @@ exports.processDepositApproval = functions.https.onCall(async (data, context) =>
   return result;
 });
 
+exports.processWithdrawalApproval = functions.https.onCall(async (data, context) => {
+  if (!context.auth?.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Authentication required.");
+  }
+
+  const withdrawalId = String(data?.withdrawalId || "").trim();
+  const action = String(data?.action || "").trim().toLowerCase();
+  const remarks = String(data?.remarks || "").trim();
+
+  if (!withdrawalId) {
+    throw new functions.https.HttpsError("invalid-argument", "Withdrawal ID is required.");
+  }
+
+  if (!["approved", "rejected"].includes(action)) {
+    throw new functions.https.HttpsError("invalid-argument", "Invalid withdrawal action.");
+  }
+
+  const reviewerRef = db.collection("users").doc(context.auth.uid);
+  const reviewerSnap = await reviewerRef.get();
+  const reviewerData = reviewerSnap.exists ? reviewerSnap.data() || {} : {};
+  const reviewerRole = String(reviewerData.role || "").toUpperCase();
+  const reviewerEmail = String(context.auth.token.email || reviewerData.email || "").trim().toLowerCase();
+  const restrictedEmails = ["admin1@gmail.com", "admin2@gmail.com"];
+
+  if (!["SUPERADMIN", "CEO"].includes(reviewerRole) || restrictedEmails.includes(reviewerEmail)) {
+    throw new functions.https.HttpsError("permission-denied", "Not authorized to review withdrawals.");
+  }
+
+  let notificationPayload = null;
+
+  const result = await db.runTransaction(async (transaction) => {
+    const withdrawalRef = db.collection("withdrawals").doc(withdrawalId);
+    const withdrawalSnap = await transaction.get(withdrawalRef);
+
+    if (!withdrawalSnap.exists) {
+      throw new functions.https.HttpsError("not-found", "Withdrawal request not found.");
+    }
+
+    const withdrawalData = withdrawalSnap.data() || {};
+    const currentStatus = String(withdrawalData.status || "pending").toLowerCase();
+    if (currentStatus !== "pending") {
+      throw new functions.https.HttpsError("failed-precondition", "Withdrawal has already been reviewed.");
+    }
+
+    const withdrawalUserId = String(withdrawalData.userId || "").trim();
+    if (!withdrawalUserId) {
+      throw new functions.https.HttpsError("failed-precondition", "Withdrawal request has no user ID.");
+    }
+
+    const amount = Number(withdrawalData.amount || 0);
+    const charge = Number(withdrawalData.charge || 0);
+    const netAmount = Number(withdrawalData.netAmount || Math.max(amount - charge, 0));
+
+    const updateData = {
+      status: action,
+      remarks,
+      reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+      reviewedByUid: context.auth.uid,
+      reviewedByEmail: context.auth.token.email || reviewerData.email || "",
+      reviewedByUsername: reviewerData.username || reviewerData.name || "",
+      reviewedByRole: reviewerRole,
+    };
+
+    transaction.update(withdrawalRef, updateData);
+
+    if (action === "rejected") {
+      const userRef = db.collection("users").doc(withdrawalUserId);
+      const userSnap = await transaction.get(userRef);
+      if (!userSnap.exists) {
+        throw new functions.https.HttpsError("not-found", "Withdrawal user not found.");
+      }
+
+      const userData = userSnap.data() || {};
+      const currentBalance = Number(userData.eWallet || 0);
+      transaction.update(userRef, {
+        eWallet: currentBalance + amount,
+        lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    notificationPayload = {
+      userId: withdrawalUserId,
+      withdrawalId,
+      action,
+      remarks,
+      amount,
+      charge,
+      netAmount,
+      paymentMethod: String(withdrawalData.paymentMethod || "Withdrawal").trim() || "Withdrawal",
+      referenceNumber: String(withdrawalData.referenceNumber || withdrawalId).trim() || withdrawalId,
+    };
+
+    return {
+      success: true,
+      status: action,
+      refundedAmount: action === "rejected" ? amount : 0,
+    };
+  });
+
+  if (notificationPayload?.userId) {
+    const formattedAmount = Number(notificationPayload.amount || 0).toLocaleString("en-PH", {
+      style: "currency",
+      currency: "PHP",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    const title = action === "approved" ? "Withdrawal Approved" : "Withdrawal Rejected";
+    const message = action === "approved"
+      ? `Your withdrawal of ${formattedAmount} via ${notificationPayload.paymentMethod} has been approved and is now being processed.`
+      : `Your withdrawal of ${formattedAmount} via ${notificationPayload.paymentMethod} was rejected.${remarks ? ` Remarks: ${remarks}` : " The deducted amount has been returned to your wallet."}`;
+
+    try {
+      await db.collection("notifications").add({
+        userId: notificationPayload.userId,
+        title,
+        message,
+        type: action === "approved" ? "withdrawal-approved" : "withdrawal-rejected",
+        read: false,
+        withdrawalId: notificationPayload.withdrawalId,
+        referenceNumber: notificationPayload.referenceNumber,
+        amount: notificationPayload.amount,
+        charge: notificationPayload.charge,
+        netAmount: notificationPayload.netAmount,
+        paymentMethod: notificationPayload.paymentMethod,
+        status: action,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      await sendPushToUsers({
+        userIds: [notificationPayload.userId],
+        title,
+        body: message,
+        data: {
+          type: action === "approved" ? "WITHDRAWAL_APPROVED" : "WITHDRAWAL_REJECTED",
+          withdrawalId: notificationPayload.withdrawalId,
+          status: action.toUpperCase(),
+          path: "/member/dashboard",
+        },
+      });
+    } catch (notificationError) {
+      console.error("[processWithdrawalApproval] notification error:", notificationError);
+    }
+  }
+
+  return result;
+});
+
 exports.submitCashInRequest = functions.https.onCall(async (data, context) => {
   if (!context.auth?.uid) {
     throw new functions.https.HttpsError("unauthenticated", "Authentication required.");
