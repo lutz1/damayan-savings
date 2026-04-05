@@ -59,7 +59,12 @@ const getSwRegistration = async () => {
     appBase: BASE_URL,
   }).toString();
   const swUrl = `${BASE_URL}firebase-messaging-sw.js?${query}`;
-  cachedSwRegistration = await navigator.serviceWorker.register(swUrl);
+  cachedSwRegistration = await navigator.serviceWorker.register(swUrl, {
+    scope: BASE_URL,
+    updateViaCache: "none",
+  });
+  await navigator.serviceWorker.ready.catch(() => {});
+  cachedSwRegistration.update?.().catch(() => {});
   return cachedSwRegistration;
 };
 

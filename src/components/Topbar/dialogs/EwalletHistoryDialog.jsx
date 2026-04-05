@@ -32,7 +32,17 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
     (prev, newData, source) => {
       const filtered = prev.filter((item) => item.source !== source);
       const merged = [...filtered, ...newData];
-      return merged.sort((a, b) => getTimestampValue(b.createdAt) - getTimestampValue(a.createdAt));
+      const deduped = new Map();
+
+      merged.forEach((item) => {
+        const dedupeKey = item.dedupeKey || `${item.source}:${item.id}`;
+        const existing = deduped.get(dedupeKey);
+        if (!existing || getTimestampValue(item.createdAt) > getTimestampValue(existing.createdAt)) {
+          deduped.set(dedupeKey, item);
+        }
+      });
+
+      return [...deduped.values()].sort((a, b) => getTimestampValue(b.createdAt) - getTimestampValue(a.createdAt));
     },
     [getTimestampValue]
   );
@@ -90,11 +100,20 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
           } else if (d.type === "Cash In Request") {
             displayType = "Cash In Request";
           }
-          return { 
-            ...d, 
-            source: "deposit", 
-            displayType, 
-            isCredit: true 
+
+          const displayAmount = Number(
+            d.netAmount ??
+              (d.type === "Cash In Request" && Number(d.charge || 0) > 0
+                ? Number(d.amount || 0) - Number(d.charge || 0)
+                : d.amount || 0)
+          );
+
+          return {
+            ...d,
+            source: "deposit",
+            displayType,
+            displayAmount,
+            isCredit: true,
           };
         }
       );
@@ -138,13 +157,26 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
         })
       );
 
-      // Passive Income Earn (passiveTransfers)
+      // Passive Income Earn (current + legacy collection names)
       setupListener(
         query(collection(db, "passiveTransfers"), where("userId", "==", uid)),
         "passive",
         (d) => ({
           ...d,
           source: "passive",
+          dedupeKey: `passive:${d.paybackEntryId || d.clientRequestId || d.id}`,
+          displayType: "Passive Income Earn",
+          isCredit: true,
+        })
+      );
+
+      setupListener(
+        query(collection(db, "passiveIncomeTransfers"), where("userId", "==", uid)),
+        "passiveLegacy",
+        (d) => ({
+          ...d,
+          source: "passiveLegacy",
+          dedupeKey: `passive:${d.paybackEntryId || d.clientRequestId || d.id}`,
           displayType: "Passive Income Earn",
           isCredit: true,
         })
@@ -182,6 +214,7 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
     switch (status?.toLowerCase()) {
       case "success":
       case "approved":
+      case "credited":
         return "success";
       case "pending":
         return "warning";
@@ -191,6 +224,21 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
       default:
         return "default";
     }
+  };
+
+  const getStatusLabel = (item) => {
+    const rawStatus = String(item?.status || "").trim();
+    const normalized = rawStatus.toLowerCase();
+
+    if (
+      item?.isCredit &&
+      ["passive", "passiveLegacy", "deposit", "received"].includes(item?.source) &&
+      ["approved", "success", "credited"].includes(normalized)
+    ) {
+      return "Credited";
+    }
+
+    return rawStatus || "Pending";
   };
 
   const formatDate = (ts) => {
@@ -237,9 +285,14 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
                 {history.map((item) => {
                   const amount =
                     item.displayAmount ??
-                    (item.source === "received"
-                      ? item.amount || item.netAmount
-                      : item.totalDeduction || (Number(item.amount || 0) + Number(item.charge || 0)));
+                    (item.isCredit
+                      ? Number(
+                          item.netAmount ??
+                            (item.source === "deposit" && Number(item.charge || 0) > 0
+                              ? Number(item.amount || 0) - Number(item.charge || 0)
+                              : item.amount || 0)
+                        )
+                      : Number(item.totalDeduction ?? (Number(item.amount || 0) + Number(item.charge || 0))));
                   const formattedAmount = Number(amount || 0).toLocaleString("en-PH", {
                     minimumFractionDigits: 2,
                   });
@@ -286,8 +339,8 @@ const EwalletHistoryDialog = ({ open, onClose, db, auth }) => {
                       />
                       <Chip
                         size="small"
-                        label={item.status || "Pending"}
-                        color={getStatusColor(item.status)}
+                        label={getStatusLabel(item)}
+                        color={getStatusColor(getStatusLabel(item))}
                         sx={{ textTransform: "capitalize", fontWeight: 600, fontSize: 11, ml: 1 }}
                       />
                     </ListItem>

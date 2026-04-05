@@ -18,8 +18,10 @@ import {
   Chip,
 } from "@mui/material";
 import { Savings, CheckCircle } from "@mui/icons-material";
-import { addDoc, collection, query, where, onSnapshot, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { app } from "../../../firebase";
 
 const DepositDialog = ({ open, onClose, userData, db }) => {
   const [amount, setAmount] = useState("");
@@ -30,6 +32,7 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
 
   const auth = getAuth();
   const currentUser = auth.currentUser;
+  const firebaseFunctions = getFunctions(app, "us-central1");
 
   // 🔁 Real-time deposit logs
   useEffect(() => {
@@ -65,20 +68,16 @@ const DepositDialog = ({ open, onClose, userData, db }) => {
       setProcessingPayment(true);
       setError("");
 
-      const depositName = userData?.name && userData?.name.trim() 
-        ? userData.name 
-        : (currentUser.displayName || currentUser.email || "Unknown User");
+      const submitCashInRequest = httpsCallable(firebaseFunctions, "submitCashInRequest");
+      const clientRequestId = `cashin_manual_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
-      await addDoc(collection(db, "deposits"), {
-        userId: currentUser.uid,
-        name: depositName,
-        email: currentUser.email || "",
+      await submitCashInRequest({
         amount: Number(amount),
-        status: "Pending",
-        type: "Cash In Request",
         paymentMethod: "Manual",
+        partner: "Manual Deposit",
+        qrName: "Manual Deposit",
+        clientRequestId,
         source: "manual",
-        createdAt: serverTimestamp(),
       });
 
       setSuccess(true);

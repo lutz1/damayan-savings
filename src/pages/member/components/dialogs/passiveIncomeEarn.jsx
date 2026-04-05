@@ -8,7 +8,7 @@ import {
   CircularProgress
 } from "@mui/material";
 
-const PassiveIncomeEarn = ({ open, onClose, paybackEntries, setTransferAmount, setTransferDialogOpen, loadingTransferId }) => {
+const PassiveIncomeEarn = ({ open, onClose, paybackEntries, onTransferClick, loadingTransferId }) => {
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" PaperProps={{ sx: { background: "linear-gradient(150deg, rgba(8,26,62,0.96) 0%, rgba(13,44,102,0.92) 100%)", backdropFilter: "blur(14px)", border: "1px solid rgba(217,233,255,0.22)", borderRadius: 2, boxShadow: '0 4px 24px rgba(0,0,0,0.3)', overflow: 'hidden', maxWidth: { xs: '100%', sm: 500, md: 500 } } }}>
       {/* Reduced header with X button */}
@@ -94,14 +94,17 @@ const PassiveIncomeEarn = ({ open, onClose, paybackEntries, setTransferAmount, s
 
                 const now = new Date();
                 const expirationDate = toSafeDate(e.expirationDate);
+                const isClaimed = Boolean(
+                  e.transferred || e.transferredAt || e.lastTransferId || Number(e.lastTransferredAmount || 0) > 0
+                );
                 let statusLabel, statusIcon, statusColor;
                 // Treat missing/invalid expiration date as Pending so Transfer is never shown
                 if (!expirationDate || expirationDate > now) {
                   statusLabel = "Pending";
                   statusIcon = "⏳";
                   statusColor = '#ff9800';
-                } else if (e.transferred) {
-                  statusLabel = "Transferred";
+                } else if (isClaimed) {
+                  statusLabel = "Claimed";
                   statusIcon = "✓";
                   statusColor = '#2196f3';
                 } else {
@@ -109,7 +112,7 @@ const PassiveIncomeEarn = ({ open, onClose, paybackEntries, setTransferAmount, s
                   statusIcon = "✓";
                   statusColor = '#4caf50';
                 }
-                const canTransfer = statusLabel === "Ready" && !e.transferred;
+                const canTransfer = statusLabel === "Ready" && !isClaimed;
                 const profit = (e.amount * 0.02);
                 
                 return (
@@ -174,16 +177,15 @@ const PassiveIncomeEarn = ({ open, onClose, paybackEntries, setTransferAmount, s
                         {statusLabel}
                       </Typography>
                     </Box>
-                    {/* Transfer Button */}
-                    {canTransfer && (
+                    {/* Transfer / Claimed Button */}
+                    {canTransfer ? (
                       <Button
                         variant="contained"
                         size="small"
                         disabled={loadingTransferId === e.id}
                         sx={{ fontWeight: 700, borderRadius: 1, textTransform: 'none', py: 0.5, px: 1, fontSize: 10, background: 'linear-gradient(135deg, #2f7de1, #0f4ea8)', color: '#fff', minWidth: 'fit-content', flex: 0, whiteSpace: 'nowrap', '&:hover': { background: 'linear-gradient(135deg, #3b8cf2, #1a5fc5)' }, '&:disabled': { bgcolor: 'rgba(76, 175, 80, 0.5)', color: 'rgba(255,255,255,0.7)' } }}
                         onClick={() => {
-                          setTransferAmount((e.amount * 0.02).toFixed(2));
-                          setTransferDialogOpen(true);
+                          onTransferClick?.(e);
                         }}
                       >
                         {loadingTransferId === e.id ? (
@@ -191,7 +193,16 @@ const PassiveIncomeEarn = ({ open, onClose, paybackEntries, setTransferAmount, s
                         ) : null}
                         {loadingTransferId === e.id ? 'Processing...' : 'Transfer'}
                       </Button>
-                    )}
+                    ) : isClaimed ? (
+                      <Button
+                        variant="contained"
+                        size="small"
+                        disabled
+                        sx={{ fontWeight: 700, borderRadius: 1, textTransform: 'none', py: 0.5, px: 1, fontSize: 10, background: 'rgba(33, 150, 243, 0.22)', color: '#bbdefb', minWidth: 'fit-content', flex: 0, whiteSpace: 'nowrap', '&.Mui-disabled': { color: '#bbdefb', background: 'rgba(33, 150, 243, 0.22)' } }}
+                      >
+                        Claimed
+                      </Button>
+                    ) : null}
                   </Box>
                 );
               })}

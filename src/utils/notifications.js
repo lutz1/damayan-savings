@@ -1,6 +1,46 @@
 // Utility for sending and cleaning up notifications
-import { collection, addDoc, serverTimestamp, query, where, getDocs, deleteDoc } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, where, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { db } from "../firebase";
+
+const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+const getNotificationDateValue = (createdAt) => {
+  if (!createdAt) return null;
+  if (typeof createdAt?.toDate === "function") return createdAt.toDate();
+  if (typeof createdAt?.seconds === "number") return new Date(createdAt.seconds * 1000);
+  const parsed = new Date(createdAt);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const getNotificationRefsForUser = async (userId, olderThanDate = null) => {
+  if (!userId) return [];
+
+  const buildQuery = (field) => {
+    const constraints = [where(field, "==", userId)];
+    if (olderThanDate) {
+      constraints.push(where("createdAt", "<", olderThanDate));
+    }
+    return query(collection(db, "notifications"), ...constraints);
+  };
+
+  const [userSnap, recipientSnap] = await Promise.all([
+    getDocs(buildQuery("userId")).catch(() => ({ docs: [] })),
+    getDocs(buildQuery("recipientUid")).catch(() => ({ docs: [] })),
+  ]);
+
+  const refMap = new Map();
+  [...userSnap.docs, ...recipientSnap.docs].forEach((docSnap) => {
+    refMap.set(docSnap.id, docSnap.ref);
+  });
+
+  return [...refMap.values()];
+};
+
+export const isNotificationExpired = (createdAt) => {
+  const dateValue = getNotificationDateValue(createdAt);
+  if (!dateValue) return false;
+  return dateValue.getTime() < Date.now() - ONE_WEEK_MS;
+};
 
 // Call this after a successful purchase
 export async function sendPurchaseNotification({ userId, codeType }) {
@@ -36,17 +76,20 @@ export async function sendTransferNotification({ userId, amount, recipientUserna
   });
 }
 
+export async function deleteNotificationById(notificationId) {
+  if (!notificationId) return;
+  await deleteDoc(doc(db, "notifications", notificationId));
+}
+
+export async function deleteAllNotificationsForUser(userId) {
+  const refs = await getNotificationRefsForUser(userId);
+  await Promise.all(refs.map((ref) => deleteDoc(ref).catch(() => {})));
+}
+
 // Call this periodically or after loading notifications
 export async function cleanupOldNotifications(userId) {
   if (!userId) return;
-  const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const q = query(
-    collection(db, "notifications"),
-    where("userId", "==", userId),
-    where("createdAt", "<", oneWeekAgo)
-  );
-  const snap = await getDocs(q);
-  for (const docSnap of snap.docs) {
-    await deleteDoc(docSnap.ref);
-  }
+  const oneWeekAgo = new Date(Date.now() - ONE_WEEK_MS);
+  const refs = await getNotificationRefsForUser(userId, oneWeekAgo);
+  await Promise.all(refs.map((ref) => deleteDoc(ref).catch(() => {})));
 }

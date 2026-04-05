@@ -390,7 +390,7 @@ const AdminDeposits = () => {
               Total Approved Deposits: <b>₱{salesData.total.toFixed(2)}</b>
             </Typography>
             <Typography sx={{ mt: 1 }}>
-              Revenue (2% Charges): <b>₱{salesData.revenue.toFixed(2)}</b>
+              Revenue (Deposit Charges): <b>₱{salesData.revenue.toFixed(2)}</b>
             </Typography>
           </CardContent>
         </Card>
@@ -572,7 +572,7 @@ const AdminDeposits = () => {
                     <Table size="medium">
                       <TableHead>
                         <TableRow>
-                          {["Name", "Amount", "Type", "Charge", "Net Amount", ...(isSuperAdmin ? ["Approved By"] : []), "Status", "Date", "Actions"].map(
+                          {["Name", "Amount", "Type", "Charge (1.5%)", "Net Amount", ...(isSuperAdmin ? ["Approved By"] : []), "Status", "Date", "Actions"].map(
                             (head) => (
                               <TableCell
                                 key={head}

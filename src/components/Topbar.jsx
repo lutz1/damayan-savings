@@ -42,6 +42,8 @@ import {
   InfoOutlined as InfoOutlinedIcon,
   CheckCircleOutline as CheckCircleOutlineIcon,
   Celebration as CelebrationIcon,
+  DeleteOutline as DeleteOutlineIcon,
+  DeleteSweep as DeleteSweepIcon,
 } from "@mui/icons-material";
 import { signOut } from "firebase/auth";
 import { auth, db } from "../firebase";
@@ -61,6 +63,7 @@ import { useTheme } from "@mui/material/styles";
 import appLogo from "../assets/newlogo.png";
 import { syncAppBadgeCount } from "../utils/appBadge";
 import { onForegroundFcmMessage, setupFcmForCurrentUser } from "../utils/pushNotifications";
+import { cleanupOldNotifications, deleteAllNotificationsForUser, deleteNotificationById, isNotificationExpired } from "../utils/notifications";
 import { getUserAvatarInitial, getUserAvatarUrl } from "../utils/userAvatar";
 
 // Dialog components
@@ -229,11 +232,26 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
   const currentUserAvatar = getUserAvatarUrl(userData);
   const currentUserInitial = getUserAvatarInitial(userData);
 
+  const notificationAudioContextRef = useRef(null);
+  const notificationAudioUnlockedRef = useRef(false);
+
   const playNotificationSound = () => {
     try {
+      if (!notificationAudioUnlockedRef.current) return;
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (!AudioCtx) return;
-      const ctx = new AudioCtx();
+
+      if (!notificationAudioContextRef.current || notificationAudioContextRef.current.state === "closed") {
+        notificationAudioContextRef.current = new AudioCtx();
+      }
+
+      const ctx = notificationAudioContextRef.current;
+      if (!ctx) return;
+      if (ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+        return;
+      }
+
       const oscillator = ctx.createOscillator();
       const gain = ctx.createGain();
 
@@ -247,24 +265,68 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
       gain.connect(ctx.destination);
       oscillator.start();
       oscillator.stop(ctx.currentTime + 0.25);
-
-      oscillator.onended = () => {
-        ctx.close().catch(() => {});
-      };
     } catch (_) {}
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return undefined;
+
+    const unlockAudio = async () => {
+      notificationAudioUnlockedRef.current = true;
+
+      if (!notificationAudioContextRef.current || notificationAudioContextRef.current.state === "closed") {
+        notificationAudioContextRef.current = new AudioCtx();
+      }
+
+      if (notificationAudioContextRef.current?.state === "suspended") {
+        await notificationAudioContextRef.current.resume().catch(() => {});
+      }
+    };
+
+    const options = { passive: true };
+    window.addEventListener("pointerdown", unlockAudio, options);
+    window.addEventListener("touchstart", unlockAudio, options);
+    window.addEventListener("keydown", unlockAudio);
+
+    return () => {
+      window.removeEventListener("pointerdown", unlockAudio, options);
+      window.removeEventListener("touchstart", unlockAudio, options);
+      window.removeEventListener("keydown", unlockAudio);
+      notificationAudioContextRef.current?.close?.().catch(() => {});
+      notificationAudioContextRef.current = null;
+      notificationAudioUnlockedRef.current = false;
+    };
+  }, []);
 
   const showBrowserNotification = (item) => {
     if (typeof window === "undefined" || !("Notification" in window)) return;
 
-    const show = () => {
+    const show = async () => {
+      const title = item?.title || "New notification";
+      const options = {
+        body: item?.message || "You have a new update.",
+        icon: `${appBaseUrl}logo192.png`,
+        badge: `${appBaseUrl}logo192.png`,
+        tag: `amayan-notif-${item?.id || Date.now()}`,
+        data: {
+          ...(item || {}),
+          path: item?.path || item?.data?.path || appBaseUrl,
+        },
+      };
+
       try {
-        const notification = new Notification(item?.title || "New notification", {
-          body: item?.message || "You have a new update.",
-          icon: `${appBaseUrl}logo192.png`,
-          badge: `${appBaseUrl}logo192.png`,
-          tag: `amayan-notif-${item?.id || Date.now()}`,
-        });
+        const registration = await navigator.serviceWorker?.ready;
+        if (typeof registration?.showNotification === "function") {
+          await registration.showNotification(title, options);
+          return;
+        }
+      } catch {}
+
+      try {
+        const notification = new Notification(title, options);
         notification.onclick = () => {
           window.focus();
         };
@@ -272,19 +334,39 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
     };
 
     if (Notification.permission === "granted") {
-      show();
+      void show();
       return;
     }
 
     if (Notification.permission === "default") {
       Notification.requestPermission().then((permission) => {
-        if (permission === "granted") show();
+        if (permission === "granted") {
+          void show();
+        }
       }).catch(() => {});
     }
   };
 
+  const handleDeleteNotification = async (notificationId) => {
+    if (!notificationId) return;
+    await deleteNotificationById(notificationId).catch(() => {});
+    setNotifications((prev) => {
+      const updated = prev.filter((item) => item.id !== notificationId);
+      setUnreadCount(updated.filter((item) => !item.read).length);
+      return updated;
+    });
+  };
+
+  const handleDeleteAllNotifications = async () => {
+    if (!userData.uid) return;
+    await deleteAllNotificationsForUser(userData.uid).catch(() => {});
+    setNotifications([]);
+    setUnreadCount(0);
+    knownNotificationIdsRef.current = new Set();
+  };
+
   const refreshNotifications = useCallback(async () => {
-    if (!isAdminLike || !userData.uid) return;
+    if (!userData.uid) return;
     try {
       const q = query(
         collection(db, "notifications"),
@@ -293,14 +375,15 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
       const snap = await getDocs(q);
       const items = snap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((item) => !isNotificationExpired(item.createdAt))
         .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       setNotifications(items);
       setUnreadCount(items.filter((n) => !n.read).length);
     } catch (_) {}
-  }, [isAdminLike, userData.uid]);
+  }, [userData.uid]);
 
   useEffect(() => {
-    if (!isAdminLike || !userData.uid) {
+    if (!userData.uid) {
       setNotifications([]);
       setUnreadCount(0);
       knownNotificationIdsRef.current = new Set();
@@ -308,6 +391,8 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
       setNotifListenerFailed(false);
       return undefined;
     }
+
+    cleanupOldNotifications(userData.uid).catch(() => {});
 
     refreshNotifications();
 
@@ -320,6 +405,7 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
       (snap) => {
         const items = snap.docs
           .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((item) => !isNotificationExpired(item.createdAt))
           .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
         const currentIds = new Set(items.map((n) => n.id));
@@ -327,8 +413,11 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
 
         if (notifListenerInitializedRef.current && newUnreadItems.length > 0) {
           playNotificationSound();
-          if (document.hidden) {
-            showBrowserNotification(newUnreadItems[0]);
+          const firstItem = newUnreadItems[0];
+          const type = String(firstItem?.type || "").toLowerCase();
+          const isAndroidDevice = /android/i.test(String(window.navigator?.userAgent || ""));
+          if (document.hidden || isAndroidDevice || type.includes("cash-in") || type.includes("deposit") || type.includes("send-money") || type.includes("money")) {
+            showBrowserNotification(firstItem);
           }
         }
 
@@ -346,23 +435,26 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
     );
 
     return () => unsub();
-  }, [isAdminLike, userData.uid, refreshNotifications]);
+  }, [userData.uid, refreshNotifications]);
 
   useEffect(() => {
-    if (!isAdminLike || !userData.uid || !notifListenerFailed) return undefined;
+    if (!userData.uid || !notifListenerFailed) return undefined;
     const interval = setInterval(() => {
       refreshNotifications();
     }, 4000);
     return () => clearInterval(interval);
-  }, [isAdminLike, userData.uid, notifListenerFailed, refreshNotifications]);
+  }, [userData.uid, notifListenerFailed, refreshNotifications]);
 
   useEffect(() => {
     if (!userData.uid) return undefined;
 
     let fcmSynced = false;
+    let permissionPromptAttempted = false;
     const trySetupFcm = async () => {
       if (fcmSynced) return;
-      const token = await setupFcmForCurrentUser({ requestPermissionIfDefault: false }).catch(() => null);
+      const shouldRequestPermission = !permissionPromptAttempted;
+      permissionPromptAttempted = true;
+      const token = await setupFcmForCurrentUser({ requestPermissionIfDefault: shouldRequestPermission }).catch(() => null);
       if (token) {
         fcmSynced = true;
       }
@@ -396,11 +488,14 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
       if (cancelled) return;
       playNotificationSound();
 
-      if (document.hidden) {
+      const isAndroidDevice = /android/i.test(String(window.navigator?.userAgent || ""));
+      if (document.hidden || isAndroidDevice) {
         showBrowserNotification({
           id: payload?.messageId,
           title: payload?.notification?.title || payload?.data?.title,
           message: payload?.notification?.body || payload?.data?.body,
+          path: payload?.data?.path,
+          data: payload?.data || {},
         });
       }
     }).then((unsub) => {
@@ -420,11 +515,10 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
     };
   }, [userData.uid]);
 
-  const handleOpenNotifications = async () => {
-    // Run setup from a user gesture so browsers can allow permission/token flow.
-    await setupFcmForCurrentUser({ requestPermissionIfDefault: true }).catch(() => null);
-
+  const handleOpenNotifications = () => {
     setNotifDrawerOpen(true);
+    void setupFcmForCurrentUser({ requestPermissionIfDefault: true }).catch(() => null);
+
     notifications
       .filter((n) => !n.read)
       .forEach((n) => {
@@ -496,20 +590,18 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
 
           {/* Right */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {isAdminLike && (
-              <Tooltip title="Notifications">
-                <IconButton color="inherit" onClick={handleOpenNotifications}>
-                  <Badge
-                    badgeContent={unreadCount > 0 ? unreadCount : null}
-                    color="error"
-                    max={9}
-                    sx={{ "& .MuiBadge-badge": { fontSize: 10, minWidth: 16, height: 16, top: 2, right: 2 } }}
-                  >
-                    {unreadCount > 0 ? <NotificationsActiveIcon /> : <NotificationsNoneIcon />}
-                  </Badge>
-                </IconButton>
-              </Tooltip>
-            )}
+            <Tooltip title="Notifications">
+              <IconButton color="inherit" onClick={handleOpenNotifications}>
+                <Badge
+                  badgeContent={unreadCount > 0 ? unreadCount : null}
+                  color="error"
+                  max={9}
+                  sx={{ "& .MuiBadge-badge": { fontSize: 10, minWidth: 16, height: 16, top: 2, right: 2 } }}
+                >
+                  {unreadCount > 0 ? <NotificationsActiveIcon /> : <NotificationsNoneIcon />}
+                </Badge>
+              </IconButton>
+            </Tooltip>
             <IconButton color="inherit" onClick={openDrawer}>
               <Avatar
                 alt={userData.username}
@@ -827,34 +919,76 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
             background: "linear-gradient(180deg, rgba(4,12,30,0.98) 0%, rgba(8,23,52,0.98) 44%, rgba(15,42,99,0.97) 100%)",
             color: "#f8fbff",
             borderLeft: "1px solid rgba(138,199,255,0.14)",
+            display: "flex",
+            flexDirection: "column",
+            height: "100%",
           },
         }}
       >
-        <Box sx={{ background: "linear-gradient(135deg, rgba(6,19,46,0.98) 0%, rgba(13,47,118,0.96) 58%, rgba(37,101,214,0.90) 100%)", px: 2.5, pt: "calc(env(safe-area-inset-top, 0px) + 14px)", pb: 2.5, borderBottom: "1px solid rgba(138,199,255,0.16)" }}>
-          <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.72)", letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700 }}>
-            Inbox
-          </Typography>
-          <Typography sx={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>Notifications</Typography>
-          {unreadCount > 0 && (
-            <Box
-              sx={{
-                mt: 0.8,
-                display: "inline-flex",
-                px: 1,
-                py: 0.2,
-                borderRadius: 999,
-                backgroundColor: "rgba(255,255,255,0.22)",
-                color: "#fff",
-                fontWeight: 700,
-                fontSize: 11,
-              }}
-            >
-              {unreadCount} new
+        <Box
+          sx={{
+            position: "sticky",
+            top: 0,
+            zIndex: 2,
+            background: "linear-gradient(135deg, rgba(6,19,46,0.98) 0%, rgba(13,47,118,0.96) 58%, rgba(37,101,214,0.90) 100%)",
+            px: 2.5,
+            pt: "calc(env(safe-area-inset-top, 0px) + 14px)",
+            pb: 2,
+            borderBottom: "1px solid rgba(138,199,255,0.16)",
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1.2 }}>
+            <Box>
+              <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.72)", letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700 }}>
+                Inbox
+              </Typography>
+              <Typography sx={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>Notifications</Typography>
             </Box>
-          )}
+            {notifications.length > 0 && (
+              <Button
+                size="small"
+                startIcon={<DeleteSweepIcon sx={{ fontSize: 16 }} />}
+                onClick={handleDeleteAllNotifications}
+                sx={{
+                  minWidth: 0,
+                  color: "#fff",
+                  borderColor: "rgba(255,255,255,0.24)",
+                  backgroundColor: "rgba(255,255,255,0.10)",
+                  textTransform: "none",
+                  fontWeight: 700,
+                  fontSize: 11,
+                  px: 1.1,
+                }}
+                variant="outlined"
+              >
+                Delete all
+              </Button>
+            )}
+          </Box>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mt: 0.8 }}>
+            {unreadCount > 0 && (
+              <Box
+                sx={{
+                  display: "inline-flex",
+                  px: 1,
+                  py: 0.2,
+                  borderRadius: 999,
+                  backgroundColor: "rgba(255,255,255,0.22)",
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontSize: 11,
+                }}
+              >
+                {unreadCount} new
+              </Box>
+            )}
+            <Typography sx={{ fontSize: 11, color: "rgba(220,232,255,0.78)" }}>
+              Auto-removes after 1 week
+            </Typography>
+          </Box>
         </Box>
 
-        <Box sx={{ flex: 1, overflowY: "auto", p: 0 }}>
+        <Box sx={{ flex: 1, overflowY: "auto", p: 0, minHeight: 0 }}>
           {notifications.length === 0 ? (
             <Box sx={{ py: 8, textAlign: "center" }}>
               <NotificationsNoneIcon sx={{ fontSize: 48, color: "rgba(167, 203, 255, 0.88)", mb: 1 }} />
@@ -902,15 +1036,31 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
                     >
                       {icon}
                     </Box>
-                    <Box sx={{ flex: 1 }}>
-                      <Typography sx={{ fontSize: 13, fontWeight: isUnread ? 700 : 600, color: "#f8fbff", lineHeight: 1.3 }}>
-                        {n.title || "Notification"}
-                      </Typography>
-                      {n.message && (
-                        <Typography sx={{ fontSize: 12, color: "rgba(220,232,255,0.78)", mt: 0.3, lineHeight: 1.5 }}>
-                          {n.message}
-                        </Typography>
-                      )}
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1 }}>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography sx={{ fontSize: 13, fontWeight: isUnread ? 700 : 600, color: "#f8fbff", lineHeight: 1.3 }}>
+                            {n.title || "Notification"}
+                          </Typography>
+                          {n.message && (
+                            <Typography sx={{ fontSize: 12, color: "rgba(220,232,255,0.78)", mt: 0.3, lineHeight: 1.5 }}>
+                              {n.message}
+                            </Typography>
+                          )}
+                        </Box>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.6, ml: 0.5 }}>
+                          {isUnread && (
+                            <Box sx={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#105abf", mt: 0.4, flexShrink: 0 }} />
+                          )}
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDeleteNotification(n.id)}
+                            sx={{ color: "rgba(220,232,255,0.78)", p: 0.4 }}
+                          >
+                            <DeleteOutlineIcon sx={{ fontSize: 18 }} />
+                          </IconButton>
+                        </Box>
+                      </Box>
                       {ts && (
                         <Typography sx={{ fontSize: 10, color: "rgba(167,203,255,0.82)", mt: 0.5, fontWeight: 600 }}>{ts}</Typography>
                       )}
@@ -936,9 +1086,6 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
                         </Button>
                       )}
                     </Box>
-                    {isUnread && (
-                      <Box sx={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#105abf", mt: 0.8, flexShrink: 0 }} />
-                    )}
                   </Box>
                   <Divider sx={{ ml: 7, borderColor: "rgba(138,199,255,0.10)" }} />
                 </Box>
@@ -947,8 +1094,22 @@ const Topbar = ({ open, onToggleSidebar, dialogProps = {}, openDepositDialog = f
           )}
         </Box>
 
-        <Box sx={{ p: 2, backgroundColor: "#fff", borderTop: "1px solid #eceef1" }}>
-          <Button fullWidth onClick={() => setNotifDrawerOpen(false)}>Close</Button>
+        <Box sx={{ p: 2, backgroundColor: "rgba(7,22,52,0.55)", borderTop: "1px solid rgba(138,199,255,0.14)" }}>
+          <Button
+            fullWidth
+            onClick={() => setNotifDrawerOpen(false)}
+            sx={{
+              borderRadius: 2.5,
+              textTransform: "none",
+              fontWeight: 700,
+              color: "#d9e9ff",
+              backgroundColor: "rgba(16,90,191,0.2)",
+              py: 1.2,
+              "&:hover": { backgroundColor: "rgba(16,90,191,0.3)" },
+            }}
+          >
+            Close
+          </Button>
         </Box>
       </Drawer>
 

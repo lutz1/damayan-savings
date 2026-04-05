@@ -71,12 +71,50 @@ const sendPushToUsers = async ({ userIds = [], title, body, data = {} }) => {
   const tokens = userSnaps.flatMap((snap) => (snap.exists ? collectTokensFromUser(snap.data() || {}) : []));
   if (!tokens.length) return { sent: 0, users: uniqueUserIds.length };
 
+  const payloadData = Object.entries(data).reduce((acc, [key, value]) => {
+    acc[key] = String(value ?? "");
+    return acc;
+  }, {});
+  const clickPath = String(payloadData.path || "/").trim() || "/";
+  const defaultWebAppUrl = String(process.env.WEB_APP_URL || "https://lutz1.github.io/damayan-savings").replace(/\/$/, "");
+  const absoluteClickUrl = clickPath.startsWith("http")
+    ? clickPath
+    : `${defaultWebAppUrl}/${clickPath.replace(/^\/+/, "")}`;
+
   const message = {
     notification: { title, body },
-    data: Object.entries(data).reduce((acc, [key, value]) => {
-      acc[key] = String(value ?? "");
-      return acc;
-    }, {}),
+    data: {
+      ...payloadData,
+      path: clickPath,
+      absolutePath: absoluteClickUrl,
+      title,
+      body,
+    },
+    android: {
+      priority: "high",
+      notification: {
+        sound: "default",
+        defaultSound: true,
+        channelId: "default",
+      },
+    },
+    webpush: {
+      headers: {
+        Urgency: "high",
+      },
+      notification: {
+        title,
+        body,
+        icon: `${defaultWebAppUrl}/logo192.png`,
+        badge: `${defaultWebAppUrl}/logo192.png`,
+        tag: `amayan-${payloadData.type || "notification"}`,
+        renotify: true,
+        requireInteraction: false,
+      },
+      fcmOptions: {
+        link: absoluteClickUrl,
+      },
+    },
   };
 
   const chunks = [];
@@ -119,7 +157,9 @@ exports.processDepositApproval = functions.https.onCall(async (data, context) =>
     throw new functions.https.HttpsError("permission-denied", "Not authorized to review deposits.");
   }
 
-  return db.runTransaction(async (transaction) => {
+  let notificationPayload = null;
+
+  const result = await db.runTransaction(async (transaction) => {
     const depositRef = db.collection("deposits").doc(depositId);
     const depositSnap = await transaction.get(depositRef);
 
@@ -131,6 +171,11 @@ exports.processDepositApproval = functions.https.onCall(async (data, context) =>
     const currentStatus = String(depositData.status || "pending").toLowerCase();
     if (currentStatus !== "pending") {
       throw new functions.https.HttpsError("failed-precondition", "Deposit has already been reviewed.");
+    }
+
+    const depositUserId = String(depositData.userId || "").trim();
+    if (!depositUserId) {
+      throw new functions.https.HttpsError("failed-precondition", "Deposit request has no user ID.");
     }
 
     const updateData = {
@@ -147,12 +192,7 @@ exports.processDepositApproval = functions.https.onCall(async (data, context) =>
     let userRef = null;
     let nextBalance = null;
     if (action === "approved") {
-      const userId = String(depositData.userId || "").trim();
-      if (!userId) {
-        throw new functions.https.HttpsError("failed-precondition", "Deposit request has no user ID.");
-      }
-
-      userRef = db.collection("users").doc(userId);
+      userRef = db.collection("users").doc(depositUserId);
       const userSnap = await transaction.get(userRef);
       if (!userSnap.exists) {
         throw new functions.https.HttpsError("not-found", "Deposit user not found.");
@@ -175,10 +215,163 @@ exports.processDepositApproval = functions.https.onCall(async (data, context) =>
       });
     }
 
+    notificationPayload = {
+      userId: depositUserId,
+      depositId,
+      action,
+      remarks,
+      depositType: String(depositData.type || "Deposit").trim() || "Deposit",
+      partner: String(depositData.partner || depositData.paymentMethod || "Cash In").trim() || "Cash In",
+      referenceNumber: String(depositData.referenceNumber || "").trim(),
+      amount: Number(depositData.amount || 0),
+      charge: Number(depositData.charge || 0),
+      netAmount: Number(depositData.netAmount || creditedAmount || depositData.amount || 0),
+    };
+
     return {
       success: true,
       status: action,
       creditedAmount,
+    };
+  });
+
+  if (notificationPayload?.userId) {
+    const isCashIn = notificationPayload.depositType.toLowerCase().includes("cash in");
+    const title = action === "approved"
+      ? (isCashIn ? "Cash In Approved" : "Deposit Approved")
+      : (isCashIn ? "Cash In Rejected" : "Deposit Rejected");
+    const netAmountLabel = Number(notificationPayload.netAmount || 0).toLocaleString("en-PH", {
+      style: "currency",
+      currency: "PHP",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    const message = action === "approved"
+      ? `Your ${notificationPayload.depositType} via ${notificationPayload.partner} was approved. ${netAmountLabel} has been credited to your E-Wallet.`
+      : `Your ${notificationPayload.depositType} via ${notificationPayload.partner} was rejected.${remarks ? ` Remarks: ${remarks}` : " Please review your receipt details and try again."}`;
+
+    try {
+      await db.collection("notifications").add({
+        userId: notificationPayload.userId,
+        title,
+        message,
+        type: action === "approved" ? "cash-in-approved" : "cash-in-rejected",
+        read: false,
+        depositId: notificationPayload.depositId,
+        referenceNumber: notificationPayload.referenceNumber,
+        amount: notificationPayload.amount,
+        charge: notificationPayload.charge,
+        netAmount: notificationPayload.netAmount,
+        status: action,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      await sendPushToUsers({
+        userIds: [notificationPayload.userId],
+        title,
+        body: message,
+        data: {
+          type: action === "approved" ? "CASH_IN_APPROVED" : "CASH_IN_REJECTED",
+          depositId: notificationPayload.depositId,
+          status: action.toUpperCase(),
+          path: "/member/cash-in",
+        },
+      });
+    } catch (notificationError) {
+      console.error("[processDepositApproval] notification error:", notificationError);
+    }
+  }
+
+  return result;
+});
+
+exports.submitCashInRequest = functions.https.onCall(async (data, context) => {
+  if (!context.auth?.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Authentication required.");
+  }
+
+  const userId = String(context.auth.uid || "").trim();
+  const numAmount = Number(data?.amount || 0);
+  const paymentMethod = String(data?.paymentMethod || "Manual").trim() || "Manual";
+  const partnerName = String(data?.partner || paymentMethod || "Cash In Partner").trim() || "Cash In Partner";
+  const qrName = String(data?.qrName || partnerName).trim() || partnerName;
+  const receiptUrl = String(data?.receiptUrl || "").trim();
+  const receiptName = String(data?.receiptName || "").trim();
+  const source = String(data?.source || "manual").trim() || "manual";
+  const clientRequestId = String(data?.clientRequestId || "").trim();
+  const chargeRate = 0.015;
+
+  if (!Number.isFinite(numAmount) || numAmount <= 0) {
+    throw new functions.https.HttpsError("invalid-argument", "A valid cash in amount is required.");
+  }
+
+  const safeReferenceNumber = String(data?.referenceNumber || "").trim() || `DEP-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+  const charge = Number((numAmount * chargeRate).toFixed(2));
+  const netAmount = Number((numAmount - charge).toFixed(2));
+
+  return db.runTransaction(async (transaction) => {
+    const userRef = db.collection("users").doc(userId);
+    const userSnap = await transaction.get(userRef);
+
+    if (!userSnap.exists) {
+      throw new functions.https.HttpsError("not-found", "User not found.");
+    }
+
+    const userData = userSnap.data() || {};
+    const depositRef = clientRequestId
+      ? db.collection("deposits").doc(`cashin_${userId}_${clientRequestId}`)
+      : db.collection("deposits").doc();
+
+    const existingDepositSnap = await transaction.get(depositRef);
+    if (existingDepositSnap.exists) {
+      const existingData = existingDepositSnap.data() || {};
+      return {
+        success: true,
+        deduped: true,
+        depositId: depositRef.id,
+        amount: Number(existingData.amount || numAmount),
+        charge: Number(existingData.charge || charge),
+        netAmount: Number(existingData.netAmount || netAmount),
+        referenceNumber: existingData.referenceNumber || safeReferenceNumber,
+        partnerName: existingData.partner || partnerName,
+        qrName: existingData.qrName || qrName,
+        status: existingData.status || "Pending",
+      };
+    }
+
+    const depositName = userData.name || userData.fullName || userData.username || context.auth.token.email || "Member";
+    const depositPayload = {
+      userId,
+      name: depositName,
+      email: userData.email || context.auth.token.email || "",
+      amount: numAmount,
+      charge,
+      chargeRate,
+      netAmount,
+      status: "Pending",
+      type: "Cash In Request",
+      paymentMethod,
+      partner: partnerName,
+      referenceNumber: safeReferenceNumber,
+      qrName,
+      receiptUrl,
+      receiptName,
+      source,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    transaction.set(depositRef, depositPayload);
+
+    return {
+      success: true,
+      depositId: depositRef.id,
+      amount: numAmount,
+      charge,
+      netAmount,
+      referenceNumber: safeReferenceNumber,
+      partnerName,
+      qrName,
+      status: "Pending",
     };
   });
 });
@@ -1568,7 +1761,7 @@ exports.transferFunds = functions.https.onRequest(async (req, res) => {
       }
 
       const idToken = authHeader.substring("Bearer ".length);
-      const { recipientUsername, amount, clientRequestId } = req.body || {};
+      const { recipientUsername, amount, clientRequestId, message } = req.body || {};
 
       if (!recipientUsername || !amount) {
         return res.status(400).json({ error: "Missing required fields" });
@@ -1596,7 +1789,9 @@ exports.transferFunds = functions.https.onRequest(async (req, res) => {
         const senderDoc = await transaction.get(senderRef);
         if (!senderDoc.exists) throw new Error("Sender not found");
 
-        const senderData = senderDoc.data();
+        const senderData = senderDoc.data() || {};
+        const senderName = senderData.name || senderData.username || "Member";
+        const senderUsername = senderData.username || "";
         const currentBalance = Number(senderData.eWallet || 0);
 
         const transferRef = clientRequestId
@@ -1605,11 +1800,16 @@ exports.transferFunds = functions.https.onRequest(async (req, res) => {
 
         const existingSnap = await transaction.get(transferRef);
         if (existingSnap.exists) {
+          const existingData = existingSnap.data() || {};
           return {
             success: true,
             newBalance: currentBalance,
             transferId: transferRef.id,
             deduped: true,
+            recipientId: existingData.recipientId || "",
+            recipientName: existingData.recipientName || existingData.recipientUsername || recipientUsername,
+            senderName: existingData.senderName || senderName,
+            senderUsername: existingData.senderUsername || senderUsername,
           };
         }
 
@@ -1627,7 +1827,8 @@ exports.transferFunds = functions.https.onRequest(async (req, res) => {
         if (senderId === recipientDoc.id) throw new Error("Cannot transfer to yourself");
 
         const recipientRef = db.collection("users").doc(recipientDoc.id);
-        const recipientData = recipientDoc.data();
+        const recipientData = recipientDoc.data() || {};
+        const recipientName = recipientData.name || recipientData.username || recipientUsername;
 
         transaction.update(senderRef, {
           eWallet: Number(currentBalance - totalDeduction),
@@ -1640,21 +1841,28 @@ exports.transferFunds = functions.https.onRequest(async (req, res) => {
 
         transaction.set(transferRef, {
           senderId,
-          senderName: senderData.name || senderData.username,
+          senderName,
+          senderUsername,
           recipientUsername,
+          recipientName,
           recipientId: recipientDoc.id,
           amount: numAmount,
           charge,
           netAmount: transferAmount,
           totalDeduction,
           status: "Approved",
-          createdAt: new Date(),
+          message: String(message || "").trim(),
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
         return {
           success: true,
           newBalance: currentBalance - totalDeduction,
           transferId: transferRef.id,
+          recipientId: recipientDoc.id,
+          recipientName,
+          senderName,
+          senderUsername,
         };
       });
 
@@ -1684,6 +1892,94 @@ exports.transferFunds = functions.https.onRequest(async (req, res) => {
         });
       } catch (logError) {
         console.warn("[transfer-funds] Warning: Failed to log to Render:", logError);
+      }
+
+      if (!result.deduped) {
+        const formattedAmount = numAmount.toLocaleString("en-PH", {
+          style: "currency",
+          currency: "PHP",
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+        const safeNote = String(message || "").trim();
+        const safeNoteSuffix = safeNote ? ` Note: ${safeNote}` : "";
+        const senderNotificationMessage = `You sent ${formattedAmount} to @${recipientUsername}.${safeNoteSuffix}`;
+        const recipientNotificationMessage = `${result.senderName || result.senderUsername || "A member"} sent you ${formattedAmount}.${safeNoteSuffix}`;
+
+        try {
+          await Promise.all([
+            db.collection("notifications").add({
+              userId: senderId,
+              recipientUid: senderId,
+              title: "Transfer Successful",
+              message: senderNotificationMessage,
+              type: "send-money",
+              read: false,
+              transferId: result.transferId,
+              senderId,
+              recipientId: result.recipientId || "",
+              recipientUsername,
+              amount: numAmount,
+              charge,
+              netAmount: transferAmount,
+              totalDeduction,
+              path: "/member",
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            }),
+            result.recipientId
+              ? db.collection("notifications").add({
+                  userId: result.recipientId,
+                  recipientUid: result.recipientId,
+                  title: "Money Received",
+                  message: recipientNotificationMessage,
+                  type: "money-received",
+                  read: false,
+                  transferId: result.transferId,
+                  senderId,
+                  senderUsername: result.senderUsername || "",
+                  senderName: result.senderName || "",
+                  amount: numAmount,
+                  charge,
+                  netAmount: transferAmount,
+                  totalDeduction,
+                  path: "/member",
+                  createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                })
+              : Promise.resolve(),
+          ]);
+
+          await Promise.all([
+            sendPushToUsers({
+              userIds: [senderId],
+              title: "Transfer Successful",
+              body: senderNotificationMessage,
+              data: {
+                type: "send-money",
+                path: "/member",
+                transferId: result.transferId,
+                recipientUsername,
+                amount: numAmount,
+              },
+            }),
+            result.recipientId
+              ? sendPushToUsers({
+                  userIds: [result.recipientId],
+                  title: "Money Received",
+                  body: recipientNotificationMessage,
+                  data: {
+                    type: "money-received",
+                    path: "/member",
+                    transferId: result.transferId,
+                    senderId,
+                    senderUsername: result.senderUsername || "",
+                    amount: numAmount,
+                  },
+                })
+              : Promise.resolve(),
+          ]);
+        } catch (notificationError) {
+          console.warn("[transfer-funds] Notification delivery warning:", notificationError);
+        }
       }
 
       res.json(result);
@@ -1989,30 +2285,76 @@ exports.transferPassiveIncome = functions.https.onRequest(async (req, res) => {
 
       const result = await db.runTransaction(async (transaction) => {
         const transferRef = clientRequestId
+          ? db.collection("passiveTransfers").doc(`passive_${userId}_${clientRequestId}`)
+          : db.collection("passiveTransfers").doc();
+        const legacyTransferRef = clientRequestId
           ? db.collection("passiveIncomeTransfers").doc(`${userId}_${clientRequestId}`)
-          : db.collection("passiveIncomeTransfers").doc();
+          : null;
 
-        const existingSnap = await transaction.get(transferRef);
-        if (existingSnap.exists) {
-          const userRef = db.collection("users").doc(userId);
-          const userDoc = await transaction.get(userRef);
-          return {
-            success: true,
-            newBalance: Number(userDoc.data()?.eWallet || 0),
-            transferId: transferRef.id,
-            deduped: true,
-          };
+        const paybackRef = db.collection("paybackEntries").doc(paybackEntryId);
+        const [existingSnap, legacySnap, paybackDoc] = await Promise.all([
+          transaction.get(transferRef),
+          legacyTransferRef ? transaction.get(legacyTransferRef) : Promise.resolve(null),
+          transaction.get(paybackRef),
+        ]);
+
+        if (!paybackDoc.exists) {
+          throw new Error("Payback entry not found");
+        }
+
+        const paybackData = paybackDoc.data() || {};
+        if (paybackData.userId !== userId) {
+          throw new Error("Unauthorized: Not your payback entry");
+        }
+
+        const expirationDate = getDateValue(paybackData.expirationDate) || getDateValue(paybackData.date);
+        if (!expirationDate || expirationDate > new Date()) {
+          throw new Error("Profit not yet matured");
+        }
+
+        const expectedProfit = Number(paybackData.amount || 0) * 0.02;
+        if (Math.abs(expectedProfit - numAmount) > 0.01) {
+          throw new Error("Invalid profit amount");
         }
 
         const userRef = db.collection("users").doc(userId);
         const userDoc = await transaction.get(userRef);
-        if (!userDoc.exists) throw new Error("User not found");
+        if (!userDoc.exists) {
+          throw new Error("User not found");
+        }
 
-        const userData = userDoc.data();
-        const userBalance = Number(userData.eWallet || 0);
+        const userData = userDoc.data() || {};
+        const currentBalance = Number(userData.eWallet || 0);
+        const alreadyTransferred = Boolean(paybackData.transferred || existingSnap.exists || legacySnap?.exists);
+
+        if (alreadyTransferred) {
+          if (!paybackData.transferred) {
+            transaction.update(paybackRef, {
+              transferred: true,
+              transferredAt: paybackData.transferredAt || admin.firestore.FieldValue.serverTimestamp(),
+              lastTransferId: existingSnap.exists ? transferRef.id : legacyTransferRef?.id || paybackData.lastTransferId || transferRef.id,
+            });
+          }
+
+          return {
+            success: true,
+            newBalance: currentBalance,
+            transferId: existingSnap.exists ? transferRef.id : legacyTransferRef?.id || paybackData.lastTransferId || transferRef.id,
+            deduped: true,
+            alreadyTransferred: true,
+          };
+        }
 
         transaction.update(userRef, {
-          eWallet: isNaN(userBalance) ? net : Number(userBalance + net),
+          eWallet: isNaN(currentBalance) ? net : Number(currentBalance + net),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        transaction.update(paybackRef, {
+          transferred: true,
+          transferredAt: admin.firestore.FieldValue.serverTimestamp(),
+          lastTransferId: transferRef.id,
+          lastTransferredAmount: numAmount,
         });
 
         transaction.set(transferRef, {
@@ -2021,16 +2363,65 @@ exports.transferPassiveIncome = functions.https.onRequest(async (req, res) => {
           amount: numAmount,
           fee,
           netAmount: net,
-          status: "Approved",
-          createdAt: new Date(),
+          clientRequestId: clientRequestId || null,
+          type: "Passive Income Earn",
+          status: "Credited",
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
         return {
           success: true,
-          newBalance: (userData.eWallet || 0) + net,
+          newBalance: currentBalance + net,
           transferId: transferRef.id,
+          alreadyTransferred: false,
+          deduped: false,
         };
       });
+
+      if (!result.deduped) {
+        const grossAmountLabel = Number(numAmount || 0).toLocaleString("en-PH", {
+          style: "currency",
+          currency: "PHP",
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+        const netAmountLabel = Number(net || 0).toLocaleString("en-PH", {
+          style: "currency",
+          currency: "PHP",
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+
+        await db.collection("notifications").add({
+          userId,
+          recipientUid: userId,
+          title: "Passive Income Credited",
+          message: `${grossAmountLabel} passive income was transferred successfully. ${netAmountLabel} was credited to your E-Wallet after the 1% fee.`,
+          type: "passive-income-transfer",
+          read: false,
+          amount: numAmount,
+          netAmount: net,
+          paybackEntryId,
+          transferId: result.transferId,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        await sendPushToUsers({
+          userIds: [userId],
+          title: "Passive Income Credited",
+          body: `${netAmountLabel} is now in your E-Wallet.`,
+          data: {
+            type: "PASSIVE_INCOME_TRANSFER",
+            transferId: result.transferId,
+            paybackEntryId,
+            amount: numAmount,
+            netAmount: net,
+            path: "/member/income/payback",
+          },
+        }).catch((pushError) => {
+          console.warn("[transfer-passive-income] Push notification warning:", pushError);
+        });
+      }
 
       console.info(`[transfer-passive-income] ✅ SUCCESS - user=${userId} paybackId=${paybackEntryId} amount=₱${numAmount} net=₱${net}`);
 

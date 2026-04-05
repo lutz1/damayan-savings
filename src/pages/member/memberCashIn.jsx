@@ -29,11 +29,12 @@ import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import DownloadIcon from "@mui/icons-material/Download";
 import ShareIcon from "@mui/icons-material/Share";
-import { addDoc, collection, onSnapshot, query, serverTimestamp, where } from "firebase/firestore";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
 import jsQR from "jsqr";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { keyframes } from "@mui/system";
-import { auth, db, storage } from "../../firebase";
+import { app, auth, db, storage } from "../../firebase";
 import bpiLogo from "../../assets/bpilogo.png";
 import bpiQr from "../../assets/bpi.jpg";
 import gotymeLogo from "../../assets/gotymelogo.png";
@@ -86,6 +87,7 @@ const EWALLET_OPTIONS = [
 ];
 
 const EWALLET_GROUPS = ["A-E", "F-L", "P-S"];
+const CASH_IN_CHARGE_RATE = 0.015;
 
 const receiptScanSweep = keyframes`
   0% {
@@ -138,6 +140,7 @@ const MemberCashIn = () => {
   };
 
   const navigate = useNavigate();
+  const firebaseFunctions = getFunctions(app, "us-central1");
   const allWalletsRef = useRef(null);
   const [screen, setScreen] = useState("main");
   const [bankTab, setBankTab] = useState(1); // 0=OTC, 1=Local Banks, 2=Global
@@ -321,8 +324,8 @@ const MemberCashIn = () => {
 
     setScanningReceipt(true);
     setReceiptScanValid(false);
-    setScanProgress(8);
-    updateStatus("AI scanning started. Reading the uploaded receipt...");
+    setScanProgress(18);
+    updateStatus("AI scanning receipt. Please keep this page open...");
 
     try {
       if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
@@ -331,11 +334,11 @@ const MemberCashIn = () => {
       await wait(220);
 
       const qrPayload = await decodeReceiptQr(file);
-      setScanProgress(28);
+      setScanProgress(qrPayload ? 42 : 36);
       updateStatus(
         qrPayload
-          ? "QR detected. AI is extracting the amount and reference number..."
-          : "No QR found yet. AI is extracting the amount and reference number..."
+          ? "QR detected. Verifying receipt details..."
+          : "Scanning receipt details for amount and reference number..."
       );
 
       await wait(140);
@@ -347,23 +350,22 @@ const MemberCashIn = () => {
         const result = await Tesseract.recognize(file, "eng", {
           logger: ({ status, progress }) => {
             if (typeof progress === "number") {
-              const nextProgress = Math.min(92, Math.max(32, Math.round((progress * 100) / 5) * 5));
-              if (nextProgress >= lastProgressBucket + 5) {
+              let nextProgress = 46;
+              if (progress >= 0.45) nextProgress = 64;
+              if (progress >= 0.75) nextProgress = 82;
+
+              if (nextProgress > lastProgressBucket) {
                 lastProgressBucket = nextProgress;
                 setScanProgress((prev) => (nextProgress > prev ? nextProgress : prev));
-              }
-
-              if (nextProgress >= 35 && nextProgress < 95) {
-                updateStatus(`AI scanning receipt... ${nextProgress}% complete`);
               }
             }
 
             if (status) {
               const normalizedStatus = String(status).replace(/_/g, " ");
               if (/loading|initializing/i.test(normalizedStatus)) {
-                updateStatus("AI scanner is loading receipt analysis tools...");
-              } else if (/recognizing/i.test(normalizedStatus) && typeof progress !== "number") {
-                updateStatus("AI scanning receipt...");
+                updateStatus("Preparing the receipt scanner...");
+              } else if (/recognizing/i.test(normalizedStatus)) {
+                updateStatus("AI scanning receipt. Please keep this page open...");
               }
             }
           },
@@ -371,17 +373,14 @@ const MemberCashIn = () => {
         text = result?.data?.text || "";
       }
 
-      setScanProgress(94);
-      updateStatus("Reviewing detected details for better accuracy...");
+      setScanProgress(92);
+      updateStatus("Finalizing detected receipt details...");
 
-      const minimumScanDuration = 2600;
+      const minimumScanDuration = 2400;
       const remainingScanTime = minimumScanDuration - (Date.now() - scanStartedAt);
       if (remainingScanTime > 0) {
         await wait(remainingScanTime);
       }
-
-      setScanProgress(96);
-      updateStatus("Finalizing detected receipt details...");
 
       const parsed = parseReceiptDetails(text, qrPayload);
       const hasDetectedAmount = Boolean(parsed.amount);
@@ -499,6 +498,8 @@ const MemberCashIn = () => {
 
     const details = [
       ["Reference Number", depositReceiptData.referenceNumber || "-"],
+      ["Charge (1.5%)", `₱${Number(depositReceiptData.charge || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`],
+      ["Net Amount", `₱${Number(depositReceiptData.netAmount || depositReceiptData.amount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`],
       ["Request ID", depositReceiptData.requestId || "-"],
       ["Date", depositReceiptData.date?.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" }) || "-"],
       ["Time", depositReceiptData.date?.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" }) || "-"],
@@ -552,17 +553,38 @@ const MemberCashIn = () => {
       if (!canvas) return;
       const blob = await canvasToBlob(canvas);
       if (!blob) return;
-      const file = new File([blob], `Deposit_Receipt_${depositReceiptData.referenceNumber || Date.now()}.png`, { type: "image/png" });
+
+      const fileName = `Deposit_Receipt_${depositReceiptData.referenceNumber || Date.now()}.png`;
+      const file = new File([blob], fileName, { type: "image/png" });
       const shareText = `Deposit receipt\nReference: ${depositReceiptData.referenceNumber}\nPartner: ${depositReceiptData.partnerName}\nAmount: ₱${Number(depositReceiptData.amount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
 
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+      if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
         await navigator.share({ title: "Deposit Receipt", text: shareText, files: [file] });
-      } else if (navigator.share) {
-        await navigator.share({ title: "Deposit Receipt", text: shareText });
+        return;
       }
+
+      if (navigator.share && !navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ title: "Deposit Receipt", text: shareText });
+        return;
+      }
+
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareText);
+      }
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      alert("Receipt details copied for sharing and the receipt image was downloaded.");
     } catch (shareError) {
       if (shareError?.name !== "AbortError") {
         console.error("Deposit receipt share failed:", shareError);
+        setError("Unable to share the deposit receipt right now.");
       }
     }
   };
@@ -601,33 +623,37 @@ const MemberCashIn = () => {
       const fallbackReference = `DEP-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
       const depositReference = receiptReference || fallbackReference;
       const resolvedQrName = detectedReceiptPartner || selectedPartner?.name || "Cash In Partner";
+      const grossAmount = Number(amount || 0);
+      const depositCharge = Number((grossAmount * CASH_IN_CHARGE_RATE).toFixed(2));
+      const netAmount = Number((grossAmount - depositCharge).toFixed(2));
 
-      const docRef = await addDoc(collection(db, "deposits"), {
-        userId: auth.currentUser.uid,
-        name: auth.currentUser.displayName || auth.currentUser.email || "Member",
-        email: auth.currentUser.email || "",
-        amount: Number(amount),
-        status: "Pending",
-        type: "Cash In Request",
+      const submitCashInRequest = httpsCallable(firebaseFunctions, "submitCashInRequest");
+      const clientRequestId = `cashin_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      const result = await submitCashInRequest({
+        amount: grossAmount,
         paymentMethod: selectedPartner.methodType === "bank" ? "Local Banks" : "E-Wallet",
         partner: selectedPartner.name,
         referenceNumber: depositReference,
         qrName: resolvedQrName,
         receiptUrl,
         receiptName: receiptFile.name,
+        clientRequestId,
         source: "manual",
-        createdAt: serverTimestamp(),
       });
 
+      const requestData = result?.data || {};
+
       setDepositReceiptData({
-        amount: Number(amount),
-        partnerName: selectedPartner?.name || "Cash In Partner",
-        qrName: resolvedQrName,
-        referenceNumber: depositReference,
+        amount: Number(requestData.amount ?? grossAmount),
+        charge: Number(requestData.charge ?? depositCharge),
+        netAmount: Number(requestData.netAmount ?? netAmount),
+        partnerName: requestData.partnerName || selectedPartner?.name || "Cash In Partner",
+        qrName: requestData.qrName || resolvedQrName,
+        referenceNumber: requestData.referenceNumber || depositReference,
         receiptName: receiptFile?.name || "Receipt",
         date: new Date(),
-        requestId: docRef.id,
-        status: "PENDING REVIEW",
+        requestId: requestData.depositId || clientRequestId,
+        status: String(requestData.status || "PENDING REVIEW").toUpperCase(),
       });
       setSuccess(true);
       setScanStatus("Deposit submitted successfully.");
@@ -639,6 +665,9 @@ const MemberCashIn = () => {
   };
 
   const headerTitle = screen === "banks" ? "Local Banks" : screen === "ewallet" ? "E-Wallet" : "Cash In";
+  const grossDepositAmount = Number(amount || 0);
+  const depositChargeAmount = grossDepositAmount > 0 ? Number((grossDepositAmount * CASH_IN_CHARGE_RATE).toFixed(2)) : 0;
+  const depositNetAmount = grossDepositAmount > 0 ? Number((grossDepositAmount - depositChargeAmount).toFixed(2)) : 0;
   const isDepositReady = Boolean(
     receiptFile &&
     !scanningReceipt &&
@@ -676,6 +705,26 @@ const MemberCashIn = () => {
       EWALLET_OPTIONS.find((wallet) => wallet.name.toLowerCase() === normalized) ||
       null
     );
+  };
+
+  const getCashInAmounts = (log) => {
+    const gross = Number(log?.amount || 0);
+    const hasNetAmount = log?.netAmount !== undefined && log?.netAmount !== null && log?.netAmount !== "";
+    const storedCharge = Number(log?.charge ?? 0);
+    const fallbackRate = Number(log?.chargeRate || 0);
+    const charge =
+      storedCharge > 0
+        ? storedCharge
+        : !hasNetAmount && fallbackRate > 0 && gross > 0
+          ? Number((gross * fallbackRate).toFixed(2))
+          : 0;
+    const net = Number(hasNetAmount ? log.netAmount : charge > 0 ? gross - charge : gross);
+
+    return {
+      gross: Number.isFinite(gross) ? gross : 0,
+      charge: Number.isFinite(charge) ? charge : 0,
+      net: Number.isFinite(net) ? net : 0,
+    };
   };
 
   const handleShowAllWallets = () => {
@@ -902,18 +951,19 @@ const MemberCashIn = () => {
               const sc = statusColor(log.status);
               const partner = resolveCashInPartner(log.partner || log.paymentMethod);
               const initial = (log.partner || log.paymentMethod || "C").charAt(0).toUpperCase();
+              const { gross, charge, net } = getCashInAmounts(log);
 
               return (
                 <Box
                   key={log.id}
                   sx={{
-                    p: 1.2,
+                    p: { xs: 1.4, sm: 1.6 },
                     borderRadius: 2.4,
                     background: "linear-gradient(145deg, rgba(8,23,52,0.94) 0%, rgba(15,42,99,0.90) 100%)",
                     border: "1px solid rgba(138,199,255,0.12)",
                     display: "flex",
-                    alignItems: "center",
-                    gap: 1,
+                    alignItems: { xs: "flex-start", sm: "center" },
+                    gap: 1.2,
                   }}
                 >
                   <Avatar
@@ -930,31 +980,66 @@ const MemberCashIn = () => {
                   >
                     {!partner?.logo ? initial : null}
                   </Avatar>
+
                   <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography sx={{ fontSize: 13.5, fontWeight: 800, color: "#f8fbff" }}>
-                      {log.partner || log.paymentMethod || "Cash In"}
-                    </Typography>
-                    <Typography sx={{ fontSize: 11, color: "rgba(220,232,255,0.72)" }}>
-                      {formatDate(log.createdAt)}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ textAlign: "right" }}>
-                    <Typography sx={{ fontSize: 12.5, fontWeight: 800, color: "#fff" }}>
-                      ₱{Number(log.amount || 0).toLocaleString("en-PH")}
-                    </Typography>
-                    <Chip
-                      label={(log.status || "PENDING").toUpperCase()}
-                      size="small"
+                    <Box
                       sx={{
-                        mt: 0.4,
-                        height: 18,
-                        backgroundColor: sc.bg,
-                        color: sc.color,
-                        fontWeight: 800,
-                        fontSize: 10,
-                        "& .MuiChip-label": { px: 0.8 },
+                        display: "flex",
+                        alignItems: { xs: "flex-start", sm: "center" },
+                        justifyContent: "space-between",
+                        gap: 1,
+                        flexWrap: "wrap",
                       }}
-                    />
+                    >
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography sx={{ fontSize: 13.5, fontWeight: 800, color: "#f8fbff" }} noWrap>
+                          {log.partner || log.paymentMethod || "Cash In"}
+                        </Typography>
+                        <Typography sx={{ fontSize: 11, color: "rgba(220,232,255,0.72)" }}>
+                          {formatDate(log.createdAt)}
+                        </Typography>
+                      </Box>
+                      <Chip
+                        label={(log.status || "PENDING").toUpperCase()}
+                        size="small"
+                        sx={{
+                          height: 20,
+                          backgroundColor: sc.bg,
+                          color: sc.color,
+                          fontWeight: 800,
+                          fontSize: 10,
+                          "& .MuiChip-label": { px: 0.9 },
+                        }}
+                      />
+                    </Box>
+
+                    <Box
+                      sx={{
+                        mt: 1,
+                        display: "grid",
+                        gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", sm: "repeat(3, minmax(0, 1fr))" },
+                        gap: 0.8,
+                      }}
+                    >
+                      <Box sx={{ px: 1, py: 0.75, borderRadius: 1.5, background: "rgba(255,255,255,0.06)" }}>
+                        <Typography sx={{ fontSize: 10, color: "rgba(220,232,255,0.66)" }}>Gross</Typography>
+                        <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#fff" }}>
+                          ₱{gross.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ px: 1, py: 0.75, borderRadius: 1.5, background: "rgba(255,214,116,0.10)" }}>
+                        <Typography sx={{ fontSize: 10, color: "rgba(255,220,150,0.78)" }}>Charge</Typography>
+                        <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#ffd483" }}>
+                          ₱{charge.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ px: 1, py: 0.75, borderRadius: 1.5, background: "rgba(47,125,225,0.12)", gridColumn: { xs: "1 / -1", sm: "auto" } }}>
+                        <Typography sx={{ fontSize: 10, color: "rgba(138,199,255,0.78)" }}>Net to receive</Typography>
+                        <Typography sx={{ fontSize: 12.5, fontWeight: 800, color: "#8ac7ff" }}>
+                          ₱{net.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </Typography>
+                      </Box>
+                    </Box>
                   </Box>
                 </Box>
               );
@@ -966,24 +1051,57 @@ const MemberCashIn = () => {
   );
 
   const AmountDialog = () => (
-    <Dialog
+    <Drawer
+      anchor="right"
       open={!!selectedPartner}
       onClose={handleCloseDialog}
-      maxWidth="xs"
-      fullWidth
+      ModalProps={{ keepMounted: true }}
+      transitionDuration={{ enter: 360, exit: 260 }}
+      slotProps={{
+        backdrop: {
+          sx: {
+            backgroundColor: "rgba(0, 0, 0, 0.4)",
+          },
+        },
+      }}
+      SlideProps={{ appear: true }}
       PaperProps={{
         sx: {
-          background: "linear-gradient(150deg, rgba(8,26,62,0.96) 0%, rgba(13,44,102,0.92) 100%)",
-          border: "1px solid rgba(217,233,255,0.22)",
-          borderRadius: 3,
+          width: { xs: "100%", sm: 430 },
+          maxWidth: "100%",
+          background: "linear-gradient(180deg, rgba(4,12,30,0.98) 0%, rgba(8,23,52,0.98) 44%, rgba(15,42,99,0.97) 100%)",
           color: "#fff",
+          borderLeft: "1px solid rgba(217,233,255,0.22)",
+          boxShadow: "0 18px 34px rgba(2,10,24,0.28)",
+          overflow: "hidden",
         },
       }}
     >
-      <DialogTitle sx={{ fontWeight: 800, color: "#fff", pb: 0.5 }}>
-        Cash In
-      </DialogTitle>
-      <DialogContent>
+      <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+        <Box
+          sx={{
+            minHeight: 70,
+            px: 1,
+            pt: "calc(env(safe-area-inset-top, 0px) + 10px)",
+            pb: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            color: "#fff",
+            background: "linear-gradient(135deg, rgba(6,19,46,0.98) 0%, rgba(13,47,118,0.96) 58%, rgba(37,101,214,0.90) 100%)",
+            borderBottom: "1px solid rgba(138,199,255,0.16)",
+          }}
+        >
+          <IconButton onClick={handleCloseDialog} sx={{ color: "#fff" }}>
+            <ArrowBackIosNewIcon />
+          </IconButton>
+          <Typography sx={{ fontSize: 18, fontWeight: 800, letterSpacing: 0.2, lineHeight: 1 }}>
+            {success ? "Deposit Receipt" : "Cash In"}
+          </Typography>
+          <Box sx={{ width: 40 }} />
+        </Box>
+
+        <Box sx={{ flex: 1, overflowY: "auto", p: 2 }}>
         {success && depositReceiptData ? (
           <Box sx={{ pt: 1 }}>
             <Box sx={{ textAlign: "center", mb: 2.2 }}>
@@ -998,15 +1116,15 @@ const MemberCashIn = () => {
               </Typography>
             </Box>
 
-            <Box sx={{ background: "#fff", borderRadius: 2.8, p: 1.8, mb: 2, border: "1px solid #dbe2ef", boxShadow: "0 14px 26px rgba(6,18,45,0.10)" }}>
+            <Box sx={{ background: "#fff", borderRadius: 2.8, p: { xs: 1.25, sm: 1.8 }, mb: 2, border: "1px solid #dbe2ef", boxShadow: "0 14px 26px rgba(6,18,45,0.10)", overflow: "hidden" }}>
               <Typography sx={{ textAlign: "center", fontSize: 10.5, color: "#7a8392", fontWeight: 800, letterSpacing: 0.8 }}>
                 TOTAL AMOUNT
               </Typography>
-              <Typography sx={{ textAlign: "center", fontSize: 33, fontWeight: 900, color: "#105abf", mb: 1.4 }}>
+              <Typography sx={{ textAlign: "center", fontSize: { xs: 26, sm: 33 }, fontWeight: 900, color: "#105abf", mb: 1.4, wordBreak: "break-word" }}>
                 ₱{Number(depositReceiptData.amount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
               </Typography>
 
-              <Box sx={{ background: "#f4f6fa", borderRadius: 2.2, p: 1.2, mb: 1.4, display: "flex", alignItems: "center", gap: 1 }}>
+              <Box sx={{ background: "#f4f6fa", borderRadius: 2.2, p: 1.2, mb: 1.4, display: "flex", alignItems: { xs: "flex-start", sm: "center" }, gap: 1 }}>
                 {renderWalletBadge({
                   name: depositReceiptData.partnerName,
                   logo: resolveCashInPartner(depositReceiptData.partnerName)?.logo,
@@ -1019,10 +1137,10 @@ const MemberCashIn = () => {
                   <Typography sx={{ fontSize: 10, color: "#7a8392", fontWeight: 800, letterSpacing: 0.8 }}>
                     CASH IN PARTNER
                   </Typography>
-                  <Typography sx={{ fontSize: 14, fontWeight: 800, color: "#223047", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  <Typography sx={{ fontSize: 14, fontWeight: 800, color: "#223047", whiteSpace: "normal", wordBreak: "break-word" }}>
                     {depositReceiptData.partnerName}
                   </Typography>
-                  <Typography sx={{ fontSize: 11, color: "#6f7f9b" }}>
+                  <Typography sx={{ fontSize: 11, color: "#6f7f9b", wordBreak: "break-word" }}>
                     {depositReceiptData.qrName || depositReceiptData.partnerName}
                   </Typography>
                 </Box>
@@ -1031,23 +1149,26 @@ const MemberCashIn = () => {
               <Box sx={{ display: "grid", gap: 0.7 }}>
                 {[
                   ["Reference Number", depositReceiptData.referenceNumber],
+                  ["Charge (1.5%)", `₱${Number(depositReceiptData.charge || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`],
+                  ["Net Amount", `₱${Number(depositReceiptData.netAmount || depositReceiptData.amount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`],
                   ["Request ID", depositReceiptData.requestId],
                   ["Receipt File", depositReceiptData.receiptName],
                   ["Status", depositReceiptData.status],
                 ].map(([label, value]) => (
-                  <Box key={label} sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>
+                  <Box key={label} sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, justifyContent: "space-between", alignItems: { xs: "flex-start", sm: "center" }, gap: 0.4 }}>
                     <Typography sx={{ fontSize: 12, color: "#6b7484" }}>{label}</Typography>
-                    <Typography sx={{ fontSize: 12, color: "#223047", fontWeight: 700, textAlign: "right" }}>{value}</Typography>
+                    <Typography sx={{ fontSize: 12, color: "#223047", fontWeight: 700, textAlign: { xs: "left", sm: "right" }, wordBreak: "break-word", maxWidth: "100%" }}>{value}</Typography>
                   </Box>
                 ))}
               </Box>
 
               <Divider sx={{ my: 1.1, borderColor: "#e4e8f0" }} />
-              <Box sx={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 1 }}>
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" }, gap: 1 }}>
                 <Button
                   onClick={handleDownloadDepositReceipt}
                   variant="outlined"
                   startIcon={<DownloadIcon />}
+                  fullWidth
                   sx={{ textTransform: "none", borderRadius: 2, fontWeight: 800 }}
                 >
                   Save
@@ -1056,6 +1177,7 @@ const MemberCashIn = () => {
                   onClick={handleShareDepositReceipt}
                   variant="contained"
                   startIcon={<ShareIcon />}
+                  fullWidth
                   sx={{ textTransform: "none", borderRadius: 2, fontWeight: 800, bgcolor: "#105abf", "&:hover": { bgcolor: "#0b4eaa" } }}
                 >
                   Share
@@ -1140,6 +1262,7 @@ const MemberCashIn = () => {
                   sx={{
                     mt: 1.2,
                     p: 1.25,
+                    minHeight: scanningReceipt ? 170 : 118,
                     borderRadius: 2.2,
                     background: scanningReceipt
                       ? "linear-gradient(145deg, rgba(7,26,61,0.96) 0%, rgba(13,47,118,0.92) 100%)"
@@ -1391,7 +1514,7 @@ const MemberCashIn = () => {
               disabled={!receiptFile}
               helperText={
                 receiptFile
-                  ? "Review or edit the scanned amount before submitting."
+                  ? "Review or edit the scanned amount before submitting. A 1.5% deposit charge applies."
                   : "Upload the receipt first to enable the amount field."
               }
               sx={{
@@ -1418,38 +1541,71 @@ const MemberCashIn = () => {
                 },
               }}
             />
+            {grossDepositAmount > 0 && (
+              <Box
+                sx={{
+                  mt: 1.2,
+                  p: 1.25,
+                  borderRadius: 2,
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(217,233,255,0.14)",
+                }}
+              >
+                <Typography sx={{ fontSize: 12, color: "#8ac7ff", fontWeight: 800, mb: 0.4 }}>
+                  DEPOSIT BREAKDOWN
+                </Typography>
+                <Typography sx={{ fontSize: 11.8, color: "#fff" }}>
+                  Charge (1.5%): <Box component="span" sx={{ color: "#ffd483", fontWeight: 700 }}>₱{depositChargeAmount.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Box>
+                </Typography>
+                <Typography sx={{ fontSize: 11.8, color: "#fff", mt: 0.35 }}>
+                  Net amount after charge: <Box component="span" sx={{ color: "#8ac7ff", fontWeight: 700 }}>₱{depositNetAmount.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Box>
+                </Typography>
+              </Box>
+            )}
             {error && <Alert severity="error" sx={{ mt: 1.5 }}>{error}</Alert>}
           </>
         )}
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2, borderTop: "1px solid rgba(217,233,255,0.14)" }}>
-        <Button onClick={handleCloseDialog} sx={{ textTransform: "none", color: memberPalette.cloud }}>
-          {success ? "Close" : "Cancel"}
-        </Button>
-        {!success && (
-          <Button
-            variant="contained"
-            onClick={handleSubmitCashIn}
-            disabled={processing || !isDepositReady}
-            sx={{
-              textTransform: "none",
-              fontWeight: 800,
-              borderRadius: 2,
-              background: `linear-gradient(135deg, ${memberPalette.azure}, ${memberPalette.royal})`,
-              "&:hover": { background: "linear-gradient(135deg, #3b8cf2, #1a5fc5)" },
-            }}
-          >
-            {processing ? (
-              <><CircularProgress size={16} sx={{ color: "#fff", mr: 1 }} />Submitting...</>
-            ) : scanningReceipt ? (
-              <><CircularProgress size={16} sx={{ color: "#fff", mr: 1 }} />AI Scanning...</>
-            ) : (
-              "Deposit"
-            )}
+        </Box>
+        <Box
+          sx={{
+            px: 2,
+            py: 2,
+            borderTop: "1px solid rgba(217,233,255,0.14)",
+            background: "rgba(6,19,46,0.90)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 1,
+          }}
+        >
+          <Button onClick={handleCloseDialog} sx={{ textTransform: "none", color: memberPalette.cloud }}>
+            {success ? "Close" : "Cancel"}
           </Button>
-        )}
-      </DialogActions>
-    </Dialog>
+          {!success && (
+            <Button
+              variant="contained"
+              onClick={handleSubmitCashIn}
+              disabled={processing || !isDepositReady}
+              sx={{
+                textTransform: "none",
+                fontWeight: 800,
+                borderRadius: 2,
+                background: `linear-gradient(135deg, ${memberPalette.azure}, ${memberPalette.royal})`,
+                "&:hover": { background: "linear-gradient(135deg, #3b8cf2, #1a5fc5)" },
+              }}
+            >
+              {processing ? (
+                <><CircularProgress size={16} sx={{ color: "#fff", mr: 1 }} />Submitting...</>
+              ) : scanningReceipt ? (
+                <><CircularProgress size={16} sx={{ color: "#fff", mr: 1 }} />AI Scanning...</>
+              ) : (
+                "Deposit"
+              )}
+            </Button>
+          )}
+        </Box>
+      </Box>
+    </Drawer>
   );
 
   // ── BANKS SCREEN ──────────────────────────────────────────────────────────
@@ -1844,6 +2000,7 @@ const MemberCashIn = () => {
                 const sc = statusColor(log.status);
                 const partner = resolveCashInPartner(log.partner || log.paymentMethod);
                 const initial = (log.partner || log.paymentMethod || "B").charAt(0).toUpperCase();
+                const { gross, charge, net } = getCashInAmounts(log);
                 return (
                   <Box
                     key={log.id}
@@ -1883,16 +2040,24 @@ const MemberCashIn = () => {
                         {log.partner || log.paymentMethod || "Bank"}
                       </Typography>
                       <Typography sx={{ color: memberPalette.softText, fontSize: 12 }}>{formatDate(log.createdAt)}</Typography>
+                      {charge > 0 ? (
+                        <Typography sx={{ color: "rgba(217,233,255,0.68)", fontSize: 10.5, mt: 0.35 }}>
+                          Gross ₱{gross.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} • Fee ₱{charge.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </Typography>
+                      ) : null}
                     </Box>
-                    <Box sx={{ textAlign: "right" }}>
-                      <Typography sx={{ fontWeight: 800, color: "#fff", fontSize: 14.5 }}>
-                        ₱{Number(log.amount || 0).toLocaleString("en-PH")}
+                    <Box sx={{ textAlign: "right", minWidth: 92 }}>
+                      <Typography sx={{ fontWeight: 800, color: "#8ac7ff", fontSize: 14.5 }}>
+                        ₱{net.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </Typography>
+                      <Typography sx={{ color: "rgba(138,199,255,0.78)", fontSize: 10.5, fontWeight: 700 }}>
+                        Net receive
                       </Typography>
                       <Chip
                         label={(log.status || "PENDING").toUpperCase()}
                         size="small"
                         sx={{
-                          mt: 0.4,
+                          mt: 0.45,
                           height: 18,
                           backgroundColor: sc.bg,
                           color: sc.color,

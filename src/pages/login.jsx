@@ -998,8 +998,8 @@ const Login = () => {
           </Box>
 
           <Typography className="login-footer-note">
-            © 2025 Bowners Indelity Services. All rights reserved.
-          </Typography>
+            © 2025 Bowner. All rights reserved.
+          </Typography>      
         </motion.div>
       </Container>
 

@@ -25,6 +25,7 @@ const AdminDeposits = lazy(() => import("./pages/admin/adminDeposits"));
 const AdminCategoryManagement = lazy(() => import("./pages/admin/adminCategoryManagement"));
 const AdminProductManagement = lazy(() => import("./pages/admin/adminProductManagement"));
 const AdminPaybackEntries = lazy(() => import("./pages/admin/adminPaybackEntries"));
+const AdminCapitalShareEntriesManagement = lazy(() => import("./pages/admin/adminCapitalShareEntriesManagement"));
 const AdminVoucherRecords = lazy(() => import("./pages/admin/adminVoucherRecords"));
 const AdminPasswordResetManagement = lazy(() => import("./pages/admin/adminPasswordResetManagement"));
 const MemberDashboard = lazy(() => import("./pages/member/memberDashboard"));
@@ -216,6 +217,14 @@ function App() {
               element={
                 <AdminRoute>
                   <AdminPaybackEntries />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/capital-share-entries-management"
+              element={
+                <AdminRoute>
+                  <AdminCapitalShareEntriesManagement />
                 </AdminRoute>
               }
             />

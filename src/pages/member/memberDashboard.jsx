@@ -5,8 +5,9 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { sendReferralTransferAvailableNotification } from "../../utils/referralNotifications";
 import { sendOverrideTransferAvailableNotification } from "../../utils/overrideNotifications";
-import { cleanupOldNotifications } from "../../utils/notifications";
+import { cleanupOldNotifications, deleteAllNotificationsForUser, deleteNotificationById, isNotificationExpired } from "../../utils/notifications";
 import { syncAppBadgeCount } from "../../utils/appBadge";
+import { onForegroundFcmMessage, setupFcmForCurrentUser } from "../../utils/pushNotifications";
 import { memberPageTopInset, memberShellBackground, memberSoftPanelSx, memberGlassPanelSx, memberHeroBackground } from "./memberLayout";
 import Alert from "@mui/material/Alert";
 import {
@@ -65,6 +66,8 @@ import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
 import QueryStatsIcon from "@mui/icons-material/QueryStats";
 import PersonPinIcon from "@mui/icons-material/PersonPin";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import TransferFundsDialog from "../../components/Topbar/dialogs/TransferFundsDialog";
 import WithdrawDialog from "../../components/Topbar/dialogs/WithdrawDialog";
 import PurchaseCodesDialog from "../../components/Topbar/dialogs/PurchaseCodesDialog";
@@ -76,6 +79,7 @@ import {
   query,
   where,
   onSnapshot,
+  or,
   doc,
   getDoc,
   getDocs,
@@ -226,22 +230,235 @@ const [dashDialog, setDashDialog] = useState(null);
 const [availableCodes, setAvailableCodes] = useState([]);
 const [rewardsUnavailableOpen, setRewardsUnavailableOpen] = useState(false);
 const navigate = useNavigate();
+const appBaseUrl = import.meta.env.BASE_URL || "/";
 
 // ─── Notifications ───────────────────────────────────────────────────────────
 const [notifDrawerOpen, setNotifDrawerOpen] = useState(false);
 const [notifications, setNotifications] = useState([]);
 const [unreadCount, setUnreadCount] = useState(0);
+const knownNotificationIdsRef = useRef(new Set());
+const notifListenerInitializedRef = useRef(false);
+const notificationAudioContextRef = useRef(null);
+const notificationAudioUnlockedRef = useRef(false);
+
+const playNotificationSound = () => {
+  try {
+    if (!notificationAudioUnlockedRef.current) return;
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+
+    if (!notificationAudioContextRef.current || notificationAudioContextRef.current.state === "closed") {
+      notificationAudioContextRef.current = new AudioCtx();
+    }
+
+    const ctx = notificationAudioContextRef.current;
+    if (!ctx) return;
+    if (ctx.state === "suspended") {
+      ctx.resume().catch(() => {});
+      return;
+    }
+
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(880, ctx.currentTime);
+    gain.gain.setValueAtTime(0.001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    oscillator.start();
+    oscillator.stop(ctx.currentTime + 0.25);
+  } catch (_) {}
+};
+
+useEffect(() => {
+  if (typeof window === "undefined") return undefined;
+
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) return undefined;
+
+  const unlockAudio = async () => {
+    notificationAudioUnlockedRef.current = true;
+
+    if (!notificationAudioContextRef.current || notificationAudioContextRef.current.state === "closed") {
+      notificationAudioContextRef.current = new AudioCtx();
+    }
+
+    if (notificationAudioContextRef.current?.state === "suspended") {
+      await notificationAudioContextRef.current.resume().catch(() => {});
+    }
+  };
+
+  const options = { passive: true };
+  window.addEventListener("pointerdown", unlockAudio, options);
+  window.addEventListener("touchstart", unlockAudio, options);
+  window.addEventListener("keydown", unlockAudio);
+
+  return () => {
+    window.removeEventListener("pointerdown", unlockAudio, options);
+    window.removeEventListener("touchstart", unlockAudio, options);
+    window.removeEventListener("keydown", unlockAudio);
+    notificationAudioContextRef.current?.close?.().catch(() => {});
+    notificationAudioContextRef.current = null;
+    notificationAudioUnlockedRef.current = false;
+  };
+}, []);
+
+const showBrowserNotification = (item) => {
+  if (typeof window === "undefined" || !("Notification" in window)) return;
+
+  const show = async () => {
+    const title = item?.title || "New notification";
+    const options = {
+      body: item?.message || "You have a new update.",
+      icon: `${appBaseUrl}logo192.png`,
+      badge: `${appBaseUrl}logo192.png`,
+      tag: `member-notif-${item?.id || Date.now()}`,
+      data: {
+        ...(item || {}),
+        path: item?.path || item?.data?.path || appBaseUrl,
+      },
+    };
+
+    try {
+      const registration = await navigator.serviceWorker?.ready;
+      if (typeof registration?.showNotification === "function") {
+        await registration.showNotification(title, options);
+        return;
+      }
+    } catch {}
+
+    try {
+      const notification = new Notification(title, options);
+      notification.onclick = () => {
+        window.focus();
+      };
+    } catch (_) {}
+  };
+
+  if (Notification.permission === "granted") {
+    void show();
+    return;
+  }
+
+  if (Notification.permission === "default") {
+    Notification.requestPermission().then((permission) => {
+      if (permission === "granted") {
+        void show();
+      }
+    }).catch(() => {});
+  }
+};
+
+const handleDeleteNotification = async (notificationId) => {
+  if (!notificationId) return;
+  await deleteNotificationById(notificationId).catch(() => {});
+  setNotifications((prev) => {
+    const updated = prev.filter((item) => item.id !== notificationId);
+    setUnreadCount(updated.filter((item) => !item.read).length);
+    return updated;
+  });
+};
+
+const handleDeleteAllNotifications = async () => {
+  if (!user?.uid) return;
+  await deleteAllNotificationsForUser(user.uid).catch(() => {});
+  setNotifications([]);
+  setUnreadCount(0);
+  knownNotificationIdsRef.current = new Set();
+};
 
 useEffect(() => {
   syncAppBadgeCount(unreadCount);
 }, [unreadCount]);
 
 useEffect(() => {
-  if (!user) return;
+  if (!user?.uid) return undefined;
+
+  let fcmSynced = false;
+  let permissionPromptAttempted = false;
+  const trySetupFcm = async () => {
+    if (fcmSynced) return;
+    const shouldRequestPermission = !permissionPromptAttempted;
+    permissionPromptAttempted = true;
+    const token = await setupFcmForCurrentUser({ requestPermissionIfDefault: shouldRequestPermission }).catch(() => null);
+    if (token) {
+      fcmSynced = true;
+    }
+  };
+
+  trySetupFcm();
+
+  const retryInterval = setInterval(() => {
+    if (document.visibilityState === "visible") {
+      trySetupFcm();
+    }
+  }, 15000);
+
+  const handleOnline = () => {
+    trySetupFcm();
+  };
+
+  const handleVisibility = () => {
+    if (document.visibilityState === "visible") {
+      trySetupFcm();
+    }
+  };
+
+  window.addEventListener("online", handleOnline);
+  document.addEventListener("visibilitychange", handleVisibility);
+
+  let unsubscribeForeground = () => {};
+  let cancelled = false;
+
+  onForegroundFcmMessage((payload) => {
+    if (cancelled) return;
+    playNotificationSound();
+
+    const isAndroidDevice = /android/i.test(String(window.navigator?.userAgent || ""));
+    if (document.hidden || isAndroidDevice) {
+      showBrowserNotification({
+        id: payload?.messageId,
+        title: payload?.notification?.title || payload?.data?.title,
+        message: payload?.notification?.body || payload?.data?.body,
+        path: payload?.data?.path,
+        data: payload?.data || {},
+      });
+    }
+  }).then((unsub) => {
+    if (cancelled) {
+      unsub?.();
+      return;
+    }
+    unsubscribeForeground = unsub || (() => {});
+  });
+
+  return () => {
+    cancelled = true;
+    unsubscribeForeground();
+    clearInterval(retryInterval);
+    window.removeEventListener("online", handleOnline);
+    document.removeEventListener("visibilitychange", handleVisibility);
+  };
+}, [user?.uid]);
+
+useEffect(() => {
+  if (!user) {
+    setNotifications([]);
+    setUnreadCount(0);
+    knownNotificationIdsRef.current = new Set();
+    notifListenerInitializedRef.current = false;
+    return undefined;
+  }
+
+  cleanupOldNotifications(user.uid).catch(() => {});
 
   const q = query(
     collection(db, "notifications"),
-    where("userId", "==", user.uid)
+    or(where("userId", "==", user.uid), where("recipientUid", "==", user.uid))
   );
 
   const unsub = onSnapshot(
@@ -249,7 +466,24 @@ useEffect(() => {
     (snap) => {
       const items = snap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((item) => !isNotificationExpired(item.createdAt))
         .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+      const currentIds = new Set(items.map((item) => item.id));
+      const newUnreadItems = items.filter((item) => !item.read && !knownNotificationIdsRef.current.has(item.id));
+
+      if (notifListenerInitializedRef.current && newUnreadItems.length > 0) {
+        playNotificationSound();
+        const firstItem = newUnreadItems[0];
+        const type = String(firstItem?.type || "").toLowerCase();
+        const isAndroidDevice = /android/i.test(String(window.navigator?.userAgent || ""));
+        if (document.hidden || isAndroidDevice || type.includes("cash-in") || type.includes("deposit") || type.includes("send-money") || type.includes("money")) {
+          showBrowserNotification(firstItem);
+        }
+      }
+
+      knownNotificationIdsRef.current = currentIds;
+      notifListenerInitializedRef.current = true;
       setNotifications(items);
       setUnreadCount(items.filter((n) => !n.read).length);
     },
@@ -261,6 +495,7 @@ useEffect(() => {
 
 const handleOpenNotifications = () => {
   setNotifDrawerOpen(true);
+  void setupFcmForCurrentUser({ requestPermissionIfDefault: true }).catch(() => null);
   // Mark all as read in Firestore
   if (user) {
     notifications
@@ -1330,21 +1565,62 @@ useEffect(() => {
             background: "linear-gradient(150deg, rgba(8,26,62,0.96) 0%, rgba(13,44,102,0.92) 100%)",
             color: "#fff",
             borderLeft: "1px solid rgba(217,233,255,0.18)",
+            display: "flex",
+            flexDirection: "column",
+            height: "100%",
           },
         }}
       >
         {/* Header */}
-        <Box sx={{ background: "rgba(8,31,76,0.82)", borderBottom: "1px solid rgba(217,233,255,0.16)", px: 2.5, pt: 3.5, pb: 2.5 }}>
-          <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.72)", letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700 }}>Inbox</Typography>
-          <Typography sx={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>Notifications</Typography>
-          {unreadCount > 0 && (
-            <Chip label={`${unreadCount} new`} size="small"
-              sx={{ mt: 0.8, backgroundColor: "rgba(255,255,255,0.22)", color: "#fff", fontWeight: 700, fontSize: 11 }} />
-          )}
+        <Box
+          sx={{
+            position: "sticky",
+            top: 0,
+            zIndex: 2,
+            background: "rgba(8,31,76,0.92)",
+            borderBottom: "1px solid rgba(217,233,255,0.16)",
+            px: 2.5,
+            pt: "calc(env(safe-area-inset-top, 0px) + 14px)",
+            pb: 2,
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1.2 }}>
+            <Box>
+              <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.72)", letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700 }}>Inbox</Typography>
+              <Typography sx={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>Notifications</Typography>
+            </Box>
+            {notifications.length > 0 && (
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<DeleteSweepIcon sx={{ fontSize: 16 }} />}
+                onClick={handleDeleteAllNotifications}
+                sx={{
+                  minWidth: 0,
+                  color: "#fff",
+                  borderColor: "rgba(255,255,255,0.24)",
+                  backgroundColor: "rgba(255,255,255,0.08)",
+                  textTransform: "none",
+                  fontWeight: 700,
+                  fontSize: 11,
+                  px: 1.1,
+                }}
+              >
+                Delete all
+              </Button>
+            )}
+          </Box>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mt: 0.8 }}>
+            {unreadCount > 0 && (
+              <Chip label={`${unreadCount} new`} size="small"
+                sx={{ backgroundColor: "rgba(255,255,255,0.22)", color: "#fff", fontWeight: 700, fontSize: 11 }} />
+            )}
+            <Typography sx={{ fontSize: 11, color: "rgba(217,233,255,0.78)" }}>Auto-removes after 1 week</Typography>
+          </Box>
         </Box>
 
         {/* List */}
-        <Box sx={{ flex: 1, overflowY: "auto", p: 0 }}>
+        <Box sx={{ flex: 1, overflowY: "auto", p: 0, minHeight: 0 }}>
           {notifications.length === 0 ? (
             <Box sx={{ py: 8, textAlign: "center" }}>
               <NotificationsNoneIcon sx={{ fontSize: 48, color: "#c2c6d5", mb: 1 }} />
@@ -1371,22 +1647,35 @@ useEffect(() => {
                       display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, mt: 0.2 }}>
                       {icon}
                     </Box>
-                    <Box sx={{ flex: 1 }}>
-                      <Typography sx={{ fontSize: 13, fontWeight: isUnread ? 700 : 600, color: "#ffffff", lineHeight: 1.3 }}>
-                        {n.title || "Notification"}
-                      </Typography>
-                      {n.message && (
-                        <Typography sx={{ fontSize: 12, color: "rgba(217,233,255,0.74)", mt: 0.3, lineHeight: 1.5 }}>
-                          {n.message}
-                        </Typography>
-                      )}
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1 }}>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography sx={{ fontSize: 13, fontWeight: isUnread ? 700 : 600, color: "#ffffff", lineHeight: 1.3 }}>
+                            {n.title || "Notification"}
+                          </Typography>
+                          {n.message && (
+                            <Typography sx={{ fontSize: 12, color: "rgba(217,233,255,0.74)", mt: 0.3, lineHeight: 1.5 }}>
+                              {n.message}
+                            </Typography>
+                          )}
+                        </Box>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.6, ml: 0.5 }}>
+                          {isUnread && (
+                            <Box sx={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#105abf", mt: 0.4, flexShrink: 0 }} />
+                          )}
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDeleteNotification(n.id)}
+                            sx={{ color: "rgba(217,233,255,0.78)", p: 0.4 }}
+                          >
+                            <DeleteOutlineIcon sx={{ fontSize: 18 }} />
+                          </IconButton>
+                        </Box>
+                      </Box>
                       {ts && (
                         <Typography sx={{ fontSize: 10, color: "rgba(217,233,255,0.58)", mt: 0.5, fontWeight: 600 }}>{ts}</Typography>
                       )}
                     </Box>
-                    {isUnread && (
-                      <Box sx={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#105abf", mt: 0.8, flexShrink: 0 }} />
-                    )}
                   </Box>
                   <Divider sx={{ ml: 7 }} />
                 </Box>

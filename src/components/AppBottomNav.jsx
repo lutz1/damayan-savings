@@ -99,6 +99,9 @@ const AppBottomNav = ({ open, onToggleSidebar, layout = "bottom" }) => {
     navItems = [
       { label: "Dashboard", value: "/admin/dashboard", icon: <DashboardIcon /> },
       { label: "Paybacks", value: "/admin/payback-entries", icon: <SavingsIcon /> },
+      ...(upperRole === "SUPERADMIN"
+        ? [{ label: "Capital Share Entries", value: "/admin/capital-share-entries-management", icon: <SavingsIcon /> }]
+        : []),
       { label: "Codes", value: "/admin/generate-codes", icon: <MonetizationOnIcon /> },
       { label: "Users", value: "/admin/user-management", icon: <PieChartIcon /> },
       { label: "Merchants", value: "merchants-menu", icon: <MerchantIcon />, isMenu: true },
@@ -252,7 +255,12 @@ const AppBottomNav = ({ open, onToggleSidebar, layout = "bottom" }) => {
                 <ListItemIcon sx={{ color: "inherit", minWidth: 36 }}>{renderItemIcon(item)}</ListItemIcon>
                 <ListItemText
                   primary={item.label}
-                  primaryTypographyProps={{ fontSize: 14, fontWeight: isSelected ? 700 : 500 }}
+                  primaryTypographyProps={{
+                    fontSize: 13.5,
+                    fontWeight: isSelected ? 700 : 500,
+                    whiteSpace: "normal",
+                    lineHeight: 1.25,
+                  }}
                 />
               </ListItemButton>
             );

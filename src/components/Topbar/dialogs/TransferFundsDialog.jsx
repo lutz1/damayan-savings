@@ -25,7 +25,8 @@ import {
   Slide,
   InputAdornment,
 } from "@mui/material";
-import { Send, CheckCircle, QrCode2, Share, Search as SearchIcon } from "@mui/icons-material";
+import { Send, CheckCircle, QrCode2, Share, Search as SearchIcon, UploadFile as UploadFileIcon, QrCodeScanner as QrCodeScannerIcon } from "@mui/icons-material";
+import jsQR from "jsqr";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import DownloadIcon from "@mui/icons-material/Download";
@@ -38,7 +39,6 @@ import {
   getDocs,
   limit,
 } from "firebase/firestore";
-import { sendTransferNotification } from "../../../utils/notifications";
 import { getUserAvatarInitial, getUserAvatarUrl } from "../../../utils/userAvatar";
 
 const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) => {
@@ -59,6 +59,15 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
   const [clientRequestId, setClientRequestId] = useState(null);
   const [sendMode, setSendMode] = useState("express");
   const [qrAmount, setQrAmount] = useState("");
+  const [showMyQrCard, setShowMyQrCard] = useState(false);
+  const [qrScanningUpload, setQrScanningUpload] = useState(false);
+  const [qrCameraReady, setQrCameraReady] = useState(false);
+  const [scanToPayStatus, setScanToPayStatus] = useState("Align the QR code inside the frame.");
+  const qrUploadInputRef = useRef(null);
+  const qrVideoRef = useRef(null);
+  const qrCanvasRef = useRef(null);
+  const qrAnimationFrameRef = useRef(null);
+  const qrStreamRef = useRef(null);
   // 🎯 NEW STATE FOR EXPRESS SEND STEP FLOW
   const [expressStep, setExpressStep] = useState(0); // 0=mode, 1=recipient, 2=amount, 3=review, 4=receipt
   const [messageText, setMessageText] = useState("");
@@ -180,8 +189,30 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
     }
 
     if (sendMode === "qr") {
+      if (showMyQrCard) {
+        setShowMyQrCard(false);
+        setError("");
+        setScanToPayStatus("Align the QR code inside the frame.");
+        return;
+      }
+
+      if (qrAnimationFrameRef.current) {
+        cancelAnimationFrame(qrAnimationFrameRef.current);
+        qrAnimationFrameRef.current = null;
+      }
+      if (qrStreamRef.current) {
+        qrStreamRef.current.getTracks().forEach((track) => track.stop());
+        qrStreamRef.current = null;
+      }
+      if (qrVideoRef.current) {
+        qrVideoRef.current.srcObject = null;
+      }
+      setQrCameraReady(false);
+      setScanToPayStatus("Align the QR code inside the frame.");
       setSendMode("express");
       setQrAmount("");
+      setShowMyQrCard(false);
+      setError("");
       setExpressStep(0);
       return;
     }
@@ -288,12 +319,6 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
         throw new Error(data.error || "Transfer failed");
       }
 
-      await sendTransferNotification({
-        userId: auth.currentUser.uid,
-        amount: numAmount,
-        recipientUsername,
-      });
-
       // Update local balance
       if (onBalanceUpdate) onBalanceUpdate(data.newBalance);
 
@@ -361,12 +386,6 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
         throw new Error(data.error || "Transfer failed");
       }
 
-      await sendTransferNotification({
-        userId: auth.currentUser.uid,
-        amount: numAmount,
-        recipientUsername,
-      });
-
       // Update local balance
       if (onBalanceUpdate) onBalanceUpdate(data.newBalance);
 
@@ -411,8 +430,12 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
     setReceiptDialog(false);
     setReceiptData(null);
     setClientRequestId(null);
+    stopQrScanner();
     setSendMode("express");
     setQrAmount("");
+    setShowMyQrCard(false);
+    setQrScanningUpload(false);
+    setScanToPayStatus("Align the QR code inside the frame.");
     setExpressStep(0); // 🎯 Reset Express Send step
     setMessageText(""); // 🎯 Reset message text
     setConfirmReview(false); // 🎯 Reset confirmation checkbox
@@ -510,6 +533,229 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
         alert("QR link copied. You can now paste and share it.");
       }
     } catch (_) {}
+  };
+
+  const stopQrScanner = () => {
+    if (qrAnimationFrameRef.current) {
+      cancelAnimationFrame(qrAnimationFrameRef.current);
+      qrAnimationFrameRef.current = null;
+    }
+
+    if (qrStreamRef.current) {
+      qrStreamRef.current.getTracks().forEach((track) => track.stop());
+      qrStreamRef.current = null;
+    }
+
+    if (qrVideoRef.current) {
+      qrVideoRef.current.srcObject = null;
+    }
+
+    setQrCameraReady(false);
+  };
+
+  const parseScanToPayPayload = (rawValue) => {
+    const raw = String(rawValue || "").trim();
+    if (!raw) return null;
+
+    try {
+      const parsed = JSON.parse(raw);
+      const user = parsed?.user || parsed?.username || parsed?.recipient;
+      if (user) {
+        return {
+          user: String(user).trim(),
+          amount: Number(parsed?.amount || 0) > 0 ? Number(parsed.amount) : "",
+        };
+      }
+    } catch (_) {}
+
+    try {
+      const url = new URL(raw);
+      const user = url.searchParams.get("user") || url.searchParams.get("username") || url.searchParams.get("recipient");
+      const qrRequestedAmount = Number(url.searchParams.get("amount") || 0);
+      if (user) {
+        return {
+          user: String(user).trim(),
+          amount: qrRequestedAmount > 0 ? qrRequestedAmount : "",
+        };
+      }
+    } catch (_) {}
+
+    const taggedUserMatch = raw.match(/@([a-zA-Z0-9._-]+)/);
+    if (taggedUserMatch) {
+      return { user: taggedUserMatch[1], amount: "" };
+    }
+
+    const labelledUserMatch = raw.match(/(?:user|username|recipient)\s*[:=]\s*([a-zA-Z0-9._-]+)/i);
+    if (labelledUserMatch) {
+      return { user: labelledUserMatch[1], amount: "" };
+    }
+
+    return null;
+  };
+
+  const applyScanToPayPayload = (rawValue) => {
+    const payload = parseScanToPayPayload(rawValue);
+    if (!payload?.user) {
+      setError("Unsupported QR code. Please scan a valid Damayan payment code.");
+      setScanToPayStatus("Unsupported QR code detected.");
+      return false;
+    }
+
+    stopQrScanner();
+    setRecipientUsername(payload.user);
+    setAmount(payload.amount ? String(payload.amount) : "");
+    setSearchResults([]);
+    setShowResults(false);
+    setShowMyQrCard(false);
+    setError("");
+    setScanToPayStatus("QR detected. Opening payment details...");
+    setSendMode("express");
+    setExpressStep(2);
+    return true;
+  };
+
+  useEffect(() => {
+    if (!open || sendMode !== "qr" || showMyQrCard) {
+      stopQrScanner();
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const startQrScanner = async () => {
+      setError("");
+      setScanToPayStatus("Starting camera...");
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setScanToPayStatus("Camera scanning is not supported on this device. Use Upload instead.");
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: "environment" },
+          },
+          audio: false,
+        });
+
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
+        qrStreamRef.current = stream;
+        const videoEl = qrVideoRef.current;
+        if (!videoEl) return;
+
+        videoEl.srcObject = stream;
+        await videoEl.play().catch(() => {});
+        setQrCameraReady(true);
+        setScanToPayStatus("Align the QR code inside the frame.");
+
+        const scanFrame = () => {
+          if (cancelled) return;
+
+          const video = qrVideoRef.current;
+          if (!video || video.readyState < 2) {
+            qrAnimationFrameRef.current = requestAnimationFrame(scanFrame);
+            return;
+          }
+
+          const canvas = qrCanvasRef.current || document.createElement("canvas");
+          qrCanvasRef.current = canvas;
+          const ctx = canvas.getContext("2d", { willReadFrequently: true });
+          if (!ctx) {
+            qrAnimationFrameRef.current = requestAnimationFrame(scanFrame);
+            return;
+          }
+
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const scannedCode = jsQR(imageData.data, imageData.width, imageData.height);
+
+          if (scannedCode?.data && applyScanToPayPayload(scannedCode.data)) {
+            return;
+          }
+
+          qrAnimationFrameRef.current = requestAnimationFrame(scanFrame);
+        };
+
+        qrAnimationFrameRef.current = requestAnimationFrame(scanFrame);
+      } catch (err) {
+        console.error("Failed to start QR scanner:", err);
+        setQrCameraReady(false);
+        setError("Camera access is blocked. Please allow camera permission or use Upload.");
+        setScanToPayStatus("Allow camera access to scan live QR codes.");
+      }
+    };
+
+    startQrScanner();
+
+    return () => {
+      cancelled = true;
+      stopQrScanner();
+    };
+  }, [open, sendMode, showMyQrCard]);
+
+  const handleQrImageUpload = async (event) => {
+    const file = event?.target?.files?.[0];
+    if (!file) return;
+
+    setQrScanningUpload(true);
+    setError("");
+
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error("Failed to read the uploaded QR image."));
+        reader.readAsDataURL(file);
+      });
+
+      const image = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("Failed to load the uploaded QR image."));
+        img.src = dataUrl;
+      });
+
+      const canvas = document.createElement("canvas");
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Unable to scan this QR image right now.");
+
+      ctx.drawImage(image, 0, 0);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const scanned = jsQR(imageData.data, imageData.width, imageData.height);
+
+      if (!scanned?.data) {
+        throw new Error("No valid QR code was found in the uploaded image.");
+      }
+
+      let parsedPayload = null;
+      try {
+        parsedPayload = JSON.parse(scanned.data);
+      } catch {
+        parsedPayload = null;
+      }
+
+      if (!parsedPayload?.user) {
+        throw new Error("The uploaded QR is not a valid Damayan payment code.");
+      }
+
+      applyScanToPayPayload(scanned.data);
+    } catch (err) {
+      setError(err?.message || "Failed to scan the uploaded QR image.");
+    } finally {
+      setQrScanningUpload(false);
+      if (event?.target) {
+        event.target.value = "";
+      }
+    }
   };
 
   const buildReceiptCanvas = () => {
@@ -741,7 +987,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
       {/* 🔹 MAIN SEND DRAWER WITH ANIMATION */}
       <Drawer
         anchor="right"
-        open={open}
+        open={open && sendMode !== "qr"}
         onClose={handleClose}
         ModalProps={{ keepMounted: true }}
         transitionDuration={{ enter: 360, exit: 260 }}
@@ -921,7 +1167,11 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
                     </Paper>
 
                     <Paper
-                      onClick={() => setSendMode("qr")}
+                      onClick={() => {
+                        setSendMode("qr");
+                        setShowMyQrCard(false);
+                        setError("");
+                      }}
                       sx={{
                         p: 1.5,
                         minHeight: 132,
@@ -949,7 +1199,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
                         Scan To Pay
                       </Typography>
                       <Typography sx={{ fontSize: 11, color: "rgba(220,232,255,0.72)", mt: 0.55 }}>
-                        Generate QR
+                        Scan or share QR
                       </Typography>
                     </Paper>
                   </Box>
@@ -1818,83 +2068,245 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
                   </Fade>
                 )}
 
-                {/* 🎯 GENERATE QR MODE */}
+                {/* 🎯 SCAN TO PAY MODE */}
                 {sendMode === "qr" && (
                   <Fade in={sendMode === "qr"} timeout={300}>
                     <Box>
-                      <Divider sx={{ my: 2, borderColor: "#e4e8f0" }} />
-                      <Typography sx={{ fontSize: 12, color: "#556070", mb: 1, fontWeight: 700 }}>
-                        Request money
-                      </Typography>
-                      <Box sx={{ display: "flex", justifyContent: "center", mb: 1.2 }}>
+                      <Box
+                        sx={{
+                          mb: 1.4,
+                          borderRadius: 3,
+                          px: 1.8,
+                          py: 1.5,
+                          textAlign: "center",
+                          background: "linear-gradient(180deg, rgba(30,35,45,0.94) 0%, rgba(20,26,36,0.94) 100%)",
+                          border: "1px solid rgba(255,255,255,0.08)",
+                          boxShadow: "0 10px 24px rgba(2,10,24,0.24)",
+                        }}
+                      >
+                        <Typography sx={{ fontSize: 16, fontWeight: 800, color: "#ffffff", mb: 0.35 }}>
+                          Align QR Code
+                        </Typography>
+                        <Typography sx={{ fontSize: 11.5, lineHeight: 1.5, color: "rgba(220,232,255,0.72)" }}>
+                          Scan a merchant&apos;s QR code to proceed with your payment securely.
+                        </Typography>
+                      </Box>
+
+                      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 1.1, mb: 1.4 }}>
+                        <Paper
+                          onClick={() => qrUploadInputRef.current?.click()}
+                          sx={{
+                            p: 1.35,
+                            borderRadius: 2.4,
+                            cursor: "pointer",
+                            background: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(242,246,255,0.98) 100%)",
+                            border: "1px solid rgba(138,199,255,0.16)",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            textAlign: "center",
+                            minHeight: 88,
+                          }}
+                        >
+                          <Box sx={{ width: 34, height: 34, borderRadius: 1.8, backgroundColor: "rgba(16,90,191,0.10)", display: "flex", alignItems: "center", justifyContent: "center", mb: 0.6 }}>
+                            <UploadFileIcon sx={{ color: "#105abf", fontSize: 20 }} />
+                          </Box>
+                          <Typography sx={{ fontSize: 12, fontWeight: 800, color: "#23314d" }}>UPLOAD</Typography>
+                        </Paper>
+
+                        <Paper
+                          onClick={() => setShowMyQrCard(true)}
+                          sx={{
+                            p: 1.35,
+                            borderRadius: 2.4,
+                            cursor: "pointer",
+                            background: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(242,246,255,0.98) 100%)",
+                            border: "1px solid rgba(138,199,255,0.16)",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            textAlign: "center",
+                            minHeight: 88,
+                          }}
+                        >
+                          <Box sx={{ width: 34, height: 34, borderRadius: 1.8, backgroundColor: "rgba(16,90,191,0.10)", display: "flex", alignItems: "center", justifyContent: "center", mb: 0.6 }}>
+                            <QrCode2 sx={{ color: "#105abf", fontSize: 20 }} />
+                          </Box>
+                          <Typography sx={{ fontSize: 12, fontWeight: 800, color: "#23314d" }}>MY CODE</Typography>
+                        </Paper>
+                      </Box>
+
+                      <input
+                        ref={qrUploadInputRef}
+                        type="file"
+                        accept="image/*"
+                        hidden
+                        onChange={handleQrImageUpload}
+                      />
+
+                      <Box
+                        sx={{
+                          position: "relative",
+                          minHeight: 320,
+                          borderRadius: 3.2,
+                          overflow: "hidden",
+                          background: "radial-gradient(circle at center, rgba(42,55,84,0.78) 0%, rgba(11,16,24,0.98) 58%, rgba(4,7,12,1) 100%)",
+                          border: "1px solid rgba(138,199,255,0.16)",
+                          boxShadow: "inset 0 24px 60px rgba(255,255,255,0.04), 0 18px 34px rgba(2,10,24,0.30)",
+                          mb: 1.4,
+                        }}
+                      >
                         <Box
                           sx={{
-                            width: 220,
-                            height: 220,
-                            borderRadius: 2,
-                            backgroundColor: "#fff",
+                            position: "absolute",
+                            inset: "12% 14%",
+                            borderRadius: "50%",
+                            border: "1px solid rgba(255,255,255,0.10)",
+                            boxShadow: "inset 0 0 0 16px rgba(255,255,255,0.03), inset 0 0 28px rgba(0,0,0,0.45)",
+                          }}
+                        />
+                        <Box
+                          sx={{
+                            position: "absolute",
+                            inset: "21% 23%",
+                            borderRadius: "50%",
+                            border: "1px solid rgba(255,255,255,0.08)",
+                            boxShadow: "0 0 40px rgba(0,0,0,0.26)",
+                          }}
+                        />
+                        <Box
+                          sx={{
+                            position: "absolute",
+                            top: "48%",
+                            left: "50%",
+                            transform: "translate(-50%, -50%)",
+                            width: 42,
+                            height: 42,
+                            borderRadius: 999,
+                            backgroundColor: "rgba(255,255,255,0.14)",
+                            backdropFilter: "blur(10px)",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            p: 1,
+                            border: "1px solid rgba(255,255,255,0.16)",
                           }}
                         >
-                          <img src={qrImageUrl} alt="My QR" width={200} height={200} />
+                          {qrScanningUpload ? <CircularProgress size={18} sx={{ color: "#fff" }} /> : <QrCodeScannerIcon sx={{ color: "#fff", fontSize: 22 }} />}
+                        </Box>
+
+                        {[
+                          { left: 18, top: 18, borderLeft: "3px solid #0d7fff", borderTop: "3px solid #0d7fff" },
+                          { right: 18, top: 18, borderRight: "3px solid #0d7fff", borderTop: "3px solid #0d7fff" },
+                          { left: 18, bottom: 18, borderLeft: "3px solid #0d7fff", borderBottom: "3px solid #0d7fff" },
+                          { right: 18, bottom: 18, borderRight: "3px solid #0d7fff", borderBottom: "3px solid #0d7fff" },
+                        ].map((corner, index) => (
+                          <Box
+                            key={index}
+                            sx={{
+                              position: "absolute",
+                              width: 22,
+                              height: 22,
+                              borderRadius: 0.6,
+                              ...corner,
+                            }}
+                          />
+                        ))}
+
+                        <Box
+                          sx={{
+                            position: "absolute",
+                            left: 14,
+                            right: 14,
+                            bottom: 12,
+                            px: 1.2,
+                            py: 0.9,
+                            borderRadius: 2,
+                            backgroundColor: "rgba(7,12,22,0.58)",
+                            backdropFilter: "blur(10px)",
+                          }}
+                        >
+                          <Typography sx={{ fontSize: 11, color: "rgba(220,232,255,0.86)", textAlign: "center" }}>
+                            {qrScanningUpload ? "Scanning uploaded QR image..." : "Point your camera at a merchant QR code or upload a screenshot."}
+                          </Typography>
                         </Box>
                       </Box>
 
-                      <Typography sx={{ textAlign: "center", color: "#4FC3F7", fontWeight: 700, mb: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 0.5 }}>
-                        <QrCode2 fontSize="small" /> My QR
-                      </Typography>
+                      {showMyQrCard && (
+                        <Box sx={{ background: "rgba(255,255,255,0.98)", borderRadius: 2.6, p: 1.5, border: "1px solid #dbe2ef", boxShadow: "0 14px 28px rgba(6,18,45,0.12)" }}>
+                          <Typography sx={{ textAlign: "center", color: "#105abf", fontWeight: 800, mb: 1.1, display: "flex", alignItems: "center", justifyContent: "center", gap: 0.5 }}>
+                            <QrCode2 fontSize="small" /> My QR Code
+                          </Typography>
 
-                      <Box sx={{ background: "#fff", borderRadius: 2, p: 1.5, mb: 1.5, border: "1px solid #dbe2ef" }}>
-                        <Typography variant="body2" sx={{ color: "#243042", mb: 0.5 }}>
-                          Display Name: {safeUserData.name || "-"}
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: "#243042", mb: 0.5 }}>
-                          Mobile No.: {safeUserData.contactNumber || safeUserData.mobileNo || safeUserData.phoneNumber || "-"}
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: "#243042" }}>
-                          User: @{safeUserData.username || "-"}
-                        </Typography>
-                      </Box>
+                          <Box sx={{ display: "flex", justifyContent: "center", mb: 1.2 }}>
+                            <Box
+                              sx={{
+                                width: 220,
+                                height: 220,
+                                borderRadius: 2,
+                                backgroundColor: "#fff",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                p: 1,
+                                border: "1px solid #dbe2ef",
+                              }}
+                            >
+                              <img src={qrImageUrl} alt="My QR" width={200} height={200} />
+                            </Box>
+                          </Box>
 
-                      <TextField
-                        type="number"
-                        fullWidth
-                        label="Add an amount"
-                        value={qrAmount}
-                        onChange={(e) => setQrAmount(e.target.value)}
-                        helperText="Specify an amount upon scanning your QR code"
-                        sx={{
-                          mb: 1,
-                          "& .MuiInputBase-root": { color: "#1f2430", backgroundColor: "#fff" },
-                          "& .MuiInputLabel-root": { color: "#6a7280" },
-                          "& .MuiFormHelperText-root": { color: "#6f7785" },
-                          "& .MuiOutlinedInput-notchedOutline": { borderColor: "#d8deea" },
-                        }}
-                      />
+                          <Box sx={{ background: "#f6f9ff", borderRadius: 2, p: 1.4, mb: 1.2, border: "1px solid rgba(16,90,191,0.10)" }}>
+                            <Typography variant="body2" sx={{ color: "#243042", mb: 0.45 }}>
+                              Display Name: {safeUserData.name || "-"}
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: "#243042", mb: 0.45 }}>
+                              Mobile No.: {safeUserData.contactNumber || safeUserData.mobileNo || safeUserData.phoneNumber || "-"}
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: "#243042" }}>
+                              User: @{safeUserData.username || "-"}
+                            </Typography>
+                          </Box>
 
-                      <Box sx={{ display: "flex", gap: 1, mt: 1.5 }}>
-                        <Button
-                          fullWidth
-                          onClick={handleDownloadMyQr}
-                          variant="outlined"
-                          startIcon={<DownloadIcon />}
-                          sx={{ color: "#4FC3F7", borderColor: "rgba(79,195,247,0.5)" }}
-                        >
-                          Download
-                        </Button>
-                        <Button
-                          fullWidth
-                          onClick={handleShareMyQr}
-                          variant="outlined"
-                          startIcon={<Share />}
-                          sx={{ color: "#4FC3F7", borderColor: "rgba(79,195,247,0.5)" }}
-                        >
-                          Share QR
-                        </Button>
-                      </Box>
+                          <TextField
+                            type="number"
+                            fullWidth
+                            label="Add an amount"
+                            value={qrAmount}
+                            onChange={(e) => setQrAmount(e.target.value)}
+                            helperText="Specify an amount when someone scans your code"
+                            sx={{
+                              mb: 1,
+                              "& .MuiInputBase-root": { color: "#1f2430", backgroundColor: "#fff" },
+                              "& .MuiInputLabel-root": { color: "#6a7280" },
+                              "& .MuiFormHelperText-root": { color: "#6f7785" },
+                              "& .MuiOutlinedInput-notchedOutline": { borderColor: "#d8deea" },
+                            }}
+                          />
+
+                          <Box sx={{ display: "flex", gap: 1, mt: 1.2 }}>
+                            <Button
+                              fullWidth
+                              onClick={handleDownloadMyQr}
+                              variant="outlined"
+                              startIcon={<DownloadIcon />}
+                              sx={{ color: "#105abf", borderColor: "rgba(16,90,191,0.34)", textTransform: "none", fontWeight: 700 }}
+                            >
+                              Download
+                            </Button>
+                            <Button
+                              fullWidth
+                              onClick={handleShareMyQr}
+                              variant="outlined"
+                              startIcon={<Share />}
+                              sx={{ color: "#105abf", borderColor: "rgba(16,90,191,0.34)", textTransform: "none", fontWeight: 700 }}
+                            >
+                              Share QR
+                            </Button>
+                          </Box>
+                        </Box>
+                      )}
                     </Box>
                   </Fade>
                 )}
@@ -1902,7 +2314,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
             )}
 
             {/* 📜 Logs - Show only in QR view */}
-            {sendMode === "qr" && transferLogs.length > 0 && (
+            {sendMode === "qr" && showMyQrCard && transferLogs.length > 0 && (
               <>
                 <Divider sx={{ my: 2, borderColor: "#e4e8f0" }} />
                 <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 700, color: "#105abf" }}>
@@ -2000,6 +2412,381 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
           )}
         </Box>
       </Box>
+      </Drawer>
+
+      <Drawer
+        anchor="right"
+        open={open && sendMode === "qr"}
+        onClose={handleSendBack}
+        ModalProps={{ keepMounted: true }}
+        transitionDuration={{ enter: 360, exit: 260 }}
+        slotProps={{
+          backdrop: {
+            sx: {
+              backgroundColor: "rgba(0, 0, 0, 0.46)",
+            },
+          },
+        }}
+        PaperProps={{
+          sx: {
+            width: { xs: "100%", sm: 430 },
+            maxWidth: "100%",
+            background: "linear-gradient(180deg, #03070c 0%, #060b12 56%, #02050a 100%)",
+            color: "#f8fbff",
+            borderLeft: "1px solid rgba(24,128,255,0.18)",
+            overflow: "hidden",
+          },
+        }}
+      >
+        <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+          <Box
+            sx={{
+              minHeight: 70,
+              px: 1,
+              pt: "calc(env(safe-area-inset-top, 0px) + 10px)",
+              pb: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              color: "#fff",
+              background: "linear-gradient(135deg, rgba(6,19,46,0.98) 0%, rgba(13,47,118,0.96) 58%, rgba(37,101,214,0.90) 100%)",
+              borderBottom: "1px solid rgba(138,199,255,0.16)",
+            }}
+          >
+            <IconButton onClick={handleSendBack} sx={{ color: "#fff" }}>
+              <ArrowBackIosNewIcon />
+            </IconButton>
+            <Typography sx={{ fontSize: 18, fontWeight: 800, letterSpacing: 0.1 }}>
+              {showMyQrCard ? "My Code" : "ScantoPay"}
+            </Typography>
+            <IconButton
+              onClick={() => setInfoDialogOpen(true)}
+              sx={{
+                color: "#fff",
+                backgroundColor: "rgba(138,199,255,0.12)",
+                border: "1px solid rgba(138,199,255,0.20)",
+                "&:hover": { backgroundColor: "rgba(138,199,255,0.20)" },
+              }}
+            >
+              <InfoOutlinedIcon />
+            </IconButton>
+          </Box>
+
+          <Box sx={{ flex: 1, overflowY: "auto", px: 1.1, py: 1.2 }}>
+            {error && (
+              <Alert
+                severity="error"
+                sx={{
+                  mb: 1.2,
+                  backgroundColor: "rgba(239,54,54,0.12)",
+                  color: "#ffc9c9",
+                  border: "1px solid rgba(239,54,54,0.18)",
+                }}
+              >
+                {error}
+              </Alert>
+            )}
+
+            <input
+              ref={qrUploadInputRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={handleQrImageUpload}
+            />
+
+            {showMyQrCard ? (
+              <Box>
+                <Box
+                  sx={{
+                    mb: 1.15,
+                    borderRadius: 2.6,
+                    px: 1.7,
+                    py: 1.45,
+                    textAlign: "center",
+                    background: "linear-gradient(180deg, rgba(10,13,18,0.96) 0%, rgba(16,22,30,0.96) 100%)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    boxShadow: "0 10px 24px rgba(2,10,24,0.24)",
+                  }}
+                >
+                  <Typography sx={{ fontSize: 15.5, fontWeight: 800, color: "#ffffff", mb: 0.3 }}>
+                    Receive with My Code
+                  </Typography>
+                  <Typography sx={{ fontSize: 11.2, lineHeight: 1.45, color: "rgba(220,232,255,0.70)" }}>
+                    Show this personal QR in its own screen so others can scan and send funds to you.
+                  </Typography>
+                </Box>
+
+                <Box sx={{ background: "rgba(255,255,255,0.98)", borderRadius: 2.8, p: 1.5, border: "1px solid #dbe2ef", boxShadow: "0 14px 28px rgba(6,18,45,0.12)" }}>
+                  <Typography sx={{ textAlign: "center", color: "#105abf", fontWeight: 800, mb: 1.1, display: "flex", alignItems: "center", justifyContent: "center", gap: 0.5 }}>
+                    <QrCode2 fontSize="small" /> My QR Code
+                  </Typography>
+
+                  <Box sx={{ display: "flex", justifyContent: "center", mb: 1.2 }}>
+                    <Box
+                      sx={{
+                        width: 240,
+                        height: 240,
+                        borderRadius: 2.4,
+                        backgroundColor: "#fff",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        p: 1,
+                        border: "1px solid #dbe2ef",
+                        boxShadow: "0 10px 20px rgba(16,90,191,0.08)",
+                      }}
+                    >
+                      <img src={qrImageUrl} alt="My QR" width={216} height={216} />
+                    </Box>
+                  </Box>
+
+                  <Box sx={{ background: "#f6f9ff", borderRadius: 2, p: 1.4, mb: 1.2, border: "1px solid rgba(16,90,191,0.10)" }}>
+                    <Typography variant="body2" sx={{ color: "#243042", mb: 0.45 }}>
+                      Display Name: {safeUserData.name || "-"}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: "#243042", mb: 0.45 }}>
+                      Mobile No.: {safeUserData.contactNumber || safeUserData.mobileNo || safeUserData.phoneNumber || "-"}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: "#243042" }}>
+                      User: @{safeUserData.username || "-"}
+                    </Typography>
+                  </Box>
+
+                  <TextField
+                    type="number"
+                    fullWidth
+                    label="Add an amount"
+                    value={qrAmount}
+                    onChange={(e) => setQrAmount(e.target.value)}
+                    helperText="Specify an amount when someone scans your code"
+                    sx={{
+                      mb: 1.2,
+                      "& .MuiInputBase-root": { color: "#1f2430", backgroundColor: "#fff" },
+                      "& .MuiInputLabel-root": { color: "#6a7280" },
+                      "& .MuiFormHelperText-root": { color: "#6f7785" },
+                      "& .MuiOutlinedInput-notchedOutline": { borderColor: "#d8deea" },
+                    }}
+                  />
+
+                  <Box sx={{ display: "flex", gap: 1, mt: 1.2 }}>
+                    <Button
+                      fullWidth
+                      onClick={handleShareMyQr}
+                      variant="contained"
+                      startIcon={<Share />}
+                      sx={{ bgcolor: "#105abf", textTransform: "none", fontWeight: 700, "&:hover": { bgcolor: "#0b4eaa" } }}
+                    >
+                      SHARE QR
+                    </Button>
+                    <Button
+                      fullWidth
+                      onClick={handleDownloadMyQr}
+                      variant="outlined"
+                      startIcon={<DownloadIcon />}
+                      sx={{ color: "#105abf", borderColor: "rgba(16,90,191,0.34)", textTransform: "none", fontWeight: 700 }}
+                    >
+                      SAVE IMAGE
+                    </Button>
+                  </Box>
+
+                  <Button
+                    fullWidth
+                    onClick={() => setShowMyQrCard(false)}
+                    sx={{ mt: 1, color: "#105abf", textTransform: "none", fontWeight: 700 }}
+                  >
+                    Back to Scanner
+                  </Button>
+                </Box>
+              </Box>
+            ) : (
+              <>
+                <Box
+                  sx={{
+                    mb: 1.15,
+                    borderRadius: 2.6,
+                    px: 1.7,
+                    py: 1.45,
+                    textAlign: "center",
+                    background: "linear-gradient(180deg, rgba(10,13,18,0.96) 0%, rgba(16,22,30,0.96) 100%)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    boxShadow: "0 10px 24px rgba(2,10,24,0.24)",
+                  }}
+                >
+                  <Typography sx={{ fontSize: 15.5, fontWeight: 800, color: "#ffffff", mb: 0.3 }}>
+                    Align QR Code
+                  </Typography>
+                  <Typography sx={{ fontSize: 11.2, lineHeight: 1.45, color: "rgba(220,232,255,0.70)" }}>
+                    Securely scan a merchant QR code to complete your payment instantly.
+                  </Typography>
+                </Box>
+
+                <Box
+                  sx={{
+                    position: "relative",
+                    minHeight: 420,
+                    borderRadius: 3,
+                    overflow: "hidden",
+                    background: "radial-gradient(circle at center, rgba(42,55,84,0.55) 0%, rgba(10,16,24,0.94) 52%, rgba(2,5,10,1) 100%)",
+                    border: "1px solid rgba(24,128,255,0.18)",
+                    boxShadow: "inset 0 24px 60px rgba(255,255,255,0.04), 0 18px 34px rgba(2,10,24,0.30)",
+                  }}
+                >
+                  <video
+                    ref={qrVideoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      opacity: qrCameraReady ? 0.88 : 0,
+                    }}
+                  />
+
+                  {!qrCameraReady && (
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        inset: 0,
+                        background: "radial-gradient(circle at center, rgba(52,62,84,0.34) 0%, rgba(15,20,28,0.88) 56%, rgba(2,5,10,1) 100%)",
+                      }}
+                    />
+                  )}
+
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      inset: 0,
+                      background: "linear-gradient(180deg, rgba(0,0,0,0.26) 0%, rgba(0,0,0,0.08) 38%, rgba(0,0,0,0.42) 100%)",
+                    }}
+                  />
+
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      top: 30,
+                      left: 14,
+                      right: 14,
+                      display: "grid",
+                      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                      gap: 1.1,
+                    }}
+                  >
+                    <Paper
+                      onClick={() => qrUploadInputRef.current?.click()}
+                      sx={{
+                        p: 1.3,
+                        borderRadius: 2.4,
+                        cursor: "pointer",
+                        background: "linear-gradient(180deg, rgba(42,42,42,0.96) 0%, rgba(36,36,36,0.94) 100%)",
+                        border: "1px solid rgba(255,255,255,0.10)",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        textAlign: "center",
+                        minHeight: 82,
+                        boxShadow: "0 12px 24px rgba(0,0,0,0.22)",
+                      }}
+                    >
+                      <Box sx={{ width: 34, height: 34, borderRadius: 1.8, backgroundColor: "#1764d8", display: "flex", alignItems: "center", justifyContent: "center", mb: 0.7 }}>
+                        <UploadFileIcon sx={{ color: "#fff", fontSize: 19 }} />
+                      </Box>
+                      <Typography sx={{ fontSize: 11.5, fontWeight: 800, color: "#f5f7fb", letterSpacing: 0.4 }}>UPLOAD</Typography>
+                    </Paper>
+
+                    <Paper
+                      onClick={() => setShowMyQrCard(true)}
+                      sx={{
+                        p: 1.3,
+                        borderRadius: 2.4,
+                        cursor: "pointer",
+                        background: "linear-gradient(180deg, rgba(42,42,42,0.96) 0%, rgba(36,36,36,0.94) 100%)",
+                        border: "1px solid rgba(255,255,255,0.10)",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        textAlign: "center",
+                        minHeight: 82,
+                        boxShadow: "0 12px 24px rgba(0,0,0,0.22)",
+                      }}
+                    >
+                      <Box sx={{ width: 34, height: 34, borderRadius: 1.8, backgroundColor: "#1764d8", display: "flex", alignItems: "center", justifyContent: "center", mb: 0.7 }}>
+                        <QrCode2 sx={{ color: "#fff", fontSize: 19 }} />
+                      </Box>
+                      <Typography sx={{ fontSize: 11.5, fontWeight: 800, color: "#f5f7fb", letterSpacing: 0.4 }}>MY CODE</Typography>
+                    </Paper>
+                  </Box>
+
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      left: 18,
+                      right: 18,
+                      bottom: 58,
+                      height: 3,
+                      borderRadius: 999,
+                      background: "linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,122,255,0.95) 18%, rgba(0,122,255,1) 50%, rgba(0,122,255,0.95) 82%, rgba(0,0,0,0) 100%)",
+                      boxShadow: "0 0 16px rgba(0,122,255,0.86)",
+                      animation: "scanSweep 2.2s ease-in-out infinite",
+                      "@keyframes scanSweep": {
+                        "0%": { transform: "translateY(-96px)", opacity: 0.72 },
+                        "50%": { transform: "translateY(0px)", opacity: 1 },
+                        "100%": { transform: "translateY(-96px)", opacity: 0.72 },
+                      },
+                    }}
+                  />
+
+                  {[
+                    { left: 18, bottom: 40, borderLeft: "3px solid #007aff", borderBottom: "3px solid #007aff" },
+                    { right: 18, bottom: 40, borderRight: "3px solid #007aff", borderBottom: "3px solid #007aff" },
+                  ].map((corner, index) => (
+                    <Box
+                      key={index}
+                      sx={{
+                        position: "absolute",
+                        width: 22,
+                        height: 22,
+                        borderRadius: 0.5,
+                        ...corner,
+                      }}
+                    />
+                  ))}
+
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      left: "50%",
+                      bottom: 24,
+                      transform: "translateX(-50%)",
+                      width: 42,
+                      height: 42,
+                      borderRadius: 999,
+                      backgroundColor: "rgba(255,255,255,0.16)",
+                      backdropFilter: "blur(10px)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      border: "1px solid rgba(255,255,255,0.18)",
+                      boxShadow: "0 8px 18px rgba(0,0,0,0.26)",
+                    }}
+                  >
+                    {qrScanningUpload ? <CircularProgress size={18} sx={{ color: "#fff" }} /> : <QrCodeScannerIcon sx={{ color: "#fff", fontSize: 22 }} />}
+                  </Box>
+                </Box>
+
+                <Typography sx={{ mt: 1.1, px: 0.6, textAlign: "center", fontSize: 11, color: "rgba(220,232,255,0.82)" }}>
+                  {qrScanningUpload ? "Scanning uploaded QR image..." : scanToPayStatus}
+                </Typography>
+              </>
+            )}
+          </Box>
+        </Box>
       </Drawer>
 
       <Drawer

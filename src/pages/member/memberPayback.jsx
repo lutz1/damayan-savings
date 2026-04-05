@@ -76,6 +76,7 @@ const MemberPayback = () => {
   const [transferSuccessDialog, setTransferSuccessDialog] = useState(false);
   const [lastTransferReceipt, setLastTransferReceipt] = useState(null);
   const [loadingTransfer, setLoadingTransfer] = useState(null); // null or entry ID
+  const [selectedTransferEntryId, setSelectedTransferEntryId] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // Add Payback Dialog
@@ -134,11 +135,30 @@ const fetchPaybackData = useCallback(async (userId) => {
     setLoading(true);
     const paybackQ = query(collection(db, "paybackEntries"), where("userId", "==", userId));
     const transferQ = query(collection(db, "passiveTransfers"), where("userId", "==", userId));
+    const legacyTransferQ = query(collection(db, "passiveIncomeTransfers"), where("userId", "==", userId));
 
-    const [paybackSnap, transferSnap] = await Promise.all([
+    const [paybackSnap, transferSnap, legacyTransferSnap] = await Promise.all([
       getDocs(paybackQ),
       getDocs(transferQ),
+      getDocs(legacyTransferQ).catch(() => ({ docs: [] })),
     ]);
+
+    const combinedTransfers = [...transferSnap.docs, ...legacyTransferSnap.docs].map((docSnap) => ({
+      id: docSnap.id,
+      ...docSnap.data(),
+    }));
+
+    const transferMap = new Map();
+    combinedTransfers.forEach((transfer) => {
+      const dedupeKey = transfer.paybackEntryId || transfer.clientRequestId || transfer.id;
+      if (!transferMap.has(dedupeKey)) {
+        transferMap.set(dedupeKey, transfer);
+      }
+    });
+
+    const transferredEntryIds = new Set(
+      [...transferMap.values()].map((transfer) => transfer.paybackEntryId).filter(Boolean)
+    );
 
     const entries = paybackSnap.docs.map((d) => {
       const data = d.data();
@@ -147,7 +167,8 @@ const fetchPaybackData = useCallback(async (userId) => {
         data.expirationDate || new Date(new Date(data.date).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
       // TODO: Replace moment with native Date if needed
       const isExpired = new Date() > new Date(expirationDate);
-      return { id: d.id, ...data, expirationDate, isExpired };
+      const transferred = Boolean(data.transferred || transferredEntryIds.has(d.id));
+      return { id: d.id, ...data, transferred, expirationDate, isExpired };
     });
 
     const totalContributionAmount = entries.reduce((sum, e) => sum + (e.amount || 0), 0);
@@ -155,13 +176,19 @@ const fetchPaybackData = useCallback(async (userId) => {
       // TODO: Replace moment with native Date if needed
       .filter((e) => new Date() >= new Date(e.expirationDate))
       .reduce((sum, e) => sum + (e.amount || 0) * 0.02, 0);
-    const totalTransferred = transferSnap.docs.reduce(
-      (sum, t) => sum + (t.data().amount || 0),
+    const totalTransferred = [...transferMap.values()].reduce(
+      (sum, transfer) => sum + Number(transfer.amount || 0),
       0
     );
+    const fallbackTransferredTotal = entries.reduce((sum, entry) => {
+      if (!entry.transferred || transferredEntryIds.has(entry.id) || new Date() < new Date(entry.expirationDate)) {
+        return sum;
+      }
+      return sum + Number(entry.amount || 0) * 0.02;
+    }, 0);
 
     setTotalContribution(totalContributionAmount);
-    setTotalPassiveIncome(Math.max(totalPassive - totalTransferred, 0));
+    setTotalPassiveIncome(Math.max(totalPassive - totalTransferred - fallbackTransferredTotal, 0));
     setPaybackEntries(entries);
 
     // ✅ Create calendar events (keep expired ones visible, color coded)
@@ -208,6 +235,12 @@ const fetchPaybackData = useCallback(async (userId) => {
     setAmount("");
     setSelectedDate(null);
   };
+
+  const closeTransferDialog = useCallback(() => {
+    setTransferDialogOpen(false);
+    setTransferAmount("");
+    setSelectedTransferEntryId(null);
+  }, []);
 // Removed: handleOpenConfirmDialog (unused)
   // ===================== Add Payback Entry (continued) =====================
   const handleAddPayback = async () => {
@@ -380,22 +413,28 @@ const fetchPaybackData = useCallback(async (userId) => {
     if (isNaN(amountNum) || amountNum <= 0) return alert("Enter a valid amount");
     if (amountNum > profitAvailable) return alert("Exceeds available 2% profit");
 
-    const fee = amountNum * 0.01;
-    const net = amountNum - fee;
-
     try {
       const user = auth.currentUser;
       if (!user) return;
 
-      // Find the matured payback entry to transfer (first eligible)
-      const maturedEntry = paybackEntries.find(e => {
-        const expirationDate = e.expirationDate instanceof Date ? e.expirationDate : new Date(e.expirationDate);
-        return expirationDate <= new Date() && !e.transferred && (e.amount * 0.02).toFixed(2) === amountNum.toFixed(2);
+      const maturedEntry = paybackEntries.find((entry) => {
+        const expirationDate = entry.expirationDate instanceof Date ? entry.expirationDate : new Date(entry.expirationDate);
+        const matchesSelectedEntry = selectedTransferEntryId
+          ? entry.id === selectedTransferEntryId
+          : (Number(entry.amount || 0) * 0.02).toFixed(2) === amountNum.toFixed(2);
+
+        return matchesSelectedEntry && expirationDate <= new Date() && !entry.transferred;
       });
+
       if (!maturedEntry) {
-        alert("No eligible matured payback entry found for this transfer amount.");
+        await fetchPaybackData(user.uid);
+        closeTransferDialog();
+        alert("This passive income has already been transferred or is no longer available.");
         return;
       }
+
+      const fee = amountNum * 0.01;
+      const net = amountNum - fee;
 
       // Set loading state for this entry
       setLoadingTransfer(maturedEntry.id);
@@ -419,10 +458,40 @@ const fetchPaybackData = useCallback(async (userId) => {
         throw new Error(data.error || "Transfer failed");
       }
 
-      // Update UI
-      setTotalPassiveIncome((prev) => prev - amountNum);
-      setTransferDialogOpen(false);
-      setTransferAmount("");
+      if (data.alreadyTransferred || data.deduped) {
+        setPaybackEntries((prev) =>
+          prev.map((entry) =>
+            entry.id === maturedEntry.id
+              ? {
+                  ...entry,
+                  transferred: true,
+                  transferredAt: new Date().toISOString(),
+                  lastTransferId: data.transferId || maturedEntry.id,
+                }
+              : entry
+          )
+        );
+        await fetchPaybackData(user.uid);
+        closeTransferDialog();
+        alert("This passive income was already transferred previously.");
+        return;
+      }
+
+      // Update UI immediately so the same transfer cannot be tapped again.
+      setPaybackEntries((prev) =>
+        prev.map((entry) =>
+          entry.id === maturedEntry.id
+            ? {
+                ...entry,
+                transferred: true,
+                transferredAt: new Date().toISOString(),
+                lastTransferId: data.transferId || maturedEntry.id,
+              }
+            : entry
+        )
+      );
+      setTotalPassiveIncome((prev) => Math.max(prev - amountNum, 0));
+      closeTransferDialog();
       setLastTransferReceipt({
         id: data.transferId || maturedEntry.id,
         amount: amountNum,
@@ -616,15 +685,18 @@ const fetchPaybackData = useCallback(async (userId) => {
         open={historyDialogOpen}
         onClose={() => setHistoryDialogOpen(false)}
         paybackEntries={paybackEntries}
-        setTransferAmount={setTransferAmount}
-        setTransferDialogOpen={setTransferDialogOpen}
+        onTransferClick={(entry) => {
+          setSelectedTransferEntryId(entry.id);
+          setTransferAmount((Number(entry.amount || 0) * 0.02).toFixed(2));
+          setTransferDialogOpen(true);
+        }}
         loadingTransferId={loadingTransfer}
       />
 
       {/* Transfer Dialog */}
       <Dialog
         open={transferDialogOpen}
-        onClose={() => setTransferDialogOpen(false)}
+        onClose={closeTransferDialog}
         fullWidth
         maxWidth="xs"
         PaperProps={{
@@ -703,7 +775,7 @@ const fetchPaybackData = useCallback(async (userId) => {
             </Typography>
           </Box>
           <Button
-            onClick={() => setTransferDialogOpen(false)}
+            onClick={closeTransferDialog}
             sx={{ minWidth: 0, p: 0.5, color: '#fff', bgcolor: 'transparent', '&:hover': { bgcolor: 'rgba(14,54,123,0.7)' } }}
             aria-label="Close"
           >
@@ -740,7 +812,7 @@ const fetchPaybackData = useCallback(async (userId) => {
           </Box>
         </DialogContent>
         <DialogActions sx={{ px: 4, pb: 2, bgcolor: 'transparent', borderBottomLeftRadius: 4, borderBottomRightRadius: 4, boxShadow: 1, borderTop: '1px solid rgba(217,233,255,0.14)' }}>
-          <Button onClick={() => setTransferDialogOpen(false)} variant="outlined" sx={{ borderRadius: 2, minWidth: 100, fontWeight: 600, borderColor: 'rgba(217,233,255,0.4)', color: '#d9e9ff' }}>
+          <Button onClick={closeTransferDialog} variant="outlined" sx={{ borderRadius: 2, minWidth: 100, fontWeight: 600, borderColor: 'rgba(217,233,255,0.4)', color: '#d9e9ff' }}>
             Cancel
           </Button>
           <Button onClick={handleTransfer} disabled={Boolean(loadingTransfer)} variant="contained" sx={{ borderRadius: 2, minWidth: 100, fontWeight: 600, boxShadow: 2, background: `linear-gradient(135deg, ${memberPalette.azure}, ${memberPalette.royal})` }}>
