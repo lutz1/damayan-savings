@@ -64,7 +64,8 @@ const AdminWithdrawals = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const auth = getAuth();
-  const isSuperAdmin = userRole === "SUPERADMIN";
+  const normalizedRole = String(userRole || "").toUpperCase().trim();
+  const isSuperAdmin = normalizedRole === "SUPERADMIN";
 
   useEffect(() => setSidebarOpen(!isMobile), [isMobile]);
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
@@ -164,6 +165,10 @@ const AdminWithdrawals = () => {
   }, []);
 
   const openDialog = (withdrawal) => {
+    if (!canApproveReject) {
+      return;
+    }
+
     setSelectedWithdrawal(withdrawal);
     setRemarks(withdrawal?.remarks || "");
   };
@@ -212,6 +217,10 @@ const AdminWithdrawals = () => {
 
   const handleAction = async (status) => {
     if (!selectedWithdrawal) return;
+    if (!canApproveReject) {
+      alert("Approve/Reject is disabled for this admin account.");
+      return;
+    }
     const { id } = selectedWithdrawal;
 
     try {
@@ -281,12 +290,13 @@ const AdminWithdrawals = () => {
   // Emails that should have approve/reject disabled
   const restrictedEmails = [
     "admin1@gmail.com",
-    "admin2@gmail.com"
+    "admin2@gmail.com",
   ];
 
   // Check if user can approve/reject
-  const isRestrictedEmail = restrictedEmails.includes((userEmail || "").toLowerCase());
-  const canApproveReject = ["ADMIN", "CEO"].includes(userRole) && !isRestrictedEmail;
+  const normalizedEmail = String(userEmail || auth.currentUser?.email || "").trim().toLowerCase();
+  const isRestrictedEmail = restrictedEmails.includes(normalizedEmail);
+  const canApproveReject = ["SUPERADMIN", "CEO"].includes(normalizedRole) && !isRestrictedEmail;
 
   const filteredWithdrawals = withdrawals.filter((w) => {
     const search = searchTerm.toLowerCase();
@@ -458,7 +468,9 @@ const AdminWithdrawals = () => {
                   <Stack spacing={2} sx={{ p: 1 }}>
                     {pagedWithdrawals.map((w) => {
                       const status = w.status?.toLowerCase() || "pending";
-                      const canAction = canApproveReject && status === "pending";
+                      const isPending = status === "pending";
+                      const canAction = canApproveReject && isPending;
+                      const showDisabledAction = isRestrictedEmail && isPending;
                       return (
                         <Card
                           key={w.id}
@@ -507,7 +519,7 @@ const AdminWithdrawals = () => {
                                 ? new Date(w.createdAt.seconds * 1000).toLocaleString()
                                 : "—"}
                             </Typography>
-                            {canAction ? (
+                            {canAction || showDisabledAction ? (
                               <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 1 }}>
                                 {w.qrUrl && (
                                   <Button
@@ -524,6 +536,8 @@ const AdminWithdrawals = () => {
                                   color="success"
                                   size="small"
                                   onClick={() => openDialog(w)}
+                                  disabled={!canApproveReject}
+                                  title={showDisabledAction ? "Approve/Reject is disabled for this account" : undefined}
                                 >
                                   Approve / Reject
                                 </Button>
@@ -605,7 +619,7 @@ const AdminWithdrawals = () => {
                                   : "—"}
                               </TableCell>
                               <TableCell>
-                                {canApproveReject && status === "pending" ? (
+                                {(canApproveReject || isRestrictedEmail) && status === "pending" ? (
                                   <Box
                                     sx={{
                                       display: "flex",
@@ -629,6 +643,8 @@ const AdminWithdrawals = () => {
                                       color="success"
                                       size="small"
                                       onClick={() => openDialog(w)}
+                                      disabled={!canApproveReject}
+                                      title={isRestrictedEmail ? "Approve/Reject is disabled for this account" : undefined}
                                     >
                                       Approve / Reject
                                     </Button>
@@ -679,6 +695,11 @@ const AdminWithdrawals = () => {
               Charge: ₱{selectedWithdrawal?.charge || 0} | Net: ₱
               {selectedWithdrawal?.netAmount || selectedWithdrawal?.amount}
             </Typography>
+            {isRestrictedEmail && (
+              <Typography variant="body2" sx={{ mb: 2, color: "error.main", fontWeight: 600 }}>
+                Approve/Reject is disabled for this admin account.
+              </Typography>
+            )}
             <TextField
               fullWidth
               label="Remarks (optional)"
@@ -690,10 +711,10 @@ const AdminWithdrawals = () => {
           </DialogContent>
           <DialogActions sx={{ flexWrap: "wrap", gap: 1 }}>
             <Button onClick={closeDialog}>Cancel</Button>
-            <Button onClick={() => handleAction("rejected")} color="error" variant="contained">
+            <Button onClick={() => handleAction("rejected")} color="error" variant="contained" disabled={!canApproveReject}>
               Reject
             </Button>
-            <Button onClick={() => handleAction("approved")} color="success" variant="contained">
+            <Button onClick={() => handleAction("approved")} color="success" variant="contained" disabled={!canApproveReject}>
               Approve
             </Button>
           </DialogActions>

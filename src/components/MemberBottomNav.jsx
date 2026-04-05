@@ -17,10 +17,20 @@ const MemberBottomNav = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const activeColor = memberPalette.navy;
-  const inactiveColor = "#8b95a5";
+  const activeColor = "rgba(255,255,255,0.95)";
+  const inactiveColor = "rgba(255,255,255,0.66)";
 
-  const isActive = (path) => location.pathname === path;
+  const isActive = (path) => location.pathname.startsWith(path);
+
+  const handleOpenScanToPay = () => {
+    navigate("/member/dashboard", {
+      state: {
+        openScanToPay: true,
+        fromPath: location.pathname,
+        ts: Date.now(),
+      },
+    });
+  };
 
   return (
     <Box
@@ -29,12 +39,13 @@ const MemberBottomNav = () => {
         bottom: 0,
         left: 0,
         width: "100%",
-        backgroundColor: "rgba(255,255,255,0.88)",
-        backdropFilter: "blur(8px)",
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        boxShadow: "0 -8px 22px rgba(25,28,30,0.08)",
-        py: 1,
+        background: "linear-gradient(180deg, rgba(8,23,52,0.94) 0%, rgba(11,31,94,0.98) 100%)",
+        backdropFilter: "blur(12px)",
+        borderTopLeftRadius: 26,
+        borderTopRightRadius: 26,
+        borderTop: "1px solid rgba(255,255,255,0.10)",
+        boxShadow: "0 -12px 32px rgba(6,18,45,0.22)",
+        py: 1.1,
         zIndex: 20,
       }}
     >
@@ -56,7 +67,7 @@ const MemberBottomNav = () => {
             display: "flex",
             flexDirection: "column",
             gap: 0.4,
-            "&:hover": { color: activeColor },
+            "&:hover": { color: activeColor, backgroundColor: "transparent" },
           }}
         >
           <HomeIcon sx={{ fontSize: 22 }} />
@@ -71,7 +82,7 @@ const MemberBottomNav = () => {
             display: "flex",
             flexDirection: "column",
             gap: 0.4,
-            "&:hover": { color: activeColor },
+            "&:hover": { color: activeColor, backgroundColor: "transparent" },
           }}
         >
           <ReceiptLongIcon sx={{ fontSize: 22 }} />
@@ -79,30 +90,32 @@ const MemberBottomNav = () => {
         </Button>
 
         <Button
+          onClick={handleOpenScanToPay}
           sx={{
             minWidth: 0,
             color: "#fff",
-            mt: -2.5,
+            mt: -2.2,
             display: "flex",
             flexDirection: "column",
             gap: 0.7,
+            "&:hover": { backgroundColor: "transparent" },
           }}
         >
           <Box
             sx={{
               width: 52,
               height: 52,
-              borderRadius: "50%",
-              backgroundColor: memberPalette.gold,
+              borderRadius: "18px",
+              background: `linear-gradient(145deg, ${memberPalette.gold} 0%, #e6c565 100%)`,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              boxShadow: "0 10px 18px rgba(212,175,55,0.35)",
+              boxShadow: "0 12px 22px rgba(212,175,55,0.28)",
             }}
           >
             <QrCodeScannerIcon sx={{ fontSize: 28 }} />
           </Box>
-          <Typography sx={{ fontSize: 10, fontWeight: 700, color: inactiveColor, lineHeight: 1 }}>
+          <Typography sx={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.72)", lineHeight: 1 }}>
             Scan
           </Typography>
         </Button>
@@ -115,7 +128,7 @@ const MemberBottomNav = () => {
             display: "flex",
             flexDirection: "column",
             gap: 0.4,
-            "&:hover": { color: activeColor },
+            "&:hover": { color: activeColor, backgroundColor: "transparent" },
           }}
         >
           <RedeemIcon sx={{ fontSize: 22 }} />
@@ -130,7 +143,7 @@ const MemberBottomNav = () => {
             display: "flex",
             flexDirection: "column",
             gap: 0.4,
-            "&:hover": { color: activeColor },
+            "&:hover": { color: activeColor, backgroundColor: "transparent" },
           }}
         >
           <PersonIcon sx={{ fontSize: 22 }} />

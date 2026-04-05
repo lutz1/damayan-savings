@@ -2,7 +2,7 @@
 import RewardHistoryDialog from "./components/dialogs/RewardHistoryDialog";
 /* eslint-disable no-unused-vars */
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { sendReferralTransferAvailableNotification } from "../../utils/referralNotifications";
 import { sendOverrideTransferAvailableNotification } from "../../utils/overrideNotifications";
 import { cleanupOldNotifications, deleteAllNotificationsForUser, deleteNotificationById, isNotificationExpired } from "../../utils/notifications";
@@ -227,9 +227,11 @@ const [groupSalesOpen, setGroupSalesOpen] = useState(false);
 const [eWallet, setEWallet] = useState(0);
 const [showBalance, setShowBalance] = useState(false);
 const [dashDialog, setDashDialog] = useState(null);
+const [transferDialogMode, setTransferDialogMode] = useState("express");
 const [availableCodes, setAvailableCodes] = useState([]);
 const [rewardsUnavailableOpen, setRewardsUnavailableOpen] = useState(false);
 const navigate = useNavigate();
+const location = useLocation();
 const appBaseUrl = import.meta.env.BASE_URL || "/";
 
 // ─── Notifications ───────────────────────────────────────────────────────────
@@ -510,6 +512,14 @@ const handleOpenNotifications = () => {
 const handleToggleSortOrder = () => {
   setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
 };
+
+useEffect(() => {
+  if (!location.state?.openScanToPay) return;
+
+  setTransferDialogMode("qr");
+  setDashDialog("transfer");
+  navigate(location.pathname, { replace: true, state: {} });
+}, [location.pathname, location.state, navigate]);
 
 const handleViewReferrals = (role) => {
   setSelectedRole(role);
@@ -1351,7 +1361,7 @@ useEffect(() => {
             <ReceiptLongIcon sx={{ fontSize: 22 }} />
             <Typography sx={{ fontSize: 10, fontWeight: 700, lineHeight: 1 }}>PAYBACK</Typography>
           </Button>
-          <Button sx={{ minWidth: 0, color: "#fff", mt: -2.2, display: "flex", flexDirection: "column", gap: 0.7 }}>
+          <Button onClick={() => { setTransferDialogMode("qr"); setDashDialog("transfer"); }} sx={{ minWidth: 0, color: "#fff", mt: -2.2, display: "flex", flexDirection: "column", gap: 0.7 }}>
             <Box sx={{ width: 52, height: 52, borderRadius: "18px", background: `linear-gradient(145deg, ${memberPalette.gold} 0%, #e6c565 100%)`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 12px 22px rgba(212,175,55,0.28)" }}>
               <QrCodeScannerIcon sx={{ fontSize: 28 }} />
             </Box>
@@ -1370,7 +1380,17 @@ useEffect(() => {
 
       {/* ─────────────────── Quick Action Dialogs ─────────────────── */}
       {dashDialog === "transfer" && (
-        <TransferFundsDialog open onClose={() => setDashDialog(null)} userData={userData} db={db} auth={auth} />
+        <TransferFundsDialog
+          open
+          initialMode={transferDialogMode}
+          onClose={() => {
+            setDashDialog(null);
+            setTransferDialogMode("express");
+          }}
+          userData={userData}
+          db={db}
+          auth={auth}
+        />
       )}
       {dashDialog === "withdraw" && (
         <WithdrawDialog open onClose={() => setDashDialog(null)} userData={userData} db={db} auth={auth} />

@@ -27,6 +27,7 @@ import {
 } from "@mui/material";
 import { Send, CheckCircle, QrCode2, Share, Search as SearchIcon, UploadFile as UploadFileIcon, QrCodeScanner as QrCodeScannerIcon } from "@mui/icons-material";
 import jsQR from "jsqr";
+import appLogo from "../../../assets/newlogo.png";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import DownloadIcon from "@mui/icons-material/Download";
@@ -41,7 +42,7 @@ import {
 } from "firebase/firestore";
 import { getUserAvatarInitial, getUserAvatarUrl } from "../../../utils/userAvatar";
 
-const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) => {
+const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate, initialMode = "express" }) => {
   const safeUserData = userData || {};
   const [recipientUsername, setRecipientUsername] = useState("");
   const [searchResults, setSearchResults] = useState([]);
@@ -57,7 +58,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
   const [receiptDialog, setReceiptDialog] = useState(false);
   const [receiptData, setReceiptData] = useState(null);
   const [clientRequestId, setClientRequestId] = useState(null);
-  const [sendMode, setSendMode] = useState("express");
+  const [sendMode, setSendMode] = useState(initialMode === "qr" ? "qr" : "express");
   const [qrAmount, setQrAmount] = useState("");
   const [showMyQrCard, setShowMyQrCard] = useState(false);
   const [qrScanningUpload, setQrScanningUpload] = useState(false);
@@ -77,6 +78,21 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
   const allContactsRef = useRef(null);
   const walletBalance = Number(safeUserData.eWallet || 0);
   const currentUsername = safeUserData.username || "";
+
+  useEffect(() => {
+    if (!open) return;
+
+    const nextMode = initialMode === "qr" ? "qr" : "express";
+    setSendMode(nextMode);
+    setShowMyQrCard(false);
+    setQrScanningUpload(false);
+    setError("");
+    setScanToPayStatus("Align the QR code inside the frame.");
+
+    if (nextMode === "express") {
+      setExpressStep(0);
+    }
+  }, [open, initialMode]);
 
   // ✅ Real-time transfer logs
   useEffect(() => {
@@ -467,7 +483,8 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
   };
 
   const qrData = encodeURIComponent(buildQrPayload());
-  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${qrData}`;
+  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=10&ecc=H&data=${qrData}`;
+  const qrExportImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=720x720&margin=16&ecc=H&data=${qrData}`;
   const previewTransferLogs = transferLogs.slice(0, 3);
   const selectedRecipient =
     allContacts.find((user) => user.username === recipientUsername) ||
@@ -500,11 +517,177 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
     ).values()
   ).slice(0, 6);
   const featuredRecipients = recentRecipients.length > 0 ? recentRecipients : allContacts.slice(0, 6);
+  const myQrDisplayName = safeUserData.name || safeUserData.username || "Member";
+  const myQrUsername = safeUserData.username ? `@${safeUserData.username}` : "@member";
+  const myQrMobile = safeUserData.contactNumber || safeUserData.mobileNo || safeUserData.phoneNumber || "";
+  const myQrAvatar = getUserAvatarUrl(safeUserData);
+
+  const loadCanvasImage = async (source, { useFetch = false } = {}) => {
+    if (!source) return null;
+
+    let objectUrl = null;
+    try {
+      const finalSource = useFetch
+        ? await fetch(source)
+            .then((response) => {
+              if (!response.ok) throw new Error("Failed to load image asset.");
+              return response.blob();
+            })
+            .then((blob) => {
+              objectUrl = URL.createObjectURL(blob);
+              return objectUrl;
+            })
+        : source;
+
+      const image = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("Failed to render image."));
+        img.src = finalSource;
+      });
+
+      return image;
+    } finally {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    }
+  };
+
+  const buildMyQrCanvas = async () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1080;
+    canvas.height = 1600;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    const qrImage = await loadCanvasImage(qrExportImageUrl, { useFetch: true });
+    if (!qrImage) throw new Error("Failed to generate QR image.");
+
+    const logoImage = await loadCanvasImage(appLogo).catch(() => null);
+    const avatarImage = await loadCanvasImage(myQrAvatar, { useFetch: /^https?:/i.test(String(myQrAvatar || "")) }).catch(() => null);
+    const safeAmount = Number(qrAmount) > 0
+      ? `₱${Number(qrAmount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`
+      : "Optional";
+
+    ctx.fillStyle = "#f4f5f7";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    roundRect(ctx, 130, 110, 820, 1220, 42, true, false, "#ffffff");
+
+    const avatarCenterX = canvas.width / 2;
+    const avatarCenterY = 245;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(avatarCenterX, avatarCenterY, 66, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+
+    if (avatarImage) {
+      ctx.drawImage(avatarImage, avatarCenterX - 66, avatarCenterY - 66, 132, 132);
+    } else {
+      ctx.fillStyle = "#0f57d5";
+      ctx.fillRect(avatarCenterX - 66, avatarCenterY - 66, 132, 132);
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 52px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText((myQrDisplayName || "M").charAt(0).toUpperCase(), avatarCenterX, avatarCenterY + 18);
+    }
+    ctx.restore();
+
+    ctx.strokeStyle = "#e9edf5";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(avatarCenterX, avatarCenterY, 68, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = "#20242c";
+    ctx.textAlign = "center";
+    ctx.font = "bold 42px Arial";
+    ctx.fillText(myQrDisplayName, canvas.width / 2, 360);
+
+    ctx.fillStyle = "#4b7ddd";
+    ctx.font = "bold 24px Arial";
+    ctx.fillText(myQrUsername, canvas.width / 2, 398);
+
+    roundRect(ctx, 275, 470, 530, 530, 34, true, false, "#fafbfc");
+    ctx.strokeStyle = "#e2e6ee";
+    ctx.lineWidth = 3;
+    ctx.setLineDash([8, 8]);
+    roundRect(ctx, 305, 500, 470, 470, 28, false, true);
+    ctx.setLineDash([]);
+
+    const qrCardX = 355;
+    const qrCardY = 550;
+    const qrCardSize = 370;
+    const qrInset = 20;
+    const qrImageX = qrCardX + qrInset;
+    const qrImageY = qrCardY + qrInset;
+    const qrImageSize = qrCardSize - qrInset * 2;
+
+    roundRect(ctx, qrCardX, qrCardY, qrCardSize, qrCardSize, 24, true, false, "#ffffff");
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(qrImage, qrImageX, qrImageY, qrImageSize, qrImageSize);
+    ctx.restore();
+
+    const badgeSize = 74;
+    const badgeX = qrCardX + (qrCardSize - badgeSize) / 2;
+    const badgeY = qrCardY + (qrCardSize - badgeSize) / 2;
+
+    ctx.shadowColor = "rgba(15, 87, 213, 0.14)";
+    ctx.shadowBlur = 14;
+    ctx.shadowOffsetY = 5;
+    roundRect(ctx, badgeX, badgeY, badgeSize, badgeSize, 22, true, false, "rgba(255,255,255,0.98)");
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+
+    if (logoImage) {
+      ctx.drawImage(logoImage, badgeX + 15, badgeY + 15, 44, 44);
+    } else {
+      ctx.fillStyle = "#0f57d5";
+      ctx.beginPath();
+      ctx.arc(badgeX + badgeSize / 2, badgeY + badgeSize / 2, 18, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.strokeStyle = "#e9edf5";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(220, 1070);
+    ctx.lineTo(860, 1070);
+    ctx.stroke();
+
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#b1b8c6";
+    ctx.font = "bold 14px Arial";
+    ctx.fillText("DISPLAY NAME", 220, 1120);
+    ctx.fillText("MOBILE NO.", 220, 1210);
+    ctx.fillText("ADD AN AMOUNT", 220, 1300);
+
+    ctx.fillStyle = "#313742";
+    ctx.font = "bold 28px Arial";
+    ctx.fillText(myQrDisplayName || "-", 220, 1160);
+    ctx.fillText(myQrMobile || "-", 220, 1250);
+    ctx.fillText(safeAmount, 220, 1340);
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#8d96a6";
+    ctx.font = "20px Arial";
+    ctx.fillText("Scan this Bowners QR to send funds securely.", canvas.width / 2, 1420);
+
+    return canvas;
+  };
 
   const handleDownloadMyQr = async () => {
     try {
-      const response = await fetch(qrImageUrl);
-      const blob = await response.blob();
+      const canvas = await buildMyQrCanvas();
+      if (!canvas) throw new Error("Failed to create QR image.");
+      const blob = await canvasToBlob(canvas);
+      if (!blob) throw new Error("Failed to create QR image.");
+
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -514,23 +697,38 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError("Failed to download QR code.");
+      setError("Failed to save QR image.");
     }
   };
 
   const handleShareMyQr = async () => {
-    const shareText = `Scan my Damayan QR\nName: ${safeUserData.name || ""}\nUser: @${safeUserData.username || ""}${qrAmount ? `\nAmount: ₱${Number(qrAmount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}` : ""}`;
+    const shareText = `Scan my Bowners QR\nName: ${myQrDisplayName}\nUser: ${myQrUsername}${myQrMobile ? `\nMobile: ${myQrMobile}` : ""}${qrAmount ? `\nAmount: ₱${Number(qrAmount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}` : ""}`;
 
     try {
+      const canvas = await buildMyQrCanvas();
+      const blob = canvas ? await canvasToBlob(canvas) : null;
+
       if (navigator.share) {
+        if (blob) {
+          const file = new File([blob], `MyQR_${safeUserData.username || "member"}.png`, { type: "image/png" });
+          if (navigator.canShare?.({ files: [file] })) {
+            await navigator.share({
+              title: "My Bowners QR",
+              text: shareText,
+              files: [file],
+            });
+            return;
+          }
+        }
+
         await navigator.share({
-          title: "My Damayan QR",
+          title: "My Bowners QR",
           text: shareText,
           url: qrImageUrl,
         });
       } else {
         await navigator.clipboard.writeText(`${shareText}\n${qrImageUrl}`);
-        alert("QR link copied. You can now paste and share it.");
+        window.alert("QR details copied. You can now paste and share it.");
       }
     } catch (_) {}
   };
@@ -2457,7 +2655,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
               <ArrowBackIosNewIcon />
             </IconButton>
             <Typography sx={{ fontSize: 18, fontWeight: 800, letterSpacing: 0.1 }}>
-              {showMyQrCard ? "My Code" : "ScantoPay"}
+              {showMyQrCard ? "Receive Funds" : "ScantoPay"}
             </Typography>
             <IconButton
               onClick={() => setInfoDialogOpen(true)}
@@ -2500,7 +2698,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
                 <Box
                   sx={{
                     mb: 1.15,
-                    borderRadius: 2.6,
+                    borderRadius: 2.8,
                     px: 1.7,
                     py: 1.45,
                     textAlign: "center",
@@ -2510,58 +2708,129 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
                   }}
                 >
                   <Typography sx={{ fontSize: 15.5, fontWeight: 800, color: "#ffffff", mb: 0.3 }}>
-                    Receive with My Code
+                    Receive Funds
                   </Typography>
                   <Typography sx={{ fontSize: 11.2, lineHeight: 1.45, color: "rgba(220,232,255,0.70)" }}>
-                    Show this personal QR in its own screen so others can scan and send funds to you.
+                    Share this Bowners QR so members can send directly to your wallet.
                   </Typography>
                 </Box>
 
-                <Box sx={{ background: "rgba(255,255,255,0.98)", borderRadius: 2.8, p: 1.5, border: "1px solid #dbe2ef", boxShadow: "0 14px 28px rgba(6,18,45,0.12)" }}>
-                  <Typography sx={{ textAlign: "center", color: "#105abf", fontWeight: 800, mb: 1.1, display: "flex", alignItems: "center", justifyContent: "center", gap: 0.5 }}>
-                    <QrCode2 fontSize="small" /> My QR Code
-                  </Typography>
-
-                  <Box sx={{ display: "flex", justifyContent: "center", mb: 1.2 }}>
-                    <Box
+                <Box sx={{ background: "#f3f4f7", borderRadius: 3.4, p: 1.25, border: "1px solid rgba(219,226,239,0.95)", boxShadow: "0 14px 28px rgba(6,18,45,0.12)" }}>
+                  <Box sx={{ background: "#ffffff", borderRadius: 4, px: 2.2, pt: 2.2, pb: 1.8, textAlign: "center" }}>
+                    <Avatar
+                      src={myQrAvatar || undefined}
                       sx={{
-                        width: 240,
-                        height: 240,
-                        borderRadius: 2.4,
-                        backgroundColor: "#fff",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        p: 1,
-                        border: "1px solid #dbe2ef",
-                        boxShadow: "0 10px 20px rgba(16,90,191,0.08)",
+                        width: 68,
+                        height: 68,
+                        mx: "auto",
+                        mb: 1,
+                        bgcolor: "#0f57d5",
+                        color: "#fff",
+                        fontWeight: 800,
+                        fontSize: 24,
+                        border: "2px solid rgba(17,28,54,0.08)",
+                        boxShadow: "0 10px 18px rgba(9,23,52,0.18)",
                       }}
                     >
-                      <img src={qrImageUrl} alt="My QR" width={216} height={216} />
-                    </Box>
-                  </Box>
+                      {getUserAvatarInitial(safeUserData, "M")}
+                    </Avatar>
 
-                  <Box sx={{ background: "#f6f9ff", borderRadius: 2, p: 1.4, mb: 1.2, border: "1px solid rgba(16,90,191,0.10)" }}>
-                    <Typography variant="body2" sx={{ color: "#243042", mb: 0.45 }}>
-                      Display Name: {safeUserData.name || "-"}
+                    <Typography sx={{ fontSize: 14, fontWeight: 800, color: "#222b38", lineHeight: 1.25 }}>
+                      {myQrDisplayName}
                     </Typography>
-                    <Typography variant="body2" sx={{ color: "#243042", mb: 0.45 }}>
-                      Mobile No.: {safeUserData.contactNumber || safeUserData.mobileNo || safeUserData.phoneNumber || "-"}
+                    <Typography sx={{ fontSize: 12, color: "#5380da", fontWeight: 700, mb: 1.5 }}>
+                      {myQrUsername}
                     </Typography>
-                    <Typography variant="body2" sx={{ color: "#243042" }}>
-                      User: @{safeUserData.username || "-"}
-                    </Typography>
+
+                    <Box sx={{ display: "flex", justifyContent: "center", mb: 1.8 }}>
+                      <Box
+                        sx={{
+                          width: 246,
+                          height: 246,
+                          borderRadius: 3.2,
+                          backgroundColor: "#f7f7f9",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          p: 1.25,
+                          border: "1px solid #e3e7ef",
+                          position: "relative",
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            position: "absolute",
+                            inset: 12,
+                            borderRadius: 3,
+                            border: "2px dashed #d9dee8",
+                          }}
+                        />
+                        <Box
+                          sx={{
+                            width: 186,
+                            height: 186,
+                            borderRadius: 2.5,
+                            backgroundColor: "#fff",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            p: 1,
+                            position: "relative",
+                            zIndex: 1,
+                            boxShadow: "0 8px 16px rgba(16,90,191,0.08)",
+                          }}
+                        >
+                          <img src={qrImageUrl} alt="My QR" width={170} height={170} style={{ borderRadius: 10 }} />
+                          <Box
+                            sx={{
+                              position: "absolute",
+                              top: "50%",
+                              left: "50%",
+                              transform: "translate(-50%, -50%)",
+                              width: 46,
+                              height: 46,
+                              borderRadius: "50%",
+                              backgroundColor: "#fff",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              boxShadow: "0 8px 18px rgba(15,87,213,0.18)",
+                              border: "1px solid rgba(16,90,191,0.10)",
+                              p: 0.55,
+                            }}
+                          >
+                            <Box component="img" src={appLogo} alt="Bowners logo" sx={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                          </Box>
+                        </Box>
+                      </Box>
+                    </Box>
+
+                    <Box sx={{ textAlign: "left", px: 0.2, pt: 1.2, borderTop: "1px solid #ebeff5" }}>
+                      <Typography sx={{ fontSize: 9.5, fontWeight: 800, color: "#b2b8c5", letterSpacing: 1, mb: 0.15 }}>
+                        DISPLAY NAME
+                      </Typography>
+                      <Typography sx={{ fontSize: 13.2, color: "#394150", fontWeight: 700, mb: 1.1 }}>
+                        {myQrDisplayName || "-"}
+                      </Typography>
+
+                      <Typography sx={{ fontSize: 9.5, fontWeight: 800, color: "#b2b8c5", letterSpacing: 1, mb: 0.15 }}>
+                        MOBILE NO.
+                      </Typography>
+                      <Typography sx={{ fontSize: 13.2, color: "#394150", fontWeight: 700 }}>
+                        {myQrMobile || "-"}
+                      </Typography>
+                    </Box>
                   </Box>
 
                   <TextField
                     type="number"
                     fullWidth
-                    label="Add an amount"
+                    label="Add an amount (optional)"
                     value={qrAmount}
                     onChange={(e) => setQrAmount(e.target.value)}
-                    helperText="Specify an amount when someone scans your code"
+                    helperText="Optional. Leave blank if you do not want a fixed requested amount."
                     sx={{
-                      mb: 1.2,
+                      mt: 1.3,
                       "& .MuiInputBase-root": { color: "#1f2430", backgroundColor: "#fff" },
                       "& .MuiInputLabel-root": { color: "#6a7280" },
                       "& .MuiFormHelperText-root": { color: "#6f7785" },
@@ -2569,13 +2838,13 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
                     }}
                   />
 
-                  <Box sx={{ display: "flex", gap: 1, mt: 1.2 }}>
+                  <Box sx={{ display: "flex", gap: 1, mt: 1.3 }}>
                     <Button
                       fullWidth
                       onClick={handleShareMyQr}
                       variant="contained"
                       startIcon={<Share />}
-                      sx={{ bgcolor: "#105abf", textTransform: "none", fontWeight: 700, "&:hover": { bgcolor: "#0b4eaa" } }}
+                      sx={{ bgcolor: "#105abf", textTransform: "none", fontWeight: 700, py: 1.1, "&:hover": { bgcolor: "#0b4eaa" } }}
                     >
                       SHARE QR
                     </Button>
@@ -2584,7 +2853,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
                       onClick={handleDownloadMyQr}
                       variant="outlined"
                       startIcon={<DownloadIcon />}
-                      sx={{ color: "#105abf", borderColor: "rgba(16,90,191,0.34)", textTransform: "none", fontWeight: 700 }}
+                      sx={{ color: "#6c7380", borderColor: "#d5dbe6", backgroundColor: "#eef1f5", textTransform: "none", fontWeight: 700, py: 1.1 }}
                     >
                       SAVE IMAGE
                     </Button>
@@ -2593,7 +2862,7 @@ const TransferFundsDialog = ({ open, onClose, userData, db, auth, onBalanceUpdat
                   <Button
                     fullWidth
                     onClick={() => setShowMyQrCard(false)}
-                    sx={{ mt: 1, color: "#105abf", textTransform: "none", fontWeight: 700 }}
+                    sx={{ mt: 0.9, color: "#546fb2", textTransform: "none", fontWeight: 700 }}
                   >
                     Back to Scanner
                   </Button>

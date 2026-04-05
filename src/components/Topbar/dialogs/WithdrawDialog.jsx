@@ -43,7 +43,10 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
   const [error, setError] = useState("");
   const [withdrawLogs, setWithdrawLogs] = useState([]);
   const [netAmount, setNetAmount] = useState(0);
-  const [confirmOpen, setConfirmOpen] = useState(false); // ✅ Permission dialog
+  const [withdrawStep, setWithdrawStep] = useState(0); // 0=form, 1=review, 2=success
+  const [paymentGroup, setPaymentGroup] = useState("");
+  const [confirmReview, setConfirmReview] = useState(false);
+  const [receiptData, setReceiptData] = useState(null);
   const storage = getStorage();
 
   const getFriendlyWithdrawError = (rawMessage) => {
@@ -85,15 +88,10 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
     return () => unsubscribe();
   }, [open, auth, db]);
 
-  // ✅ Recalculate net amount whenever amount or method changes
+  // ✅ Recalculate amount preview whenever amount or method changes
   useEffect(() => {
     const amt = parseFloat(amount) || 0;
-    if (paymentMethod === "GCash" || paymentMethod === "Bank") {
-      const fee = amt * 0.05;
-      setNetAmount(amt - fee);
-    } else {
-      setNetAmount(amt);
-    }
+    setNetAmount(amt);
   }, [amount, paymentMethod]);
 
   const handleQrUpload = (e) => {
@@ -104,17 +102,20 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
     }
   };
 
-  // ✅ Main Withdraw Logic (called after user confirms)
+  // ✅ Main Withdraw Logic (called from the review screen)
   const performWithdraw = async () => {
     if (loading) return;
-    setConfirmOpen(false);
+    if (!confirmReview) {
+      setError("Please confirm the withdrawal details first.");
+      return;
+    }
+
     setError("");
     setLoading(true);
 
     try {
       const numAmount = parseFloat(amount);
-      
-      // 1️⃣ Upload QR file to Firebase Storage
+
       const qrRef = ref(
         storage,
         `withdrawals_qr/${auth.currentUser.uid}_${Date.now()}_${qrFile.name}`
@@ -122,7 +123,6 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
       await uploadBytes(qrRef, qrFile);
       const qrUrl = await getDownloadURL(qrRef);
 
-      // 2️⃣ Call Cloud Function to process withdrawal
       const idToken = await auth.currentUser.getIdToken();
       const clientRequestId = `${auth.currentUser.uid}_${Date.now()}`;
 
@@ -137,6 +137,7 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
           body: JSON.stringify({
             amount: numAmount,
             paymentMethod,
+            paymentCategory: paymentGroup,
             qrUrl,
             clientRequestId,
           }),
@@ -148,21 +149,32 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
         try {
           const errorData = await response.json();
           serverMessage = errorData?.error || errorData?.message || serverMessage;
-        } catch (_parseErr) {
-          // Non-JSON error body from server; keep fallback message.
-        }
+        } catch (_parseErr) {}
         throw new Error(serverMessage);
       }
 
       const result = await response.json();
-      
       if (onBalanceUpdate) onBalanceUpdate(result.newBalance);
 
+      const referenceNumber = `TXN-REF-${String(Date.now()).slice(-5)}`;
+      const charge = Number(result?.charge ?? feeAmount);
+      const totalDeduction = Number(result?.totalDeduction ?? (numAmount + charge));
+      const submittedAt = new Date();
+
+      setReceiptData({
+        referenceNumber,
+        amount: numAmount,
+        charge,
+        totalDeduction,
+        paymentMethod,
+        paymentCategory: paymentGroup,
+        receiverFileName: qrFile?.name || "Uploaded QR",
+        date: submittedAt,
+        withdrawalId: result?.withdrawalId,
+      });
+
       setSuccess(true);
-      setAmount("");
-      setPaymentMethod("");
-      setQrFile(null);
-      setQrPreview("");
+      setWithdrawStep(2);
     } catch (err) {
       console.error("Withdraw failed:", err);
       setError(getFriendlyWithdrawError(err?.message));
@@ -171,10 +183,9 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
     }
   };
 
-  // ✅ Ask for permission first
   const handleWithdraw = () => {
-    if (!amount || !paymentMethod || !qrFile) {
-      setError("Please fill out all fields and upload your QR code.");
+    if (!amount || !paymentGroup || !paymentMethod || !qrFile) {
+      setError("Please enter the amount, choose a payout option, and upload your QR code.");
       return;
     }
 
@@ -183,25 +194,46 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
       setError("Withdrawal amount must be greater than zero.");
       return;
     }
-    if (numAmount > userData.eWallet) {
-      setError("Insufficient wallet balance.");
-      return;
-    }
     if (numAmount < 100) {
       setError("Minimum withdrawal is ₱100.");
       return;
     }
+    if (totalDeductionAmount > availableBalance) {
+      setError(`Insufficient wallet balance. You need ₱${totalDeductionAmount.toFixed(2)} including service fee.`);
+      return;
+    }
 
     setError("");
-    setConfirmOpen(true); // ✅ Open confirmation dialog
+    setConfirmReview(false);
+    setWithdrawStep(1);
   };
 
   const handleClose = () => {
     setError("");
     setSuccess(false);
+    setAmount("");
+    setPaymentMethod("");
+    setPaymentGroup("");
     setQrPreview("");
     setQrFile(null);
+    setConfirmReview(false);
+    setReceiptData(null);
+    setWithdrawStep(0);
     onClose();
+  };
+
+  const handleBack = () => {
+    if (loading) return;
+    if (withdrawStep === 2) {
+      handleClose();
+      return;
+    }
+    if (withdrawStep === 1) {
+      setError("");
+      setWithdrawStep(0);
+      return;
+    }
+    handleClose();
   };
 
   const getStatusColor = (status) => {
@@ -213,6 +245,83 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
       default:
         return "warning";
     }
+  };
+
+  const availableBalance = Number(userData?.eWallet || 0);
+  const amountValue = parseFloat(amount) || 0;
+  const feeAmount = paymentMethod ? amountValue * 0.02 : 0;
+  const totalDeductionAmount = amountValue + feeAmount;
+  const paymentGroups = [
+    {
+      value: "E-Wallet",
+      label: "E-Wallet",
+      caption: "Select your preferred e-wallet",
+      badge: "₱",
+      badgeBg: "#eaf2ff",
+      badgeColor: "#105abf",
+      options: [
+        { value: "GCash", label: "GCash", caption: "Instant transfer", badge: "G", badgeBg: "#eaf2ff", badgeColor: "#105abf" },
+        { value: "Maya", label: "Maya", caption: "Digital wallet payout", badge: "M", badgeBg: "#ecfbf0", badgeColor: "#2eaf72" },
+        { value: "GoTyme", label: "GoTyme", caption: "Savings wallet transfer", badge: "Go", badgeBg: "#fff3e4", badgeColor: "#c27600" },
+        { value: "Coins.ph", label: "Coins.ph", caption: "Crypto wallet cashout", badge: "C", badgeBg: "#eef2ff", badgeColor: "#4f46e5" },
+      ],
+    },
+    {
+      value: "Bank Transfer",
+      label: "Bank Transfer",
+      caption: "Choose your receiving bank",
+      badge: "B",
+      badgeBg: "#f2f4f7",
+      badgeColor: "#1f2937",
+      options: [
+        { value: "BPI", label: "BPI", caption: "Bank of the Philippine Islands", badge: "BP", badgeBg: "#feecec", badgeColor: "#b42318" },
+        { value: "BDO", label: "BDO", caption: "Banco de Oro", badge: "BD", badgeBg: "#eef4ff", badgeColor: "#105abf" },
+        { value: "Metrobank", label: "Metrobank", caption: "Metrobank account", badge: "MB", badgeBg: "#ecfbf0", badgeColor: "#2e7d32" },
+        { value: "LandBank", label: "LandBank", caption: "Land Bank of the Philippines", badge: "LB", badgeBg: "#fff7e8", badgeColor: "#b26a00" },
+        { value: "UnionBank", label: "UnionBank", caption: "UnionBank account", badge: "UB", badgeBg: "#f2ecff", badgeColor: "#6d28d9" },
+        { value: "RCBC", label: "RCBC", caption: "RCBC account", badge: "RC", badgeBg: "#fff0f6", badgeColor: "#be185d" },
+      ],
+    },
+  ];
+  const selectedGroup = paymentGroups.find((group) => group.value === paymentGroup) || null;
+  const selectedPaymentOption = paymentGroups.flatMap((group) => group.options).find((option) => option.value === paymentMethod) || null;
+
+  const buildReceiptMessage = () => {
+    if (!receiptData) return "";
+    return [
+      "Withdrawal Successful",
+      `Reference: ${receiptData.referenceNumber}`,
+      `Method: ${receiptData.paymentMethod}`,
+      `Withdrawal Amount: ₱${Number(receiptData.amount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      `Service Fee: ₱${Number(receiptData.charge || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      `Total Deduction: ₱${Number(receiptData.totalDeduction || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      `Date: ${receiptData.date?.toLocaleString("en-PH") || "-"}`,
+    ].join("\n");
+  };
+
+  const handleShareReceipt = async () => {
+    if (!receiptData) return;
+    const text = buildReceiptMessage();
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Withdrawal Receipt", text });
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      }
+    } catch (_) {}
+  };
+
+  const handleDownloadReceipt = () => {
+    if (!receiptData) return;
+    const blob = new Blob([buildReceiptMessage()], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${receiptData.referenceNumber || "withdrawal_receipt"}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -237,236 +346,434 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
         <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
           {/* Header */}
           <Box sx={{ minHeight: 70, px: 1, pt: "calc(env(safe-area-inset-top, 0px) + 10px)", pb: 1, display: "flex", alignItems: "center", justifyContent: "space-between", color: "#fff", background: "linear-gradient(135deg, rgba(6,19,46,0.98) 0%, rgba(13,47,118,0.96) 58%, rgba(37,101,214,0.90) 100%)", borderBottom: "1px solid rgba(138,199,255,0.16)" }}>
-            <IconButton onClick={handleClose} sx={{ color: "#fff" }}>
+            <IconButton onClick={handleBack} sx={{ color: "#fff" }}>
               <ArrowBackIosNewIcon />
             </IconButton>
             <Typography sx={{ fontSize: 18, fontWeight: 800, letterSpacing: 0.2 }}>
-              Withdraw Funds
+              {withdrawStep === 1 ? "Review Withdrawal" : withdrawStep === 2 ? "Success" : "Withdraw Funds"}
             </Typography>
             <Box sx={{ width: 40 }} />
           </Box>
 
           {/* Content */}
-          <Box sx={{ flex: 1, overflowY: "auto", p: 2 }}>
-            {/* 💰 Wallet Balance */}
-            <Box sx={{ background: "linear-gradient(145deg, rgba(255,255,255,0.96) 0%, rgba(241,246,255,0.98) 100%)", borderRadius: 2.5, p: 2, mb: 2, textAlign: "center", border: "1px solid rgba(138,199,255,0.18)", boxShadow: "0 12px 24px rgba(2,10,24,0.16)" }}>
-              <Typography variant="body2" sx={{ color: "#4f6589", mb: 0.5, fontWeight: 600 }}>Available Balance</Typography>
-              <Typography variant="h5" sx={{ fontWeight: 800, color: "#0b1f5e" }}>
-                ₱{userData.eWallet?.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
-              </Typography>
-            </Box>
+          <Box sx={{ flex: 1, overflowY: "auto", p: 1.6 }}>
+            {error && (
+              <Alert severity="error" sx={{ mb: 1.4 }}>
+                {error}
+              </Alert>
+            )}
 
-          {success ? (
-            <Box sx={{ textAlign: "center", py: 4, px: 2, borderRadius: 2.5, background: "rgba(22, 88, 48, 0.18)", border: "1px solid rgba(110, 214, 151, 0.24)" }}>
-              <CheckCircle sx={{ fontSize: 50, color: "#7ae3a7" }} />
-              <Typography sx={{ mt: 1, color: "#4CAF50", fontWeight: 600 }}>
-                Withdrawal Request Sent!
-              </Typography>
-              <Typography variant="body2" sx={{ mt: 1, color: "#666" }}>
-                Please wait for admin approval.
-              </Typography>
-            </Box>
-          ) : (
-            <>
-              {error && (
-                <Alert severity="error" sx={{ mb: 2 }}>
-                  {error}
-                </Alert>
-              )}
+            {withdrawStep === 0 && (
+              <>
+                <Box
+                  sx={{
+                    borderRadius: 3,
+                    p: 2,
+                    mb: 1.6,
+                    background: "linear-gradient(145deg, #0d56cf 0%, #1f74f2 100%)",
+                    boxShadow: "0 16px 30px rgba(15,87,213,0.28)",
+                    color: "#fff",
+                  }}
+                >
+                  <Typography sx={{ fontSize: 10, fontWeight: 800, letterSpacing: 1, color: "rgba(255,255,255,0.76)" }}>
+                    AVAILABLE BALANCE
+                  </Typography>
+                  <Typography sx={{ fontSize: 31, fontWeight: 900, lineHeight: 1.15, mt: 0.6 }}>
+                    ₱{availableBalance.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Typography>
+                </Box>
 
-              {/* 🧾 Input Fields */}
-              <TextField
-                type="number"
-                fullWidth
-                label="Withdrawal Amount"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                sx={{
-                  mb: 2,
-                  "& .MuiOutlinedInput-root": { background: "rgba(255,255,255,0.96)", borderRadius: 1.6 },
-                  "& .MuiInputLabel-root": { color: "#4f6589", fontSize: 12 },
-                }}
-              />
+                <Box sx={{ background: "rgba(255,255,255,0.98)", borderRadius: 2.8, p: 1.5, mb: 1.4, border: "1px solid #dbe2ef", boxShadow: "0 10px 18px rgba(6,18,45,0.08)" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 0.9 }}>
+                    <Typography sx={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.9, color: "#7a8392" }}>
+                      ENTER AMOUNT
+                    </Typography>
+                    <Button
+                      onClick={() => setAmount(availableBalance > 0 ? availableBalance.toFixed(2) : "")}
+                      sx={{ minWidth: 0, p: 0, color: "#105abf", fontSize: 10.5, fontWeight: 800, textTransform: "none" }}
+                    >
+                      WITHDRAW ALL
+                    </Button>
+                  </Box>
 
-              <TextField
-                select
-                fullWidth
-                label="Payment Method"
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                sx={{
-                  mb: 2,
-                  "& .MuiOutlinedInput-root": { background: "rgba(255,255,255,0.96)", borderRadius: 1.6 },
-                  "& .MuiInputLabel-root": { color: "#4f6589", fontSize: 12 },
-                }}
-              >
-                <MenuItem value="GCash">GCash (5% charge)</MenuItem>
-                <MenuItem value="Bank">Bank ATM (5% charge)</MenuItem>
-              </TextField>
-
-              <Box
-                sx={{
-                  mb: 2,
-                  border: "1px dashed rgba(23,58,138,0.38)",
-                  borderRadius: 2.2,
-                  p: 2,
-                  textAlign: "center",
-                  background: "rgba(255,255,255,0.96)",
-                  boxShadow: "0 10px 22px rgba(2,10,24,0.10)",
-                }}
-              >
-                {qrPreview ? (
-                  <img
-                    src={qrPreview}
-                    alt="QR Preview"
-                    style={{
-                      width: "100%",
-                      maxHeight: 150,
-                      objectFit: "contain",
-                      borderRadius: 8,
+                  <TextField
+                    type="number"
+                    fullWidth
+                    placeholder="0.00"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    InputProps={{
+                      startAdornment: <Typography sx={{ mr: 1, fontSize: 25, fontWeight: 800, color: "#8f98a8" }}>₱</Typography>,
+                    }}
+                    sx={{
+                      "& .MuiInputBase-root": {
+                        backgroundColor: "#fff",
+                        borderRadius: 2,
+                        fontSize: 28,
+                        fontWeight: 900,
+                        color: "#1e2430",
+                      },
+                      "& .MuiOutlinedInput-notchedOutline": { borderColor: "#d8deea" },
+                      "& .MuiInputBase-input": { py: 1.05 },
                     }}
                   />
-                ) : (
-                  <Typography variant="body2" sx={{ color: "#666" }}>
-                    Upload your {paymentMethod || "GCash / Bank"} QR Code
+                </Box>
+
+                <Box sx={{ background: "rgba(255,255,255,0.98)", borderRadius: 2.8, p: 1.5, mb: 1.4, border: "1px solid #dbe2ef", boxShadow: "0 10px 18px rgba(6,18,45,0.08)" }}>
+                  <Typography sx={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.9, color: "#7a8392", mb: 1 }}>
+                    PAYMENT METHOD
                   </Typography>
+
+                  <Box sx={{ display: "grid", gap: 0.9 }}>
+                    {paymentGroups.map((group) => {
+                      const selected = paymentGroup === group.value;
+                      return (
+                        <Box key={group.value}>
+                          <Box
+                            onClick={() => {
+                              setPaymentGroup(group.value);
+                              setPaymentMethod("");
+                            }}
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 1,
+                              p: 1.15,
+                              borderRadius: 2.2,
+                              cursor: "pointer",
+                              background: selected ? "rgba(16,90,191,0.08)" : "#fff",
+                              border: selected ? "1px solid rgba(16,90,191,0.28)" : "1px solid #e5e9f0",
+                              transition: "all 0.2s ease",
+                            }}
+                          >
+                            <Box sx={{ width: 34, height: 34, borderRadius: 1.8, backgroundColor: group.badgeBg, color: group.badgeColor, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 14, flexShrink: 0 }}>
+                              {group.badge}
+                            </Box>
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <Typography sx={{ fontSize: 12.5, fontWeight: 800, color: "#223047" }}>
+                                {group.label}
+                              </Typography>
+                              <Typography sx={{ fontSize: 10.5, color: "#7a8392" }}>
+                                {group.caption}
+                              </Typography>
+                            </Box>
+                            <Box sx={{ width: 18, height: 18, borderRadius: "50%", border: selected ? "5px solid #105abf" : "2px solid #d0d7e4", flexShrink: 0 }} />
+                          </Box>
+
+                          {selected && (
+                            <Box sx={{ display: "grid", gap: 0.75, mt: 0.9, pl: 1 }}>
+                              {group.options.map((option) => {
+                                const optionSelected = paymentMethod === option.value;
+                                return (
+                                  <Box
+                                    key={option.value}
+                                    onClick={() => setPaymentMethod(option.value)}
+                                    sx={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 1,
+                                      p: 1,
+                                      borderRadius: 2,
+                                      cursor: "pointer",
+                                      background: optionSelected ? "rgba(16,90,191,0.10)" : "#f8fbff",
+                                      border: optionSelected ? "1px solid rgba(16,90,191,0.28)" : "1px solid #e7edf6",
+                                    }}
+                                  >
+                                    <Box sx={{ width: 30, height: 30, borderRadius: 1.6, backgroundColor: option.badgeBg, color: option.badgeColor, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 11.5, flexShrink: 0 }}>
+                                      {option.badge}
+                                    </Box>
+                                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                                      <Typography sx={{ fontSize: 12, fontWeight: 800, color: "#223047" }}>{option.label}</Typography>
+                                      <Typography sx={{ fontSize: 10.2, color: "#7a8392" }}>{option.caption}</Typography>
+                                    </Box>
+                                  </Box>
+                                );
+                              })}
+                            </Box>
+                          )}
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                </Box>
+
+                <Box sx={{ background: "rgba(255,255,255,0.98)", borderRadius: 2.8, p: 1.5, mb: 1.4, border: "1px solid #dbe2ef", boxShadow: "0 10px 18px rgba(6,18,45,0.08)" }}>
+                  <Typography sx={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.9, color: "#7a8392", mb: 1 }}>
+                    RECEIVER IDENTITY
+                  </Typography>
+
+                  <Box sx={{ border: "1px dashed rgba(16,90,191,0.28)", borderRadius: 2.2, p: 1.5, textAlign: "center", background: "#f8fbff", mb: 1 }}>
+                    {qrPreview ? (
+                      <img
+                        src={qrPreview}
+                        alt="QR Preview"
+                        style={{ width: "100%", maxHeight: 155, objectFit: "contain", borderRadius: 10 }}
+                      />
+                    ) : (
+                      <>
+                        <UploadFile sx={{ fontSize: 28, color: "#105abf", mb: 0.4 }} />
+                        <Typography sx={{ fontSize: 12.5, fontWeight: 800, color: "#223047" }}>
+                          Upload Receiver QR Code
+                        </Typography>
+                        <Typography sx={{ fontSize: 10.5, color: "#7a8392", mt: 0.35 }}>
+                          Accepted formats: PNG / JPG up to 5MB
+                        </Typography>
+                      </>
+                    )}
+                  </Box>
+
+                  <Button
+                    component="label"
+                    fullWidth
+                    startIcon={<UploadFile />}
+                    sx={{
+                      borderRadius: 2,
+                      bgcolor: "#eef4ff",
+                      color: "#105abf",
+                      textTransform: "none",
+                      fontWeight: 800,
+                      py: 1.05,
+                      "&:hover": { bgcolor: "#dde8ff" },
+                    }}
+                  >
+                    {qrPreview ? "Change QR Image" : "Upload QR"}
+                    <input type="file" accept="image/*" hidden onChange={handleQrUpload} />
+                  </Button>
+                </Box>
+
+                {(paymentMethod || amount) && (
+                  <Box sx={{ background: "rgba(255,255,255,0.98)", borderRadius: 2.8, p: 1.5, mb: 1.4, border: "1px solid #dbe2ef", boxShadow: "0 10px 18px rgba(6,18,45,0.08)" }}>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.7 }}>
+                      <Typography sx={{ fontSize: 11.5, color: "#6b7484" }}>Service Fee (2%)</Typography>
+                      <Typography sx={{ fontSize: 11.5, color: "#f0a63a", fontWeight: 800 }}>
+                        ₱{feeAmount.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                      <Typography sx={{ fontSize: 11.5, color: "#6b7484", fontWeight: 800 }}>TOTAL DEDUCTION</Typography>
+                      <Typography sx={{ fontSize: 18, color: "#105abf", fontWeight: 900 }}>
+                        ₱{totalDeductionAmount.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </Typography>
+                    </Box>
+                  </Box>
                 )}
+
+                <Box sx={{ background: "rgba(255,255,255,0.98)", borderRadius: 2.8, p: 1.5, border: "1px solid #dbe2ef", boxShadow: "0 10px 18px rgba(6,18,45,0.08)" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
+                    <Typography sx={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.9, color: "#7a8392" }}>
+                      RECENT LOGS
+                    </Typography>
+                    <Typography sx={{ fontSize: 10, fontWeight: 800, color: "#105abf" }}>
+                      {withdrawLogs.length} total
+                    </Typography>
+                  </Box>
+
+                  {withdrawLogs.length > 0 ? (
+                    <List dense disablePadding>
+                      {withdrawLogs.slice(0, 5).map((log, index) => (
+                        <ListItem key={log.id} disableGutters sx={{ py: 0.75, borderBottom: index === Math.min(withdrawLogs.length, 5) - 1 ? "none" : "1px solid #eef2f7" }}>
+                          <ListItemText
+                            primary={`₱${Number(log.amount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`}
+                            secondary={log.createdAt ? `${log.paymentMethod || "Method"} • ${new Date(log.createdAt.seconds * 1000).toLocaleString("en-PH")}` : `${log.paymentMethod || "Method"} • Pending...`}
+                            primaryTypographyProps={{ color: "#223047", fontWeight: 800, fontSize: 12.5 }}
+                            secondaryTypographyProps={{ color: "#7a8392", fontSize: 10.5 }}
+                          />
+                          <Chip
+                            size="small"
+                            label={log.status || "Pending"}
+                            color={getStatusColor(log.status)}
+                            sx={{ textTransform: "capitalize", fontWeight: 700, fontSize: 10.5 }}
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
+                  ) : (
+                    <Typography sx={{ fontSize: 11.5, color: "#7a8392" }}>
+                      No withdrawal requests yet.
+                    </Typography>
+                  )}
+                </Box>
+              </>
+            )}
+
+            {withdrawStep === 1 && (
+              <>
+                <Typography sx={{ fontSize: 10, color: "rgba(220,232,255,0.76)", fontWeight: 800, letterSpacing: 1, mb: 0.6 }}>
+                  SUMMARY
+                </Typography>
+                <Box sx={{ background: "rgba(255,255,255,0.98)", borderRadius: 2.8, p: 1.5, mb: 1.4, border: "1px solid #dbe2ef" }}>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                    <Typography sx={{ color: "#6b7484", fontSize: 12 }}>Withdrawal Amount</Typography>
+                    <Typography sx={{ color: "#223047", fontWeight: 800, fontSize: 14 }}>₱{amountValue.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Typography>
+                  </Box>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                    <Typography sx={{ color: "#6b7484", fontSize: 12 }}>Service Fee</Typography>
+                    <Typography sx={{ color: "#223047", fontWeight: 800, fontSize: 14 }}>₱{feeAmount.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Typography>
+                  </Box>
+                  <Divider sx={{ my: 1, borderColor: "#e5e9f0" }} />
+                  <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                    <Typography sx={{ color: "#105abf", fontSize: 15, fontWeight: 900 }}>Total Deduction</Typography>
+                    <Typography sx={{ color: "#105abf", fontWeight: 900, fontSize: 18 }}>₱{totalDeductionAmount.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Typography>
+                  </Box>
+                </Box>
+
+                <Typography sx={{ fontSize: 16, fontWeight: 800, color: "#ffffff", mb: 1 }}>Withdrawal Details</Typography>
+                <Box sx={{ background: "rgba(255,255,255,0.98)", borderRadius: 2.8, p: 1.5, mb: 1.2, border: "1px solid #dbe2ef" }}>
+                  <Typography sx={{ fontSize: 10, color: "#7a8392", fontWeight: 800, letterSpacing: 1, mb: 0.8 }}>METHOD</Typography>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box sx={{ width: 36, height: 36, borderRadius: 1.8, backgroundColor: selectedPaymentOption?.badgeBg || "#eef4ff", color: selectedPaymentOption?.badgeColor || "#105abf", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 12, flexShrink: 0 }}>
+                      {selectedPaymentOption?.badge || "₱"}
+                    </Box>
+                    <Box>
+                      <Typography sx={{ fontSize: 13.5, fontWeight: 800, color: "#223047" }}>{paymentMethod}</Typography>
+                      <Typography sx={{ fontSize: 10.5, color: "#7a8392" }}>Instant Transfer</Typography>
+                    </Box>
+                  </Box>
+                </Box>
+
+                <Box sx={{ background: "rgba(255,255,255,0.98)", borderRadius: 2.8, p: 1.5, mb: 1.3, border: "1px solid #dbe2ef" }}>
+                  <Typography sx={{ fontSize: 10, color: "#7a8392", fontWeight: 800, letterSpacing: 1, mb: 0.8 }}>RECEIVER IDENTITY</Typography>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box sx={{ width: 42, height: 42, borderRadius: 1.8, backgroundColor: "#111", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
+                      {qrPreview ? <img src={qrPreview} alt="Receiver QR" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <UploadFile sx={{ color: "#fff", fontSize: 18 }} />}
+                    </Box>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography sx={{ fontSize: 12.2, fontWeight: 800, color: "#223047", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{qrFile?.name || "Uploaded QR"}</Typography>
+                      <Typography sx={{ fontSize: 10.2, color: "#7a8392" }}>Uploaded today, {new Date().toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" })}</Typography>
+                    </Box>
+                  </Box>
+                </Box>
+
+                <Box sx={{ background: "rgba(255,255,255,0.98)", borderRadius: 2.6, p: 1.4, border: "1px solid #dbe2ef", display: "flex", alignItems: "flex-start", gap: 1 }}>
+                  <input
+                    type="checkbox"
+                    checked={confirmReview}
+                    onChange={() => setConfirmReview((prev) => !prev)}
+                    style={{ width: 18, height: 18, marginTop: 2, accentColor: "#105abf" }}
+                  />
+                  <Typography sx={{ fontSize: 12, color: "#4a5568", fontWeight: 600, lineHeight: 1.55 }}>
+                    I confirm that the withdrawal details and the uploaded QR code are correct.
+                  </Typography>
+                </Box>
+
+                <Typography sx={{ textAlign: "center", fontSize: 10.5, color: "rgba(220,232,255,0.72)", mt: 1.5 }}>
+                  Funds typically arrive in 1-5 minutes
+                </Typography>
+              </>
+            )}
+
+            {withdrawStep === 2 && receiptData && (
+              <>
+                <Box sx={{ textAlign: "center", mb: 2.1 }}>
+                  <Box sx={{ width: 72, height: 72, mx: "auto", mb: 1.1, borderRadius: "50%", bgcolor: "#0d56cf", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 14px 28px rgba(13,86,207,0.24)" }}>
+                    <CheckCircle sx={{ fontSize: 38, color: "#fff" }} />
+                  </Box>
+                  <Typography sx={{ fontSize: 27, fontWeight: 900, color: "#ffffff" }}>Withdrawal Successful!</Typography>
+                  <Typography sx={{ fontSize: 12.2, color: "rgba(220,232,255,0.76)", mt: 0.35 }}>
+                    Your funds are being processed
+                  </Typography>
+                </Box>
+
+                <Box sx={{ background: "rgba(255,255,255,0.98)", borderRadius: 2.8, p: 1.6, mb: 1.4, border: "1px solid #dbe2ef" }}>
+                  <Typography sx={{ textAlign: "center", fontSize: 10, fontWeight: 800, letterSpacing: 1, color: "#7a8392" }}>AMOUNT WITHDRAWN</Typography>
+                  <Typography sx={{ textAlign: "center", fontSize: 31, fontWeight: 900, color: "#223047", mt: 0.5 }}>
+                    ₱{Number(receiptData.amount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Typography>
+                </Box>
+
+                <Box sx={{ background: "rgba(255,255,255,0.98)", borderRadius: 2.8, p: 1.6, mb: 1.4, border: "1px solid #dbe2ef" }}>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, mb: 1.2 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.9 }}>
+                      <Box sx={{ width: 34, height: 34, borderRadius: 1.6, backgroundColor: selectedPaymentOption?.badgeBg || "#eef4ff", color: selectedPaymentOption?.badgeColor || "#105abf", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 11 }}>
+                        {selectedPaymentOption?.badge || "₱"}
+                      </Box>
+                      <Box>
+                        <Typography sx={{ fontSize: 9.5, color: "#7a8392", fontWeight: 800, letterSpacing: 0.8 }}>METHOD</Typography>
+                        <Typography sx={{ fontSize: 12.5, color: "#223047", fontWeight: 800 }}>{receiptData.paymentMethod}</Typography>
+                      </Box>
+                    </Box>
+                    <Box sx={{ textAlign: "right" }}>
+                      <Typography sx={{ fontSize: 9.5, color: "#7a8392", fontWeight: 800, letterSpacing: 0.8 }}>REFERENCE</Typography>
+                      <Typography sx={{ fontSize: 12.5, color: "#223047", fontWeight: 800 }}>{receiptData.referenceNumber}</Typography>
+                    </Box>
+                  </Box>
+                  <Typography sx={{ fontSize: 10.5, color: "#7a8392", fontWeight: 700 }}>
+                    {receiptData.date?.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })} • {receiptData.date?.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" })}
+                  </Typography>
+                </Box>
+
+                <Box sx={{ background: "rgba(255,255,255,0.98)", borderRadius: 2.8, p: 1.6, mb: 1.4, border: "1px solid #dbe2ef" }}>
+                  <Typography sx={{ fontSize: 10, color: "#7a8392", fontWeight: 800, letterSpacing: 1, mb: 1 }}>TRANSACTION SUMMARY</Typography>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.7 }}>
+                    <Typography sx={{ fontSize: 12, color: "#6b7484" }}>Withdrawal Amount</Typography>
+                    <Typography sx={{ fontSize: 12, color: "#223047", fontWeight: 800 }}>₱{Number(receiptData.amount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Typography>
+                  </Box>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.7 }}>
+                    <Typography sx={{ fontSize: 12, color: "#6b7484" }}>Service Fee</Typography>
+                    <Typography sx={{ fontSize: 12, color: "#223047", fontWeight: 800 }}>₱{Number(receiptData.charge || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Typography>
+                  </Box>
+                  <Divider sx={{ my: 0.9, borderColor: "#e5e9f0" }} />
+                  <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                    <Typography sx={{ fontSize: 15, color: "#105abf", fontWeight: 900 }}>Total Deduction</Typography>
+                    <Typography sx={{ fontSize: 17, color: "#105abf", fontWeight: 900 }}>₱{Number(receiptData.totalDeduction || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Typography>
+                  </Box>
+                </Box>
+
                 <Button
-                  component="label"
-                  startIcon={<UploadFile />}
-                  sx={{ mt: 1, bgcolor: "#f0f4ff", color: "#173a8a", "&:hover": { bgcolor: "#dde8ff" } }}
+                  fullWidth
+                  onClick={handleShareReceipt}
+                  variant="contained"
+                  sx={{ mb: 1, borderRadius: 2.2, textTransform: "none", fontWeight: 800, py: 1.25, bgcolor: "#0d56cf", "&:hover": { bgcolor: "#0b4eaa" } }}
                 >
-                  Upload QR
-                  <input type="file" accept="image/*" hidden onChange={handleQrUpload} />
+                  Share Receipt
                 </Button>
-              </Box>
-
-              {(paymentMethod === "GCash" || paymentMethod === "Bank") && (
-                <Typography variant="body2" sx={{ mb: 1, color: "#e65100", fontWeight: 600 }}>
-                  {paymentMethod} Charge (5%): ₱{(amount * 0.05 || 0).toFixed(2)}
-                </Typography>
-              )}
-
-              {amount && (
-                <Typography variant="body2" sx={{ color: "#2e7d32", fontWeight: 600, mb: 2 }}>
-                  Net Amount You’ll Receive: ₱{netAmount.toFixed(2)}
-                </Typography>
-              )}
-            </>
-          )}
-
-          {/* 🧾 Withdrawal Logs */}
-          {withdrawLogs.length > 0 && (
-            <Box sx={{ background: "linear-gradient(145deg, rgba(255,255,255,0.96) 0%, rgba(241,246,255,0.98) 100%)", borderRadius: 2.5, p: 2, border: "1px solid rgba(138,199,255,0.18)", boxShadow: "0 12px 24px rgba(2,10,24,0.16)" }}>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700, color: "#0b1f5e" }}>
-                Withdrawal Logs
-              </Typography>
-              <List dense>
-                {withdrawLogs.map((log) => (
-                  <ListItem key={log.id} sx={{ borderBottom: "1px solid #f0f0f0", py: 0.5 }}>
-                    <ListItemText
-                      primary={`₱${log.amount.toLocaleString("en-PH", { minimumFractionDigits: 2 })} • ${log.paymentMethod}`}
-                      secondary={
-                        log.createdAt
-                          ? new Date(log.createdAt.seconds * 1000).toLocaleString("en-PH")
-                          : "Pending..."
-                      }
-                      primaryTypographyProps={{ color: "#0b1f5e", fontWeight: 600 }}
-                      secondaryTypographyProps={{ color: "#666", fontSize: 12 }}
-                    />
-                    <Chip
-                      size="small"
-                      label={log.status}
-                      color={getStatusColor(log.status)}
-                      sx={{ textTransform: "capitalize", fontWeight: 600, fontSize: 11 }}
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            </Box>
-          )}
+                <Button
+                  fullWidth
+                  onClick={handleDownloadReceipt}
+                  variant="outlined"
+                  sx={{ mb: 1.2, borderRadius: 2.2, textTransform: "none", fontWeight: 800, py: 1.15, color: "#223047", borderColor: "#d5dfef", backgroundColor: "rgba(255,255,255,0.96)" }}
+                >
+                  Download Receipt
+                </Button>
+                <Button
+                  fullWidth
+                  onClick={handleClose}
+                  sx={{ color: "#8ac7ff", textTransform: "none", fontWeight: 800 }}
+                >
+                  Back to Home
+                </Button>
+              </>
+            )}
           </Box>
 
           {/* Footer */}
-          {!success && (
+          {withdrawStep !== 2 && (
             <Box sx={{ p: 2, borderTop: "1px solid rgba(138,199,255,0.14)", background: "rgba(6,19,46,0.90)", backdropFilter: "blur(18px)" }}>
               <Button
-                onClick={handleWithdraw}
+                onClick={withdrawStep === 1 ? performWithdraw : handleWithdraw}
                 variant="contained"
                 fullWidth
-                disabled={loading}
+                disabled={loading || (withdrawStep === 1 && !confirmReview)}
                 sx={{
                   py: 1.5,
-                  fontWeight: 700,
-                  fontSize: 16,
+                  fontWeight: 800,
+                  fontSize: 15,
+                  borderRadius: 2.2,
                   background: "linear-gradient(135deg, #0b1f5e 0%, #173a8a 100%)",
                   "&:hover": { background: "linear-gradient(135deg, #173a8a 0%, #0b1f5e 100%)" },
-                  "&:disabled": { background: "#ccc" },
+                  "&:disabled": { background: "#cfd6e4", color: "#7a8392" },
                 }}
               >
-                {loading ? <CircularProgress size={24} sx={{ color: "#fff" }} /> : "Withdraw"}
+                {loading
+                  ? <CircularProgress size={24} sx={{ color: "#fff" }} />
+                  : withdrawStep === 1
+                    ? "CONFIRM WITHDRAWAL"
+                    : "WITHDRAW"}
               </Button>
             </Box>
           )}
         </Box>
       </Drawer>
-
-      {/* ✅ Permission Confirmation Dialog */}
-      <Dialog
-        open={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
-        maxWidth="xs"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 3,
-            background: "linear-gradient(180deg, rgba(6,19,46,0.98) 0%, rgba(13,47,118,0.92) 100%)",
-            color: "#fff",
-            border: "1px solid rgba(138,199,255,0.14)",
-            p: 2,
-          },
-        }}
-      >
-        <DialogTitle sx={{ textAlign: "center", fontWeight: 600 }}>
-          Confirm Withdrawal
-        </DialogTitle>
-        <DialogContent sx={{ textAlign: "center" }}>
-          <Typography sx={{ mb: 1 }}>
-            Withdraw <strong>₱{amount}</strong> via{" "}
-            <strong>{paymentMethod}</strong>?
-          </Typography>
-          <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.7)" }}>
-            Once submitted, your withdrawal request will be reviewed by admin.
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ justifyContent: "center", pb: 2 }}>
-          <Button
-            onClick={() => setConfirmOpen(false)}
-            variant="outlined"
-            color="inherit"
-            sx={{
-              borderColor: "rgba(255,255,255,0.3)",
-              color: "#fff",
-              "&:hover": { background: "rgba(255,255,255,0.1)" },
-            }}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={performWithdraw}
-            variant="contained"
-            disabled={loading}
-            sx={{
-              bgcolor: "#FF7043",
-              color: "#000",
-              fontWeight: 600,
-              "&:hover": { bgcolor: "#F4511E" },
-            }}
-          >
-            Confirm
-          </Button>
-        </DialogActions>
-      </Dialog>
     </>
   );
 };
