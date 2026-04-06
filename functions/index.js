@@ -2,6 +2,7 @@ const functions = require("firebase-functions");
 const cors = require("cors");
 const admin = require("firebase-admin");
 const bcrypt = require("bcryptjs");
+const nodemailer = require("nodemailer");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -130,6 +131,661 @@ const sendPushToUsers = async ({ userIds = [], title, body, data = {} }) => {
 
   return { sent, users: uniqueUserIds.length };
 };
+
+const createRiderApplicationReference = () => {
+  const randomNumber = Math.floor(10000 + Math.random() * 90000);
+  const suffix = Math.random().toString(36).slice(2, 4).toUpperCase();
+  return `PR-${randomNumber}-${suffix}`;
+};
+
+const pickConfigValue = (...values) => {
+  for (const value of values) {
+    if (value === undefined || value === null) continue;
+    const trimmedValue = String(value).trim();
+    if (trimmedValue) return trimmedValue;
+  }
+
+  return "";
+};
+
+const getWebAppUrl = () =>
+  pickConfigValue(
+    process.env.WEB_APP_URL,
+    process.env.FRONTEND_URL,
+    "https://lutz1.github.io/damayan-savings"
+  ).replace(/\/$/, "");
+
+const getMailTransporter = () => {
+  let runtimeConfig = {};
+
+  try {
+    runtimeConfig = typeof functions.config === "function" ? functions.config() || {} : {};
+  } catch (error) {
+    runtimeConfig = {};
+  }
+
+  const smtpConfig = runtimeConfig.smtp || {};
+  const mailConfig = runtimeConfig.mail || {};
+
+  const service = pickConfigValue(
+    process.env.SMTP_SERVICE,
+    process.env.MAIL_SERVICE,
+    process.env.EMAIL_SERVICE,
+    smtpConfig.service,
+    mailConfig.service
+  );
+  const host = pickConfigValue(
+    process.env.SMTP_HOST,
+    process.env.MAIL_HOST,
+    process.env.EMAIL_HOST,
+    smtpConfig.host,
+    mailConfig.host
+  );
+  const user = pickConfigValue(
+    process.env.SMTP_USER,
+    process.env.MAIL_USER,
+    process.env.EMAIL_USER,
+    process.env.GMAIL_USER,
+    smtpConfig.user,
+    mailConfig.user
+  );
+  const pass = pickConfigValue(
+    process.env.SMTP_PASS,
+    process.env.MAIL_PASS,
+    process.env.EMAIL_PASS,
+    process.env.GMAIL_APP_PASSWORD,
+    smtpConfig.pass,
+    mailConfig.pass
+  );
+  const from = pickConfigValue(
+    process.env.SMTP_FROM,
+    process.env.MAIL_FROM,
+    process.env.EMAIL_FROM,
+    smtpConfig.from,
+    mailConfig.from,
+    user
+  );
+  const port = Number(
+    pickConfigValue(
+      process.env.SMTP_PORT,
+      process.env.MAIL_PORT,
+      process.env.EMAIL_PORT,
+      smtpConfig.port,
+      mailConfig.port,
+      service ? "0" : "587"
+    )
+  );
+  const secure =
+    pickConfigValue(
+      process.env.SMTP_SECURE,
+      process.env.MAIL_SECURE,
+      process.env.EMAIL_SECURE,
+      smtpConfig.secure,
+      mailConfig.secure
+    ).toLowerCase() === "true" || port === 465;
+
+  if (!user || !pass || (!service && !host)) {
+    return {
+      transporter: null,
+      from: from || user,
+      reason: "SMTP is not configured in Firebase Functions yet.",
+    };
+  }
+
+  const transporter = service
+    ? nodemailer.createTransport({ service, auth: { user, pass } })
+    : nodemailer.createTransport({ host, port, secure, auth: { user, pass } });
+
+  return {
+    transporter,
+    from: from || user,
+    reason: "",
+  };
+};
+
+const sendRiderApplicationEmail = async ({ toEmail, applicantName, referenceNo, reviewEta = "3-5 business days" }) => {
+  const mailer = getMailTransporter();
+  if (!mailer?.transporter) {
+    const reason = String(mailer?.reason || "SMTP is not configured in Firebase Functions yet.");
+    console.warn(`[submitRiderApplication] ${reason} Skipping confirmation email.`);
+    return { sent: false, skipped: true, reason };
+  }
+
+  const safeName = String(applicantName || "Applicant").trim() || "Applicant";
+  const reviewPath = getWebAppUrl();
+  const subject = "Plezz Rider Application Received";
+  const text = [
+    `Hello ${safeName},`,
+    "",
+    "Thank you for applying to Plezz Rider.",
+    `Your application reference is ${referenceNo}.`,
+    `Estimated review time: ${reviewEta}.`,
+    "",
+    "Our underwriting team is now reviewing your application details.",
+    `You can return to the app here: ${reviewPath}`,
+  ].join("\n");
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;background:#f8fbff;padding:24px;color:#0f172a;">
+      <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:16px;padding:24px;border:1px solid #dbe4f0;">
+        <div style="font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#2563eb;">Plezz Rider</div>
+        <h2 style="margin:12px 0 8px;font-size:24px;line-height:1.2;">You're all set!</h2>
+        <p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#475569;">Hello ${safeName}, thank you for applying to Plezz Rider. Our underwriting team is reviewing your profile.</p>
+        <div style="background:linear-gradient(180deg,#1e67da 0%,#1357c4 100%);border-radius:14px;padding:16px;color:#ffffff;margin-bottom:16px;">
+          <div style="font-size:11px;opacity:.82;margin-bottom:4px;">APPLICATION ID</div>
+          <div style="font-size:24px;font-weight:800;letter-spacing:.02em;">${referenceNo}</div>
+        </div>
+        <div style="background:#f8fbff;border-radius:12px;padding:12px 14px;margin-bottom:16px;font-size:14px;color:#334155;">
+          <strong>Estimated review time:</strong> ${reviewEta}
+        </div>
+        <p style="margin:0;font-size:13px;line-height:1.6;color:#475569;">We’ll email you once your application has been verified by our team.</p>
+      </div>
+    </div>
+  `;
+
+  const info = await mailer.transporter.sendMail({
+    from: mailer.from.includes("<") ? mailer.from : `Plezz Rider <${mailer.from}>`,
+    to: toEmail,
+    subject,
+    text,
+    html,
+  });
+
+  return {
+    sent: true,
+    messageId: info.messageId || "",
+    reason: "",
+  };
+};
+
+const attemptRiderApplicationEmail = async ({ applicationRef, toEmail, applicantName, referenceNo, reviewEta, logLabel = "submitRiderApplication" }) => {
+  try {
+    const mailResult = await sendRiderApplicationEmail({
+      toEmail,
+      applicantName,
+      referenceNo,
+      reviewEta,
+    });
+
+    const emailSent = Boolean(mailResult?.sent);
+    const emailError = emailSent ? "" : String(mailResult?.reason || "").trim();
+
+    if (applicationRef) {
+      const updatePayload = {
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      if (emailSent) {
+        updatePayload.emailSent = true;
+        updatePayload.emailSentAt = admin.firestore.FieldValue.serverTimestamp();
+        updatePayload.emailError = admin.firestore.FieldValue.delete();
+      } else if (emailError) {
+        updatePayload.emailSent = false;
+        updatePayload.emailError = emailError;
+      }
+
+      await applicationRef.update(updatePayload);
+    }
+
+    return { emailSent, emailError };
+  } catch (error) {
+    const emailError = String(error?.message || "Confirmation email could not be sent.").trim();
+    console.error(`[${logLabel}] Email warning:`, error);
+
+    if (applicationRef) {
+      await applicationRef.update({
+        emailSent: false,
+        emailError,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    return { emailSent: false, emailError };
+  }
+};
+
+const createUniqueRiderId = async () => {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const candidate = `RIDER-${Math.floor(100000 + Math.random() * 900000)}`;
+    const existingSnap = await db.collection("users").where("riderId", "==", candidate).limit(1).get();
+    if (existingSnap.empty) {
+      return candidate;
+    }
+  }
+
+  return `RIDER-${Date.now().toString().slice(-8)}`;
+};
+
+const buildRiderAuthEmail = (riderId = "") => {
+  const localPart = String(riderId || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+
+  return `${localPart || `rider${Date.now()}`}@plezzrider.local`;
+};
+
+exports.checkMemberEmail = functions.https.onCall(async (data) => {
+  const safeEmail = String(data?.email || "").trim().toLowerCase();
+
+  if (!safeEmail || !/^\S+@\S+\.\S+$/.test(safeEmail)) {
+    throw new functions.https.HttpsError("invalid-argument", "Valid email is required.");
+  }
+
+  let exists = false;
+  let role = null;
+  let hasExistingApplication = false;
+  let existingApplicationStatus = "";
+  let existingReferenceNo = "";
+
+  try {
+    const userRecord = await admin.auth().getUserByEmail(safeEmail);
+    exists = Boolean(userRecord?.uid);
+
+    if (userRecord?.uid) {
+      const userSnap = await db.collection("users").doc(userRecord.uid).get();
+      if (userSnap.exists) {
+        role = userSnap.data()?.role || null;
+      }
+    }
+  } catch (error) {
+    if (error?.code !== "auth/user-not-found") {
+      console.error("[checkMemberEmail] ❌ Auth lookup failed:", error);
+      throw new functions.https.HttpsError("internal", "Unable to verify email right now.");
+    }
+  }
+
+  if (!exists) {
+    const profileQuery = await db.collection("users").where("email", "==", safeEmail).limit(1).get();
+    if (!profileQuery.empty) {
+      exists = true;
+      role = profileQuery.docs[0].data()?.role || null;
+    }
+  }
+
+  const riderApplicationsSnap = await db.collection("riderApplications").where("memberEmail", "==", safeEmail).limit(10).get();
+  const existingPending = riderApplicationsSnap.docs.find((docSnap) => {
+    const status = String(docSnap.data()?.status || "").toUpperCase();
+    return ["SUBMITTED", "UNDER_REVIEW", "PENDING", "APPROVED"].includes(status);
+  });
+
+  if (existingPending) {
+    const existingData = existingPending.data() || {};
+    hasExistingApplication = true;
+    existingApplicationStatus = String(existingData.status || "UNDER_REVIEW").toUpperCase();
+    existingReferenceNo = String(existingData.referenceNo || "").trim();
+  }
+
+  return {
+    exists,
+    role,
+    hasExistingApplication,
+    existingApplicationStatus,
+    existingReferenceNo,
+  };
+});
+
+exports.submitRiderApplication = functions.https.onCall(async (data, context) => {
+  const applicant = data?.applicant || {};
+  const vehicle = data?.vehicle || {};
+  const verification = data?.verification || {};
+  const documents = data?.documents || {};
+  const safeEmail = String(applicant.email || "").trim().toLowerCase();
+  const safePhone = String(applicant.phone || "").trim();
+  const referenceNo = createRiderApplicationReference();
+  const reviewEta = "3-5 business days";
+  const fullName = String(applicant.fullName || [applicant.firstName, applicant.middleName, applicant.lastName, applicant.extName].filter(Boolean).join(" ")).trim();
+
+  if (!safeEmail || !/^\S+@\S+\.\S+$/.test(safeEmail)) {
+    throw new functions.https.HttpsError("invalid-argument", "A valid email address is required.");
+  }
+
+  if (!/^09\d{9}$/.test(safePhone)) {
+    throw new functions.https.HttpsError("invalid-argument", "A valid 11-digit phone number is required.");
+  }
+
+  if (!String(applicant.firstName || applicant.fullName || "").trim() || !String(applicant.lastName || "").trim()) {
+    throw new functions.https.HttpsError("invalid-argument", "Applicant first name and last name are required.");
+  }
+
+  if (!String(vehicle.vehicleType || "").trim() || !String(vehicle.model || "").trim() || !String(vehicle.plateNumber || "").trim()) {
+    throw new functions.https.HttpsError("invalid-argument", "Vehicle details are incomplete.");
+  }
+
+  let memberUid = context.auth?.uid || "";
+  let memberProfile = {};
+
+  try {
+    const authUser = await admin.auth().getUserByEmail(safeEmail);
+    if (authUser?.uid) {
+      memberUid = memberUid || authUser.uid;
+      const memberSnap = await db.collection("users").doc(authUser.uid).get();
+      if (memberSnap.exists) {
+        memberProfile = memberSnap.data() || {};
+      }
+    }
+  } catch (error) {
+    if (error?.code !== "auth/user-not-found") {
+      console.error("[submitRiderApplication] ❌ Auth lookup failed:", error);
+      throw new functions.https.HttpsError("internal", "Unable to verify the member email right now.");
+    }
+  }
+
+  if (!memberUid) {
+    const profileQuery = await db.collection("users").where("email", "==", safeEmail).limit(1).get();
+    if (!profileQuery.empty) {
+      memberUid = profileQuery.docs[0].id;
+      memberProfile = profileQuery.docs[0].data() || {};
+    }
+  }
+
+  if (!memberUid && !memberProfile?.email) {
+    throw new functions.https.HttpsError("not-found", "The email used in Step 1 is not registered as a member.");
+  }
+
+  const existingApps = await db.collection("riderApplications").where("memberEmail", "==", safeEmail).limit(5).get();
+  const existingPending = existingApps.docs.find((docSnap) => {
+    const status = String(docSnap.data()?.status || "").toUpperCase();
+    return ["SUBMITTED", "UNDER_REVIEW", "PENDING"].includes(status);
+  });
+
+  if (existingPending) {
+    const existingData = existingPending.data() || {};
+    let emailSent = Boolean(existingData.emailSent);
+    let emailError = String(existingData.emailError || "").trim();
+
+    if (!emailSent) {
+      const retryResult = await attemptRiderApplicationEmail({
+        applicationRef: existingPending.ref,
+        toEmail: safeEmail,
+        applicantName: existingData.applicant?.fullName || fullName || "Applicant",
+        referenceNo: existingData.referenceNo || referenceNo,
+        reviewEta: existingData.reviewEta || reviewEta,
+        logLabel: "submitRiderApplication:duplicate",
+      });
+
+      emailSent = retryResult.emailSent;
+      emailError = retryResult.emailError;
+    }
+
+    return {
+      success: true,
+      duplicate: true,
+      applicationId: existingPending.id,
+      referenceNo: existingData.referenceNo || referenceNo,
+      reviewEta: existingData.reviewEta || reviewEta,
+      emailSent,
+      emailError,
+      status: existingData.status || "UNDER_REVIEW",
+    };
+  }
+  const normalizedDocuments = Object.entries(documents || {}).reduce((accumulator, [key, value]) => {
+    accumulator[key] = {
+      name: String(value?.name || ""),
+      type: String(value?.type || ""),
+      downloadUrl: String(value?.downloadUrl || ""),
+      storagePath: String(value?.storagePath || ""),
+      scannedData: value?.scannedData || {},
+    };
+    return accumulator;
+  }, {});
+
+  const payload = {
+    referenceNo,
+    memberUid: memberUid || null,
+    memberEmail: safeEmail,
+    memberRole: String(memberProfile?.role || "MEMBER").toUpperCase(),
+    memberUsername: String(memberProfile?.username || ""),
+    status: "UNDER_REVIEW",
+    reviewEta,
+    submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    applicant: {
+      firstName: String(applicant.firstName || "").trim(),
+      middleName: String(applicant.middleName || "").trim(),
+      lastName: String(applicant.lastName || "").trim(),
+      extName: String(applicant.extName || "").trim(),
+      fullName,
+      email: safeEmail,
+      phone: safePhone,
+      birthDate: String(applicant.birthDate || "").trim(),
+    },
+    vehicle: {
+      vehicleType: String(vehicle.vehicleType || "").trim(),
+      model: String(vehicle.model || "").trim(),
+      year: String(vehicle.year || "").trim(),
+      plateNumber: String(vehicle.plateNumber || "").trim(),
+      registrationExpiry: String(vehicle.registrationExpiry || "").trim(),
+    },
+    verification: {
+      emailStatus: String(verification.emailStatus || "").trim(),
+      faceMatchStatus: String(verification.faceMatchStatus || "").trim(),
+      faceMatchMessage: String(verification.faceMatchMessage || "").trim(),
+    },
+    documents: normalizedDocuments,
+    source: "rider-application-page",
+    emailSent: false,
+  };
+
+  const applicationRef = await db.collection("riderApplications").add(payload);
+
+  if (memberUid) {
+    try {
+      await db.collection("notifications").add({
+        userId: memberUid,
+        title: "Rider application submitted",
+        message: `Your rider application (${referenceNo}) is now under review. Estimated review time is ${reviewEta}.`,
+        type: "rider-application-submitted",
+        read: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        path: "/member/dashboard",
+        referenceNo,
+      });
+
+      await sendPushToUsers({
+        userIds: [memberUid],
+        title: "Rider application submitted",
+        body: `Application ${referenceNo} is under review (${reviewEta}).`,
+        data: {
+          type: "rider-application-submitted",
+          path: "/member/dashboard",
+          referenceNo,
+        },
+      });
+    } catch (notificationError) {
+      console.warn("[submitRiderApplication] Notification warning:", notificationError);
+    }
+  }
+
+  const emailResult = await attemptRiderApplicationEmail({
+    applicationRef,
+    toEmail: safeEmail,
+    applicantName: fullName || "Applicant",
+    referenceNo,
+    reviewEta,
+  });
+
+  return {
+    success: true,
+    applicationId: applicationRef.id,
+    referenceNo,
+    reviewEta,
+    emailSent: emailResult.emailSent,
+    emailError: emailResult.emailError,
+    status: "UNDER_REVIEW",
+  };
+});
+
+exports.reviewRiderApplication = functions.https.onCall(async (data, context) => {
+  if (!context.auth?.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Authentication required.");
+  }
+
+  const applicationId = String(data?.applicationId || "").trim();
+  const reviewStatus = normalizeStatus(data?.status || "UNDER_REVIEW");
+  const reviewRemarks = String(data?.reviewRemarks || "").trim();
+
+  if (!applicationId) {
+    throw new functions.https.HttpsError("invalid-argument", "Application ID is required.");
+  }
+
+  if (!["UNDER_REVIEW", "APPROVED", "REJECTED"].includes(reviewStatus)) {
+    throw new functions.https.HttpsError("invalid-argument", "Invalid rider application status.");
+  }
+
+  const reviewerSnap = await db.collection("users").doc(context.auth.uid).get();
+  const reviewerData = reviewerSnap.exists ? reviewerSnap.data() || {} : {};
+  const reviewerRole = normalizeStatus(reviewerData.role || "");
+
+  if (!["ADMIN", "CEO", "SUPERADMIN"].includes(reviewerRole)) {
+    throw new functions.https.HttpsError("permission-denied", "Not authorized to review rider applications.");
+  }
+
+  if (reviewStatus === "APPROVED" && !["CEO", "SUPERADMIN"].includes(reviewerRole)) {
+    throw new functions.https.HttpsError("permission-denied", "Only SUPERADMIN or CEO can approve and generate Rider ID access.");
+  }
+
+  const applicationRef = db.collection("riderApplications").doc(applicationId);
+  const applicationSnap = await applicationRef.get();
+
+  if (!applicationSnap.exists) {
+    throw new functions.https.HttpsError("not-found", "Rider application not found.");
+  }
+
+  const applicationData = applicationSnap.data() || {};
+  const applicantName = String(applicationData.applicant?.fullName || "Rider Applicant").trim() || "Rider Applicant";
+  const memberEmail = String(applicationData.memberEmail || applicationData.applicant?.email || "").trim().toLowerCase();
+  const memberUid = String(applicationData.memberUid || "").trim();
+
+  const updatePayload = {
+    status: reviewStatus,
+    reviewRemarks,
+    reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+    reviewedByUid: context.auth.uid,
+    reviewedByRole: reviewerRole,
+    reviewedByEmail: String(context.auth.token.email || reviewerData.email || "").trim(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  let generatedRider = null;
+
+  if (reviewStatus === "APPROVED") {
+    const riderId = String(applicationData.riderId || "").trim() || await createUniqueRiderId();
+    const riderLoginEmail = String(applicationData.riderLoginEmail || "").trim() || buildRiderAuthEmail(riderId);
+    let riderUid = String(applicationData.riderUid || "").trim();
+    let authRecord = null;
+
+    if (riderUid) {
+      try {
+        authRecord = await admin.auth().getUser(riderUid);
+      } catch (_error) {
+        authRecord = null;
+      }
+    }
+
+    if (!authRecord) {
+      try {
+        authRecord = await admin.auth().getUserByEmail(riderLoginEmail);
+      } catch (_error) {
+        authRecord = null;
+      }
+    }
+
+    if (authRecord?.uid) {
+      riderUid = authRecord.uid;
+      await admin.auth().updateUser(riderUid, {
+        email: riderLoginEmail,
+        password: DEFAULT_RESET_PASSWORD,
+        displayName: applicantName,
+      });
+    } else {
+      const createdAuthUser = await admin.auth().createUser({
+        email: riderLoginEmail,
+        password: DEFAULT_RESET_PASSWORD,
+        displayName: applicantName,
+      });
+      riderUid = createdAuthUser.uid;
+    }
+
+    await db.collection("users").doc(riderUid).set(
+      {
+        uid: riderUid,
+        role: "RIDER",
+        riderId,
+        username: riderId,
+        name: applicantName,
+        fullName: applicantName,
+        email: riderLoginEmail,
+        loginEmail: riderLoginEmail,
+        contactEmail: memberEmail,
+        linkedMemberEmail: memberEmail,
+        linkedMemberUid: memberUid || null,
+        contactNumber: String(applicationData.applicant?.phone || "").trim(),
+        phone: String(applicationData.applicant?.phone || "").trim(),
+        address: String(applicationData.applicant?.address || "").trim(),
+        riderApplicationId: applicationId,
+        riderApplicationReferenceNo: String(applicationData.referenceNo || "").trim(),
+        riderApplicationStatus: "APPROVED",
+        vehicleInfo: applicationData.vehicle || {},
+        createdAt: applicationData.approvedAt || admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    updatePayload.approvedAt = admin.firestore.FieldValue.serverTimestamp();
+    updatePayload.riderUid = riderUid;
+    updatePayload.riderId = riderId;
+    updatePayload.riderLoginEmail = riderLoginEmail;
+    updatePayload.riderPasswordReady = true;
+
+    generatedRider = {
+      riderUid,
+      riderId,
+      riderLoginEmail,
+      defaultPassword: DEFAULT_RESET_PASSWORD,
+    };
+
+    if (memberUid) {
+      try {
+        await db.collection("notifications").add({
+          userId: memberUid,
+          title: "Rider application approved",
+          message: `Your rider application has been approved. Rider ID: ${riderId}. Default password: ${DEFAULT_RESET_PASSWORD}.`,
+          type: "rider-application-approved",
+          read: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          path: "/rider/login",
+          riderId,
+        });
+
+        await sendPushToUsers({
+          userIds: [memberUid],
+          title: "Rider application approved",
+          body: `Rider ID: ${riderId}. Default password: ${DEFAULT_RESET_PASSWORD}.`,
+          data: {
+            type: "RIDER_APPLICATION_APPROVED",
+            riderId,
+            path: "/rider/login",
+          },
+        });
+      } catch (notificationError) {
+        console.warn("[reviewRiderApplication] notification warning:", notificationError);
+      }
+    }
+  }
+
+  await applicationRef.set(updatePayload, { merge: true });
+
+  return {
+    success: true,
+    applicationId,
+    status: reviewStatus,
+    riderId: generatedRider?.riderId || String(applicationData.riderId || "").trim(),
+    defaultPassword: generatedRider?.defaultPassword || "",
+    generatedRider,
+  };
+});
 
 exports.processDepositApproval = functions.https.onCall(async (data, context) => {
   if (!context.auth?.uid) {

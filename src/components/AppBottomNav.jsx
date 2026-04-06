@@ -38,6 +38,7 @@ import {
   FactCheck as ProductApprovalIcon,
   CardGiftcard as VoucherIcon,
   LockReset as LockResetIcon,
+  TwoWheeler as RiderApplicationsIcon,
 } from "@mui/icons-material";
 
 const AppBottomNav = ({ open, onToggleSidebar, layout = "bottom" }) => {
@@ -104,6 +105,7 @@ const AppBottomNav = ({ open, onToggleSidebar, layout = "bottom" }) => {
         : []),
       { label: "Codes", value: "/admin/generate-codes", icon: <MonetizationOnIcon /> },
       { label: "Users", value: "/admin/user-management", icon: <PieChartIcon /> },
+      { label: "Rider Apps", value: "/admin/rider-applications", icon: <RiderApplicationsIcon /> },
       { label: "Merchants", value: "merchants-menu", icon: <MerchantIcon />, isMenu: true },
       { label: "Product Management", value: "/admin/products", icon: <ProductApprovalIcon /> },
       { label: "Voucher Records", value: "/admin/voucher-records", icon: <VoucherIcon /> },

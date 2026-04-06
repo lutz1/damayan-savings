@@ -28,6 +28,7 @@ const AdminPaybackEntries = lazy(() => import("./pages/admin/adminPaybackEntries
 const AdminCapitalShareEntriesManagement = lazy(() => import("./pages/admin/adminCapitalShareEntriesManagement"));
 const AdminVoucherRecords = lazy(() => import("./pages/admin/adminVoucherRecords"));
 const AdminPasswordResetManagement = lazy(() => import("./pages/admin/adminPasswordResetManagement"));
+const AdminRiderApplications = lazy(() => import("./pages/admin/adminRiderApplications"));
 const MemberDashboard = lazy(() => import("./pages/member/memberDashboard"));
 const MemberPayback = lazy(() => import("./pages/member/memberPayback"));
 const MemberCapitalShare = lazy(() => import("./pages/member/memberCapitalShare"));
@@ -42,6 +43,7 @@ const RiderWallet = lazy(() => import("./pages/rider/riderWallet"));
 const RiderProfile = lazy(() => import("./pages/rider/riderProfile"));
 const RiderMemberOrders = lazy(() => import("./pages/rider/memberOrders"));
 const RiderLocationAccess = lazy(() => import("./pages/rider/LocationAccess"));
+const RiderApplicationPage = lazy(() => import("./pages/rider/RiderApplicationPage"));
 
 
 function App() {
@@ -97,7 +99,7 @@ function App() {
 
       if (!userRole) return;
 
-      if (path === "/" || path === "/login" || path === "/login/merchant" || path === "/login/rider") {
+      if (path === "/" || path === "/login" || path === "/login/merchant" || path === "/login/rider" || path === "/rider/login") {
         if (["ADMIN", "CEO", "SUPERADMIN"].includes(userRole)) {
           navigate("/admin/dashboard", { replace: true });
         } else if (userRole === "MERCHANT") {
@@ -106,7 +108,7 @@ function App() {
             : `${window.location.origin}/damayan-savings/merchant`;
           window.location.href = `${merchantUrl}/`;
         } else if (userRole === "RIDER") {
-          navigate("/rider/dashboard", { replace: true });
+          navigate("/rider/location-access", { replace: true });
         } else if (
           ["MASTERMD", "MD", "MS", "MI", "AGENT", "MEMBER"].includes(userRole)
         ) {
@@ -120,35 +122,29 @@ function App() {
 
   return (
     <LocalizationProvider dateAdapter={AdapterMoment}>
-      <Splashscreen
-        open={showSplash}
-        logo={`${appBase}/damayan.png`}
-        duration={0}
-        onClose={() => setShowSplash(false)}
-      />
-      {!showSplash && (
-        <Router
-          basename={appBase}
-          future={{
-            v7_startTransition: true,
-            v7_relativeSplatPath: true,
-          }}
-        >
-          <AutoRedirect />
+      <Router
+        basename={appBase}
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
+        <AutoRedirect />
 
-          <Suspense
-            fallback={
-              <div style={{ textAlign: "center", marginTop: "20%" }}>
-                Loading...
-              </div>
-            }
-          >
-            <Routes>
+        <Suspense
+          fallback={
+            <div style={{ textAlign: "center", marginTop: "20%" }}>
+              Loading...
+            </div>
+          }
+        >
+          <Routes>
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<Login />} />
             <Route path="/login/merchant" element={<Login />} />
-            <Route path="/login/rider" element={<RiderLoginPage />} />
+            <Route path="/login/rider" element={<Navigate to="/rider/login" replace />} />
             <Route path="/rider/login" element={<RiderLoginPage />} />
+            <Route path="/rider/apply" element={<RiderApplicationPage />} />
 
             <Route
               path="/admin/dashboard"
@@ -270,7 +266,14 @@ function App() {
                 </AdminRoute>
               }
             />
-
+            <Route
+              path="/admin/rider-applications"
+              element={
+                <AdminRoute>
+                  <AdminRiderApplications />
+                </AdminRoute>
+              }
+            />
 
 
             <Route
@@ -381,9 +384,15 @@ function App() {
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-          </Suspense>
-        </Router>
-      )}
+        </Suspense>
+      </Router>
+
+      <Splashscreen
+        open={showSplash}
+        logo={`${appBase}/damayan.png`}
+        duration={0}
+        onClose={() => setShowSplash(false)}
+      />
     </LocalizationProvider>
   );
 }

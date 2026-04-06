@@ -2055,6 +2055,47 @@ app.post("/api/transfer-referral-reward", async (req, res) => {
 
 const normalizeStatus = (value) => String(value || "").trim().toUpperCase();
 
+app.post("/api/auth/check-member-email", async (req, res) => {
+  try {
+    const safeEmail = String(req.body?.email || "").trim().toLowerCase();
+
+    if (!safeEmail || !/^\S+@\S+\.\S+$/.test(safeEmail)) {
+      return res.status(400).json({ exists: false, error: "Valid email is required" });
+    }
+
+    let userRecord = null;
+    try {
+      userRecord = await auth.getUserByEmail(safeEmail);
+    } catch (_) {
+      userRecord = null;
+    }
+
+    let userProfile = null;
+
+    if (userRecord?.uid) {
+      const userSnap = await db.collection("users").doc(userRecord.uid).get();
+      if (userSnap.exists) {
+        userProfile = userSnap.data() || {};
+      }
+    }
+
+    if (!userProfile) {
+      const profileQuery = await db.collection("users").where("email", "==", safeEmail).limit(1).get();
+      if (!profileQuery.empty) {
+        userProfile = profileQuery.docs[0].data() || {};
+      }
+    }
+
+    return res.json({
+      exists: Boolean(userRecord?.uid || userProfile),
+      role: userProfile?.role || null,
+    });
+  } catch (error) {
+    console.error("[check-member-email] ❌ Error:", error);
+    return res.status(500).json({ exists: false, error: "Unable to verify email right now" });
+  }
+});
+
 app.post("/api/auth/recovery-request", async (req, res) => {
   try {
     const { email, requestType } = req.body || {};

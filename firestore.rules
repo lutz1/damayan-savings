@@ -148,6 +148,37 @@ service cloud.firestore {
     }
 
     // ==========================================
+    // 🛵 RIDER APPLICATIONS
+    match /riderApplications/{applicationId} {
+      allow read: if request.auth != null && (
+        isAdminOrCEO() ||
+        resource.data.memberUid == request.auth.uid ||
+        (
+          resource.data.memberEmail is string &&
+          resource.data.memberEmail.lower() == userEmail()
+        )
+      );
+
+      allow list: if request.auth != null && isAdminOrCEO();
+
+      allow create: if request.auth != null && (
+        isAdminOrCEO() ||
+        request.resource.data.memberUid == request.auth.uid ||
+        (
+          request.resource.data.memberEmail is string &&
+          request.resource.data.memberEmail.lower() == userEmail()
+        )
+      );
+
+      allow update: if request.auth != null && (
+        isAdminOrCEO() ||
+        resource.data.memberUid == request.auth.uid
+      );
+
+      allow delete: if request.auth != null && isAdminOrCEO();
+    }
+
+    // ==========================================
     // 🎟️ CAPITAL SHARE VOUCHERS
     match /capitalShareVouchers/{userId} {
       allow read: if request.auth != null &&

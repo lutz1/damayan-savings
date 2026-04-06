@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import "./login.css";
 import {
   Box,
@@ -445,6 +446,7 @@ const PRIVACY_SECTIONS = [
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const Login = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [email, setEmail] = useState("");
@@ -659,7 +661,7 @@ const Login = () => {
         goTo("/member/dashboard");
         break;
       case "RIDER":
-        goTo("/rider/dashboard");
+        goTo("/rider/location-access");
         break;
       default:
         goTo("/");
@@ -970,14 +972,14 @@ const Login = () => {
             <Box className="portal-switcher-actions">
               <Button
                 startIcon={<DirectionsBike sx={{ fontSize: 14 }} />}
-                onClick={() => goToLoginScope("RIDER")}
+                onClick={() => navigate("/rider/login")}
                 className="portal-tile rider"
               >
                 Rider Login
               </Button>
               <Button
                 startIcon={<Store sx={{ fontSize: 14 }} />}
-                onClick={() => goToLoginScope("MERCHANT")}
+                onClick={() => navigate("/login/merchant")}
                 className="portal-tile merchant"
               >
                 Merchant Login
@@ -1011,8 +1013,10 @@ const Login = () => {
         }}
         PaperProps={{
           sx: {
-            width: { xs: "100%", sm: 430 },
+            width: { xs: "100vw", sm: 430 },
+            height: "100dvh",
             maxWidth: "100%",
+            overflow: "hidden",
             backgroundColor: "#f7f9fc",
             display: "flex",
             flexDirection: "column",
@@ -1033,26 +1037,53 @@ const Login = () => {
         {/* Header */}
         <Box
           sx={{
-            minHeight: 70,
-            px: 1,
+            position: "sticky",
+            top: 0,
+            zIndex: 3,
+            minHeight: { xs: "calc(60px + env(safe-area-inset-top))", sm: 70 },
+            px: { xs: 1, sm: 1.25 },
+            pt: "max(6px, env(safe-area-inset-top))",
+            pb: 0.75,
             display: "flex",
             alignItems: "center",
-            justifyContent: "space-between",
+            gap: 1,
             color: "#fff",
             background: "linear-gradient(135deg, #0b1f5e 0%, #173a8a 55%, #d4af37 100%)",
+            boxShadow: "0 8px 18px rgba(11, 31, 94, 0.22)",
           }}
         >
-          <IconButton onClick={() => setLegalDialog(null)} sx={{ color: "#fff" }}>
+          <IconButton
+            onClick={() => setLegalDialog(null)}
+            sx={{
+              color: "#fff",
+              backgroundColor: "rgba(255,255,255,0.12)",
+              border: "1px solid rgba(255,255,255,0.16)",
+              flexShrink: 0,
+              "&:hover": { backgroundColor: "rgba(255,255,255,0.2)" },
+            }}
+          >
             <ArrowBack />
           </IconButton>
-          <Typography sx={{ fontSize: 18, fontWeight: 800, letterSpacing: 0.2, lineHeight: 1 }}>
-            {dialogTitle}
-          </Typography>
-          <Box sx={{ width: 40 }} />
+          <Box sx={{ flex: 1, minWidth: 0, textAlign: "center", px: 0.5 }}>
+            <Typography
+              sx={{
+                fontSize: { xs: 16, sm: 18 },
+                fontWeight: 800,
+                letterSpacing: 0.2,
+                lineHeight: 1.1,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {dialogTitle}
+            </Typography>
+          </Box>
+          <Box sx={{ width: 40, flexShrink: 0 }} />
         </Box>
 
         {/* Body */}
-        <Box sx={{ flex: 1, overflowY: "auto" }}>
+        <Box sx={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
           {legalDialog === "help" ? (
             <Box>
               {/* Hero + Search */}
@@ -1551,16 +1582,38 @@ const Login = () => {
         }}
         PaperProps={{
           sx: {
-            width: { xs: "100%", sm: 430 },
+            width: { xs: "100vw", sm: 430 },
+            height: "100dvh",
             maxWidth: "100%",
+            overflow: "hidden",
             background: "#f4f6fa",
             display: "flex",
             flexDirection: "column",
           },
         }}
       >
-        <Box sx={{ p: 2.5, display: "flex", alignItems: "center" }}>
-          <IconButton onClick={closeRecovery} sx={{ color: "#174ea6" }}>
+        <Box
+          sx={{
+            position: "sticky",
+            top: 0,
+            zIndex: 3,
+            pt: "max(10px, env(safe-area-inset-top))",
+            px: 2,
+            pb: 1,
+            display: "flex",
+            alignItems: "center",
+            background: "#f4f6fa",
+          }}
+        >
+          <IconButton
+            onClick={closeRecovery}
+            sx={{
+              color: "#174ea6",
+              backgroundColor: "rgba(20, 94, 209, 0.08)",
+              border: "1px solid rgba(20, 94, 209, 0.1)",
+              "&:hover": { backgroundColor: "rgba(20, 94, 209, 0.14)" },
+            }}
+          >
             <ArrowBack />
           </IconButton>
         </Box>

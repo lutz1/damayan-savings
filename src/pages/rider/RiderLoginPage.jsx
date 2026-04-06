@@ -1,29 +1,61 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Drawer } from "@mui/material";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
+import {
+  ArrowForwardRounded,
+  AlternateEmailRounded,
+  CloseRounded,
+  InfoOutlined,
+  LockOutlined,
+  VisibilityOffRounded,
+  VisibilityRounded,
+} from "@mui/icons-material";
 import { auth, db } from "../../firebase";
+import plezzIcon from "../../assets/plezzicon.png";
+import riderLogo from "../../assets/plezzicon.png";
+import "./RiderLoginPage.css";
+
+const toRiderLoginEmail = (riderId = "") => {
+  const normalized = String(riderId || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+
+  return normalized ? `${normalized}@plezzrider.local` : "";
+};
 
 export default function RiderLoginPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [infoOpen, setInfoOpen] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
+    const riderId = String(identifier || "").trim().toUpperCase();
+    const loginEmail = toRiderLoginEmail(riderId);
+
+    if (!riderId) {
+      setError("Please enter your Rider ID.");
+      setLoading(false);
+      return;
+    }
+
     try {
-      const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
+      const credential = await signInWithEmailAndPassword(auth, loginEmail, password);
       const userRef = doc(db, "users", credential.user.uid);
       const userSnap = await getDoc(userRef);
 
       if (!userSnap.exists()) {
-        setError("User profile not found. Please contact admin.");
+        setError("Rider profile not found. Please contact admin.");
         await signOut(auth);
         setLoading(false);
         return;
@@ -40,15 +72,14 @@ export default function RiderLoginPage() {
 
       localStorage.setItem("userRole", "RIDER");
       sessionStorage.setItem("skipAppSplash", "true");
-      const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
-      window.location.replace(`${base}/rider/dashboard`);
+      navigate("/rider/location-access", { replace: true });
       return;
     } catch (loginError) {
       console.error("Rider login error:", loginError);
       if (loginError.code === "auth/invalid-credential" || loginError.code === "auth/wrong-password") {
-        setError("Invalid email or password.");
+        setError("Invalid Rider ID or password.");
       } else if (loginError.code === "auth/user-not-found") {
-        setError("No account found for this email.");
+        setError("No approved rider account found for this Rider ID.");
       } else {
         setError("Unable to login right now. Please try again.");
       }
@@ -57,211 +88,191 @@ export default function RiderLoginPage() {
     }
   };
 
-  const styles = {
-    page: {
-      minHeight: "100dvh",
-      background: "linear-gradient(170deg, #f7fbf4 0%, #eef7e9 55%, #f4f7f3 100%)",
-      fontFamily: "Inter, 'Trebuchet MS', 'Segoe UI', sans-serif",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      padding: "18px 14px 28px",
-      position: "relative",
-    },
-    topBarWrap: {
-      position: "fixed",
-      top: 0,
-      left: 0,
-      width: "100%",
-      height: "5px",
-      background: "rgba(91, 236, 19, 0.2)",
-      zIndex: 20,
-    },
-    topBarFill: {
-      width: "34%",
-      height: "100%",
-      background: "#5bec13",
-    },
-    card: {
-      width: "100%",
-      maxWidth: "420px",
-      background: "#ffffff",
-      borderRadius: "16px",
-      border: "1px solid #e8eee3",
-      boxShadow: "0 18px 40px rgba(16, 24, 40, 0.10)",
-      padding: "26px 22px 22px",
-    },
-    iconCircle: {
-      width: "66px",
-      height: "66px",
-      borderRadius: "9999px",
-      background: "#5bec13",
-      display: "grid",
-      placeItems: "center",
-      color: "#ffffff",
-      boxShadow: "0 10px 26px rgba(91, 236, 19, 0.38)",
-    },
-    label: {
-      fontSize: "13px",
-      fontWeight: 600,
-      color: "#334155",
-      marginBottom: "8px",
-    },
-    inputWrap: {
-      position: "relative",
-      display: "flex",
-      alignItems: "center",
-    },
-    inputIcon: {
-      position: "absolute",
-      left: "13px",
-      top: "50%",
-      transform: "translateY(-50%)",
-      fontSize: "19px",
-      color: "#94a3b8",
-    },
-    input: {
-      width: "100%",
-      height: "46px",
-      borderRadius: "10px",
-      border: "1px solid #dbe4d5",
-      background: "#ffffff",
-      padding: "0 14px 0 42px",
-      color: "#0f172a",
-      fontSize: "14px",
-      outline: "none",
-      boxSizing: "border-box",
-    },
-    eyeButton: {
-      position: "absolute",
-      right: "0",
-      top: "0",
-      height: "100%",
-      width: "44px",
-      border: "0",
-      background: "transparent",
-      color: "#94a3b8",
-      cursor: "pointer",
-      display: "grid",
-      placeItems: "center",
-    },
-    primaryButton: {
-      width: "100%",
-      height: "48px",
-      border: "0",
-      borderRadius: "10px",
-      background: loading ? "rgba(91, 236, 19, 0.65)" : "#5bec13",
-      color: "#0f172a",
-      fontSize: "15px",
-      fontWeight: 800,
-      letterSpacing: "0.01em",
-      boxShadow: "0 12px 26px rgba(91, 236, 19, 0.27)",
-      cursor: loading ? "not-allowed" : "pointer",
-      transition: "filter 0.2s ease",
-    },
+  const openApplicationPage = () => {
+    setInfoOpen(false);
+    const safeIdentifier = String(identifier || "").trim();
+    const prefill = /@|^09\d{9}$/.test(safeIdentifier) ? { identifier: safeIdentifier } : undefined;
+
+    navigate("/rider/apply", {
+      state: {
+        from: "/rider/login",
+        ...(prefill ? { prefill } : {}),
+      },
+    });
   };
 
   return (
-    <div style={styles.page}>
-      <div style={styles.topBarWrap}>
-        <div style={styles.topBarFill} />
-      </div>
+    <div className="rider-login-page">
+      <div className="rider-login-shell">
+        <div className="rider-login-topbar">
+          <button type="button" onClick={() => navigate("/login")} className="rider-login-brand">
+            <img src={plezzIcon} alt="PLEZZ Rider" className="rider-login-brand-icon" />
+            <span>PLEZZRIDER</span>
+          </button>
 
-      <div style={styles.card}>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: "26px" }}>
-          <div style={styles.iconCircle}>
-            <span className="material-symbols-outlined" style={{ fontSize: "36px" }}>
-              delivery_dining
-            </span>
-          </div>
-          <h2 style={{ margin: "16px 0 6px", fontSize: "31px", lineHeight: 1.08, color: "#0f172a", fontWeight: 800 }}>Rider Login</h2>
-          <p style={{ margin: 0, fontSize: "14px", color: "#64748b", textAlign: "center" }}>
-            Welcome back! Please enter your details.
-          </p>
+          <button
+            type="button"
+            className="rider-login-info-button"
+            onClick={() => setInfoOpen((prev) => !prev)}
+            aria-label="Show rider login information"
+          >
+            <InfoOutlined sx={{ fontSize: 17 }} />
+          </button>
         </div>
 
-        <form onSubmit={handleLogin} style={{ display: "grid", gap: "16px" }}>
-          <div>
-            <label style={styles.label}>Email or Phone Number</label>
-            <div style={styles.inputWrap}>
-              <span className="material-symbols-outlined" style={styles.inputIcon}>person</span>
-              <input
-                type="email"
-                placeholder="Enter your rider ID"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                style={styles.input}
-              />
+
+        <div className="rider-login-card">
+          <div className="rider-login-hero">
+            <div className="rider-login-logo-badge">
+              <img src={riderLogo} alt="Rider logo" className="rider-login-logo-image" />
             </div>
+
+            <h1 className="rider-login-title">Welcome back!</h1>
+            <p className="rider-login-subtitle">Use your Rider ID and password to continue.</p>
           </div>
 
-          <div>
-            <label style={styles.label}>Password</label>
-            <div style={styles.inputWrap}>
-              <span className="material-symbols-outlined" style={styles.inputIcon}>lock</span>
-              <input
-                type={showPassword ? "text" : "password"}
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                style={{ ...styles.input, paddingRight: "48px" }}
-              />
-              <button type="button" onClick={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
-                <span className="material-symbols-outlined" style={{ fontSize: "20px" }}>
-                  {showPassword ? "visibility_off" : "visibility"}
+          <form onSubmit={handleLogin} className="rider-login-form">
+            <div>
+              <label className="rider-login-field-label">Rider ID</label>
+              <div className="rider-login-input-wrap">
+                <span className="rider-login-input-icon">
+                  <AlternateEmailRounded sx={{ fontSize: 18 }} />
                 </span>
+                <input
+                  type="text"
+                  placeholder="RIDER-123456"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value.toUpperCase())}
+                  required
+                  className="rider-login-input"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="rider-login-field-label">Password</label>
+              <div className="rider-login-input-wrap">
+                <span className="rider-login-input-icon">
+                  <LockOutlined sx={{ fontSize: 18 }} />
+                </span>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="rider-login-input rider-login-input--with-toggle"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="rider-login-password-toggle"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <VisibilityOffRounded sx={{ fontSize: 18 }} /> : <VisibilityRounded sx={{ fontSize: 18 }} />}
+                </button>
+              </div>
+            </div>
+
+            {error ? <div className="rider-login-error">{error}</div> : null}
+
+            <div className="rider-login-forgot-row">
+              <button
+                type="button"
+                onClick={() => setError("Please contact support to reset your password.")}
+                className="rider-login-link-btn"
+              >
+                Forgot Password?
               </button>
             </div>
+
+            <button type="submit" disabled={loading} className="rider-login-submit">
+              <span>{loading ? "Signing In..." : "Sign in to Dashboard"}</span>
+              {!loading && <ArrowForwardRounded sx={{ fontSize: 18 }} />}
+            </button>
+
+            <button type="button" onClick={() => navigate("/login")} className="rider-login-back-btn">
+              Back to Main Login
+            </button>
+          </form>
+        </div>
+
+        <div className="rider-login-promo-card">
+          <div className="rider-login-promo-badge">JOIN THE FLEET</div>
+          <div className="rider-login-promo-content">
+            <div className="rider-login-promo-title">Ready to hit the road?</div>
+            <p className="rider-login-promo-text">
+              Join the PLEZZ Rider fleet and start earning on your own schedule today.
+            </p>
+            <button
+              type="button"
+              onClick={openApplicationPage}
+              className="rider-login-promo-btn"
+            >
+              Apply Now
+            </button>
           </div>
 
-          {error ? (
-            <div style={{ borderRadius: "10px", border: "1px solid #fecaca", background: "#fef2f2", color: "#b91c1c", padding: "10px 12px", fontSize: "13px" }}>
-              {error}
+          <img src={plezzIcon} alt="" className="rider-login-promo-art" />
+        </div>
+      </div>
+
+      <Drawer
+        anchor="bottom"
+        open={infoOpen}
+        onClose={() => setInfoOpen(false)}
+        PaperProps={{ className: "rider-login-drawer-paper" }}
+      >
+        <div className="rider-login-drawer-sheet">
+          <div className="rider-login-drawer-handle" />
+          <div className="rider-login-drawer-header">
+            <div>
+              <div className="rider-login-drawer-title">Rider Login Information</div>
+              <div className="rider-login-drawer-subtitle">Quick onboarding guide</div>
             </div>
-          ) : null}
-
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <button
               type="button"
-              onClick={() => setError("Please contact support to reset your password.")}
-              style={{ border: 0, background: "transparent", color: "#4d9f1a", fontWeight: 600, fontSize: "13px", cursor: "pointer", padding: 0 }}
+              className="rider-login-info-close"
+              onClick={() => setInfoOpen(false)}
+              aria-label="Close rider login information"
             >
-              Forgot Password?
+              <CloseRounded sx={{ fontSize: 18 }} />
             </button>
           </div>
 
-          <button type="submit" disabled={loading} style={styles.primaryButton}>
-            {loading ? "Signing In..." : "Sign In"}
-          </button>
-        </form>
+          <div className="rider-login-drawer-list">
+            <div className="rider-login-drawer-item">
+              <span>1</span>
+              <p>Use your approved Rider ID and default password to access the dashboard.</p>
+            </div>
+            <div className="rider-login-drawer-item">
+              <span>2</span>
+              <p>If you still need an account, tap <strong>Apply Now</strong> to complete the rider application flow.</p>
+            </div>
+            <div className="rider-login-drawer-item">
+              <span>3</span>
+              <p>Prepare your ID, license, and selfie photo for faster application review.</p>
+            </div>
+          </div>
 
-        <div style={{ marginTop: "24px", paddingTop: "20px", borderTop: "1px solid #eef2ec", textAlign: "center" }}>
-          <p style={{ margin: 0, color: "#64748b", fontSize: "13px" }}>
-            Want to earn with us?{" "}
+          <div className="rider-login-drawer-actions">
             <button
               type="button"
-              onClick={() => setError("Signup flow is not yet available in Rider app.")}
-              style={{ border: 0, background: "transparent", color: "#4d9f1a", fontWeight: 700, fontSize: "13px", cursor: "pointer", padding: 0 }}
+              className="rider-login-drawer-primary"
+              onClick={openApplicationPage}
             >
-              Sign up to Deliver
+              Start Application
             </button>
-          </p>
+            <button
+              type="button"
+              className="rider-login-drawer-secondary"
+              onClick={() => setInfoOpen(false)}
+            >
+              Close
+            </button>
+          </div>
         </div>
-      </div>
-
-      <div style={{ marginTop: "18px", display: "flex", gap: "16px", flexWrap: "wrap", justifyContent: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "#64748b", fontSize: "12px" }}>
-          <span className="material-symbols-outlined" style={{ fontSize: "15px" }}>language</span>
-          <span>English (US)</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "#64748b", fontSize: "12px" }}>
-          <span className="material-symbols-outlined" style={{ fontSize: "15px" }}>help_outline</span>
-          <span>Help Center</span>
-        </div>
-      </div>
+      </Drawer>
     </div>
   );
 }
