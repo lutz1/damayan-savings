@@ -298,6 +298,75 @@ const sendRiderApplicationEmail = async ({ toEmail, applicantName, referenceNo, 
   };
 };
 
+const sendRiderApprovalEmail = async ({
+  toEmail,
+  applicantName,
+  riderId,
+  defaultPassword = DEFAULT_RESET_PASSWORD,
+  reviewRemarks = "",
+}) => {
+  const mailer = getMailTransporter();
+  if (!mailer?.transporter) {
+    const reason = String(mailer?.reason || "SMTP is not configured in Firebase Functions yet.");
+    console.warn(`[reviewRiderApplication] ${reason} Skipping approval email.`);
+    return { sent: false, skipped: true, reason };
+  }
+
+  const safeName = String(applicantName || "Rider").trim() || "Rider";
+  const loginUrl = `${getWebAppUrl()}/rider/login`;
+  const safeRemarks = String(reviewRemarks || "").trim();
+  const subject = "Plezz Rider Application Approved";
+  const text = [
+    `Hello ${safeName},`,
+    "",
+    "Congratulations! Your Plezz Rider application has been approved.",
+    `Rider ID: ${riderId}`,
+    `Temporary password: ${defaultPassword}`,
+    safeRemarks ? `Review remarks: ${safeRemarks}` : "",
+    "",
+    `Log in here: ${loginUrl}`,
+    "For security, please change your password after your first login.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;background:#f8fbff;padding:24px;color:#0f172a;">
+      <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:16px;padding:24px;border:1px solid #dbe4f0;">
+        <div style="font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#16a34a;">Plezz Rider Approved</div>
+        <h2 style="margin:12px 0 8px;font-size:24px;line-height:1.2;">Welcome aboard, ${safeName}!</h2>
+        <p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#475569;">Your rider application has been approved. You can now sign in using the credentials below.</p>
+        <div style="background:linear-gradient(180deg,#16a34a 0%,#15803d 100%);border-radius:14px;padding:16px;color:#ffffff;margin-bottom:12px;">
+          <div style="font-size:11px;opacity:.82;margin-bottom:4px;">RIDER ID</div>
+          <div style="font-size:24px;font-weight:800;letter-spacing:.02em;">${riderId}</div>
+        </div>
+        <div style="background:#f8fbff;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:14px;color:#334155;">
+          <strong>Temporary password:</strong> ${defaultPassword}
+        </div>
+        ${safeRemarks ? `<div style="background:#fff7ed;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13px;color:#9a3412;"><strong>Review remarks:</strong> ${safeRemarks}</div>` : ""}
+        <div style="margin-top:16px;">
+          <a href="${loginUrl}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 16px;border-radius:10px;font-weight:700;">Open Rider Login</a>
+        </div>
+        <p style="margin:16px 0 0;font-size:12px;line-height:1.6;color:#64748b;">Please change your password after your first login for account security.</p>
+      </div>
+    </div>
+  `;
+
+  const info = await mailer.transporter.sendMail({
+    from: mailer.from.includes("<") ? mailer.from : `Plezz Rider <${mailer.from}>`,
+    to: toEmail,
+    subject,
+    text,
+    html,
+  });
+
+  return {
+    sent: true,
+    messageId: info.messageId || "",
+    reason: "",
+  };
+};
+
 const attemptRiderApplicationEmail = async ({ applicationRef, toEmail, applicantName, referenceNo, reviewEta, logLabel = "submitRiderApplication" }) => {
   try {
     const mailResult = await sendRiderApplicationEmail({
@@ -668,6 +737,8 @@ exports.reviewRiderApplication = functions.https.onCall(async (data, context) =>
   };
 
   let generatedRider = null;
+  let approvalEmailSent = false;
+  let approvalEmailError = "";
 
   if (reviewStatus === "APPROVED") {
     const riderId = String(applicationData.riderId || "").trim() || await createUniqueRiderId();
@@ -773,6 +844,37 @@ exports.reviewRiderApplication = functions.https.onCall(async (data, context) =>
         console.warn("[reviewRiderApplication] notification warning:", notificationError);
       }
     }
+
+    if (memberEmail) {
+      try {
+        const mailResult = await sendRiderApprovalEmail({
+          toEmail: memberEmail,
+          applicantName,
+          riderId,
+          defaultPassword: DEFAULT_RESET_PASSWORD,
+          reviewRemarks,
+        });
+
+        approvalEmailSent = Boolean(mailResult?.sent);
+        approvalEmailError = approvalEmailSent ? "" : String(mailResult?.reason || "").trim();
+      } catch (emailError) {
+        approvalEmailSent = false;
+        approvalEmailError = String(emailError?.message || "Approval email could not be sent.").trim();
+        console.error("[reviewRiderApplication] approval email warning:", emailError);
+      }
+    } else {
+      approvalEmailSent = false;
+      approvalEmailError = "Applicant email is missing.";
+    }
+
+    if (approvalEmailSent) {
+      updatePayload.approvalEmailSent = true;
+      updatePayload.approvalEmailSentAt = admin.firestore.FieldValue.serverTimestamp();
+      updatePayload.approvalEmailError = admin.firestore.FieldValue.delete();
+    } else if (approvalEmailError) {
+      updatePayload.approvalEmailSent = false;
+      updatePayload.approvalEmailError = approvalEmailError;
+    }
   }
 
   await applicationRef.set(updatePayload, { merge: true });
@@ -784,6 +886,8 @@ exports.reviewRiderApplication = functions.https.onCall(async (data, context) =>
     riderId: generatedRider?.riderId || String(applicationData.riderId || "").trim(),
     defaultPassword: generatedRider?.defaultPassword || "",
     generatedRider,
+    approvalEmailSent,
+    approvalEmailError,
   };
 });
 

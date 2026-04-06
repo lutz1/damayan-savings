@@ -188,8 +188,14 @@ export default function AdminRiderApplications() {
       const responseData = result?.data || {};
 
       if (responseData?.generatedRider?.riderId) {
+        const emailStatusMessage = responseData?.approvalEmailSent
+          ? "\n\nCredentials email has been sent to the applicant."
+          : responseData?.approvalEmailError
+            ? `\n\nWarning: credentials email was not sent automatically.\nReason: ${responseData.approvalEmailError}`
+            : "";
+
         alert(
-          `Rider access generated successfully.\n\nRider ID: ${responseData.generatedRider.riderId}\nDefault Password: ${responseData.generatedRider.defaultPassword || "password123"}`
+          `Rider access generated successfully.\n\nRider ID: ${responseData.generatedRider.riderId}\nDefault Password: ${responseData.generatedRider.defaultPassword || "password123"}${emailStatusMessage}`
         );
       }
 
