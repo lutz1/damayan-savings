@@ -411,7 +411,7 @@ const AdminWithdrawals = () => {
                               Charge: ₱{w.charge || 0}
                             </Typography>
                             <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
-                              Net: ₱{w.netAmount || w.amount}
+                              Net: ₱{Number(w.amount || w.netAmount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </Typography>
                             <Typography sx={{ fontSize: 14, opacity: 0.9 }}>
                               Method: {w.paymentMethod || "Wallet"}
@@ -514,7 +514,7 @@ const AdminWithdrawals = () => {
                               <TableCell sx={{ color: "white" }}>{w.name}</TableCell>
                               <TableCell sx={{ color: "white" }}>₱{w.amount}</TableCell>
                               <TableCell sx={{ color: "white" }}>₱{w.charge || 0}</TableCell>
-                              <TableCell sx={{ color: "white" }}>₱{w.netAmount || w.amount}</TableCell>
+                              <TableCell sx={{ color: "white" }}>₱{Number(w.amount || w.netAmount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                               <TableCell sx={{ color: "white" }}>{w.paymentMethod || "Wallet"}</TableCell>
                               {isSuperAdmin && (
                                 <TableCell sx={{ color: "white" }}>
@@ -614,7 +614,7 @@ const AdminWithdrawals = () => {
             <Typography variant="body1" sx={{ mb: 2 }}>
               {selectedWithdrawal?.name} requested ₱{selectedWithdrawal?.amount}.<br />
               Charge: ₱{selectedWithdrawal?.charge || 0} | Net: ₱
-              {selectedWithdrawal?.netAmount || selectedWithdrawal?.amount}
+              {Number(selectedWithdrawal?.amount || selectedWithdrawal?.netAmount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </Typography>
             {isRestrictedEmail && (
               <Typography variant="body2" sx={{ mb: 2, color: "error.main", fontWeight: 600 }}>

@@ -90,6 +90,34 @@ import { auth, db } from "../../firebase";
 import { getUserAvatarInitial, getUserAvatarUrl } from "../../utils/userAvatar";
 import { motion } from "framer-motion";
 import NetworkGroupSales from "./components/dialogs/networkGroupsales";
+import bannerMerchant from "../../assets/bannermerchant.png";
+import bannerRider from "../../assets/bannerrider.png";
+
+const MEMBER_OPPORTUNITY_SLIDES = [
+  {
+    key: "merchant",
+    image: bannerMerchant,
+    badge: "Merchant Opportunity",
+    title: "Apply as Merchant",
+    subtitle: "Showcase your products, grow your shop, and reach more Sanctuary members.",
+    buttonLabel: "Apply as Merchant",
+    role: "MERCHANT",
+  },
+  {
+    key: "rider",
+    image: bannerRider,
+    badge: "PLEZZ Rider",
+    title: "Become a PLEZZ Rider",
+    subtitle: "Start earning on deliveries and help move orders faster in your area.",
+    buttonLabel: "Apply as Rider",
+    role: "RIDER",
+  },
+];
+
+const MEMBER_OPPORTUNITY_CAROUSEL_SLIDES = [
+  ...MEMBER_OPPORTUNITY_SLIDES,
+  MEMBER_OPPORTUNITY_SLIDES[0],
+];
 
 const MemberDashboard = () => {
     const memberPalette = {
@@ -233,6 +261,60 @@ const [rewardsUnavailableOpen, setRewardsUnavailableOpen] = useState(false);
 const navigate = useNavigate();
 const location = useLocation();
 const appBaseUrl = import.meta.env.BASE_URL || "/";
+const [activeOpportunitySlide, setActiveOpportunitySlide] = useState(0);
+const [isOpportunitySlideAnimating, setIsOpportunitySlideAnimating] = useState(true);
+
+const handleOpenRolePortal = (role) => {
+  const normalizedRole = String(role || "").toUpperCase();
+  const isLocalHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+
+  if (normalizedRole === "MERCHANT") {
+    const merchantUrl = isLocalHost
+      ? "http://localhost:3002/login"
+      : `${window.location.origin}/damayan-savings/merchant/login`;
+    window.location.href = merchantUrl;
+    return;
+  }
+
+  if (normalizedRole === "RIDER") {
+    navigate("/rider/login");
+  }
+};
+
+const handleOpportunitySlideChange = (index) => {
+  setIsOpportunitySlideAnimating(true);
+  setActiveOpportunitySlide(index);
+};
+
+useEffect(() => {
+  const slideTimer = window.setInterval(() => {
+    setIsOpportunitySlideAnimating(true);
+    setActiveOpportunitySlide((prev) => prev + 1);
+  }, 6500);
+
+  return () => window.clearInterval(slideTimer);
+}, []);
+
+useEffect(() => {
+  if (activeOpportunitySlide !== MEMBER_OPPORTUNITY_SLIDES.length) return undefined;
+
+  const resetTimer = window.setTimeout(() => {
+    setIsOpportunitySlideAnimating(false);
+    setActiveOpportunitySlide(0);
+  }, 820);
+
+  return () => window.clearTimeout(resetTimer);
+}, [activeOpportunitySlide]);
+
+useEffect(() => {
+  if (isOpportunitySlideAnimating) return undefined;
+
+  const reenableTimer = window.setTimeout(() => {
+    setIsOpportunitySlideAnimating(true);
+  }, 60);
+
+  return () => window.clearTimeout(reenableTimer);
+}, [isOpportunitySlideAnimating]);
 
 // ─── Notifications ───────────────────────────────────────────────────────────
 const [notifDrawerOpen, setNotifDrawerOpen] = useState(false);
@@ -1299,40 +1381,134 @@ useEffect(() => {
             )}
           </Box>
 
-          <Box
-            sx={{
-              border: "1px solid rgba(255,255,255,0.10)",
-              borderRadius: 3,
-              p: 2.2,
-              mb: 2.6,
-              background: "linear-gradient(145deg, rgba(8,23,52,0.94) 0%, rgba(16,42,99,0.88) 62%, rgba(212,175,55,0.22) 100%)",
-              boxShadow: "0 18px 34px rgba(6,18,45,0.18)",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: 1,
-            }}
-          >
-            <Box>
-              <Typography sx={{ fontSize: 15, fontWeight: 800, color: "#ffffff" }}>Expand Sanctuary</Typography>
-              <Typography sx={{ fontSize: 12, color: "rgba(255,255,255,0.74)", mt: 0.3 }}>
-                Share your referral link and grow your earning network.
-              </Typography>
-            </Box>
-            <IconButton
-              onClick={() => setDashDialog("invite")}
+          <>
+            <Box
               sx={{
-                width: 42,
-                height: 42,
-                borderRadius: 2,
-                backgroundColor: memberPalette.gold,
-                color: "#fff",
-                "&:hover": { backgroundColor: "#c39a1e" },
+                border: "1px solid rgba(255,255,255,0.10)",
+                borderRadius: 3,
+                p: 2.2,
+                mb: 0.8,
+                background: "linear-gradient(145deg, rgba(8,23,52,0.94) 0%, rgba(16,42,99,0.88) 62%, rgba(212,175,55,0.22) 100%)",
+                boxShadow: "0 18px 34px rgba(6,18,45,0.18)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 1,
               }}
             >
-              <ShareIcon fontSize="small" />
-            </IconButton>
-          </Box>
+              <Box>
+                <Typography sx={{ fontSize: 15, fontWeight: 800, color: "#ffffff" }}>Expand Sanctuary</Typography>
+                <Typography sx={{ fontSize: 12, color: "rgba(255,255,255,0.74)", mt: 0.3 }}>
+                  Apply as Merchant or Rider and grow with the Sanctuary network.
+                </Typography>
+              </Box>
+              <IconButton
+                onClick={() => setDashDialog("invite")}
+                sx={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 2,
+                  backgroundColor: memberPalette.gold,
+                  color: "#fff",
+                  "&:hover": { backgroundColor: "#c39a1e" },
+                }}
+              >
+                <ShareIcon fontSize="small" />
+              </IconButton>
+            </Box>
+
+            <Box
+              sx={{
+                mb: 2.6,
+                mx: { xs: -2.25, sm: 0 },
+                width: { xs: "calc(100% + 36px)", sm: "100%" },
+                overflow: "hidden",
+                borderRadius: { xs: 0, sm: 3.2 },
+                background: "transparent",
+              }}
+            >
+              <Box sx={{ overflow: "hidden", backgroundColor: "transparent", borderRadius: { xs: 0, sm: 3.2 } }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    transform: `translate3d(-${activeOpportunitySlide * 100}%, 0, 0)`,
+                    transition: isOpportunitySlideAnimating ? "transform 820ms cubic-bezier(0.22, 1, 0.36, 1)" : "none",
+                    willChange: "transform",
+                  }}
+                >
+                  {MEMBER_OPPORTUNITY_CAROUSEL_SLIDES.map((slide, index) => (
+                    <Box
+                      key={`${slide.key}-${index}`}
+                      sx={{
+                        minWidth: "100%",
+                        position: "relative",
+                        height: { xs: 180, sm: 180 },
+                        backgroundColor: "transparent",
+                      }}
+                    >
+                      <Box
+                        component="img"
+                        src={slide.image}
+                        alt={slide.title}
+                        sx={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "contain",
+                          objectPosition: "center",
+                          display: "block",
+                        }}
+                      />
+                      <Box
+                        sx={{
+                          position: "absolute",
+                          left: { xs: 14, sm: 18 },
+                          right: { xs: 14, sm: 18 },
+                          bottom: { xs: 16, sm: 18 },
+                          display: "flex",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Button
+                          variant="contained"
+                          onClick={() => handleOpenRolePortal(slide.role)}
+                          sx={{
+                            borderRadius: 999,
+                            px: 2.2,
+                            py: 0.9, 
+                            fontWeight: 800,
+                            textTransform: "none",
+                            bgcolor: memberPalette.gold,
+                            color: memberPalette.navy,
+                            boxShadow: "0 8px 18px rgba(6,18,45,0.28)",
+                            "&:hover": { bgcolor: "#e3bf4d", boxShadow: "0 8px 18px rgba(6,18,45,0.28)" },
+                          }}
+                        >
+                          {slide.buttonLabel}
+                        </Button>
+                      </Box>
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+
+              <Box sx={{ display: "flex", justifyContent: "center", gap: 0.8, px: 1.5, pt: 0.5, pb: 0.9, bgcolor: "transparent" }}>
+                {MEMBER_OPPORTUNITY_SLIDES.map((slide, index) => (
+                  <Box
+                    key={slide.key}
+                    onClick={() => handleOpportunitySlideChange(index)}
+                    sx={{
+                      width: activeOpportunitySlide % MEMBER_OPPORTUNITY_SLIDES.length === index ? 22 : 8,
+                      height: 8,
+                      borderRadius: 999,
+                      backgroundColor: activeOpportunitySlide % MEMBER_OPPORTUNITY_SLIDES.length === index ? memberPalette.gold : "rgba(255,255,255,0.34)",
+                      transition: "all 180ms ease",
+                      cursor: "pointer",
+                    }}
+                  />
+                ))}
+              </Box>
+            </Box>
+          </>
         </motion.div>
       </Box>
 

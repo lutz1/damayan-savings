@@ -143,7 +143,7 @@ const OverrideUplineRewardsDialog = ({
                     setLoadingTransfer((prev) => ({ ...prev, [o.id]: true }));
                     const idToken = await user.getIdToken();
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 30000);
+                    const timeoutId = setTimeout(() => controller.abort(), 60000);
                     const response = await fetch(
                       "https://us-central1-amayan-savings.cloudfunctions.net/transferOverrideReward",
                       {
@@ -162,7 +162,11 @@ const OverrideUplineRewardsDialog = ({
                     const result = await response.json();
                     alert(result.alreadyTransferred ? "Already credited previously." : `₱${formatAmount(o.amount)} transferred!`);
                   } catch (err) {
-                    alert("Transfer failed: " + (err.name === "AbortError" ? "Timed out." : err.message));
+                    if (err.name === "AbortError") {
+                      alert("Transfer is still processing. Please wait a moment and check your E-Wallet history before retrying.");
+                    } else {
+                      alert("Transfer failed: " + (err.message || "Unknown error"));
+                    }
                   } finally {
                     setLoadingTransfer((prev) => ({ ...prev, [o.id]: false }));
                   }

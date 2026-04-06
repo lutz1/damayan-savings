@@ -35,6 +35,13 @@ const MemberProfile = lazy(() => import("./pages/member/memberProfile"));
 const MemberVouchers = lazy(() => import("./pages/member/memberVouchers"));
 const MemberCashIn = lazy(() => import("./pages/member/memberCashIn"));
 const MemberMarketplace = lazy(() => import("./pages/member/memberMarketplace"));
+const RiderLoginPage = lazy(() => import("./pages/rider/RiderLoginPage"));
+const RiderDashboard = lazy(() => import("./pages/rider/riderDashboard"));
+const RiderOrders = lazy(() => import("./pages/rider/riderOrders"));
+const RiderWallet = lazy(() => import("./pages/rider/riderWallet"));
+const RiderProfile = lazy(() => import("./pages/rider/riderProfile"));
+const RiderMemberOrders = lazy(() => import("./pages/rider/memberOrders"));
+const RiderLocationAccess = lazy(() => import("./pages/rider/LocationAccess"));
 
 
 function App() {
@@ -74,6 +81,11 @@ function App() {
       ? children
       : <Navigate to="/login" replace />;
 
+  const RiderRoute = ({ children }) =>
+    ["RIDER"].includes(role?.toUpperCase())
+      ? children
+      : <Navigate to="/rider/login" replace />;
+
   const AutoRedirect = () => {
     const location = useLocation();
     const navigate = useNavigate();
@@ -94,10 +106,7 @@ function App() {
             : `${window.location.origin}/damayan-savings/merchant`;
           window.location.href = `${merchantUrl}/`;
         } else if (userRole === "RIDER") {
-          const riderUrl = window.location.hostname === "localhost"
-            ? "http://localhost:3003"
-            : `${window.location.origin}/damayan-savings/rider`;
-          window.location.href = `${riderUrl}/`;
+          navigate("/rider/dashboard", { replace: true });
         } else if (
           ["MASTERMD", "MD", "MS", "MI", "AGENT", "MEMBER"].includes(userRole)
         ) {
@@ -138,7 +147,8 @@ function App() {
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<Login />} />
             <Route path="/login/merchant" element={<Login />} />
-            <Route path="/login/rider" element={<Login />} />
+            <Route path="/login/rider" element={<RiderLoginPage />} />
+            <Route path="/rider/login" element={<RiderLoginPage />} />
 
             <Route
               path="/admin/dashboard"
@@ -320,7 +330,54 @@ function App() {
               }
             />
 
-
+            <Route
+              path="/rider/dashboard"
+              element={
+                <RiderRoute>
+                  <RiderDashboard />
+                </RiderRoute>
+              }
+            />
+            <Route
+              path="/rider/orders"
+              element={
+                <RiderRoute>
+                  <RiderOrders />
+                </RiderRoute>
+              }
+            />
+            <Route
+              path="/rider/member-orders"
+              element={
+                <RiderRoute>
+                  <RiderMemberOrders />
+                </RiderRoute>
+              }
+            />
+            <Route
+              path="/rider/wallet"
+              element={
+                <RiderRoute>
+                  <RiderWallet />
+                </RiderRoute>
+              }
+            />
+            <Route
+              path="/rider/profile"
+              element={
+                <RiderRoute>
+                  <RiderProfile />
+                </RiderRoute>
+              }
+            />
+            <Route
+              path="/rider/location-access"
+              element={
+                <RiderRoute>
+                  <RiderLocationAccess role="RIDER" nextPath="/rider/dashboard" />
+                </RiderRoute>
+              }
+            />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

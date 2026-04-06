@@ -336,7 +336,22 @@ exports.processWithdrawalApproval = functions.https.onCall(async (data, context)
 
     const amount = Number(withdrawalData.amount || 0);
     const charge = Number(withdrawalData.charge || 0);
-    const netAmount = Number(withdrawalData.netAmount || Math.max(amount - charge, 0));
+    const totalDeduction = Number(withdrawalData.totalDeduction || (amount + charge));
+    const netAmount = Number(withdrawalData.netAmount || amount);
+
+    let userRef = null;
+    let refundBalance = null;
+    if (action === "rejected") {
+      userRef = db.collection("users").doc(withdrawalUserId);
+      const userSnap = await transaction.get(userRef);
+      if (!userSnap.exists) {
+        throw new functions.https.HttpsError("not-found", "Withdrawal user not found.");
+      }
+
+      const userData = userSnap.data() || {};
+      const currentBalance = Number(userData.eWallet || 0);
+      refundBalance = currentBalance + totalDeduction;
+    }
 
     const updateData = {
       status: action,
@@ -350,17 +365,9 @@ exports.processWithdrawalApproval = functions.https.onCall(async (data, context)
 
     transaction.update(withdrawalRef, updateData);
 
-    if (action === "rejected") {
-      const userRef = db.collection("users").doc(withdrawalUserId);
-      const userSnap = await transaction.get(userRef);
-      if (!userSnap.exists) {
-        throw new functions.https.HttpsError("not-found", "Withdrawal user not found.");
-      }
-
-      const userData = userSnap.data() || {};
-      const currentBalance = Number(userData.eWallet || 0);
+    if (action === "rejected" && userRef) {
       transaction.update(userRef, {
-        eWallet: currentBalance + amount,
+        eWallet: refundBalance,
         lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
       });
     }
@@ -394,7 +401,7 @@ exports.processWithdrawalApproval = functions.https.onCall(async (data, context)
     const title = action === "approved" ? "Withdrawal Approved" : "Withdrawal Rejected";
     const message = action === "approved"
       ? `Your withdrawal of ${formattedAmount} via ${notificationPayload.paymentMethod} has been approved and is now being processed.`
-      : `Your withdrawal of ${formattedAmount} via ${notificationPayload.paymentMethod} was rejected.${remarks ? ` Remarks: ${remarks}` : " The deducted amount has been returned to your wallet."}`;
+      : `Your withdrawal of ${formattedAmount} via ${notificationPayload.paymentMethod} was rejected.${remarks ? ` Remarks: ${remarks}` : " The full deducted amount has been returned to your wallet."}`;
 
     try {
       await db.collection("notifications").add({
@@ -1261,30 +1268,71 @@ exports.transferReferralReward = functions.https.onRequest(async (req, res) => {
           `[transferReferralReward] ✅ SUCCESS - user=${userId} reward=${rewardId} amount=₱${numAmount} newBalance=₱${result.newBalance}`
         );
 
-        // 📊 Log to Render backend for monitoring
-        try {
-          const logUrl = process.env.RENDER_BACKEND_URL || "https://damayan-savings-backend.onrender.com";
-          await fetch(`${logUrl}/api/log-event`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              level: "info",
-              event: "referral_earnings_transfer_completed",
-              data: {
+        void (async () => {
+          // 📊 Log to Render backend for monitoring
+          try {
+            const logUrl = process.env.RENDER_BACKEND_URL || "https://damayan-savings-backend.onrender.com";
+            await fetch(`${logUrl}/api/log-event`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                level: "info",
+                event: "referral_earnings_transfer_completed",
+                data: {
+                  userId,
+                  rewardId,
+                  amount: numAmount,
+                  newBalance: result.newBalance,
+                  alreadyTransferred: result.alreadyTransferred || false,
+                  source: "Cloud Function",
+                },
+              }),
+            });
+          } catch (logError) {
+            console.warn("[transferReferralReward] Warning: Failed to log to Render:", logError);
+          }
+
+          if (!result.alreadyTransferred) {
+            const amountLabel = Number(numAmount || 0).toLocaleString("en-PH", {
+              style: "currency",
+              currency: "PHP",
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            });
+            const title = "Referral Reward Credited";
+            const message = `${amountLabel} from your referral rewards has been credited to your E-Wallet.`;
+
+            try {
+              await db.collection("notifications").add({
                 userId,
+                recipientUid: userId,
+                title,
+                message,
+                type: "referral-reward-transfer",
+                read: false,
                 rewardId,
                 amount: numAmount,
-                newBalance: result.newBalance,
-                alreadyTransferred: result.alreadyTransferred || false,
-                source: "Cloud Function",
-              },
-            }),
-          });
-        } catch (logError) {
-          console.warn("[transferReferralReward] Warning: Failed to log to Render:", logError);
-        }
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
 
-        res.json(result);
+              await sendPushToUsers({
+                userIds: [userId],
+                title,
+                body: message,
+                data: {
+                  type: "REFERRAL_REWARD_TRANSFER",
+                  rewardId,
+                  amount: numAmount,
+                  path: "/member/dashboard",
+                },
+              });
+            } catch (notificationError) {
+              console.warn("[transferReferralReward] Notification warning:", notificationError);
+            }
+          }
+        })();
+
+        return res.json(result);
       } catch (transactionError) {
         console.error("[transferReferralReward] ❌ Transaction failed:", transactionError);
         res.status(400).json({ error: transactionError.message || "Transfer failed" });
@@ -1455,30 +1503,71 @@ exports.transferOverrideReward = functions.https.onRequest(async (req, res) => {
           `[transferOverrideReward] ✅ SUCCESS - user=${userId} override=${overrideId} amount=₱${numAmount} newBalance=₱${result.newBalance}`
         );
 
-        // 📊 Log to Render backend for monitoring
-        try {
-          const logUrl = process.env.RENDER_BACKEND_URL || "https://damayan-savings-backend.onrender.com";
-          await fetch(`${logUrl}/api/log-event`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              level: "info",
-              event: "override_earnings_transfer_completed",
-              data: {
+        void (async () => {
+          // 📊 Log to Render backend for monitoring
+          try {
+            const logUrl = process.env.RENDER_BACKEND_URL || "https://damayan-savings-backend.onrender.com";
+            await fetch(`${logUrl}/api/log-event`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                level: "info",
+                event: "override_earnings_transfer_completed",
+                data: {
+                  userId,
+                  overrideId,
+                  amount: numAmount,
+                  newBalance: result.newBalance,
+                  alreadyTransferred: result.alreadyTransferred || false,
+                  source: "Cloud Function",
+                },
+              }),
+            });
+          } catch (logError) {
+            console.warn("[transferOverrideReward] Warning: Failed to log to Render:", logError);
+          }
+
+          if (!result.alreadyTransferred) {
+            const amountLabel = Number(numAmount || 0).toLocaleString("en-PH", {
+              style: "currency",
+              currency: "PHP",
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            });
+            const title = "Override Reward Credited";
+            const message = `${amountLabel} from your override rewards has been credited to your E-Wallet.`;
+
+            try {
+              await db.collection("notifications").add({
                 userId,
+                recipientUid: userId,
+                title,
+                message,
+                type: "override-reward-transfer",
+                read: false,
                 overrideId,
                 amount: numAmount,
-                newBalance: result.newBalance,
-                alreadyTransferred: result.alreadyTransferred || false,
-                source: "Cloud Function",
-              },
-            }),
-          });
-        } catch (logError) {
-          console.warn("[transferOverrideReward] Warning: Failed to log to Render:", logError);
-        }
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
 
-        res.json(result);
+              await sendPushToUsers({
+                userIds: [userId],
+                title,
+                body: message,
+                data: {
+                  type: "OVERRIDE_REWARD_TRANSFER",
+                  overrideId,
+                  amount: numAmount,
+                  path: "/member/dashboard",
+                },
+              });
+            } catch (notificationError) {
+              console.warn("[transferOverrideReward] Notification warning:", notificationError);
+            }
+          }
+        })();
+
+        return res.json(result);
       } catch (transactionError) {
         console.error("[transferOverrideReward] ❌ Transaction failed:", transactionError);
         res.status(400).json({ error: transactionError.message || "Transfer failed" });
@@ -2820,12 +2909,13 @@ exports.createWithdrawal = functions.https.onRequest(async (req, res) => {
 
         const userData = userSnap.data();
         const currentBalance = Number(userData.eWallet || 0);
-        if (currentBalance < numAmount) {
+        const charge = Number((numAmount * 0.05).toFixed(2));
+        const totalDeduction = Number((numAmount + charge).toFixed(2));
+        const netAmount = numAmount;
+
+        if (currentBalance < totalDeduction) {
           throw new Error("Insufficient wallet balance");
         }
-
-        const charge = numAmount * 0.05;
-        const netAmount = numAmount - charge;
 
         const withdrawalRef = db.collection("withdrawals").doc();
         transaction.set(withdrawalRef, {
@@ -2836,12 +2926,16 @@ exports.createWithdrawal = functions.https.onRequest(async (req, res) => {
           paymentMethod,
           charge,
           netAmount,
+          totalDeduction,
           qrUrl,
           status: "Pending",
           createdAt: new Date(),
         });
 
-        transaction.update(userRef, { eWallet: currentBalance - numAmount });
+        transaction.update(userRef, {
+          eWallet: currentBalance - totalDeduction,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
 
         // Store idempotency key
         if (clientRequestId) {
@@ -2855,9 +2949,10 @@ exports.createWithdrawal = functions.https.onRequest(async (req, res) => {
         return {
           success: true,
           withdrawalId: withdrawalRef.id,
-          newBalance: currentBalance - numAmount,
+          newBalance: currentBalance - totalDeduction,
           charge,
           netAmount,
+          totalDeduction,
         };
       });
 

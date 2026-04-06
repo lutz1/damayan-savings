@@ -131,7 +131,7 @@ const RewardHistoryDialog = ({
                     setLoadingTransfer((prev) => ({ ...prev, [reward.id]: true }));
                     const idToken = await user.getIdToken();
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 30000);
+                    const timeoutId = setTimeout(() => controller.abort(), 60000);
                     const response = await fetch(
                       "https://us-central1-amayan-savings.cloudfunctions.net/transferReferralReward",
                       {
@@ -151,8 +151,12 @@ const RewardHistoryDialog = ({
                     alert(result.alreadyTransferred ? "Already transferred previously." : `₱${formatAmount(reward.amount)} transferred to eWallet!`);
                     onTransferSuccess();
                   } catch (err) {
-                    const msg = err.name === "AbortError" ? "Request timed out." : (err.message || "Unknown error");
-                    alert("Transfer failed: " + msg);
+                    if (err.name === "AbortError") {
+                      onTransferSuccess();
+                      alert("Transfer is still processing. Please wait a moment and check your E-Wallet history before retrying.");
+                    } else {
+                      alert("Transfer failed: " + (err.message || "Unknown error"));
+                    }
                   } finally {
                     setLoadingTransfer((prev) => ({ ...prev, [reward.id]: false }));
                   }

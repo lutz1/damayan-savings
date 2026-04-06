@@ -658,14 +658,9 @@ const Login = () => {
       case "MEMBER":
         goTo("/member/dashboard");
         break;
-      case "RIDER": {
-        const riderUrl =
-          window.location.hostname === "localhost"
-            ? "http://localhost:3003"
-            : `${window.location.origin}/damayan-savings/rider`;
-        window.location.href = `${riderUrl}/`;
+      case "RIDER":
+        goTo("/rider/dashboard");
         break;
-      }
       default:
         goTo("/");
     }

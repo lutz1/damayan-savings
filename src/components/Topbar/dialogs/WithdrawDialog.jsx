@@ -21,7 +21,7 @@ import {
   Divider,
 } from "@mui/material";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
-import { CheckCircle, UploadFile } from "@mui/icons-material";
+import { CheckCircle, UploadFile, QrCode2 } from "@mui/icons-material";
 import {
   addDoc,
   collection,
@@ -33,6 +33,15 @@ import {
   runTransaction,
 } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import bpilogo from "../../../assets/bpilogo.png";
+import bdologo from "../../../assets/bdologo.png";
+import coinsphlogo from "../../../assets/coinsphlogo.jpg";
+import gcashlogo from "../../../assets/gcashlogo.jpg";
+import landbanklogo from "../../../assets/landbanklogo.jpg";
+import mayalogo from "../../../assets/mayalogo.jpg";
+import metrobanklogo from "../../../assets/metrobanklogo.png";
+import rcbclogo from "../../../assets/rcbclogo.jpg";
+import unionbanklogo from "../../../assets/unionbanklogo.jpg";
 
 const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) => {
   const [amount, setAmount] = useState("");
@@ -261,10 +270,10 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
       badgeBg: "#eaf2ff",
       badgeColor: "#105abf",
       options: [
-        { value: "GCash", label: "GCash", caption: "Instant transfer", badge: "G", badgeBg: "#eaf2ff", badgeColor: "#105abf" },
-        { value: "Maya", label: "Maya", caption: "Digital wallet payout", badge: "M", badgeBg: "#ecfbf0", badgeColor: "#2eaf72" },
+        { value: "GCash", label: "GCash", caption: "Instant transfer", badge: "G", logo: gcashlogo, badgeBg: "#eaf2ff", badgeColor: "#105abf" },
+        { value: "Maya", label: "Maya", caption: "Digital wallet payout", badge: "M", logo: mayalogo, badgeBg: "#ecfbf0", badgeColor: "#2eaf72" },
         { value: "GoTyme", label: "GoTyme", caption: "Savings wallet transfer", badge: "Go", badgeBg: "#fff3e4", badgeColor: "#c27600" },
-        { value: "Coins.ph", label: "Coins.ph", caption: "Crypto wallet cashout", badge: "C", badgeBg: "#eef2ff", badgeColor: "#4f46e5" },
+        { value: "Coins.ph", label: "Coins.ph", caption: "Crypto wallet cashout", badge: "C", logo: coinsphlogo, badgeBg: "#eef2ff", badgeColor: "#4f46e5" },
       ],
     },
     {
@@ -275,12 +284,12 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
       badgeBg: "#f2f4f7",
       badgeColor: "#1f2937",
       options: [
-        { value: "BPI", label: "BPI", caption: "Bank of the Philippine Islands", badge: "BP", badgeBg: "#feecec", badgeColor: "#b42318" },
-        { value: "BDO", label: "BDO", caption: "Banco de Oro", badge: "BD", badgeBg: "#eef4ff", badgeColor: "#105abf" },
-        { value: "Metrobank", label: "Metrobank", caption: "Metrobank account", badge: "MB", badgeBg: "#ecfbf0", badgeColor: "#2e7d32" },
-        { value: "LandBank", label: "LandBank", caption: "Land Bank of the Philippines", badge: "LB", badgeBg: "#fff7e8", badgeColor: "#b26a00" },
-        { value: "UnionBank", label: "UnionBank", caption: "UnionBank account", badge: "UB", badgeBg: "#f2ecff", badgeColor: "#6d28d9" },
-        { value: "RCBC", label: "RCBC", caption: "RCBC account", badge: "RC", badgeBg: "#fff0f6", badgeColor: "#be185d" },
+        { value: "BPI", label: "BPI", caption: "Bank of the Philippine Islands", badge: "BP", logo: bpilogo, badgeBg: "#feecec", badgeColor: "#b42318" },
+        { value: "BDO", label: "BDO", caption: "Banco de Oro", badge: "BD", logo: bdologo, badgeBg: "#eef4ff", badgeColor: "#105abf" },
+        { value: "Metrobank", label: "Metrobank", caption: "Metrobank account", badge: "MB", logo: metrobanklogo, badgeBg: "#ecfbf0", badgeColor: "#2e7d32" },
+        { value: "LandBank", label: "LandBank", caption: "Land Bank of the Philippines", badge: "LB", logo: landbanklogo, badgeBg: "#fff7e8", badgeColor: "#b26a00" },
+        { value: "UnionBank", label: "UnionBank", caption: "UnionBank account", badge: "UB", logo: unionbanklogo, badgeBg: "#f2ecff", badgeColor: "#6d28d9" },
+        { value: "RCBC", label: "RCBC", caption: "RCBC account", badge: "RC", logo: rcbclogo, badgeBg: "#fff0f6", badgeColor: "#be185d" },
       ],
     },
   ];
@@ -480,8 +489,33 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
                                       border: optionSelected ? "1px solid rgba(16,90,191,0.28)" : "1px solid #e7edf6",
                                     }}
                                   >
-                                    <Box sx={{ width: 30, height: 30, borderRadius: 1.6, backgroundColor: option.badgeBg, color: option.badgeColor, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 11.5, flexShrink: 0 }}>
-                                      {option.badge}
+                                    <Box
+                                      sx={{
+                                        width: 34,
+                                        height: 34,
+                                        borderRadius: 1.6,
+                                        backgroundColor: option.logo ? "#fff" : option.badgeBg,
+                                        color: option.badgeColor,
+                                        border: option.logo ? "1px solid #dbe2ef" : "none",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        fontWeight: 900,
+                                        fontSize: 11.5,
+                                        flexShrink: 0,
+                                        overflow: "hidden",
+                                      }}
+                                    >
+                                      {option.logo ? (
+                                        <Box
+                                          component="img"
+                                          src={option.logo}
+                                          alt={`${option.label} logo`}
+                                          sx={{ width: "76%", height: "76%", objectFit: "contain" }}
+                                        />
+                                      ) : (
+                                        option.badge
+                                      )}
                                     </Box>
                                     <Box sx={{ flex: 1, minWidth: 0 }}>
                                       <Typography sx={{ fontSize: 12, fontWeight: 800, color: "#223047" }}>{option.label}</Typography>
@@ -512,7 +546,7 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
                       />
                     ) : (
                       <>
-                        <UploadFile sx={{ fontSize: 28, color: "#105abf", mb: 0.4 }} />
+                        <QrCode2 sx={{ fontSize: 28, color: "#105abf", mb: 0.4 }} />
                         <Typography sx={{ fontSize: 12.5, fontWeight: 800, color: "#223047" }}>
                           Upload Receiver QR Code
                         </Typography>
@@ -526,7 +560,7 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
                   <Button
                     component="label"
                     fullWidth
-                    startIcon={<UploadFile />}
+                    startIcon={<QrCode2 />}
                     sx={{
                       borderRadius: 2,
                       bgcolor: "#eef4ff",
@@ -574,8 +608,8 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
                       {withdrawLogs.slice(0, 5).map((log, index) => (
                         <ListItem key={log.id} disableGutters sx={{ py: 0.75, borderBottom: index === Math.min(withdrawLogs.length, 5) - 1 ? "none" : "1px solid #eef2f7" }}>
                           <ListItemText
-                            primary={`₱${Number(log.amount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`}
-                            secondary={log.createdAt ? `${log.paymentMethod || "Method"} • ${new Date(log.createdAt.seconds * 1000).toLocaleString("en-PH")}` : `${log.paymentMethod || "Method"} • Pending...`}
+                            primary={`₱${Number(log.totalDeduction ?? (Number(log.amount || 0) + Number(log.charge || 0))).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`}
+                            secondary={log.createdAt ? `Deducted from wallet • ${log.paymentMethod || "Method"} • ${new Date(log.createdAt.seconds * 1000).toLocaleString("en-PH")}` : `Deducted from wallet • ${log.paymentMethod || "Method"} • Pending...`}
                             primaryTypographyProps={{ color: "#223047", fontWeight: 800, fontSize: 12.5 }}
                             secondaryTypographyProps={{ color: "#7a8392", fontSize: 10.5 }}
                           />
@@ -622,8 +656,33 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
                 <Box sx={{ background: "rgba(255,255,255,0.98)", borderRadius: 2.8, p: 1.5, mb: 1.2, border: "1px solid #dbe2ef" }}>
                   <Typography sx={{ fontSize: 10, color: "#7a8392", fontWeight: 800, letterSpacing: 1, mb: 0.8 }}>METHOD</Typography>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Box sx={{ width: 36, height: 36, borderRadius: 1.8, backgroundColor: selectedPaymentOption?.badgeBg || "#eef4ff", color: selectedPaymentOption?.badgeColor || "#105abf", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 12, flexShrink: 0 }}>
-                      {selectedPaymentOption?.badge || "₱"}
+                    <Box
+                      sx={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 1.8,
+                        backgroundColor: selectedPaymentOption?.logo ? "#fff" : (selectedPaymentOption?.badgeBg || "#eef4ff"),
+                        color: selectedPaymentOption?.badgeColor || "#105abf",
+                        border: selectedPaymentOption?.logo ? "1px solid #dbe2ef" : "none",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontWeight: 900,
+                        fontSize: 12,
+                        flexShrink: 0,
+                        overflow: "hidden",
+                      }}
+                    >
+                      {selectedPaymentOption?.logo ? (
+                        <Box
+                          component="img"
+                          src={selectedPaymentOption.logo}
+                          alt={`${selectedPaymentOption.label} logo`}
+                          sx={{ width: "76%", height: "76%", objectFit: "contain" }}
+                        />
+                      ) : (
+                        selectedPaymentOption?.badge || "₱"
+                      )}
                     </Box>
                     <Box>
                       <Typography sx={{ fontSize: 13.5, fontWeight: 800, color: "#223047" }}>{paymentMethod}</Typography>
@@ -636,7 +695,7 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
                   <Typography sx={{ fontSize: 10, color: "#7a8392", fontWeight: 800, letterSpacing: 1, mb: 0.8 }}>RECEIVER IDENTITY</Typography>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     <Box sx={{ width: 42, height: 42, borderRadius: 1.8, backgroundColor: "#111", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
-                      {qrPreview ? <img src={qrPreview} alt="Receiver QR" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <UploadFile sx={{ color: "#fff", fontSize: 18 }} />}
+                      {qrPreview ? <img src={qrPreview} alt="Receiver QR" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <QrCode2 sx={{ color: "#fff", fontSize: 18 }} />}
                     </Box>
                     <Box sx={{ minWidth: 0 }}>
                       <Typography sx={{ fontSize: 12.2, fontWeight: 800, color: "#223047", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{qrFile?.name || "Uploaded QR"}</Typography>
@@ -685,8 +744,31 @@ const WithdrawDialog = ({ open, onClose, userData, db, auth, onBalanceUpdate }) 
                 <Box sx={{ background: "rgba(255,255,255,0.98)", borderRadius: 2.8, p: 1.6, mb: 1.4, border: "1px solid #dbe2ef" }}>
                   <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, mb: 1.2 }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 0.9 }}>
-                      <Box sx={{ width: 34, height: 34, borderRadius: 1.6, backgroundColor: selectedPaymentOption?.badgeBg || "#eef4ff", color: selectedPaymentOption?.badgeColor || "#105abf", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 11 }}>
-                        {selectedPaymentOption?.badge || "₱"}
+                      <Box
+                        sx={{
+                          width: 34,
+                          height: 34,
+                          borderRadius: 1.6,
+                          backgroundColor: selectedPaymentOption?.logo ? "#fff" : (selectedPaymentOption?.badgeBg || "#eef4ff"),
+                          color: selectedPaymentOption?.badgeColor || "#105abf",
+                          border: selectedPaymentOption?.logo ? "1px solid #dbe2ef" : "none",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontWeight: 900,
+                          fontSize: 11,
+                          overflow: "hidden",
+                        }}>
+                        {selectedPaymentOption?.logo ? (
+                          <Box
+                            component="img"
+                            src={selectedPaymentOption.logo}
+                            alt={`${selectedPaymentOption.label} logo`}
+                            sx={{ width: "76%", height: "76%", objectFit: "contain" }}
+                          />
+                        ) : (
+                          selectedPaymentOption?.badge || "₱"
+                        )}
                       </Box>
                       <Box>
                         <Typography sx={{ fontSize: 9.5, color: "#7a8392", fontWeight: 800, letterSpacing: 0.8 }}>METHOD</Typography>
