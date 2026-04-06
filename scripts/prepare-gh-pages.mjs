@@ -23,7 +23,8 @@ if (!existsSync(rootDist)) {
 
 for (const target of targets) {
   if (!existsSync(target.source)) {
-    throw new Error(`Missing ${target.label} build output at ${target.source}. Run its build first.`);
+    console.warn(`Skipping ${target.label}; no build output found at ${target.source}.`);
+    continue;
   }
 
   rmSync(target.dest, { recursive: true, force: true });
