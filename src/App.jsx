@@ -48,6 +48,13 @@ const MarketplaceShop = lazy(() => import("./pages/marketplace/ShopPage"));
 const MarketplaceStore = lazy(() => import("./pages/marketplace/StoreDetailsPage"));
 const MarketplaceCart = lazy(() => import("./pages/marketplace/CartPage"));
 const MarketplaceAddAddress = lazy(() => import("./pages/marketplace/AddAddressPage"));
+const MerchantLoginPage = lazy(() => import("./pages/merchant/MerchantLoginPage"));
+const MerchantDashboard = lazy(() => import("./pages/merchant/merchantDashboard"));
+const MerchantOrders = lazy(() => import("./pages/merchant/merchantOrders"));
+const MerchantProducts = lazy(() => import("./pages/merchant/merchantProducts"));
+const MerchantProfile = lazy(() => import("./pages/merchant/merchantProfile"));
+const MerchantStoreSettings = lazy(() => import("./pages/merchant/MerchantStoreSettings"));
+const MerchantVouchers = lazy(() => import("./pages/merchant/MerchantVouchers"));
 
 
 function App() {
@@ -92,6 +99,11 @@ function App() {
       ? children
       : <Navigate to="/rider/login" replace />;
 
+  const MerchantRoute = ({ children }) =>
+    ["MERCHANT"].includes(role?.toUpperCase())
+      ? children
+      : <Navigate to="/login/merchant" replace />;
+
   const AutoRedirect = () => {
     const location = useLocation();
     const navigate = useNavigate();
@@ -107,10 +119,7 @@ function App() {
         if (["ADMIN", "CEO", "SUPERADMIN"].includes(userRole)) {
           navigate("/admin/dashboard", { replace: true });
         } else if (userRole === "MERCHANT") {
-          const merchantUrl = window.location.hostname === "localhost"
-            ? "http://localhost:3002"
-            : `${window.location.origin}/damayan-savings/merchant`;
-          window.location.href = `${merchantUrl}/`;
+          navigate("/merchant/dashboard", { replace: true });
         } else if (userRole === "RIDER") {
           navigate("/rider/location-access", { replace: true });
         } else if (
@@ -145,7 +154,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<Login />} />
-            <Route path="/login/merchant" element={<Login />} />
+            <Route path="/login/merchant" element={<MerchantLoginPage />} />
             <Route path="/login/rider" element={<Navigate to="/rider/login" replace />} />
             <Route path="/rider/login" element={<RiderLoginPage />} />
             <Route path="/rider/apply" element={<RiderApplicationPage />} />
@@ -390,6 +399,59 @@ function App() {
             <Route path="/marketplace/store/:id" element={<MarketplaceStore />} />
             <Route path="/marketplace/cart" element={<MarketplaceCart />} />
             <Route path="/marketplace/add-address" element={<MarketplaceAddAddress />} />
+
+            <Route
+              path="/merchant/login"
+              element={<MerchantLoginPage />}
+            />
+            <Route
+              path="/merchant/dashboard"
+              element={
+                <MerchantRoute>
+                  <MerchantDashboard />
+                </MerchantRoute>
+              }
+            />
+            <Route
+              path="/merchant/orders"
+              element={
+                <MerchantRoute>
+                  <MerchantOrders />
+                </MerchantRoute>
+              }
+            />
+            <Route
+              path="/merchant/products"
+              element={
+                <MerchantRoute>
+                  <MerchantProducts />
+                </MerchantRoute>
+              }
+            />
+            <Route
+              path="/merchant/profile"
+              element={
+                <MerchantRoute>
+                  <MerchantProfile />
+                </MerchantRoute>
+              }
+            />
+            <Route
+              path="/merchant/store-profile"
+              element={
+                <MerchantRoute>
+                  <MerchantStoreSettings />
+                </MerchantRoute>
+              }
+            />
+            <Route
+              path="/merchant/vouchers"
+              element={
+                <MerchantRoute>
+                  <MerchantVouchers />
+                </MerchantRoute>
+              }
+            />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
