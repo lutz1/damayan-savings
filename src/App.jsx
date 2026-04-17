@@ -44,6 +44,10 @@ const RiderProfile = lazy(() => import("./pages/rider/riderProfile"));
 const RiderMemberOrders = lazy(() => import("./pages/rider/memberOrders"));
 const RiderLocationAccess = lazy(() => import("./pages/rider/LocationAccess"));
 const RiderApplicationPage = lazy(() => import("./pages/rider/RiderApplicationPage"));
+const MarketplaceShop = lazy(() => import("./pages/marketplace/ShopPage"));
+const MarketplaceStore = lazy(() => import("./pages/marketplace/StoreDetailsPage"));
+const MarketplaceCart = lazy(() => import("./pages/marketplace/CartPage"));
+const MarketplaceAddAddress = lazy(() => import("./pages/marketplace/AddAddressPage"));
 
 
 function App() {
@@ -381,6 +385,11 @@ function App() {
                 </RiderRoute>
               }
             />
+
+            <Route path="/marketplace/shop" element={<MarketplaceShop />} />
+            <Route path="/marketplace/store/:id" element={<MarketplaceStore />} />
+            <Route path="/marketplace/cart" element={<MarketplaceCart />} />
+            <Route path="/marketplace/add-address" element={<MarketplaceAddAddress />} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
