@@ -623,21 +623,26 @@ const DetailedProfitClaimsHistory = ({
                                 : [];
 
                               legacyClaims.forEach((claim) => {
-                                let bestIndex = -1;
+                                const safeMonthlyRate = Number(monthlyRate || 0);
+                                const ratio = safeMonthlyRate > 0 ? Number(claim.amount || 0) / safeMonthlyRate : 1;
+                                const monthsCovered = Math.max(1, Math.round(ratio));
+
+                                const eligibleIndices = [];
                                 for (let i = 0; i < profitTimeline.length; i += 1) {
                                   const row = profitTimeline[i];
                                   const rowAlreadyClaimed = claimedPeriodSet.has(row.periodKey);
                                   if (rowAlreadyClaimed) continue;
                                   if (row.periodEndDate <= claim.claimedAt) {
-                                    bestIndex = i;
+                                    eligibleIndices.push(i);
                                   }
                                 }
 
-                                if (bestIndex >= 0) {
-                                  const key = profitTimeline[bestIndex].periodKey;
+                                const targetIndices = eligibleIndices.slice(-monthsCovered);
+                                targetIndices.forEach((idx) => {
+                                  const key = profitTimeline[idx].periodKey;
                                   claimedPeriodSet.add(key);
                                   claimedDateMap[key] = claim.claimedAt;
-                                }
+                                });
                               });
 
                               return profitTimeline.map((timeline, idx) => (
