@@ -1,10 +1,48 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { GoogleMap, MarkerF, PolylineF, useJsApiLoader } from "@react-google-maps/api";
 import { collection, doc, getDoc, onSnapshot, query, where } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "../../firebase";
 import { cartCount, cartSubtotal, readCart, saveCart } from "./lib/cartStorage";
+import ShopTopNav from "./components/ShopTopNav";
+import ShopBottomNav from "./components/ShopBottomNav";
+
+const getCategoryIcon = (category) => {
+  const icons = {
+    "all": "🏪",
+    "food": "🍔",
+    "meals": "🍱",
+    "rice": "🍚",
+    "noodles": "🍜",
+    "drinks": "🥤",
+    "beverages": "🧃",
+    "desserts": "🍰",
+    "snacks": "🥐",
+    "bakery": "🥖",
+    "coffee": "☕",
+    "tea": "🫖",
+    "juice": "🧃",
+    "burger": "🍔",
+    "pizza": "🍕",
+    "seafood": "🦐",
+    "chicken": "🍗",
+    "beef": "🥩",
+    "vegetables": "🥦",
+    "fruit": "🍎",
+    "dairy": "🧈",
+    "frozen": "🧊",
+    "grill": "🔥",
+    "korean": "🍱",
+    "japanese": "🍣",
+    "chinese": "🥡",
+    "thai": "🌶️",
+    "indian": "🍛",
+    "italian": "🍝",
+  };
+  return icons[String(category || "all").toLowerCase()] || "📦";
+};
 
 const currency = (value) =>
   `P${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -37,7 +75,13 @@ const extractCoords = (payload) => {
   return null;
 };
 
-export default function ShopPage({ isEmbedded = false, onLoaded = null }) {
+export default function ShopPage({
+  isEmbedded = false,
+  onLoaded = null,
+  onRequestLocationPicker = null,
+}) {
+  const hasNotifiedLoadedRef = useRef(false);
+  const navigate = useNavigate();
   const [userId, setUserId] = useState("");
   const [products, setProducts] = useState([]);
   const [merchants, setMerchants] = useState({});
@@ -47,9 +91,9 @@ export default function ShopPage({ isEmbedded = false, onLoaded = null }) {
   const [toast, setToast] = useState({ message: "", type: "info" });
   const [activeDelivery, setActiveDelivery] = useState(null);
   const [trackingRider, setTrackingRider] = useState(null);
-
-  const currentLocation = localStorage.getItem("selectedDeliveryAddress") || "";
-  const currentLocationCityProvince = localStorage.getItem("selectedDeliveryAddressCityProvince") || "";
+  const [activeShopTab, setActiveShopTab] = useState("food");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [deliveryAddressCityProvince, setDeliveryAddressCityProvince] = useState("");
 
   const googleMapsApiKey =
     import.meta.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY || "";
@@ -94,12 +138,19 @@ export default function ShopPage({ isEmbedded = false, onLoaded = null }) {
 
   // Notify parent when ShopPage is loaded (for loading screen)
   useEffect(() => {
-    if (isEmbedded && onLoaded && products.length > 0) {
+    if (!onLoaded || hasNotifiedLoadedRef.current) {
+      return undefined;
+    }
+
+    if (isEmbedded && products.length > 0) {
       const timer = setTimeout(() => {
+        hasNotifiedLoadedRef.current = true;
         onLoaded();
       }, 300);
       return () => clearTimeout(timer);
-    } else if (!isEmbedded && onLoaded) {
+
+    } else if (!isEmbedded) {
+      hasNotifiedLoadedRef.current = true;
       onLoaded();
     }
   }, [products.length, isEmbedded, onLoaded]);
@@ -153,6 +204,28 @@ export default function ShopPage({ isEmbedded = false, onLoaded = null }) {
   }, [userId]);
 
   useEffect(() => {
+    if (!userId) {
+      setDeliveryAddress("");
+      setDeliveryAddressCityProvince("");
+      return () => {};
+    }
+
+    const unsubscribe = onSnapshot(doc(db, "users", userId), (snap) => {
+      if (!snap.exists()) {
+        setDeliveryAddress("");
+        setDeliveryAddressCityProvince("");
+        return;
+      }
+
+      const data = snap.data() || {};
+      setDeliveryAddress(String(data.deliveryAddress || ""));
+      setDeliveryAddressCityProvince(String(data.deliveryAddressCityProvince || ""));
+    });
+
+    return () => unsubscribe();
+  }, [userId]);
+
+  useEffect(() => {
     if (!activeDelivery?.riderId) {
       setTrackingRider(null);
       return () => {};
@@ -198,8 +271,35 @@ export default function ShopPage({ isEmbedded = false, onLoaded = null }) {
     return ids.map((id) => merchants[id]).filter(Boolean).slice(0, 8);
   }, [visibleProducts, merchants]);
 
+  const frequentlyBoughtProducts = useMemo(() => {
+    return visibleProducts.slice(0, 8);
+  }, [visibleProducts]);
+
+  const displayCategories = useMemo(() => {
+    return categories.slice(0, 5);
+  }, [categories]);
+
   const itemCount = useMemo(() => cartCount(cart), [cart]);
   const subtotal = useMemo(() => cartSubtotal(cart), [cart]);
+
+  const handleShopTabChange = (tab) => {
+    setActiveShopTab(tab);
+
+    if (tab === "cart") {
+      navigate("/marketplace/cart");
+      return;
+    }
+
+    if (tab === "account") {
+      navigate("/member/profile");
+      return;
+    }
+
+    if (tab === "grocery" || tab === "leisure") {
+      setToast({ message: `${tab.charAt(0).toUpperCase() + tab.slice(1)} is coming soon`, type: "info" });
+      return;
+    }
+  };
 
   const addToCart = (product) => {
     const existing = cart.find((item) => item.id === product.id);
@@ -229,6 +329,25 @@ export default function ShopPage({ isEmbedded = false, onLoaded = null }) {
 
   return (
     <main style={styles.page}>
+      {isEmbedded ? (
+        <ShopTopNav
+          search={search}
+          onSearchChange={(event) => setSearch(event.target.value)}
+          locationText="Current Location"
+          locationSubtext={deliveryAddressCityProvince || deliveryAddress || "Set your delivery address"}
+          onLocationClick={() => {
+            if (typeof onRequestLocationPicker === "function") {
+              onRequestLocationPicker();
+              return;
+            }
+            navigate("/marketplace/add-address");
+          }}
+          onBackClick={() => navigate("/member/dashboard")}
+          cartCount={itemCount}
+          onCartClick={() => navigate("/marketplace/cart")}
+        />
+      ) : null}
+
       {!isEmbedded && (
         <header style={styles.hero}>
           <div>
@@ -238,7 +357,7 @@ export default function ShopPage({ isEmbedded = false, onLoaded = null }) {
           </div>
           <div style={styles.heroActions}>
             <Link to="/marketplace/add-address" style={styles.addressBtn}>
-              {currentLocationCityProvince || currentLocation ? "Change Address" : "Set Address"}
+              {deliveryAddressCityProvince || deliveryAddress ? "Change Address" : "Set Address"}
             </Link>
             <Link to="/dashboard" style={styles.backLink}>
               Dashboard
@@ -248,7 +367,7 @@ export default function ShopPage({ isEmbedded = false, onLoaded = null }) {
       )}
 
       <section style={styles.promo}>
-        <div style={styles.promoBadge}>50%</div>
+        <span style={styles.promoBadgeEmoji}>🎉</span>
         <div>
           <p style={styles.promoTitle}>First order deal</p>
           <p style={styles.promoCopy}>Use code FIRSTBITE at checkout to unlock a welcome discount.</p>
@@ -305,7 +424,7 @@ export default function ShopPage({ isEmbedded = false, onLoaded = null }) {
         </section>
       ) : null}
 
-      <section style={styles.searchWrap}>
+      {!isEmbedded && <section style={styles.searchWrap}>
         <input
           type="text"
           value={search}
@@ -313,20 +432,48 @@ export default function ShopPage({ isEmbedded = false, onLoaded = null }) {
           placeholder="Search dishes, categories, stores"
           style={styles.searchInput}
         />
+      </section>}
+
+      <section style={styles.categorySection}>
+        <h2 style={styles.sectionTitleSmall}>Categories</h2>
+        <div style={styles.categoryGrid}>
+          {displayCategories.slice(0, 4).map((entry) => (
+            <button
+              key={entry}
+              type="button"
+              onClick={() => setCategory(entry)}
+              style={{ ...styles.categoryGridItem, ...(category === entry ? styles.categoryGridItemActive : {}) }}
+            >
+              <span style={styles.categoryIcon}>{getCategoryIcon(entry)}</span>
+              <span style={styles.categoryLabel}>{entry === "all" ? "All" : entry}</span>
+            </button>
+          ))}
+        </div>
+        {categories.length > 5 && (
+          <button
+            type="button"
+            onClick={() => setCategory("all")}
+            style={styles.seeAllBtn}
+          >
+            See all categories →
+          </button>
+        )}
       </section>
 
-      <section style={styles.categoryRow}>
-        {categories.map((entry) => (
-          <button
-            key={entry}
-            type="button"
-            onClick={() => setCategory(entry)}
-            style={{ ...styles.categoryChip, ...(category === entry ? styles.categoryChipActive : {}) }}
-          >
-            {entry === "all" ? "All" : entry}
-          </button>
-        ))}
-      </section>
+      {!isEmbedded && (
+        <section style={styles.categoryFilterRow}>
+          {categories.map((entry) => (
+            <button
+              key={entry}
+              type="button"
+              onClick={() => setCategory(entry)}
+              style={{ ...styles.categoryChip, ...(category === entry ? styles.categoryChipActive : {}) }}
+            >
+              {entry === "all" ? "All" : entry}
+            </button>
+          ))}
+        </section>
+      )}
 
       {visibleStores.length > 0 ? (
         <section style={styles.storesWrap}>
@@ -346,20 +493,40 @@ export default function ShopPage({ isEmbedded = false, onLoaded = null }) {
       ) : null}
 
       <section style={styles.productsWrap}>
-        <h2 style={styles.sectionTitle}>Products</h2>
+        <h2 style={styles.sectionTitle}>Frequently Bought</h2>
         <div style={styles.productGrid}>
-          {visibleProducts.length === 0 ? <p style={styles.empty}>No products found yet.</p> : null}
-          {visibleProducts.map((product) => (
+          {frequentlyBoughtProducts.length === 0 ? (
+            <p style={styles.empty}>No products available yet.</p>
+          ) : null}
+          {frequentlyBoughtProducts.map((product) => (
             <article key={product.id} style={styles.productCard}>
               <div style={styles.thumbWrap}>
-                <img src={product.image || "/icons/icon-192x192.png"} alt={product.name || "Product"} style={styles.thumb} />
+                <img 
+                  src={product.image || "/icons/icon-192x192.png"} 
+                  alt={product.name || "Product"} 
+                  style={styles.thumb} 
+                />
+                <button
+                  type="button"
+                  style={styles.favoriteBtn}
+                  onClick={() => setToast({ message: "Added to wishlist", type: "success" })}
+                  title="Add to wishlist"
+                >
+                  ❤️
+                </button>
               </div>
               <h3 style={styles.cardTitle}>{product.name || "Product"}</h3>
               <p style={styles.meta}>{product.category || "General"}</p>
-              <p style={styles.price}>{currency(product.price)}</p>
-              <button type="button" style={styles.actionBtn} onClick={() => addToCart(product)}>
-                Add To Cart
-              </button>
+              <div style={styles.productFooter}>
+                <p style={styles.price}>{currency(product.price)}</p>
+                <button 
+                  type="button" 
+                  style={styles.actionBtn} 
+                  onClick={() => addToCart(product)}
+                >
+                  + Add
+                </button>
+              </div>
             </article>
           ))}
         </div>
@@ -374,17 +541,21 @@ export default function ShopPage({ isEmbedded = false, onLoaded = null }) {
         </footer>
       ) : null}
 
-      <nav style={styles.bottomNav}>
-        <Link to="/marketplace/shop" style={styles.navItemActive}>
-          Shop
-        </Link>
-        <Link to="/orders" style={styles.navItem}>
-          Orders
-        </Link>
-        <Link to="/dashboard" style={styles.navItem}>
-          Account
-        </Link>
-      </nav>
+      {isEmbedded ? (
+        <ShopBottomNav value={activeShopTab} onChange={handleShopTabChange} cartCount={itemCount} />
+      ) : (
+        <nav style={styles.bottomNav}>
+          <Link to="/marketplace/shop" style={styles.navItemActive}>
+            Shop
+          </Link>
+          <Link to="/orders" style={styles.navItem}>
+            Orders
+          </Link>
+          <Link to="/dashboard" style={styles.navItem}>
+            Account
+          </Link>
+        </nav>
+      )}
 
       {toast.message ? (
         <div style={{ ...styles.toast, ...(toast.type === "error" ? styles.toastError : styles.toastDefault) }}>
@@ -397,11 +568,11 @@ export default function ShopPage({ isEmbedded = false, onLoaded = null }) {
 
 const getStyles = (isEmbedded = false) => ({
   page: {
-    maxWidth: 1060,
+    maxWidth: 1200,
     margin: "0 auto",
-    padding: isEmbedded ? "0 16px 16px" : "16px 16px 120px",
+    padding: isEmbedded ? "116px 16px 112px" : "16px 16px 120px",
     fontFamily: "Segoe UI, sans-serif",
-    background: isEmbedded ? "transparent" : "linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%)",
+    background: "#f8fafc",
     minHeight: isEmbedded ? "auto" : "100vh",
   },
   hero: {
@@ -412,8 +583,8 @@ const getStyles = (isEmbedded = false) => ({
     flexWrap: "wrap",
     marginBottom: 14,
     borderRadius: 20,
-    border: "1px solid #d1e0e8",
-    background: "linear-gradient(135deg, #f8fff5 0%, #e7f7ff 45%, #fff8ef 100%)",
+    border: "1px solid #cbd5e1",
+    background: "linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 45%, #fef9f3 100%)",
     padding: 16,
   },
   heroActions: {
@@ -425,72 +596,66 @@ const getStyles = (isEmbedded = false) => ({
     margin: 0,
     textTransform: "uppercase",
     letterSpacing: "0.08em",
-    color: "#4d6a80",
+    color: "#0f766e",
     fontSize: 12,
     fontWeight: 700,
   },
   heading: {
     margin: "8px 0 4px",
-    color: "#10273a",
+    color: "#0f3f35",
   },
   subheading: {
     margin: 0,
-    color: "#476278",
+    color: "#475569",
     fontSize: 14,
   },
   backLink: {
     textDecoration: "none",
-    border: "1px solid #9ab3c1",
+    border: "1px solid #cbd5e1",
     borderRadius: 10,
     padding: "9px 14px",
-    color: "#21485d",
+    color: "#1e293b",
     fontWeight: 700,
     background: "#fff",
   },
   addressBtn: {
     textDecoration: "none",
-    border: "1px solid #7bbba5",
+    border: "1px solid #86efac",
     borderRadius: 10,
     padding: "9px 14px",
-    color: "#0f5c49",
+    color: "#15803d",
     fontWeight: 700,
-    background: "#f0fffa",
+    background: "#f0fdf4",
   },
   promo: {
     marginBottom: 12,
     borderRadius: 16,
-    border: "1px solid #ffd6b0",
-    background: "linear-gradient(135deg, #fff8ef 0%, #fff1e4 100%)",
+    border: "1px solid #d4d4d8",
+    background: "linear-gradient(135deg, #fef2f2 0%, #fef9e7 100%)",
     padding: 12,
     display: "flex",
     alignItems: "center",
     gap: 12,
   },
-  promoBadge: {
-    width: 52,
-    height: 52,
-    borderRadius: "50%",
-    background: "#f97316",
-    color: "#fff",
-    display: "grid",
-    placeItems: "center",
-    fontWeight: 800,
+  promoBadgeEmoji: {
+    fontSize: 40,
+    lineHeight: 1,
   },
   promoTitle: {
     margin: 0,
-    color: "#9a3412",
+    color: "#7c2d12",
     fontWeight: 800,
   },
   promoCopy: {
     margin: "2px 0 0",
-    color: "#c2410c",
+    color: "#b45309",
     fontSize: 13,
   },
   trackingCard: {
     marginBottom: 12,
     borderRadius: 14,
-    border: "1px solid #b9ecd8",
-    background: "#effdf6",
+    border: "1px solid #bbf7d0",
+    background: "#f0fdf4",
     padding: 12,
   },
   trackingTopRow: {
@@ -517,12 +682,12 @@ const getStyles = (isEmbedded = false) => ({
   },
   trackingLine: {
     margin: "4px 0 0",
-    color: "#0f3f33",
+    color: "#0f3f35",
     fontSize: 13,
   },
   mapFallback: {
     margin: "8px 0 0",
-    color: "#1f6a56",
+    color: "#0f766e",
     fontSize: 12,
   },
   searchWrap: {
@@ -531,12 +696,68 @@ const getStyles = (isEmbedded = false) => ({
   searchInput: {
     width: "100%",
     borderRadius: 12,
-    border: "1px solid #c8d7e2",
+    border: "1px solid #e2e8f0",
     padding: "10px 12px",
     fontSize: 14,
     background: "#fff",
   },
-  categoryRow: {
+  categorySection: {
+    marginBottom: 20,
+  },
+  sectionTitleSmall: {
+    margin: "0 0 12px",
+    color: "#0f3f35",
+    fontSize: 16,
+    fontWeight: 700,
+  },
+  categoryGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, 1fr)",
+    gap: 10,
+    marginBottom: 12,
+  },
+  categoryGridItem: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    border: "1px solid #e2e8f0",
+    borderRadius: 14,
+    padding: 12,
+    background: "#fff",
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+  },
+  categoryGridItemActive: {
+    background: "#0f766e",
+    borderColor: "#0f766e",
+    color: "#fff",
+  },
+  categoryIcon: {
+    fontSize: 28,
+  },
+  categoryLabel: {
+    fontSize: 12,
+    fontWeight: 600,
+    textAlign: "center",
+    color: "#475569",
+  },
+  categoryGridItemActive_label: {
+    color: "#fff",
+  },
+  seeAllBtn: {
+    width: "100%",
+    border: "1px solid #e2e8f0",
+    borderRadius: 12,
+    padding: 10,
+    background: "#fff",
+    color: "#0f766e",
+    fontWeight: 600,
+    cursor: "pointer",
+    fontSize: 13,
+  },
+  categoryFilterRow: {
     display: "flex",
     gap: 8,
     overflowX: "auto",
@@ -544,14 +765,14 @@ const getStyles = (isEmbedded = false) => ({
     marginBottom: 12,
   },
   categoryChip: {
-    border: "1px solid #c8d7e2",
+    border: "1px solid #e2e8f0",
     borderRadius: 999,
     padding: "7px 12px",
     background: "#fff",
-    color: "#33556c",
+    color: "#475569",
     cursor: "pointer",
     whiteSpace: "nowrap",
-    fontWeight: 700,
+    fontWeight: 600,
     fontSize: 12,
   },
   categoryChipActive: {
@@ -566,8 +787,9 @@ const getStyles = (isEmbedded = false) => ({
   },
   sectionTitle: {
     margin: 0,
-    color: "#163145",
+    color: "#0f3f35",
     fontSize: 18,
+    fontWeight: 700,
   },
   storeGrid: {
     display: "grid",
@@ -575,7 +797,7 @@ const getStyles = (isEmbedded = false) => ({
     gap: 10,
   },
   storeCard: {
-    border: "1px solid #d4e0e8",
+    border: "1px solid #e2e8f0",
     borderRadius: 14,
     padding: 12,
     background: "#fff",
@@ -586,51 +808,82 @@ const getStyles = (isEmbedded = false) => ({
   },
   productGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))",
-    gap: 10,
+    gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+    gap: 12,
   },
   productCard: {
-    border: "1px solid #d4e0e8",
+    border: "1px solid #e2e8f0",
     borderRadius: 14,
-    padding: 12,
+    padding: 10,
     background: "#fff",
+    transition: "all 0.2s ease",
   },
   thumbWrap: {
+    position: "relative",
     width: "100%",
-    height: 120,
+    height: 140,
     borderRadius: 10,
     overflow: "hidden",
-    background: "#eef3f7",
+    background: "#f1f5f9",
+    marginBottom: 8,
   },
   thumb: {
     width: "100%",
     height: "100%",
     objectFit: "cover",
   },
+  favoriteBtn: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 32,
+    height: 32,
+    border: "none",
+    borderRadius: "50%",
+    background: "rgba(255, 255, 255, 0.9)",
+    cursor: "pointer",
+    fontSize: 16,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "all 0.2s ease",
+  },
   cardTitle: {
-    margin: "10px 0 4px",
-    color: "#153146",
-    fontSize: 17,
+    margin: "0 0 4px",
+    color: "#0f3f35",
+    fontSize: 14,
+    fontWeight: 600,
+    lineHeight: 1.3,
   },
   meta: {
     margin: 0,
-    color: "#4b667c",
-    fontSize: 12,
+    color: "#64748b",
+    fontSize: 11,
+    marginBottom: 8,
+  },
+  productFooter: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    gap: 6,
   },
   price: {
-    margin: "9px 0",
-    color: "#135a44",
-    fontWeight: 800,
+    margin: 0,
+    color: "#0f766e",
+    fontWeight: 700,
+    fontSize: 14,
   },
   actionBtn: {
     border: 0,
-    borderRadius: 10,
-    background: "#0066b3",
+    borderRadius: 8,
+    background: "#0f766e",
     color: "#fff",
-    padding: "9px 12px",
-    fontWeight: 700,
+    padding: "6px 10px",
+    fontWeight: 600,
     cursor: "pointer",
-    width: "100%",
+    fontSize: 12,
+    whiteSpace: "nowrap",
+    transition: "all 0.2s ease",
   },
   storeBtn: {
     display: "inline-block",
@@ -645,7 +898,7 @@ const getStyles = (isEmbedded = false) => ({
   },
   empty: {
     margin: 0,
-    color: "#4d6577",
+    color: "#64748b",
   },
   cartBar: {
     position: "fixed",
@@ -657,11 +910,11 @@ const getStyles = (isEmbedded = false) => ({
     justifyContent: "space-between",
     alignItems: "center",
     gap: 10,
-    background: "#10354b",
+    background: "#0f766e",
     color: "#fff",
     borderRadius: 999,
     padding: "11px 14px",
-    boxShadow: "0 16px 30px rgba(16,53,75,0.35)",
+    boxShadow: "0 16px 30px rgba(15, 118, 110, 0.35)",
   },
   cartText: {
     margin: 0,
@@ -672,7 +925,7 @@ const getStyles = (isEmbedded = false) => ({
     textDecoration: "none",
     borderRadius: 999,
     background: "#fff",
-    color: "#10354b",
+    color: "#0f766e",
     padding: "7px 12px",
     fontWeight: 700,
     fontSize: 12,
@@ -684,7 +937,7 @@ const getStyles = (isEmbedded = false) => ({
     bottom: 0,
     height: 50,
     background: "#fff",
-    borderTop: "1px solid #d9e4ea",
+    borderTop: "1px solid #e2e8f0",
     display: "flex",
     justifyContent: "space-around",
     alignItems: "center",
@@ -692,14 +945,14 @@ const getStyles = (isEmbedded = false) => ({
   },
   navItem: {
     textDecoration: "none",
-    color: "#58768a",
-    fontWeight: 700,
+    color: "#64748b",
+    fontWeight: 600,
     fontSize: 12,
   },
   navItemActive: {
     textDecoration: "none",
     color: "#0f766e",
-    fontWeight: 800,
+    fontWeight: 700,
     fontSize: 12,
   },
   toast: {
@@ -716,6 +969,6 @@ const getStyles = (isEmbedded = false) => ({
     background: "#0f766e",
   },
   toastError: {
-    background: "#b42318",
+    background: "#dc2626",
   },
 });

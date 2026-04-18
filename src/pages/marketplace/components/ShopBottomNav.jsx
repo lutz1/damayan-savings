@@ -22,8 +22,8 @@ const ShopBottomNav = ({ value, onChange, cartCount = 0 }) => (
       left: 0,
       right: 0,
       borderTop: "1px solid",
-      borderColor: "#e5e7eb",
-      bgcolor: "rgba(255, 255, 255, 0.95)",
+      borderColor: "#d1fae5",
+      bgcolor: "rgba(255, 255, 255, 0.98)",
       backdropFilter: "blur(10px)",
       height: 76,
       zIndex: 1000,
@@ -57,7 +57,7 @@ const ShopBottomNav = ({ value, onChange, cartCount = 0 }) => (
               flexDirection: "column",
               alignItems: "center",
               gap: 0.5,
-              color: isActive ? "#3b4a6b" : "#94a3b8",
+              color: isActive ? "#0f766e" : "#cbd5e1",
               cursor: "pointer",
             }}
           >

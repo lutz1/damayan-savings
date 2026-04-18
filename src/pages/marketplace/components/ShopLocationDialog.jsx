@@ -43,6 +43,8 @@ const ShopLocationDialog = ({
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchSuggestions, setSearchSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [mapLoadError, setMapLoadError] = useState("");
+  const [mapRetryNonce, setMapRetryNonce] = useState(0);
   const [recentSearches, setRecentSearches] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [selectedAddress, setSelectedAddress] = useState(null);
@@ -54,6 +56,8 @@ const ShopLocationDialog = ({
   const searchDebounceRef = useRef(null);
   const searchRequestRef = useRef(0);
   const [zoomLevel, setZoomLevel] = useState(15);
+  const googleMapsApiKey =
+    import.meta.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY || "";
 
   const reverseGeocode = useCallback(async (lat, lng, saveToRecent = true) => {
     try {
@@ -104,9 +108,17 @@ const ShopLocationDialog = ({
   }, [open]);
 
   useEffect(() => {
-    if (!open && pulseTimerRef.current) {
-      window.clearInterval(pulseTimerRef.current);
-      pulseTimerRef.current = null;
+    if (!open) {
+      if (pulseTimerRef.current) {
+        window.clearInterval(pulseTimerRef.current);
+        pulseTimerRef.current = null;
+      }
+
+      // Reset references on close, but avoid imperative map DOM teardown here
+      // to prevent races with React unmounting the Dialog portal.
+      markerRef.current = null;
+      glowMarkerRef.current = null;
+      mapRef.current = null;
     }
   }, [open]);
 
@@ -121,9 +133,64 @@ const ShopLocationDialog = ({
     };
   }, []);
 
+  useEffect(() => {
+    const previousAuthFailureHandler = window.gm_authFailure;
+
+    window.gm_authFailure = () => {
+      setMapLoadError("Google Maps key/auth failed (invalid key, referrer restriction, or billing). Please check Google Maps API settings.");
+      if (typeof previousAuthFailureHandler === "function") {
+        previousAuthFailureHandler();
+      }
+    };
+
+    return () => {
+      window.gm_authFailure = previousAuthFailureHandler;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedLocation || !googleMapsApiKey || mapLoadError) return;
+    if (window.google?.maps) return;
+
+    const timeoutId = window.setTimeout(() => {
+      if (!window.google?.maps) {
+        setMapLoadError("Map failed to load (possible network issue). Tap to retry.");
+      }
+    }, 3500);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [selectedLocation, googleMapsApiKey, mapRetryNonce, mapLoadError]);
+
+  const handleRetryMapLoad = () => {
+    setMapLoadError("");
+
+    if (markerRef.current) {
+      markerRef.current.setMap(null);
+      markerRef.current = null;
+    }
+
+    if (glowMarkerRef.current) {
+      glowMarkerRef.current.setMap(null);
+      glowMarkerRef.current = null;
+    }
+
+    if (mapRef.current && window.google?.maps?.event) {
+      window.google.maps.event.clearInstanceListeners(mapRef.current);
+    }
+    mapRef.current = null;
+
+    setMapRetryNonce((prev) => prev + 1);
+  };
+
   // Initialize Google Map and marker when location is available.
   useEffect(() => {
     if (!selectedLocation || !mapContainerRef.current) return;
+
+    if (!googleMapsApiKey || mapLoadError) {
+      return;
+    }
 
     // Check if Google Maps API is loaded
     if (!window.google || !window.google.maps) {
@@ -225,8 +292,9 @@ const ShopLocationDialog = ({
       mapRef.current.panTo(selectedLocation);
     } catch (error) {
       console.error("Map initialization error:", error);
+      setMapLoadError("Unable to initialize Google Maps. Check console and API key restrictions.");
     }
-  }, [selectedLocation, zoomLevel, reverseGeocode]);
+  }, [selectedLocation, zoomLevel, reverseGeocode, googleMapsApiKey, mapLoadError, mapRetryNonce]);
 
   useEffect(() => {
     if (mapRef.current) {
@@ -402,11 +470,20 @@ const ShopLocationDialog = ({
     }, 360);
   }, [searchTerm]);
 
-  const handleConfirmAddress = () => {
+  const handleConfirmAddress = async () => {
     if (selectedAddress) {
       const cityProvince = getCityProvinceFromAddress(selectedAddress);
-      onSelectAddress({ address: selectedAddress, cityProvince });
-      onClose();
+      const result = await onSelectAddress({
+        address: selectedAddress,
+        cityProvince,
+        location: selectedLocation || null,
+      });
+
+      if (result !== false) {
+        onClose();
+      } else {
+        setLocationError("Unable to save address right now. Please try again.");
+      }
     }
   };
 
@@ -746,7 +823,25 @@ const ShopLocationDialog = ({
         )}
 
         {/* Google Map View */}
-        {selectedLocation && (
+        {selectedLocation && !googleMapsApiKey && (
+          <Box
+            sx={{
+              mx: 2,
+              my: 1.5,
+              p: 1.5,
+              borderRadius: "0.75rem",
+              border: "1px solid rgba(30, 103, 218, 0.2)",
+              backgroundColor: "#f5f9ff",
+              color: "#1e3a8a",
+              fontSize: "0.85rem",
+              lineHeight: 1.45,
+            }}
+          >
+            Google Maps is disabled because the API key is missing. Set VITE_GOOGLE_MAPS_API_KEY in your build environment.
+          </Box>
+        )}
+
+        {selectedLocation && googleMapsApiKey && (
           <Box sx={{ position: "relative", mx: 2, my: 1.5, borderRadius: "0.75rem", overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
             <Box
               ref={mapContainerRef}
@@ -839,6 +934,46 @@ const ShopLocationDialog = ({
             >
               Drag the pin to adjust location
             </Box>
+
+            {mapLoadError && (
+              <Box
+                sx={{
+                  position: "absolute",
+                  inset: 0,
+                  backgroundColor: "rgba(255, 245, 245, 0.93)",
+                  border: "1px solid rgba(220, 38, 38, 0.25)",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  px: 2,
+                  zIndex: 9,
+                }}
+              >
+                <Typography sx={{ fontSize: "0.85rem", color: "#9f1239", lineHeight: 1.45, textAlign: "center", mb: 1.2 }}>
+                  {mapLoadError}
+                </Typography>
+                <Button
+                  onClick={handleRetryMapLoad}
+                  sx={{
+                    background: "linear-gradient(180deg, #1e67da 0%, #1357c4 100%)",
+                    color: "#fff",
+                    borderRadius: "0.65rem",
+                    textTransform: "none",
+                    fontWeight: 700,
+                    fontSize: "0.88rem",
+                    border: "1px solid #1555c4",
+                    px: 2,
+                    py: 0.85,
+                    "&:hover": {
+                      background: "linear-gradient(180deg, #1b5fc8 0%, #0f4fb7 100%)",
+                    },
+                  }}
+                >
+                  Tap to retry map
+                </Button>
+              </Box>
+            )}
 
             <Box
               sx={{

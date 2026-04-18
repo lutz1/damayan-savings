@@ -1,31 +1,29 @@
 import React, { useState, useEffect } from "react";
-import { Box, Button, Typography, CircularProgress } from "@mui/material";
-import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
-import { useNavigate } from "react-router-dom";
-import { doc, updateDoc, getDoc } from "firebase/firestore";
+import { Box, Typography, Dialog, DialogContent, DialogActions, Button } from "@mui/material";
+import { doc, setDoc, getDoc } from "firebase/firestore";
 import { auth, db } from "../../firebase";
 import ShopPage from "../marketplace/ShopPage";
 import ShopLocationDialog from "../marketplace/components/ShopLocationDialog";
-import MemberBottomNav from "../../components/MemberBottomNav";
 import {
-  memberPageTopInset,
-  memberStickyHeaderInset,
   memberShellBackground,
-  memberHeroBackground,
 } from "./memberLayout";
 
 const MemberMarketplace = () => {
-  const navigate = useNavigate();
   const [shopPageLoaded, setShopPageLoaded] = useState(false);
   const [locationDialogOpen, setLocationDialogOpen] = useState(false);
   const [userHasAddress, setUserHasAddress] = useState(false);
+  const [addressCheckDone, setAddressCheckDone] = useState(false);
+  const [showAddressConfirmedDialog, setShowAddressConfirmedDialog] = useState(false);
 
   // Check if user has a delivery address saved in Firebase
   useEffect(() => {
     const checkSavedAddress = async () => {
       try {
         const user = auth.currentUser;
-        if (!user) return;
+        if (!user) {
+          setAddressCheckDone(true);
+          return;
+        }
 
         const userRef = doc(db, "users", user.uid);
         const userData = await getDoc(userRef);
@@ -36,6 +34,8 @@ const MemberMarketplace = () => {
         }
       } catch (error) {
         console.error("Error checking saved address:", error);
+      } finally {
+        setAddressCheckDone(true);
       }
     };
 
@@ -48,79 +48,77 @@ const MemberMarketplace = () => {
     setLocationDialogOpen(false);
   };
 
-  const handleSelectAddress = async ({ address, cityProvince }) => {
+  const handleSelectAddress = async ({ address, cityProvince, location }) => {
     try {
       const user = auth.currentUser;
       if (!user) {
-        console.error("No user logged in");
-        return;
+        console.error("No user logged in - auth.currentUser is null");
+        return false;
       }
+
+      console.log("Saving address for user:", user.uid);
 
       // Save to Firebase Firestore
       const userRef = doc(db, "users", user.uid);
-      await updateDoc(userRef, {
+      const locationPayload = {
         deliveryAddress: address,
         deliveryAddressCityProvince: cityProvince,
+        deliveryAddressLocation: location || null,
         deliveryAddressUpdatedAt: new Date().toISOString(),
-      });
+      };
 
+      const userShopLocationRef = doc(db, "usershoplocation", user.uid);
+
+      console.log("Writing to both users and usershoplocation collections...");
+      await Promise.all([
+        setDoc(userRef, locationPayload, { merge: true }),
+        setDoc(userShopLocationRef, {
+          ...locationPayload,
+          userId: user.uid,
+          source: "member_marketplace",
+        }, { merge: true }),
+      ]);
+
+      console.log("✓ Address saved successfully!");
       setUserHasAddress(true);
       setLocationDialogOpen(false);
+      setShowAddressConfirmedDialog(true);
+      return true;
     } catch (error) {
-      console.error("Error saving address to Firebase:", error);
-      // Show error toast/notification here if needed
+      console.error("✗ Error saving address to Firebase:", error);
+      console.error("Error code:", error.code);
+      console.error("Error message:", error.message);
+      return false;
     }
   };
 
   const handleShopPageLoaded = () => {
     setShopPageLoaded(true);
-    // Auto-open location dialog after loading completes if no address saved
+  };
+
+  useEffect(() => {
+    if (!shopPageLoaded || !addressCheckDone) return;
+
     if (!userHasAddress) {
       setLocationDialogOpen(true);
+      return;
     }
-  };
+
+    setLocationDialogOpen(false);
+  }, [shopPageLoaded, addressCheckDone, userHasAddress]);
 
   return (
     <Box
       sx={{
         minHeight: "100vh",
         background: memberShellBackground,
-        pt: memberPageTopInset,
-        pb: 11,
+        pt: 0,
+        pb: 0,
         display: "flex",
         flexDirection: "column",
       }}
     >
       <Box sx={{ maxWidth: 460, mx: "auto", width: "100%", flex: 1 }}>
-        <Box
-          sx={{
-            minHeight: 70,
-            px: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            color: "#fff",
-            background: memberHeroBackground,
-            borderBottom: "1px solid rgba(148, 190, 255, 0.16)",
-            backdropFilter: "blur(18px)",
-            position: "sticky",
-            top: 0,
-            pt: memberStickyHeaderInset,
-            zIndex: 5,
-          }}
-        >
-          <Button
-            onClick={() => navigate("/member/dashboard")}
-            sx={{ minWidth: 40, color: "#fff", p: 0.5 }}
-          >
-            <ArrowBackIosNewIcon />
-          </Button>
-          <Typography sx={{ fontSize: 18, fontWeight: 800, letterSpacing: 0.2 }}>
-            Market Place
-          </Typography>
-          <Box sx={{ minWidth: 40 }} />
-        </Box>
-
         {!shopPageLoaded && (
           <Box
             sx={{
@@ -222,17 +220,15 @@ const MemberMarketplace = () => {
           </Box>
         )}
 
-        <Box
-          sx={{
-            display: shopPageLoaded ? "block" : "none",
-            px: 0,
-          }}
-        >
-          <ShopPage
-            isEmbedded={true}
-            onLoaded={handleShopPageLoaded}
-          />
-        </Box>
+        {shopPageLoaded && (
+          <Box sx={{ px: 0, minHeight: "100vh" }}>
+            <ShopPage
+              isEmbedded={true}
+              onLoaded={handleShopPageLoaded}
+              onRequestLocationPicker={() => setLocationDialogOpen(true)}
+            />
+          </Box>
+        )}
 
         <ShopLocationDialog
           open={locationDialogOpen}
@@ -240,9 +236,32 @@ const MemberMarketplace = () => {
           savedAddresses={[]}
           onSelectAddress={handleSelectAddress}
         />
-      </Box>
 
-      <MemberBottomNav />
+        <Dialog
+          open={showAddressConfirmedDialog}
+          onClose={() => setShowAddressConfirmedDialog(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogContent sx={{ pt: 3, pb: 2, textAlign: "center" }}>
+            <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+              Address Confirmed ✓
+            </Typography>
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              Your delivery address has been saved successfully.
+            </Typography>
+          </DialogContent>
+          <DialogActions sx={{ p: 2, pt: 0 }}>
+            <Button
+              onClick={() => setShowAddressConfirmedDialog(false)}
+              variant="contained"
+              sx={{ textTransform: "none", width: "100%" }}
+            >
+              Continue
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Box>
     </Box>
   );
 };

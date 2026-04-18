@@ -20,7 +20,7 @@ import {
 } from "@mui/icons-material";
 import AdvertisementBanner from "../../../components/AdvertisementBanner";
 
-const TOP_NAV_COLOR = "#435272ff";
+const TOP_NAV_COLOR = "#0f766e"; // Teal theme to match rider
 
 export default function ShopTopNav({
   search,
@@ -239,7 +239,7 @@ export default function ShopTopNav({
               ),
             }}
             sx={{
-              bgcolor: "#f2f2f7",
+              bgcolor: "#f0fdf4",
               borderRadius: 2.5,
               boxShadow: "none",
               "& .MuiOutlinedInput-root": {
@@ -247,19 +247,19 @@ export default function ShopTopNav({
                 fontSize: "15px",
                 fontWeight: 400,
                 color: "#000000",
-                bgcolor: "#f2f2f7",
+                bgcolor: "#f0fdf4",
                 transition: "all 0.2s ease",
                 "& fieldset": {
                   border: "none",
                 },
                 "&:hover": {
-                  bgcolor: "#e5e5ea",
+                  bgcolor: "#dcfce7",
                 },
                 "&.Mui-focused": {
                   bgcolor: "#ffffff",
-                  boxShadow: "0 0 0 1px rgba(0,0,0,0.04), 0 2px 8px rgba(0,0,0,0.08)",
+                  boxShadow: "0 0 0 2px rgba(15, 118, 110, 0.1)",
                   "& .MuiInputAdornment-root .MuiSvgIcon-root": {
-                    color: "#007aff",
+                    color: "#0f766e",
                   },
                 },
               },

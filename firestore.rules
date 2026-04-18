@@ -139,7 +139,11 @@ service cloud.firestore {
             "capitalShareVoucherBranchId",
             "capitalShareVoucherBranchName",
             "capitalShareVoucherBranchAddress",
-            "capitalShareVoucherBranchEmail"
+            "capitalShareVoucherBranchEmail",
+            "deliveryAddress",
+            "deliveryAddressCityProvince",
+            "deliveryAddressLocation",
+            "deliveryAddressUpdatedAt"
           ])
         ) ||
         // Admin/CEO
@@ -821,7 +825,12 @@ service cloud.firestore {
 
       allow delete: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
     }
-
+    // 👤 USER SHOP LOCATION (Delivery address tracking)
+    match /usershoplocation/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
     // ==========================================
     // �🚫 DENY EVERYTHING ELSE
     match /{document=**} {
