@@ -20,7 +20,7 @@ import {
 } from "@mui/icons-material";
 import AdvertisementBanner from "../../../components/AdvertisementBanner";
 
-const TOP_NAV_COLOR = "#0f766e"; // Teal theme to match rider
+const TOP_NAV_COLOR = "#13ec13"; // Green theme
 
 export default function ShopTopNav({
   search,
@@ -144,8 +144,8 @@ export default function ShopTopNav({
         left: 0,
         right: 0,
         zIndex: 120,
-        bgcolor: TOP_NAV_COLOR,
-        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        bgcolor: "#fff",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
       }}
     >
       <Container maxWidth="sm" sx={{ pt: 1.5, pb: 1 }}>
@@ -165,10 +165,10 @@ export default function ShopTopNav({
               pointerEvents: headerHidden ? "none" : "auto",
             }}
           >
-            <IconButton size="small" sx={{ color: "white" }} onClick={onBackClick} aria-label="back">
+            <IconButton size="small" sx={{ color: "#13ec13" }} onClick={onBackClick} aria-label="back">
               <ArrowBack />
             </IconButton>
-            <LocationOn sx={{ opacity: 0.9, color: "white" }} />
+            <LocationOn sx={{ opacity: 0.9, color: "#13ec13" }} />
             <Box
               sx={{
                 lineHeight: 1,
@@ -176,13 +176,14 @@ export default function ShopTopNav({
                 flex: 1,
                 transition: "opacity 0.2s ease",
                 "&:hover": { opacity: 0.8 },
+                minWidth: 0,
               }}
               onClick={onLocationClick}
             >
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, whiteSpace: "nowrap", color: "white" }}>
-                Current Location
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, whiteSpace: "nowrap", color: "#1e293b" }}>
+                Deliver to
               </Typography>
-              <Typography variant="caption" sx={{ display: "block", whiteSpace: "normal", opacity: 0.9, color: "white", overflow: "hidden", textOverflow: "ellipsis", maxLines: 1 }}>
+              <Typography variant="caption" sx={{ display: "block", whiteSpace: "nowrap", opacity: 0.8, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {locationSubtext}
               </Typography>
             </Box>
@@ -190,7 +191,7 @@ export default function ShopTopNav({
             <Box sx={{ flex: 1 }} />
             <IconButton
               size="small"
-              sx={{ color: "white" }}
+              sx={{ color: "#1e293b" }}
               aria-label="cart"
               onClick={onCartClick}
             >
@@ -198,7 +199,7 @@ export default function ShopTopNav({
                 <ShoppingCart />
               </Badge>
             </IconButton>
-            <IconButton size="small" sx={{ color: "white" }} aria-label="notifications">
+            <IconButton size="small" sx={{ color: "#1e293b" }} aria-label="notifications">
               <Notifications />
             </IconButton>
           </Stack>
@@ -239,7 +240,7 @@ export default function ShopTopNav({
               ),
             }}
             sx={{
-              bgcolor: "#f0fdf4",
+              bgcolor: "#f1f5f9",
               borderRadius: 2.5,
               boxShadow: "none",
               "& .MuiOutlinedInput-root": {
@@ -247,19 +248,19 @@ export default function ShopTopNav({
                 fontSize: "15px",
                 fontWeight: 400,
                 color: "#000000",
-                bgcolor: "#f0fdf4",
+                bgcolor: "#f1f5f9",
                 transition: "all 0.2s ease",
                 "& fieldset": {
                   border: "none",
                 },
                 "&:hover": {
-                  bgcolor: "#dcfce7",
+                  bgcolor: "#e8f5e9",
                 },
                 "&.Mui-focused": {
                   bgcolor: "#ffffff",
-                  boxShadow: "0 0 0 2px rgba(15, 118, 110, 0.1)",
+                  boxShadow: "0 0 0 2px rgba(19, 236, 19, 0.1)",
                   "& .MuiInputAdornment-root .MuiSvgIcon-root": {
-                    color: "#0f766e",
+                    color: "#13ec13",
                   },
                 },
               },

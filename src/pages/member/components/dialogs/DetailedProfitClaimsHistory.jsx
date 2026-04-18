@@ -20,8 +20,12 @@ import {
   TableRow,
   Paper,
   Button,
+  IconButton,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import CloseIcon from "@mui/icons-material/Close";
 
 /**
  * Detailed Profit Claims History
@@ -36,7 +40,8 @@ const DetailedProfitClaimsHistory = ({
   transferLoading = false,
   claimingPeriodKey = null,
 }) => {
-  console.log("🔔 DetailedProfitClaimsHistory rendered with claimingPeriodKey:", claimingPeriodKey);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [expandedEntry, setExpandedEntry] = useState(null);
 
   // Group claims by source entry
@@ -114,6 +119,7 @@ const DetailedProfitClaimsHistory = ({
       onClose={onClose}
       fullWidth
       maxWidth="lg"
+      fullScreen={isMobile}
       PaperProps={{
         sx: {
           background:
@@ -132,13 +138,22 @@ const DetailedProfitClaimsHistory = ({
           borderBottom: "1px solid rgba(217,233,255,0.15)",
           display: "flex",
           alignItems: "center",
-          gap: 1,
+          justifyContent: "space-between",
+          py: isMobile ? 1.2 : 2,
+          px: isMobile ? 1.5 : 2,
         }}
       >
-        <span>📊</span>
-        Detailed Profit Claims History
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <span>📊</span>
+          <Typography sx={{ fontWeight: 700, fontSize: isMobile ? 18 : 20 }}>
+            Detailed Profit Claims History
+          </Typography>
+        </Box>
+        <IconButton onClick={onClose} sx={{ color: "#d9e9ff" }} aria-label="Close">
+          <CloseIcon />
+        </IconButton>
       </DialogTitle>
-      <DialogContent sx={{ bgcolor: "transparent", mt: 2, mb: 2 }}>
+      <DialogContent sx={{ bgcolor: "transparent", mt: isMobile ? 1 : 2, mb: 2, px: isMobile ? 1 : 3 }}>
         {entriesWithClaims.length > 0 ? (
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
             {entriesWithClaims.map((entry, index) => {
@@ -172,10 +187,12 @@ const DetailedProfitClaimsHistory = ({
                     <Box
                       sx={{
                         display: "flex",
+                        flexDirection: isMobile ? "column" : "row",
                         justifyContent: "space-between",
-                        alignItems: "center",
+                        alignItems: isMobile ? "flex-start" : "center",
                         width: "100%",
-                        pr: 2,
+                        pr: isMobile ? 0.5 : 2,
+                        gap: isMobile ? 1 : 0,
                       }}
                     >
                       <Box>
@@ -219,7 +236,7 @@ const DetailedProfitClaimsHistory = ({
                           )}
                         </Typography>
                       </Box>
-                      <Box sx={{ textAlign: "right" }}>
+                      <Box sx={{ textAlign: isMobile ? "left" : "right", width: isMobile ? "100%" : "auto" }}>
                         <Chip
                           label={`${entry.monthsElapsed} months elapsed`}
                           size="small"
@@ -460,9 +477,10 @@ const DetailedProfitClaimsHistory = ({
                           bgcolor: "rgba(33, 47, 61, 0.7)",
                           border: "1px solid rgba(144, 202, 249, 0.2)",
                           borderRadius: 1,
+                          overflowX: "auto",
                         }}
                       >
-                        <Table size="small">
+                        <Table size="small" sx={{ minWidth: isMobile ? 560 : "auto" }}>
                           <TableHead>
                             <TableRow
                               sx={{
@@ -757,9 +775,6 @@ const DetailedProfitClaimsHistory = ({
                                             date: entry.createdAt,
                                             periodKey,
                                           };
-                                          console.log("🔵 Timeline Claim button clicked with data:", claimData);
-                                          console.log("Entry data:", entry);
-                                          console.log("Timeline data:", timeline);
                                           onTransferProfit(claimData);
                                         }}
                                       >

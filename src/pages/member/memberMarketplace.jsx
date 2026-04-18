@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Box, Typography, Dialog, DialogContent, DialogActions, Button } from "@mui/material";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { auth, db } from "../../firebase";
@@ -92,9 +92,9 @@ const MemberMarketplace = () => {
     }
   };
 
-  const handleShopPageLoaded = () => {
-    setShopPageLoaded(true);
-  };
+  const handleShopPageLoaded = useCallback(() => {
+    setShopPageLoaded((prev) => (prev ? prev : true));
+  }, []);
 
   useEffect(() => {
     if (!shopPageLoaded || !addressCheckDone) return;
@@ -118,10 +118,21 @@ const MemberMarketplace = () => {
         flexDirection: "column",
       }}
     >
-      <Box sx={{ maxWidth: 460, mx: "auto", width: "100%", flex: 1 }}>
+      <Box sx={{ maxWidth: 460, mx: "auto", width: "100%", flex: 1, position: "relative" }}>
+        <Box sx={{ px: 0, minHeight: "100vh", visibility: shopPageLoaded ? "visible" : "hidden" }}>
+          <ShopPage
+            isEmbedded={true}
+            onLoaded={handleShopPageLoaded}
+            onRequestLocationPicker={() => setLocationDialogOpen(true)}
+          />
+        </Box>
+
         {!shopPageLoaded && (
           <Box
             sx={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 2,
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
@@ -217,16 +228,6 @@ const MemberMarketplace = () => {
                 Preparing stores and products...
               </Typography>
             </Box>
-          </Box>
-        )}
-
-        {shopPageLoaded && (
-          <Box sx={{ px: 0, minHeight: "100vh" }}>
-            <ShopPage
-              isEmbedded={true}
-              onLoaded={handleShopPageLoaded}
-              onRequestLocationPicker={() => setLocationDialogOpen(true)}
-            />
           </Box>
         )}
 

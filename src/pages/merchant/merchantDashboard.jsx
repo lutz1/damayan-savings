@@ -25,8 +25,7 @@ import {
   orderBy,
   doc, 
 } from "firebase/firestore";
-import { createFirebaseClients } from "../../../shared/firebase/firebaseClient";
-const { auth, db, storage } = createFirebaseClients("MerchantApp");
+import { auth, db, storage } from "../../firebase";
 import {
   isMerchantOrderNew,
   isMerchantOrderPreparing,
@@ -88,7 +87,7 @@ useEffect(() => {
         console.log("User doc:", data);
 
         setMerchantName(
-          data.name || data.merchantProfile?.merchantName || "Merchant"
+          data.storeName || data.name || data.merchantProfile?.merchantName || "Merchant"
         );
       } else {
         console.warn("User doc not found:", merchantId);

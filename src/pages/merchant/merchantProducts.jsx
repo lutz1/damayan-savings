@@ -34,9 +34,8 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
-import { createFirebaseClients } from "../../../shared/firebase/firebaseClient";
+import { auth, db, storage } from "../../firebase";
 import MerchantBottomNav from "./components/MerchantBottomNav";
-const { auth, db, storage } = createFirebaseClients("MerchantApp");
 
 // Material Symbols Icon Component
 const MaterialIcon = ({ name, filled = false, weight = 400, size = 24, sx = {} }) => (

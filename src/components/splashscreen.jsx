@@ -1,18 +1,29 @@
-import React, { useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { Box } from "@mui/material";
-import { motion } from "framer-motion";
 import bownersVideo from "../assets/bowners.mp4";
 import bownersBg from "../assets/bownersbg.png";
 
 const Splashscreen = ({ open = false, logo, duration = 1800, onClose, overlayColor = "rgba(0,0,0,0.9)" }) => {
   const videoRef = useRef(null);
+  const closedRef = useRef(false);
+
+  const safeClose = useCallback(() => {
+    if (closedRef.current) return;
+    closedRef.current = true;
+    if (typeof onClose === "function") onClose();
+  }, [onClose]);
 
   const handleVideoEnded = () => {
-    if (typeof onClose === "function") onClose();
+    safeClose();
   };
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      closedRef.current = false;
+      return;
+    }
+
+    closedRef.current = false;
 
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -20,7 +31,7 @@ const Splashscreen = ({ open = false, logo, duration = 1800, onClose, overlayCol
     let timer;
     if (duration > 0) {
       timer = setTimeout(() => {
-        if (typeof onClose === "function") onClose();
+        safeClose();
       }, duration);
     }
 
@@ -28,7 +39,7 @@ const Splashscreen = ({ open = false, logo, duration = 1800, onClose, overlayCol
       if (timer) clearTimeout(timer);
       document.body.style.overflow = prev || "";
     };
-  }, [open, duration, onClose]);
+  }, [open, duration, safeClose]);
 
   useEffect(() => {
     if (open && videoRef.current) {
@@ -56,11 +67,8 @@ const Splashscreen = ({ open = false, logo, duration = 1800, onClose, overlayCol
       }}
     >
       <Box sx={{ textAlign: "center", color: "#fff", width: "100%", display: "flex", justifyContent: "center" }}>
-        <motion.div
-          initial={{ opacity: 0, scale: 0.85 }}
-          animate={{ opacity: 1, scale: [1, 1.08, 0.98, 1] }}
-          transition={{ duration: 1.2, ease: "easeOut" }}
-          style={{
+        <Box
+          sx={{
             width: "100%",
             maxWidth: "min(100vw, 800px)",
             display: "flex",
@@ -105,7 +113,7 @@ const Splashscreen = ({ open = false, logo, duration = 1800, onClose, overlayCol
           >
             <source src={bownersVideo} type="video/mp4" />
           </Box>
-        </motion.div>
+        </Box>
       </Box>
     </Box>
   );

@@ -18,8 +18,7 @@ import {
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { createFirebaseClients } from "../../../shared/firebase/firebaseClient";
-const { auth, db, storage } = createFirebaseClients("MerchantApp");
+import { auth, db, storage } from "../../firebase";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import MerchantBottomNav from "./components/MerchantBottomNav";

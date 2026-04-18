@@ -19,8 +19,7 @@ import {
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore";
-import { createFirebaseClients } from "../../../shared/firebase/firebaseClient";
-const { auth, db, storage } = createFirebaseClients("MerchantApp");
+import { auth, db, storage } from "../../firebase";
 import {
   MERCHANT_ORDER_STATUS,
   normalizeMerchantOrderStatus,

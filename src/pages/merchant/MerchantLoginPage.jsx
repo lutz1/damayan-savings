@@ -1,535 +1,269 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { Drawer } from "@mui/material";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import { CircularProgress } from "@mui/material";
-import { createFirebaseClients } from "../../../shared/firebase/firebaseClient";
-
-const { auth, db } = createFirebaseClients("MerchantApp");
+import {
+  ArrowForwardRounded,
+  AlternateEmailRounded,
+  CloseRounded,
+  InfoOutlined,
+  LockOutlined,
+  VisibilityOffRounded,
+  VisibilityRounded,
+} from "@mui/icons-material";
+import { auth, db } from "../../firebase";
+import merchantIcon from "../../assets/merchanticon.png";
+import merchantLogo from "../../assets/merchantlogo.png";
+import "./MerchantLoginPage.css";
 
 export default function MerchantLoginPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const handleBackToMainLogin = () => {
-    const isProduction = window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1";
-    if (isProduction) {
-      window.location.href = "/damayan-savings/";
-    } else {
-      window.location.href = "/";
-    }
-  };
+  const [infoOpen, setInfoOpen] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+    const email = String(identifier || "").trim().toLowerCase();
 
-      // Check user data in Firestore
-      const userRef = doc(db, "users", user.uid);
+    if (!email) {
+      setError("Please enter your email.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const credential = await signInWithEmailAndPassword(auth, email, password);
+      const userRef = doc(db, "users", credential.user.uid);
       const userSnap = await getDoc(userRef);
 
       if (!userSnap.exists()) {
-        setError("User data not found. Please contact support.");
+        setError("Merchant profile not found. Please contact admin.");
+        await signOut(auth);
         setLoading(false);
         return;
       }
 
       const userData = userSnap.data();
-      const role = (userData.role || "").toUpperCase();
-
-      // Validate merchant role
+      const role = String(userData.role || "").toUpperCase();
       if (role !== "MERCHANT") {
-        setError("This account is not authorized as a Merchant. Please use your Merchant credentials.");
+        setError("This account is not a Merchant account.");
+        await signOut(auth);
         setLoading(false);
         return;
       }
 
-      // Store preferences if remember me is checked
-      if (rememberMe) {
-        localStorage.setItem("merchantRememberMe", "true");
-        localStorage.setItem("merchantEmail", email);
-      } else {
-        localStorage.removeItem("merchantRememberMe");
-        localStorage.removeItem("merchantEmail");
-      }
-
-      // Navigate to dashboard
-      navigate("/merchant/dashboard");
-    } catch (err) {
-      console.error("Login error:", err.message);
-      if (err.code === "auth/invalid-credential" || err.code === "auth/wrong-password") {
+      localStorage.setItem("userRole", "MERCHANT");
+      sessionStorage.setItem("skipAppSplash", "true");
+      
+      // Dispatch custom event to update App component's role state immediately
+      window.dispatchEvent(
+        new CustomEvent("roleChanged", { detail: { role: "MERCHANT" } })
+      );
+      
+      navigate("/merchant/dashboard", { replace: true });
+      return;
+    } catch (loginError) {
+      console.error("Merchant login error:", loginError);
+      if (loginError.code === "auth/invalid-credential" || loginError.code === "auth/wrong-password") {
         setError("Invalid email or password.");
-      } else if (err.code === "auth/user-not-found") {
-        setError("No merchant account found with this email.");
+      } else if (loginError.code === "auth/user-not-found") {
+        setError("No approved merchant account found for this email.");
       } else {
-        setError("Unable to login. Please try again later.");
+        setError("Unable to login right now. Please try again.");
       }
     } finally {
       setLoading(false);
     }
   };
 
+  const openApplicationPage = () => {
+    setInfoOpen(false);
+    navigate("/merchant/apply", {
+      state: {
+        from: "/merchant/login",
+      },
+    });
+  };
+
   return (
-    <div
-      style={{
-        minHeight: "100dvh",
-        background: "linear-gradient(135deg, #f6f8f6 0%, #e8f5e8 100%)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "1rem",
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "480px",
-          backgroundColor: "white",
-          borderRadius: "0.75rem",
-          boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
-          overflow: "hidden",
-          border: "1px solid #e2e8f0",
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            backgroundColor: "white",
-            padding: "1rem",
-            borderBottom: "1px solid #f1f5f9",
-          }}
-        >
-          <button
-            onClick={handleBackToMainLogin}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "2.5rem",
-              height: "2.5rem",
-              borderRadius: "50%",
-              backgroundColor: "transparent",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "1.5rem",
-              color: "#64748b",
-              transition: "background-color 0.2s",
-            }}
-            onMouseEnter={(e) => (e.target.style.backgroundColor = "#f1f5f9")}
-            onMouseLeave={(e) => (e.target.style.backgroundColor = "transparent")}
-          >
-            <span className="material-symbols-outlined">arrow_back</span>
+    <div className="merchant-login-page">
+      <div className="merchant-login-shell">
+        <div className="merchant-login-topbar">
+          <button type="button" onClick={() => navigate("/login")} className="merchant-login-brand">
+            <img src={merchantIcon} alt="Merchant" className="merchant-login-brand-icon" />
+            <span>MERCHANT</span>
           </button>
-          <h2
-            style={{
-              fontSize: "1.125rem",
-              fontWeight: "700",
-              marginLeft: "0.5rem",
-              flex: 1,
-              color: "#0f172a",
-            }}
+
+          <button
+            type="button"
+            className="merchant-login-info-button"
+            onClick={() => setInfoOpen((prev) => !prev)}
+            aria-label="Show merchant login information"
           >
-            Merchant Portal
-          </h2>
+            <InfoOutlined sx={{ fontSize: 17 }} />
+          </button>
         </div>
 
-        {/* Hero Section */}
-        <div
-          style={{
-            position: "relative",
-            height: "12rem",
-            backgroundColor: "rgba(91, 236, 19, 0.1)",
-            backgroundImage: `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 480"><rect fill="%235bec13" opacity="0.1" width="1200" height="480"/><path fill="%235bec13" opacity="0.05" d="M0,300 Q300,200 600,300 T1200,300 L1200,480 L0,480 Z"/></svg>')`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              backgroundImage: "linear-gradient(to top, white, transparent)",
-            }}
-          />
-        </div>
+        <div className="merchant-login-card">
+          <div className="merchant-login-hero">
+            <div className="merchant-login-logo-badge">
+              <img src={merchantLogo} alt="Merchant logo" className="merchant-login-logo-image" />
+            </div>
 
-        {/* Content */}
-        <div style={{ padding: "0.5rem 2rem 2rem 2rem" }}>
-          <div style={{ marginBottom: "2rem" }}>
-            <h1
-              style={{
-                fontSize: "1.875rem",
-                fontWeight: "700",
-                letterSpacing: "-0.02em",
-                lineHeight: "1.2",
-                color: "#0f172a",
-                marginBottom: "0.5rem",
-              }}
-            >
-              Merchant Login
-            </h1>
-            <p
-              style={{
-                fontSize: "0.875rem",
-                color: "#64748b",
-                marginTop: "0.5rem",
-              }}
-            >
-              Manage your restaurant dashboard, orders, and menu in one place.
-            </p>
+            <h1 className="merchant-login-title">Welcome back!</h1>
+            <p className="merchant-login-subtitle">Use your email and password to continue.</p>
           </div>
 
-          {/* Error Alert */}
-          {error && (
-            <div
-              style={{
-                padding: "0.75rem 1rem",
-                marginBottom: "1.25rem",
-                backgroundColor: "#fee2e2",
-                border: "1px solid #fecaca",
-                borderRadius: "0.5rem",
-                fontSize: "0.875rem",
-                color: "#991b1b",
-              }}
-            >
-              ⚠️ {error}
-            </div>
-          )}
-
-          {/* Form */}
-          <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-            {/* Email Field */}
+          <form onSubmit={handleLogin} className="merchant-login-form">
             <div>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: "0.5rem",
-                  fontSize: "0.875rem",
-                  fontWeight: "600",
-                  color: "#475569",
-                }}
-              >
-                Email Address
-              </label>
-              <div style={{ position: "relative" }}>
-                <span
-                  className="material-symbols-outlined"
-                  style={{
-                    position: "absolute",
-                    left: "0.75rem",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    color: "#cbd5e1",
-                    fontSize: "1.25rem",
-                  }}
-                >
-                  mail
+              <label className="merchant-login-field-label">Email</label>
+              <div className="merchant-login-input-wrap">
+                <span className="merchant-login-input-icon">
+                  <AlternateEmailRounded sx={{ fontSize: 18 }} />
                 </span>
                 <input
                   type="email"
+                  placeholder="merchant@store.com"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value.toLowerCase())}
                   required
-                  placeholder="manager@restaurant.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  style={{
-                    width: "100%",
-                    paddingLeft: "2.5rem",
-                    paddingRight: "1rem",
-                    paddingTop: "0.75rem",
-                    paddingBottom: "0.75rem",
-                    borderRadius: "0.5rem",
-                    border: "1px solid #e2e8f0",
-                    backgroundColor: "#ffffff",
-                    color: "#0f172a",
-                    fontSize: "0.95rem",
-                    transition: "all 0.2s",
-                    outline: "none",
-                  }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = "#5bec13";
-                    e.target.style.boxShadow = "0 0 0 3px rgba(91, 236, 19, 0.1)";
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = "#e2e8f0";
-                    e.target.style.boxShadow = "none";
-                  }}
+                  className="merchant-login-input"
                 />
               </div>
             </div>
 
-            {/* Password Field */}
             <div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
-                <label
-                  style={{
-                    fontSize: "0.875rem",
-                    fontWeight: "600",
-                    color: "#475569",
-                  }}
-                >
-                  Password
-                </label>
-                <a
-                  href="#"
-                  onClick={(e) => e.preventDefault()}
-                  style={{
-                    fontSize: "0.875rem",
-                    fontWeight: "600",
-                    color: "#5bec13",
-                    textDecoration: "none",
-                  }}
-                  onMouseEnter={(e) => (e.target.style.textDecoration = "underline")}
-                  onMouseLeave={(e) => (e.target.style.textDecoration = "none")}
-                >
-                  Forgot password?
-                </a>
-              </div>
-              <div style={{ position: "relative" }}>
-                <span
-                  className="material-symbols-outlined"
-                  style={{
-                    position: "absolute",
-                    left: "0.75rem",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    color: "#cbd5e1",
-                    fontSize: "1.25rem",
-                  }}
-                >
-                  lock
+              <label className="merchant-login-field-label">Password</label>
+              <div className="merchant-login-input-wrap">
+                <span className="merchant-login-input-icon">
+                  <LockOutlined sx={{ fontSize: 18 }} />
                 </span>
                 <input
                   type={showPassword ? "text" : "password"}
-                  required
-                  placeholder="••••••••"
+                  placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  style={{
-                    width: "100%",
-                    paddingLeft: "2.5rem",
-                    paddingRight: "2.5rem",
-                    paddingTop: "0.75rem",
-                    paddingBottom: "0.75rem",
-                    borderRadius: "0.5rem",
-                    border: "1px solid #e2e8f0",
-                    backgroundColor: "#ffffff",
-                    color: "#0f172a",
-                    fontSize: "0.95rem",
-                    transition: "all 0.2s",
-                    outline: "none",
-                  }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = "#5bec13";
-                    e.target.style.boxShadow = "0 0 0 3px rgba(91, 236, 19, 0.1)";
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = "#e2e8f0";
-                    e.target.style.boxShadow = "none";
-                  }}
+                  required
+                  className="merchant-login-input merchant-login-input--with-toggle"
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  style={{
-                    position: "absolute",
-                    right: "0.75rem",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    color: "#cbd5e1",
-                    fontSize: "1.25rem",
-                    padding: 0,
-                  }}
-                  onMouseEnter={(e) => (e.target.style.color = "#94a3b8")}
-                  onMouseLeave={(e) => (e.target.style.color = "#cbd5e1")}
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="merchant-login-password-toggle"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
-                  <span className="material-symbols-outlined">
-                    {showPassword ? "visibility_off" : "visibility"}
-                  </span>
+                  {showPassword ? <VisibilityOffRounded sx={{ fontSize: 18 }} /> : <VisibilityRounded sx={{ fontSize: 18 }} />}
                 </button>
               </div>
             </div>
 
-            {/* Remember Me Checkbox */}
-            <div style={{ display: "flex", alignItems: "center" }}>
-              <input
-                type="checkbox"
-                id="remember"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                style={{
-                  width: "1rem",
-                  height: "1rem",
-                  cursor: "pointer",
-                  accentColor: "#5bec13",
-                }}
-              />
-              <label
-                htmlFor="remember"
-                style={{
-                  marginLeft: "0.5rem",
-                  fontSize: "0.875rem",
-                  color: "#64748b",
-                  cursor: "pointer",
-                }}
+            {error ? <div className="merchant-login-error">{error}</div> : null}
+
+            <div className="merchant-login-forgot-row">
+              <button
+                type="button"
+                onClick={() => setError("Please contact support to reset your password.")}
+                className="merchant-login-link-btn"
               >
-                Stay logged in for 30 days
-              </label>
+                Forgot Password?
+              </button>
             </div>
 
-            {/* Login Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                width: "100%",
-                backgroundColor: loading ? "#cbd5e1" : "#5bec13",
-                color: "#0f172a",
-                fontWeight: "700",
-                padding: "1rem",
-                borderRadius: "0.5rem",
-                border: "none",
-                boxShadow: "0 10px 15px -3px rgba(91, 236, 19, 0.2)",
-                cursor: loading ? "not-allowed" : "pointer",
-                fontSize: "0.95rem",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "0.5rem",
-                transition: "all 0.2s",
-                marginTop: "1rem",
-              }}
-              onMouseEnter={(e) => {
-                if (!loading) {
-                  e.target.style.backgroundColor = "rgba(91, 236, 19, 0.9)";
-                  e.target.style.boxShadow = "0 15px 20px -3px rgba(91, 236, 19, 0.3)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!loading) {
-                  e.target.style.backgroundColor = "#5bec13";
-                  e.target.style.boxShadow = "0 10px 15px -3px rgba(91, 236, 19, 0.2)";
-                }
-              }}
-            >
-              {loading ? (
-                <>
-                  <CircularProgress size={16} sx={{ color: "#0f172a" }} />
-                  Logging in...
-                </>
-              ) : (
-                <>
-                  <span>Login as Merchant</span>
-                  <span className="material-symbols-outlined" style={{ fontSize: "1.25rem" }}>
-                    login
-                  </span>
-                </>
-              )}
+            <button type="submit" disabled={loading} className="merchant-login-submit">
+              <span>{loading ? "Signing In..." : "Sign in to Dashboard"}</span>
+              {!loading && <ArrowForwardRounded sx={{ fontSize: 18 }} />}
+            </button>
+
+            <button type="button" onClick={() => navigate("/login")} className="merchant-login-back-btn">
+              Back to Main Login
             </button>
           </form>
+        </div>
 
-          {/* Registration Link */}
-          <div
-            style={{
-              marginTop: "2rem",
-              paddingTop: "1.5rem",
-              borderTop: "1px solid #f1f5f9",
-              textAlign: "center",
-            }}
-          >
-            <p style={{ fontSize: "0.875rem", color: "#64748b" }}>
-              New to the platform?{" "}
-              <a
-                href="#"
-                onClick={(e) => e.preventDefault()}
-                style={{
-                  color: "#5bec13",
-                  fontWeight: "700",
-                  textDecoration: "none",
-                }}
-                onMouseEnter={(e) => (e.target.style.textDecoration = "underline")}
-                onMouseLeave={(e) => (e.target.style.textDecoration = "none")}
-              >
-                Register your restaurant
-              </a>
+        <div className="merchant-login-promo-card">
+          <div className="merchant-login-promo-badge">JOIN OUR NETWORK</div>
+          <div className="merchant-login-promo-content">
+            <div className="merchant-login-promo-title">Ready to sell online?</div>
+            <p className="merchant-login-promo-text">
+              Join PLEZZ Merchant network and start selling to thousands of customers today.
             </p>
+            <button
+              type="button"
+              onClick={openApplicationPage}
+              className="merchant-login-promo-btn"
+            >
+              Apply Now
+            </button>
+          </div>
+
+          <img src={merchantIcon} alt="" className="merchant-login-promo-art" />
+        </div>
+      </div>
+
+      <Drawer
+        anchor="bottom"
+        open={infoOpen}
+        onClose={() => setInfoOpen(false)}
+        PaperProps={{ className: "merchant-login-drawer-paper" }}
+      >
+        <div className="merchant-login-drawer-sheet">
+          <div className="merchant-login-drawer-handle" />
+          <div className="merchant-login-drawer-header">
+            <div>
+              <div className="merchant-login-drawer-title">Merchant Login Information</div>
+              <div className="merchant-login-drawer-subtitle">Quick onboarding guide</div>
+            </div>
+            <button
+              type="button"
+              className="merchant-login-info-close"
+              onClick={() => setInfoOpen(false)}
+              aria-label="Close merchant login information"
+            >
+              <CloseRounded sx={{ fontSize: 18 }} />
+            </button>
+          </div>
+
+          <div className="merchant-login-drawer-list">
+            <div className="merchant-login-drawer-item">
+              <span>1</span>
+              <p>Use your approved merchant email and password to access the dashboard.</p>
+            </div>
+            <div className="merchant-login-drawer-item">
+              <span>2</span>
+              <p>If you still need an account, tap <strong>Apply Now</strong> to complete the merchant application flow.</p>
+            </div>
+            <div className="merchant-login-drawer-item">
+              <span>3</span>
+              <p>Prepare your business info and documents for faster application review.</p>
+            </div>
+          </div>
+
+          <div className="merchant-login-drawer-actions">
+            <button
+              type="button"
+              className="merchant-login-drawer-primary"
+              onClick={openApplicationPage}
+            >
+              Start Application
+            </button>
+            <button
+              type="button"
+              className="merchant-login-drawer-secondary"
+              onClick={() => setInfoOpen(false)}
+            >
+              Close
+            </button>
           </div>
         </div>
-      </div>
-
-      {/* Footer */}
-      <div
-        style={{
-          position: "fixed",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          textAlign: "center",
-          padding: "2rem 1rem 1rem 1rem",
-          background: "linear-gradient(to top, rgba(255, 255, 255, 1), transparent)",
-        }}
-      >
-        <p style={{ fontSize: "0.75rem", color: "#94a3b8", marginBottom: "0.5rem" }}>
-          © 2025 Damayan Merchant Solutions. All rights reserved.
-        </p>
-        <div style={{ display: "flex", justifyContent: "center", gap: "1rem" }}>
-          <a
-            href="#"
-            onClick={(e) => e.preventDefault()}
-            style={{
-              fontSize: "0.75rem",
-              color: "#cbd5e1",
-              textDecoration: "none",
-            }}
-            onMouseEnter={(e) => (e.target.style.color = "#5bec13")}
-            onMouseLeave={(e) => (e.target.style.color = "#cbd5e1")}
-          >
-            Support
-          </a>
-          <a
-            href="#"
-            onClick={(e) => e.preventDefault()}
-            style={{
-              fontSize: "0.75rem",
-              color: "#cbd5e1",
-              textDecoration: "none",
-            }}
-            onMouseEnter={(e) => (e.target.style.color = "#5bec13")}
-            onMouseLeave={(e) => (e.target.style.color = "#cbd5e1")}
-          >
-            Privacy Policy
-          </a>
-          <a
-            href="#"
-            onClick={(e) => e.preventDefault()}
-            style={{
-              fontSize: "0.75rem",
-              color: "#cbd5e1",
-              textDecoration: "none",
-            }}
-            onMouseEnter={(e) => (e.target.style.color = "#5bec13")}
-            onMouseLeave={(e) => (e.target.style.color = "#cbd5e1")}
-          >
-            Terms of Service
-          </a>
-        </div>
-      </div>
-
+      </Drawer>
     </div>
   );
 }

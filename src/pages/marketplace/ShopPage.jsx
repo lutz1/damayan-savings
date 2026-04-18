@@ -3,45 +3,39 @@ import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { GoogleMap, MarkerF, PolylineF, useJsApiLoader } from "@react-google-maps/api";
 import { collection, doc, getDoc, onSnapshot, query, where } from "firebase/firestore";
+import { getDownloadURL, ref as storageRef } from "firebase/storage";
 import { onAuthStateChanged } from "firebase/auth";
-import { auth, db } from "../../firebase";
+import { auth, db, storage } from "../../firebase";
 import { cartCount, cartSubtotal, readCart, saveCart } from "./lib/cartStorage";
 import ShopTopNav from "./components/ShopTopNav";
 import ShopBottomNav from "./components/ShopBottomNav";
+import "./ShopPage.css";
 
-const getCategoryIcon = (category) => {
-  const icons = {
-    "all": "🏪",
-    "food": "🍔",
-    "meals": "🍱",
-    "rice": "🍚",
-    "noodles": "🍜",
-    "drinks": "🥤",
-    "beverages": "🧃",
-    "desserts": "🍰",
-    "snacks": "🥐",
-    "bakery": "🥖",
-    "coffee": "☕",
-    "tea": "🫖",
-    "juice": "🧃",
-    "burger": "🍔",
-    "pizza": "🍕",
-    "seafood": "🦐",
-    "chicken": "🍗",
-    "beef": "🥩",
-    "vegetables": "🥦",
-    "fruit": "🍎",
-    "dairy": "🧈",
-    "frozen": "🧊",
-    "grill": "🔥",
-    "korean": "🍱",
-    "japanese": "🍣",
-    "chinese": "🥡",
-    "thai": "🌶️",
-    "indian": "🍛",
-    "italian": "🍝",
-  };
-  return icons[String(category || "all").toLowerCase()] || "📦";
+const normalizeCategory = (value) => String(value || "").trim().toLowerCase();
+
+const pickCategoryImageField = (category) => {
+  const directUrl =
+    category?.imageUrl || category?.iconUrl || category?.categoryImageUrl || category?.image || category?.icon;
+  if (typeof directUrl === "string" && directUrl.trim()) {
+    return directUrl.trim();
+  }
+
+  const storagePath = category?.imagePath || category?.iconPath || category?.storagePath;
+  if (typeof storagePath === "string" && storagePath.trim()) {
+    return storagePath.trim();
+  }
+
+  return "";
+};
+
+const getCategoryDisplayName = (entry) => {
+  if (entry?.isAll) return "All";
+  return String(entry?.name || entry?.id || "Category");
+};
+
+const getCategoryInitial = (label) => {
+  const cleaned = String(label || "").trim();
+  return cleaned ? cleaned.charAt(0).toUpperCase() : "C";
 };
 
 const currency = (value) =>
@@ -94,6 +88,8 @@ export default function ShopPage({
   const [activeShopTab, setActiveShopTab] = useState("food");
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [deliveryAddressCityProvince, setDeliveryAddressCityProvince] = useState("");
+  const [shopCategories, setShopCategories] = useState([]);
+  const [categoryImages, setCategoryImages] = useState({});
 
   const googleMapsApiKey =
     import.meta.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY || "";
@@ -136,6 +132,75 @@ export default function ShopPage({
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, "shopCategories"),
+      (snap) => {
+        const entries = snap.docs
+          .map((entry) => ({ id: entry.id, ...entry.data() }))
+          .filter((entry) => entry.displayInShop !== false)
+          .sort((a, b) => {
+            const aOrder = Number(a.sortOrder ?? a.order ?? a.position ?? Number.MAX_SAFE_INTEGER);
+            const bOrder = Number(b.sortOrder ?? b.order ?? b.position ?? Number.MAX_SAFE_INTEGER);
+            if (aOrder !== bOrder) return aOrder - bOrder;
+            return String(a.name || a.id || "").localeCompare(String(b.name || b.id || ""));
+          });
+
+        setShopCategories(entries);
+      },
+      (err) => {
+        console.warn("Failed to load shopCategories:", err?.message || err);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolveImages = async () => {
+      const updates = {};
+
+      for (const entry of shopCategories) {
+        const key = String(entry.id || "");
+        if (!key || categoryImages[key]) continue;
+
+        const imageField = pickCategoryImageField(entry);
+        if (!imageField) continue;
+
+        if (/^https?:\/\//i.test(imageField) || imageField.startsWith("data:")) {
+          updates[key] = imageField;
+          continue;
+        }
+
+        try {
+          const url = await getDownloadURL(storageRef(storage, imageField));
+          updates[key] = url;
+        } catch (err) {
+          if (/^gs:\/\//i.test(imageField)) {
+            try {
+              const url = await getDownloadURL(storageRef(storage, imageField));
+              updates[key] = url;
+            } catch {
+              // Ignore categories with unresolved storage references.
+            }
+          }
+        }
+      }
+
+      if (!cancelled && Object.keys(updates).length > 0) {
+        setCategoryImages((prev) => ({ ...prev, ...updates }));
+      }
+    };
+
+    resolveImages();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [shopCategories, categoryImages]);
+
   // Notify parent when ShopPage is loaded (for loading screen)
   useEffect(() => {
     if (!onLoaded || hasNotifiedLoadedRef.current) {
@@ -143,12 +208,9 @@ export default function ShopPage({
     }
 
     if (isEmbedded && products.length > 0) {
-      const timer = setTimeout(() => {
-        hasNotifiedLoadedRef.current = true;
-        onLoaded();
-      }, 300);
-      return () => clearTimeout(timer);
-
+      hasNotifiedLoadedRef.current = true;
+      onLoaded();
+      return undefined;
     } else if (!isEmbedded) {
       hasNotifiedLoadedRef.current = true;
       onLoaded();
@@ -159,22 +221,38 @@ export default function ShopPage({
     const merchantIds = [...new Set(products.map((item) => item.merchantId).filter(Boolean))];
     if (!merchantIds.length) return;
 
+    const unsubscribes = [];
+
     merchantIds.forEach((merchantId) => {
       if (merchants[merchantId]) return;
 
-      getDoc(doc(db, "users", merchantId)).then((snap) => {
-        if (snap.exists()) {
-          setMerchants((prev) => ({ ...prev, [merchantId]: { id: merchantId, ...snap.data() } }));
-          return;
-        }
-
-        getDoc(doc(db, "merchants", merchantId)).then((merchantSnap) => {
-          if (merchantSnap.exists()) {
-            setMerchants((prev) => ({ ...prev, [merchantId]: { id: merchantId, ...merchantSnap.data() } }));
+      // Use onSnapshot for real-time updates of merchant data
+      const unsubscribe = onSnapshot(
+        doc(db, "users", merchantId),
+        (snap) => {
+          if (snap.exists()) {
+            setMerchants((prev) => ({ ...prev, [merchantId]: { id: merchantId, ...snap.data() } }));
+            return;
           }
-        });
-      });
+
+          // Fallback to merchants collection if not found in users
+          const unsubscribeMerchant = onSnapshot(
+            doc(db, "merchants", merchantId),
+            (merchantSnap) => {
+              if (merchantSnap.exists()) {
+                setMerchants((prev) => ({ ...prev, [merchantId]: { id: merchantId, ...merchantSnap.data() } }));
+              }
+            }
+          );
+          unsubscribes.push(unsubscribeMerchant);
+        }
+      );
+      unsubscribes.push(unsubscribe);
     });
+
+    return () => {
+      unsubscribes.forEach((unsub) => unsub());
+    };
   }, [products, merchants]);
 
   useEffect(() => {
@@ -245,16 +323,35 @@ export default function ShopPage({
   }, [toast]);
 
   const categories = useMemo(() => {
-    const raw = [...new Set(products.map((item) => String(item.category || "").trim()).filter(Boolean))];
-    return ["all", ...raw];
-  }, [products]);
+    const firestoreCategories = shopCategories.map((entry) => ({
+      id: String(entry.id || normalizeCategory(entry.name) || ""),
+      name: String(entry.name || entry.id || "Category"),
+      key: normalizeCategory(entry.name || entry.id),
+      image: categoryImages[String(entry.id || "")] || pickCategoryImageField(entry) || "",
+      isAll: false,
+    })).filter((entry) => entry.id && entry.key);
+
+    if (firestoreCategories.length > 0) {
+      return [{ id: "all", name: "All", key: "all", image: "", isAll: true }, ...firestoreCategories];
+    }
+
+    const fallback = [...new Set(products.map((item) => normalizeCategory(item.category)).filter(Boolean))].map((key) => ({
+      id: key,
+      name: key,
+      key,
+      image: "",
+      isAll: false,
+    }));
+
+    return [{ id: "all", name: "All", key: "all", image: "", isAll: true }, ...fallback];
+  }, [shopCategories, categoryImages, products]);
 
   const visibleProducts = useMemo(() => {
     const searchTerm = search.trim().toLowerCase();
     return products
       .filter((item) => {
         const categoryMatch =
-          category === "all" || String(item.category || "").toLowerCase() === category.toLowerCase();
+          category === "all" || normalizeCategory(item.category) === normalizeCategory(category);
         if (!categoryMatch) return false;
         if (!searchTerm) return true;
         return (
@@ -276,7 +373,7 @@ export default function ShopPage({
   }, [visibleProducts]);
 
   const displayCategories = useMemo(() => {
-    return categories.slice(0, 5);
+    return categories;
   }, [categories]);
 
   const itemCount = useMemo(() => cartCount(cart), [cart]);
@@ -325,28 +422,62 @@ export default function ShopPage({
     setToast({ message: "Added to cart", type: "success" });
   };
 
+  // Auto-scroll carousel
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  
+  useEffect(() => {
+    if (!isEmbedded || frequentlyBoughtProducts.length === 0) return;
+    
+    const interval = setInterval(() => {
+      setCarouselIndex(prev => (prev + 1) % Math.max(1, frequentlyBoughtProducts.slice(0, 3).length));
+    }, 4000);
+    
+    return () => clearInterval(interval);
+  }, [isEmbedded, frequentlyBoughtProducts.length]);
+
   const styles = getStyles(isEmbedded);
 
   return (
     <main style={styles.page}>
-      {isEmbedded ? (
-        <ShopTopNav
-          search={search}
-          onSearchChange={(event) => setSearch(event.target.value)}
-          locationText="Current Location"
-          locationSubtext={deliveryAddressCityProvince || deliveryAddress || "Set your delivery address"}
-          onLocationClick={() => {
-            if (typeof onRequestLocationPicker === "function") {
-              onRequestLocationPicker();
-              return;
-            }
-            navigate("/marketplace/add-address");
-          }}
-          onBackClick={() => navigate("/member/dashboard")}
-          cartCount={itemCount}
-          onCartClick={() => navigate("/marketplace/cart")}
-        />
-      ) : null}
+      {/* Header with Location and Cart */}
+      {isEmbedded && (
+        <header style={styles.header}>
+          <div style={styles.headerTop}>
+            <div style={styles.locationRow}>
+              <div style={styles.locationIcon}>📍</div>
+              <div style={styles.locationContent}>
+                <div style={styles.deliverLabel}>DELIVER TO</div>
+                <div style={styles.locationText}>
+                  {(deliveryAddress || deliveryAddressCityProvince || "Set address").length > 45
+                    ? (deliveryAddress || deliveryAddressCityProvince || "Set address").substring(0, 45) + "..."
+                    : (deliveryAddress || deliveryAddressCityProvince || "Set address")}
+                </div>
+              </div>
+            </div>
+            <button 
+              style={styles.cartIconBtn}
+              onClick={() => navigate("/marketplace/cart")}
+              title="Cart"
+            >
+              🛒
+            </button>
+          </div>
+
+          {/* Search Bar */}
+          <div style={styles.searchContainer}>
+            <div style={styles.searchInputWrapper}>
+              <span style={styles.searchIconInside}>🔍</span>
+              <input
+                type="text"
+                placeholder="Search for groceries, snacks..."
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                style={styles.searchInputField}
+              />
+            </div>
+          </div>
+        </header>
+      )}
 
       {!isEmbedded && (
         <header style={styles.hero}>
@@ -366,181 +497,160 @@ export default function ShopPage({
         </header>
       )}
 
-      <section style={styles.promo}>
-        <span style={styles.promoBadgeEmoji}>🎉</span>
-        <div>
-          <p style={styles.promoTitle}>First order deal</p>
-          <p style={styles.promoCopy}>Use code FIRSTBITE at checkout to unlock a welcome discount.</p>
-        </div>
-      </section>
-
-      {activeDelivery ? (
-        <section style={styles.trackingCard}>
-          <div style={styles.trackingTopRow}>
-            <p style={styles.trackingKicker}>Live Delivery</p>
-            <span style={styles.trackingStatus}>{String(activeDelivery.status || "NEW")}</span>
-          </div>
-          <p style={styles.trackingLine}>
-            Order: {activeDelivery.orderId ? `#${String(activeDelivery.orderId).slice(0, 8)}` : "In progress"}
-          </p>
-          <p style={styles.trackingLine}>
-            Rider: {trackingRider?.name || (activeDelivery.riderId ? `ID ${String(activeDelivery.riderId).slice(0, 8)}` : "Looking for rider")}
-          </p>
-
-          {!googleMapsApiKey ? (
-            <p style={styles.mapFallback}>Add VITE_GOOGLE_MAPS_API_KEY to enable live map tracking.</p>
-          ) : !mapCenter ? (
-            <p style={styles.mapFallback}>Waiting for rider and destination coordinates.</p>
-          ) : isMapLoaded ? (
-            <div style={{ marginTop: 10 }}>
-              <GoogleMap
-                mapContainerStyle={mapContainerStyle}
-                center={mapCenter}
-                zoom={15}
-                options={{
-                  mapTypeControl: false,
-                  streetViewControl: false,
-                  fullscreenControl: false,
-                  clickableIcons: false,
-                }}
-              >
-                {riderCoords ? <MarkerF position={riderCoords} title="Rider" /> : null}
-                {customerCoords ? <MarkerF position={customerCoords} title="Delivery" /> : null}
-                {routePath.length === 2 ? (
-                  <PolylineF
-                    path={routePath}
-                    options={{
-                      strokeColor: "#16a34a",
-                      strokeOpacity: 0.9,
-                      strokeWeight: 4,
-                    }}
+      {/* Promotions Carousel - Auto-scrolling */}
+      {isEmbedded && frequentlyBoughtProducts.length > 0 && (
+        <section style={styles.promoCarousel}>
+          <div style={styles.carouselContainer}>
+            <div 
+              style={{
+                ...styles.carouselTrack,
+                transform: `translateX(calc(-${carouselIndex * 100}% - ${carouselIndex * 16}px))`,
+                transition: "transform 500ms ease-in-out",
+              }}
+            >
+              {frequentlyBoughtProducts.slice(0, 3).map((product, idx) => (
+                <div key={idx} style={styles.promoCard}>
+                  <img 
+                    src={product.image || "/icons/icon-192x192.png"} 
+                    alt={product.name || "Promo"}
+                    style={styles.promoImage}
                   />
-                ) : null}
-              </GoogleMap>
+                  <div style={styles.promoOverlay}>
+                    <span style={styles.promoBadge}>{idx === 0 ? "New Deal" : "Flash Sale"}</span>
+                    <h3 style={styles.promoTitle}>{product.name}</h3>
+                    <p style={styles.promoPrice}>Up to 20% off</p>
+                  </div>
+                </div>
+              ))}
             </div>
-          ) : (
-            <p style={styles.mapFallback}>Loading map...</p>
-          )}
-        </section>
-      ) : null}
-
-      {!isEmbedded && <section style={styles.searchWrap}>
-        <input
-          type="text"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search dishes, categories, stores"
-          style={styles.searchInput}
-        />
-      </section>}
-
-      <section style={styles.categorySection}>
-        <h2 style={styles.sectionTitleSmall}>Categories</h2>
-        <div style={styles.categoryGrid}>
-          {displayCategories.slice(0, 4).map((entry) => (
-            <button
-              key={entry}
-              type="button"
-              onClick={() => setCategory(entry)}
-              style={{ ...styles.categoryGridItem, ...(category === entry ? styles.categoryGridItemActive : {}) }}
-            >
-              <span style={styles.categoryIcon}>{getCategoryIcon(entry)}</span>
-              <span style={styles.categoryLabel}>{entry === "all" ? "All" : entry}</span>
-            </button>
-          ))}
-        </div>
-        {categories.length > 5 && (
-          <button
-            type="button"
-            onClick={() => setCategory("all")}
-            style={styles.seeAllBtn}
-          >
-            See all categories →
-          </button>
-        )}
-      </section>
-
-      {!isEmbedded && (
-        <section style={styles.categoryFilterRow}>
-          {categories.map((entry) => (
-            <button
-              key={entry}
-              type="button"
-              onClick={() => setCategory(entry)}
-              style={{ ...styles.categoryChip, ...(category === entry ? styles.categoryChipActive : {}) }}
-            >
-              {entry === "all" ? "All" : entry}
-            </button>
-          ))}
-        </section>
-      )}
-
-      {visibleStores.length > 0 ? (
-        <section style={styles.storesWrap}>
-          <h2 style={styles.sectionTitle}>Top Stores</h2>
-          <div style={styles.storeGrid}>
-            {visibleStores.map((store) => (
-              <article key={store.id} style={styles.storeCard}>
-                <h3 style={styles.cardTitle}>{store.storeName || store.businessName || store.name || "Store"}</h3>
-                <p style={styles.meta}>{store.city || store.address || "Address not set"}</p>
-                <Link to={`/marketplace/store/${store.id}`} style={styles.storeBtn}>
-                  Open Store
-                </Link>
-              </article>
+          </div>
+          {/* Carousel Indicators */}
+          <div style={styles.carouselIndicators}>
+            {frequentlyBoughtProducts.slice(0, 3).map((_, idx) => (
+              <button
+                key={idx}
+                type="button"
+                style={{
+                  ...styles.carouselDot,
+                  ...(carouselIndex === idx ? styles.carouselDotActive : {}),
+                }}
+                onClick={() => setCarouselIndex(idx)}
+                aria-label={`Go to slide ${idx + 1}`}
+              />
             ))}
           </div>
         </section>
-      ) : null}
+      )}
 
-      <section style={styles.productsWrap}>
-        <h2 style={styles.sectionTitle}>Frequently Bought</h2>
-        <div style={styles.productGrid}>
-          {frequentlyBoughtProducts.length === 0 ? (
-            <p style={styles.empty}>No products available yet.</p>
-          ) : null}
-          {frequentlyBoughtProducts.map((product) => (
-            <article key={product.id} style={styles.productCard}>
-              <div style={styles.thumbWrap}>
-                <img 
-                  src={product.image || "/icons/icon-192x192.png"} 
-                  alt={product.name || "Product"} 
-                  style={styles.thumb} 
-                />
-                <button
-                  type="button"
-                  style={styles.favoriteBtn}
-                  onClick={() => setToast({ message: "Added to wishlist", type: "success" })}
-                  title="Add to wishlist"
-                >
-                  ❤️
-                </button>
-              </div>
-              <h3 style={styles.cardTitle}>{product.name || "Product"}</h3>
-              <p style={styles.meta}>{product.category || "General"}</p>
-              <div style={styles.productFooter}>
-                <p style={styles.price}>{currency(product.price)}</p>
-                <button 
-                  type="button" 
-                  style={styles.actionBtn} 
-                  onClick={() => addToCart(product)}
-                >
-                  + Add
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+      {/* Categories Grid - Scrollable */}
+      {isEmbedded && (
+        <section style={styles.categoriesSection}>
+          <div style={styles.sectionHeader}>
+            <h2 style={styles.sectionTitle}>Categories</h2>
+            <a style={styles.seeAllLink} onClick={() => setCategory("all")}>See all</a>
+          </div>
+          <div style={styles.categoriesGridScroll} className="categories-grid-scroll">
+            {displayCategories.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                onClick={() => setCategory(entry.key)}
+                style={{
+                  ...styles.categoryCard,
+                  ...(category === entry.key ? styles.categoryCardActive : {})
+                }}
+              >
+                <div style={{ 
+                  ...styles.categoryIconBox, 
+                  backgroundColor: category === entry.key 
+                    ? "#fff" 
+                    : getCategoryColor(entry.key),
+                }}>
+                  {entry.image ? (
+                    <img
+                      src={entry.image}
+                      alt={getCategoryDisplayName(entry)}
+                      style={styles.categoryImage}
+                      onError={(event) => {
+                        event.currentTarget.style.display = "none";
+                      }}
+                    />
+                  ) : (
+                    <span style={styles.categoryInitial}>{getCategoryInitial(getCategoryDisplayName(entry))}</span>
+                  )}
+                </div>
+                <span style={{
+                  ...styles.categoryName,
+                  color: category === entry.key ? "#fff" : "#1e293b",
+                }}>
+                  {getCategoryDisplayName(entry)}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
-      {itemCount > 0 ? (
+      {/* Frequently Bought - Show Stores instead of Products */}
+      {isEmbedded && (
+        <section style={styles.frequentlyBoughtSection}>
+          <div style={styles.sectionHeader}>
+            <h2 style={styles.sectionTitle}>Frequently Bought</h2>
+            <a style={styles.seeAllLink} href="#">View list</a>
+          </div>
+          <div style={styles.productsGrid}>
+            {visibleStores.length === 0 ? (
+              <p style={styles.empty}>No stores available yet.</p>
+            ) : null}
+            {visibleStores.map((store) => (
+              <div key={store.id} style={styles.storeCardItem}>
+                <div style={styles.storeBannerContainer}>
+                  <img 
+                    src={store.storeBannerImage || "/icons/icon-192x192.png"} 
+                    alt={store.storeName || "Store"} 
+                    style={styles.storeBannerImage}
+                    onError={(e) => {
+                      e.target.src = "/icons/icon-192x192.png";
+                    }}
+                  />
+                  <button
+                    type="button"
+                    style={styles.favoriteBtn}
+                    onClick={() => setToast({ message: "Added to favorites", type: "success" })}
+                    title="Add to favorites"
+                  >
+                    ❤️
+                  </button>
+                  <div style={styles.storeLogoOverlay}>
+                    <img 
+                      src={store.storeLogo || store.businessLogo || "/icons/icon-192x192.png"} 
+                      alt={store.storeName || "Store"}
+                      style={styles.storeLogoImg}
+                      onError={(e) => {
+                        e.target.src = "/icons/icon-192x192.png";
+                      }}
+                    />
+                  </div>
+                </div>
+                <h4 style={styles.storeCardName}>{store.storeName || store.businessName || "Store"}</h4>
+                <p style={styles.storeCardCategory}>{store.city || store.address || "Address not set"}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Cart Summary Bar */}
+      {isEmbedded && itemCount > 0 && (
         <footer style={styles.cartBar}>
           <p style={styles.cartText}>Cart {itemCount} items - {currency(subtotal)}</p>
-          <Link to="/marketplace/cart" style={styles.cartBtn}>
+          <Link to="/marketplace/cart" style={styles.cartCheckout}>
             Checkout
           </Link>
         </footer>
-      ) : null}
+      )}
 
+      {/* Bottom Navigation */}
       {isEmbedded ? (
         <ShopBottomNav value={activeShopTab} onChange={handleShopTabChange} cartCount={itemCount} />
       ) : (
@@ -557,6 +667,7 @@ export default function ShopPage({
         </nav>
       )}
 
+      {/* Toast Notification */}
       {toast.message ? (
         <div style={{ ...styles.toast, ...(toast.type === "error" ? styles.toastError : styles.toastDefault) }}>
           {toast.message}
@@ -566,14 +677,507 @@ export default function ShopPage({
   );
 }
 
+// Helper function to get category colors
+const getCategoryColor = (category) => {
+  const colors = {
+    "produce": "#dcfce7",
+    "dairy": "#dbeafe",
+    "bakery": "#fed7aa",
+    "meat": "#fecaca",
+    "food": "#fef08a",
+    "drinks": "#e0e7ff",
+    "beverages": "#e0e7ff",
+  };
+  return colors[String(category || "").toLowerCase()] || "#f1f5f9";
+};
+
 const getStyles = (isEmbedded = false) => ({
   page: {
-    maxWidth: 1200,
+    maxWidth: 460,
     margin: "0 auto",
-    padding: isEmbedded ? "116px 16px 112px" : "16px 16px 120px",
-    fontFamily: "Segoe UI, sans-serif",
+    padding: isEmbedded ? "0" : "16px 16px 120px",
+    fontFamily: "'Plus Jakarta Sans', Segoe UI, sans-serif",
     background: "#f8fafc",
-    minHeight: isEmbedded ? "auto" : "100vh",
+    minHeight: "100vh",
+    display: "flex",
+    flexDirection: "column",
+  },
+  // CSS for hiding scrollbar
+  "@media (max-width: 768px)": {
+    categoriesGridScroll: {
+      scrollbarWidth: "none",
+      msOverflowStyle: "none",
+    },
+  },
+  header: {
+    position: "sticky",
+    top: 0,
+    zIndex: 20,
+    background: "#fff",
+    backdropFilter: "blur(12px)",
+    padding: "12px 16px",
+    borderBottom: "none",
+  },
+  headerTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+    gap: 12,
+  },
+  locationRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+    minWidth: 0,
+  },
+  locationIcon: {
+    fontSize: 24,
+    width: 32,
+    height: 32,
+    borderRadius: "50%",
+    background: "#13ec13",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  locationContent: {
+    minWidth: 0,
+    flex: 1,
+  },
+  deliverLabel: {
+    fontSize: 9,
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "#94a3b8",
+    marginBottom: 2,
+  },
+  locationText: {
+    fontSize: 13,
+    fontWeight: 600,
+    color: "#1e293b",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    lineHeight: 1.2,
+  },
+  cartIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: "50%",
+    background: "#e8e8e8",
+    border: "none",
+    fontSize: 18,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  searchContainer: {
+    padding: "0",
+  },
+  searchInputWrapper: {
+    position: "relative",
+    display: "flex",
+    alignItems: "center",
+  },
+  searchIconInside: {
+    position: "absolute",
+    left: 12,
+    fontSize: 16,
+    pointerEvents: "none",
+    color: "#94a3b8",
+  },
+  searchInputField: {
+    width: "100%",
+    padding: "10px 12px 10px 36px",
+    fontSize: 13,
+    border: "none",
+    borderRadius: 10,
+    background: "#f1f5f9",
+    color: "#1e293b",
+    outline: "none",
+    fontFamily: "inherit",
+  },
+  promoCarousel: {
+    padding: "12px 0",
+    marginTop: 12,
+    overflow: "hidden",
+  },
+  carouselContainer: {
+    overflow: "hidden",
+    width: "100%",
+  },
+  carouselTrack: {
+    display: "flex",
+    gap: 16,
+    paddingLeft: 16,
+    paddingRight: 16,
+    willChange: "transform",
+  },
+  promoCard: {
+    minWidth: "calc(100vw - 32px - 16px * 2)",
+    maxWidth: "100%",
+    borderRadius: 16,
+    overflow: "hidden",
+    aspectRatio: "16/9",
+    position: "relative",
+    background: "#f1f5f9",
+    flexShrink: 0,
+  },
+  promoImage: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+  },
+  promoOverlay: {
+    position: "absolute",
+    inset: 0,
+    background: "linear-gradient(to right, rgba(0,0,0,0.6), transparent)",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "flex-end",
+    padding: 16,
+    color: "#fff",
+  },
+  promoBadge: {
+    display: "inline-block",
+    background: "#13ec13",
+    color: "#1e293b",
+    fontSize: 10,
+    fontWeight: 700,
+    padding: "4px 8px",
+    borderRadius: 999,
+    textTransform: "uppercase",
+    marginBottom: 8,
+    width: "fit-content",
+  },
+  promoTitle: {
+    fontSize: 20,
+    fontWeight: 700,
+    margin: 0,
+    marginBottom: 4,
+  },
+  promoPrice: {
+    fontSize: 12,
+    margin: 0,
+    opacity: 0.9,
+  },
+  carouselIndicators: {
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+    padding: "12px 0",
+  },
+  carouselDot: {
+    width: 8,
+    height: 8,
+    borderRadius: "50%",
+    border: "none",
+    background: "#cbd5e1",
+    cursor: "pointer",
+    transition: "background-color 200ms ease, transform 200ms ease",
+    padding: 0,
+  },
+  carouselDotActive: {
+    background: "#13ec13",
+    transform: "scale(1.25)",
+  },
+  categoriesSection: {
+    padding: "12px 16px",
+    marginTop: 12,
+  },
+  sectionHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: "#1e293b",
+    margin: 0,
+  },
+  seeAllLink: {
+    fontSize: 13,
+    fontWeight: 700,
+    color: "#13ec13",
+    textDecoration: "none",
+    cursor: "pointer",
+    background: "none",
+    border: "none",
+    padding: 0,
+  },
+  categoriesGridScroll: {
+    display: "flex",
+    gap: 12,
+    overflowX: "auto",
+    overflowY: "hidden",
+    paddingBottom: 4,
+    scrollBehavior: "smooth",
+    scrollbarWidth: "none",
+    msOverflowStyle: "none",
+  },
+  categoryCard: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 6,
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    padding: 0,
+    minWidth: "fit-content",
+    flexShrink: 0,
+  },
+  categoryCardActive: {
+    backgroundColor: "#13ec13",
+    borderRadius: 16,
+    padding: "8px",
+  },
+  categoryIconBox: {
+    width: 56,
+    height: 56,
+    borderRadius: 14,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 32,
+    transition: "background-color 200ms ease",
+    overflow: "hidden",
+  },
+  categoryImage: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+  },
+  categoryInitial: {
+    fontSize: 22,
+    fontWeight: 700,
+    color: "#334155",
+  },
+  categoryName: {
+    fontSize: 11,
+    fontWeight: 600,
+    color: "#1e293b",
+    transition: "color 200ms ease",
+  },
+  frequentlyBoughtSection: {
+    padding: "16px",
+    marginTop: 16,
+  },
+  productsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, 1fr)",
+    gap: 12,
+  },
+  storeCardItem: {
+    background: "#f8fafc",
+    borderRadius: 16,
+    overflow: "hidden",
+    border: "1px solid #e2e8f0",
+  },
+  storeBannerContainer: {
+    position: "relative",
+    width: "100%",
+    aspectRatio: "1",
+    backgroundColor: "#f1f5f9",
+    overflow: "hidden",
+  },
+  storeBannerImage: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+  },
+  storeLogoOverlay: {
+    position: "absolute",
+    bottom: 8,
+    right: 8,
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    background: "#fff",
+    border: "2px solid #fff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+  },
+  storeLogoImg: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+  },
+  storeCardName: {
+    fontSize: 13,
+    fontWeight: 600,
+    color: "#1e293b",
+    margin: "8px 12px 4px",
+    lineHeight: 1.3,
+  },
+  storeCardCategory: {
+    fontSize: 11,
+    color: "#64748b",
+    margin: "0 12px 12px",
+  },
+  productCard: {
+    background: "#f8fafc",
+    borderRadius: 16,
+    padding: 12,
+    border: "1px solid #e2e8f0",
+  },
+  productImageContainer: {
+    position: "relative",
+    width: "100%",
+    aspectRatio: "1",
+    borderRadius: 12,
+    overflow: "hidden",
+    marginBottom: 8,
+    background: "#f1f5f9",
+  },
+  productImage: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+  },
+  favoriteBtn: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 28,
+    height: 28,
+    borderRadius: "50%",
+    background: "rgba(255, 255, 255, 0.85)",
+    border: "none",
+    cursor: "pointer",
+    fontSize: 14,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    backdropFilter: "blur(4px)",
+  },
+  productCategory: {
+    fontSize: 11,
+    color: "#64748b",
+    margin: 0,
+    marginBottom: 4,
+  },
+  productTitle: {
+    fontSize: 13,
+    fontWeight: 600,
+    color: "#1e293b",
+    margin: 0,
+    marginBottom: 8,
+    lineHeight: 1.3,
+  },
+  productFooter: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 6,
+  },
+  productPrice: {
+    fontSize: 14,
+    fontWeight: 700,
+    color: "#13ec13",
+    margin: 0,
+  },
+  addBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    background: "#13ec13",
+    color: "#1e293b",
+    border: "none",
+    cursor: "pointer",
+    fontSize: 18,
+    fontWeight: 700,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: "0 2px 8px rgba(19, 236, 19, 0.3)",
+  },
+  cartBar: {
+    position: "fixed",
+    left: 12,
+    right: 12,
+    bottom: 80,
+    zIndex: 30,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
+    background: "#13ec13",
+    color: "#1e293b",
+    borderRadius: 999,
+    padding: "12px 16px",
+    boxShadow: "0 8px 24px rgba(19, 236, 19, 0.35)",
+    fontWeight: 700,
+    maxWidth: 436,
+  },
+  cartText: {
+    margin: 0,
+    fontSize: 13,
+  },
+  cartCheckout: {
+    textDecoration: "none",
+    borderRadius: 999,
+    background: "#fff",
+    color: "#13ec13",
+    padding: "8px 16px",
+    fontWeight: 700,
+    fontSize: 12,
+    cursor: "pointer",
+  },
+  bottomNav: {
+    position: "fixed",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 56,
+    background: "#fff",
+    borderTop: "1px solid #e2e8f0",
+    display: "flex",
+    justifyContent: "space-around",
+    alignItems: "center",
+    zIndex: 20,
+    maxWidth: 460,
+    margin: "0 auto",
+  },
+  navItem: {
+    textDecoration: "none",
+    color: "#64748b",
+    fontWeight: 600,
+    fontSize: 12,
+  },
+  navItemActive: {
+    textDecoration: "none",
+    color: "#13ec13",
+    fontWeight: 700,
+    fontSize: 12,
+  },
+  toast: {
+    position: "fixed",
+    right: 14,
+    bottom: 110,
+    color: "#fff",
+    fontWeight: 700,
+    borderRadius: 10,
+    padding: "10px 14px",
+    zIndex: 40,
+  },
+  toastDefault: {
+    background: "#13ec13",
+  },
+  toastError: {
+    background: "#dc2626",
   },
   hero: {
     display: "flex",
@@ -602,7 +1206,7 @@ const getStyles = (isEmbedded = false) => ({
   },
   heading: {
     margin: "8px 0 4px",
-    color: "#0f3f35",
+    color: "#001f5c",
   },
   subheading: {
     margin: 0,
@@ -627,348 +1231,9 @@ const getStyles = (isEmbedded = false) => ({
     fontWeight: 700,
     background: "#f0fdf4",
   },
-  promo: {
-    marginBottom: 12,
-    borderRadius: 16,
-    border: "1px solid #d4d4d8",
-    background: "linear-gradient(135deg, #fef2f2 0%, #fef9e7 100%)",
-    padding: 12,
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-  },
-  promoBadgeEmoji: {
-    fontSize: 40,
-    lineHeight: 1,
-  },
-  promoTitle: {
-    margin: 0,
-    color: "#7c2d12",
-    fontWeight: 800,
-  },
-  promoCopy: {
-    margin: "2px 0 0",
-    color: "#b45309",
-    fontSize: 13,
-  },
-  trackingCard: {
-    marginBottom: 12,
-    borderRadius: 14,
-    border: "1px solid #bbf7d0",
-    background: "#f0fdf4",
-    padding: 12,
-  },
-  trackingTopRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  trackingKicker: {
-    margin: 0,
-    color: "#047857",
-    fontWeight: 800,
-    textTransform: "uppercase",
-    fontSize: 11,
-    letterSpacing: "0.06em",
-  },
-  trackingStatus: {
-    borderRadius: 999,
-    background: "#d1fae5",
-    color: "#065f46",
-    padding: "4px 8px",
-    fontSize: 11,
-    fontWeight: 800,
-  },
-  trackingLine: {
-    margin: "4px 0 0",
-    color: "#0f3f35",
-    fontSize: 13,
-  },
-  mapFallback: {
-    margin: "8px 0 0",
-    color: "#0f766e",
-    fontSize: 12,
-  },
-  searchWrap: {
-    marginBottom: 10,
-  },
-  searchInput: {
-    width: "100%",
-    borderRadius: 12,
-    border: "1px solid #e2e8f0",
-    padding: "10px 12px",
-    fontSize: 14,
-    background: "#fff",
-  },
-  categorySection: {
-    marginBottom: 20,
-  },
-  sectionTitleSmall: {
-    margin: "0 0 12px",
-    color: "#0f3f35",
-    fontSize: 16,
-    fontWeight: 700,
-  },
-  categoryGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)",
-    gap: 10,
-    marginBottom: 12,
-  },
-  categoryGridItem: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    border: "1px solid #e2e8f0",
-    borderRadius: 14,
-    padding: 12,
-    background: "#fff",
-    cursor: "pointer",
-    transition: "all 0.2s ease",
-  },
-  categoryGridItemActive: {
-    background: "#0f766e",
-    borderColor: "#0f766e",
-    color: "#fff",
-  },
-  categoryIcon: {
-    fontSize: 28,
-  },
-  categoryLabel: {
-    fontSize: 12,
-    fontWeight: 600,
-    textAlign: "center",
-    color: "#475569",
-  },
-  categoryGridItemActive_label: {
-    color: "#fff",
-  },
-  seeAllBtn: {
-    width: "100%",
-    border: "1px solid #e2e8f0",
-    borderRadius: 12,
-    padding: 10,
-    background: "#fff",
-    color: "#0f766e",
-    fontWeight: 600,
-    cursor: "pointer",
-    fontSize: 13,
-  },
-  categoryFilterRow: {
-    display: "flex",
-    gap: 8,
-    overflowX: "auto",
-    paddingBottom: 6,
-    marginBottom: 12,
-  },
-  categoryChip: {
-    border: "1px solid #e2e8f0",
-    borderRadius: 999,
-    padding: "7px 12px",
-    background: "#fff",
-    color: "#475569",
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-    fontWeight: 600,
-    fontSize: 12,
-  },
-  categoryChipActive: {
-    background: "#0f766e",
-    color: "#fff",
-    borderColor: "#0f766e",
-  },
-  storesWrap: {
-    display: "grid",
-    gap: 10,
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    margin: 0,
-    color: "#0f3f35",
-    fontSize: 18,
-    fontWeight: 700,
-  },
-  storeGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))",
-    gap: 10,
-  },
-  storeCard: {
-    border: "1px solid #e2e8f0",
-    borderRadius: 14,
-    padding: 12,
-    background: "#fff",
-  },
-  productsWrap: {
-    display: "grid",
-    gap: 10,
-  },
-  productGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-    gap: 12,
-  },
-  productCard: {
-    border: "1px solid #e2e8f0",
-    borderRadius: 14,
-    padding: 10,
-    background: "#fff",
-    transition: "all 0.2s ease",
-  },
-  thumbWrap: {
-    position: "relative",
-    width: "100%",
-    height: 140,
-    borderRadius: 10,
-    overflow: "hidden",
-    background: "#f1f5f9",
-    marginBottom: 8,
-  },
-  thumb: {
-    width: "100%",
-    height: "100%",
-    objectFit: "cover",
-  },
-  favoriteBtn: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    width: 32,
-    height: 32,
-    border: "none",
-    borderRadius: "50%",
-    background: "rgba(255, 255, 255, 0.9)",
-    cursor: "pointer",
-    fontSize: 16,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    transition: "all 0.2s ease",
-  },
-  cardTitle: {
-    margin: "0 0 4px",
-    color: "#0f3f35",
-    fontSize: 14,
-    fontWeight: 600,
-    lineHeight: 1.3,
-  },
-  meta: {
-    margin: 0,
-    color: "#64748b",
-    fontSize: 11,
-    marginBottom: 8,
-  },
-  productFooter: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    gap: 6,
-  },
-  price: {
-    margin: 0,
-    color: "#0f766e",
-    fontWeight: 700,
-    fontSize: 14,
-  },
-  actionBtn: {
-    border: 0,
-    borderRadius: 8,
-    background: "#0f766e",
-    color: "#fff",
-    padding: "6px 10px",
-    fontWeight: 600,
-    cursor: "pointer",
-    fontSize: 12,
-    whiteSpace: "nowrap",
-    transition: "all 0.2s ease",
-  },
-  storeBtn: {
-    display: "inline-block",
-    marginTop: 10,
-    textDecoration: "none",
-    borderRadius: 10,
-    background: "#0f766e",
-    color: "#fff",
-    padding: "8px 12px",
-    fontWeight: 700,
-    fontSize: 13,
-  },
   empty: {
     margin: 0,
     color: "#64748b",
   },
-  cartBar: {
-    position: "fixed",
-    left: 12,
-    right: 12,
-    bottom: 58,
-    zIndex: 30,
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 10,
-    background: "#0f766e",
-    color: "#fff",
-    borderRadius: 999,
-    padding: "11px 14px",
-    boxShadow: "0 16px 30px rgba(15, 118, 110, 0.35)",
-  },
-  cartText: {
-    margin: 0,
-    fontWeight: 700,
-    fontSize: 13,
-  },
-  cartBtn: {
-    textDecoration: "none",
-    borderRadius: 999,
-    background: "#fff",
-    color: "#0f766e",
-    padding: "7px 12px",
-    fontWeight: 700,
-    fontSize: 12,
-  },
-  bottomNav: {
-    position: "fixed",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 50,
-    background: "#fff",
-    borderTop: "1px solid #e2e8f0",
-    display: "flex",
-    justifyContent: "space-around",
-    alignItems: "center",
-    zIndex: 20,
-  },
-  navItem: {
-    textDecoration: "none",
-    color: "#64748b",
-    fontWeight: 600,
-    fontSize: 12,
-  },
-  navItemActive: {
-    textDecoration: "none",
-    color: "#0f766e",
-    fontWeight: 700,
-    fontSize: 12,
-  },
-  toast: {
-    position: "fixed",
-    right: 14,
-    bottom: 110,
-    color: "#fff",
-    fontWeight: 700,
-    borderRadius: 10,
-    padding: "10px 14px",
-    zIndex: 40,
-  },
-  toastDefault: {
-    background: "#0f766e",
-  },
-  toastError: {
-    background: "#dc2626",
-  },
 });
+

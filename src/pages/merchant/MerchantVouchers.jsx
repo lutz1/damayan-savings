@@ -35,10 +35,8 @@ import {
 } from "firebase/firestore";
 import QrScanner from "qr-scanner";
 import { useNavigate } from "react-router-dom";
-import { createFirebaseClients } from "../../../shared/firebase/firebaseClient";
+import { auth, db } from "../../firebase";
 import MerchantBottomNav from "./components/MerchantBottomNav";
-
-const { auth, db } = createFirebaseClients("MerchantApp");
 
 const MaterialIcon = ({ name, size = 24, sx = {} }) => (
   <span

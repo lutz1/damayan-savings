@@ -59,20 +59,35 @@ const MerchantVouchers = lazy(() => import("./pages/merchant/MerchantVouchers"))
 
 function App() {
   const skipSplashAfterLogin = sessionStorage.getItem("skipAppSplash") === "true";
+  const splashAlreadyShown = sessionStorage.getItem("appSplashShown") === "true";
   const [initialized, setInitialized] = useState(false);
   const [role, setRole] = useState(() => localStorage.getItem("userRole"));
   const appBase = window.location.pathname.startsWith("/damayan-savings") ? "/damayan-savings" : "";
-  const [showSplash, setShowSplash] = useState(() => !skipSplashAfterLogin);
+  const [showSplash, setShowSplash] = useState(() => !skipSplashAfterLogin && !splashAlreadyShown);
 
   useEffect(() => {
     if (skipSplashAfterLogin) {
       sessionStorage.removeItem("skipAppSplash");
+      sessionStorage.setItem("appSplashShown", "true");
     }
 
     const storedRole = localStorage.getItem("userRole");
     if (storedRole) setRole(storedRole);
     setInitialized(true);
+
+    // Listen for custom role update events from login/logout
+    const handleRoleChange = (e) => {
+      setRole(e.detail.role);
+    };
+
+    window.addEventListener("roleChanged", handleRoleChange);
+    return () => window.removeEventListener("roleChanged", handleRoleChange);
   }, [skipSplashAfterLogin]);
+
+  const handleSplashClose = () => {
+    sessionStorage.setItem("appSplashShown", "true");
+    setShowSplash(false);
+  };
 
   if (!initialized) {
     return (
@@ -462,7 +477,7 @@ function App() {
         open={showSplash}
         logo={`${appBase}/damayan.png`}
         duration={0}
-        onClose={() => setShowSplash(false)}
+        onClose={handleSplashClose}
       />
     </LocalizationProvider>
   );
