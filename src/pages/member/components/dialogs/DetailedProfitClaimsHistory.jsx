@@ -679,13 +679,17 @@ const DetailedProfitClaimsHistory = ({
                                           },
                                         }}
                                         onClick={() => {
-                                          onTransferProfit({
+                                          const claimData = {
                                             id: entry.id,
                                             profit: timeline.amount,
                                             profitStatus: "Pending",
                                             amount: entry.amount,
                                             date: entry.createdAt,
-                                          });
+                                          };
+                                          console.log("🔵 Timeline Claim button clicked with data:", claimData);
+                                          console.log("Entry data:", entry);
+                                          console.log("Timeline data:", timeline);
+                                          onTransferProfit(claimData);
                                         }}
                                       >
                                         {claimingEntryId === entry.id ? "⏳ Claiming..." : "Claim"}

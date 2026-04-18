@@ -3045,7 +3045,12 @@ exports.transferProfit = functions.https.onRequest(async (req, res) => {
 
         const entryData = entryDoc.data();
         if (entryData.userId !== userId) throw new Error("Not your entry");
-        if (!entryData.profit || entryData.profitStatus === "Claimed") throw new Error("Profit unavailable");
+        
+        // Validate profit status - allow claim only if not already claimed
+        if (entryData.profitStatus === "Claimed") throw new Error("Profit unavailable");
+        
+        // Use the amount passed from frontend (already calculated monthly profit)
+        if (!amount || numAmount <= 0) throw new Error("Invalid profit amount");
 
         const userRef = db.collection("users").doc(userId);
         const userDoc = await transaction.get(userRef);
