@@ -1173,7 +1173,10 @@ useEffect(() => {
             { icon: <GroupAddIcon />, label: "Invite", dialog: "invite" },
             { icon: <HistoryIcon />, label: "History", dialog: "walletHistory" },
             { icon: <RedeemIcon />, label: "Rewards +", action: () => setRewardsUnavailableOpen(true) },
-            { icon: <StorefrontIcon />, label: "Market Place", action: () => navigate('/member/marketplace') },
+            { icon: <StorefrontIcon />, label: "Market Place", action: () => {
+              sessionStorage.setItem('skipAppSplash', 'true');
+              navigate('/member/marketplace');
+            } },
           ].map((action) => (
             <Grid item xs={3} key={action.label}>
               <Box

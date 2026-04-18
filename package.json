@@ -49,17 +49,11 @@
   "scripts": {
     "start": "vite",
     "dev": "vite",
-    "dev:user": "npm --prefix apps/user-app run dev",
-    "dev:merchant": "npm --prefix apps/merchant-app run dev",
-    "dev:rider": "npm --prefix apps/rider-app run dev",
     "build": "vite build",
-    "build:user": "npm --prefix apps/user-app run build",
-    "build:merchant": "npm --prefix apps/merchant-app run build",
-    "build:rider": "npm --prefix apps/rider-app run build",
     "preview": "vite preview",
     "test": "vitest",
     "test:run": "vitest run",
-    "predeploy": "npm run build && npm run build:merchant && node scripts/prepare-gh-pages.mjs",
+    "predeploy": "npm run build && node scripts/prepare-gh-pages.mjs",
     "deploy": "gh-pages -d dist --add",
     "deploy:functions": "firebase deploy --only functions",
     "deploy:functions:deposit-approval": "firebase deploy --only functions:processDepositApproval"

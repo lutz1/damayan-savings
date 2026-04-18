@@ -1,43 +1,84 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Box, Button, CircularProgress, Typography } from "@mui/material";
-import OpenInNewIcon from "@mui/icons-material/OpenInNew";
-import StorefrontIcon from "@mui/icons-material/Storefront";
+import React, { useState, useEffect } from "react";
+import { Box, Button, Typography, CircularProgress } from "@mui/material";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import { useNavigate } from "react-router-dom";
+import { doc, updateDoc, getDoc } from "firebase/firestore";
+import { auth, db } from "../../firebase";
+import ShopPage from "../marketplace/ShopPage";
+import ShopLocationDialog from "../marketplace/components/ShopLocationDialog";
 import MemberBottomNav from "../../components/MemberBottomNav";
 import {
   memberPageTopInset,
   memberStickyHeaderInset,
   memberShellBackground,
   memberHeroBackground,
-  memberGlassPanelSx,
-  memberSoftPanelSx,
 } from "./memberLayout";
-
-const memberPalette = {
-  navy: "#0b1f5e",
-  royal: "#173a8a",
-  gold: "#d4af37",
-  surface: "#f7f9fc",
-};
-
-const getMarketplaceUrl = () => {
-  if (window.location.hostname === "localhost") {
-    return "http://localhost:3001/shop?embedded=member";
-  }
-
-  const origin = window.location.origin;
-  return `${origin}/damayan-savings/user/shop?embedded=member`;
-};
 
 const MemberMarketplace = () => {
   const navigate = useNavigate();
-  const [frameLoaded, setFrameLoaded] = useState(false);
-  const marketplaceUrl = useMemo(() => getMarketplaceUrl(), []);
+  const [shopPageLoaded, setShopPageLoaded] = useState(false);
+  const [locationDialogOpen, setLocationDialogOpen] = useState(false);
+  const [userHasAddress, setUserHasAddress] = useState(false);
 
+  // Check if user has a delivery address saved in Firebase
   useEffect(() => {
-    setFrameLoaded(false);
-  }, [marketplaceUrl]);
+    const checkSavedAddress = async () => {
+      try {
+        const user = auth.currentUser;
+        if (!user) return;
+
+        const userRef = doc(db, "users", user.uid);
+        const userData = await getDoc(userRef);
+        
+        if (userData.exists()) {
+          const deliveryAddress = userData.data()?.deliveryAddress;
+          setUserHasAddress(!!deliveryAddress);
+        }
+      } catch (error) {
+        console.error("Error checking saved address:", error);
+      }
+    };
+
+    if (shopPageLoaded) {
+      checkSavedAddress();
+    }
+  }, [shopPageLoaded]);
+
+  const handleLocationDialogClose = () => {
+    setLocationDialogOpen(false);
+  };
+
+  const handleSelectAddress = async ({ address, cityProvince }) => {
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        console.error("No user logged in");
+        return;
+      }
+
+      // Save to Firebase Firestore
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, {
+        deliveryAddress: address,
+        deliveryAddressCityProvince: cityProvince,
+        deliveryAddressUpdatedAt: new Date().toISOString(),
+      });
+
+      setUserHasAddress(true);
+      setLocationDialogOpen(false);
+    } catch (error) {
+      console.error("Error saving address to Firebase:", error);
+      // Show error toast/notification here if needed
+    }
+  };
+
+  const handleShopPageLoaded = () => {
+    setShopPageLoaded(true);
+    // Auto-open location dialog after loading completes if no address saved
+    if (!userHasAddress) {
+      setLocationDialogOpen(true);
+    }
+  };
 
   return (
     <Box
@@ -46,9 +87,11 @@ const MemberMarketplace = () => {
         background: memberShellBackground,
         pt: memberPageTopInset,
         pb: 11,
+        display: "flex",
+        flexDirection: "column",
       }}
     >
-      <Box sx={{ maxWidth: 460, mx: "auto" }}>
+      <Box sx={{ maxWidth: 460, mx: "auto", width: "100%", flex: 1 }}>
         <Box
           sx={{
             minHeight: 70,
@@ -75,97 +118,128 @@ const MemberMarketplace = () => {
           <Typography sx={{ fontSize: 18, fontWeight: 800, letterSpacing: 0.2 }}>
             Market Place
           </Typography>
-          <Button
-            onClick={() => window.open(marketplaceUrl, "_blank", "noopener,noreferrer")}
-            sx={{ minWidth: 40, color: "#fff", p: 0.5 }}
-          >
-            <OpenInNewIcon />
-          </Button>
+          <Box sx={{ minWidth: 40 }} />
         </Box>
 
-        <Box sx={{ px: 2, pt: 2, pb: 1.5 }}>
+        {!shopPageLoaded && (
           <Box
             sx={{
-              borderRadius: 3,
-              p: 2,
-              ...memberGlassPanelSx,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              minHeight: 600,
+              background: "linear-gradient(180deg, rgba(11, 31, 94, 0.2) 0%, rgba(23, 58, 138, 0.15) 100%)",
+              gap: 3,
+              py: 4,
+              px: 2,
             }}
           >
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, mb: 1 }}>
-              <Box
-                sx={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 2,
-                  backgroundColor: "rgba(255,255,255,0.16)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <StorefrontIcon sx={{ color: "#fff" }} />
-              </Box>
-              <Box>
-                <Typography sx={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.8)", letterSpacing: 1 }}>
-                  USER APP
-                </Typography>
-                <Typography sx={{ fontSize: 22, fontWeight: 800, lineHeight: 1.05 }}>
-                  ShopPage
-                </Typography>
-              </Box>
-            </Box>
-            <Typography sx={{ fontSize: 13, color: "rgba(255,255,255,0.92)", lineHeight: 1.5 }}>
-              Browse the live marketplace below. If the embedded shop does not load, open it in a new tab.
-            </Typography>
-          </Box>
-        </Box>
-
-        <Box sx={{ px: 2 }}>
-          <Box
-            sx={{
-              position: "relative",
-              minHeight: 640,
-              borderRadius: 3,
-              overflow: "hidden",
-              ...memberSoftPanelSx,
-            }}
-          >
-            {!frameLoaded && (
+            <Box
+              sx={{
+                position: "relative",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 120,
+                height: 120,
+              }}
+            >
+              {/* Outer rotating ring */}
               <Box
                 sx={{
                   position: "absolute",
-                  inset: 0,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 1.5,
-                  background: "linear-gradient(180deg, rgba(6,19,46,0.95) 0%, rgba(10,29,69,0.96) 100%)",
-                  zIndex: 1,
+                  width: 120,
+                  height: 120,
+                  borderRadius: "50%",
+                  border: "3px solid transparent",
+                  borderTop: "3px solid #d4af37",
+                  borderRight: "3px solid #d4af37",
+                  animation: "spin 2s linear infinite",
+                  "@keyframes spin": {
+                    "0%": { transform: "rotate(0deg)" },
+                    "100%": { transform: "rotate(360deg)" },
+                  },
+                }}
+              />
+
+              {/* Inner counter-rotating ring */}
+              <Box
+                sx={{
+                  position: "absolute",
+                  width: 90,
+                  height: 90,
+                  borderRadius: "50%",
+                  border: "2px solid transparent",
+                  borderBottom: "2px solid #2b7cee",
+                  borderLeft: "2px solid #2b7cee",
+                  animation: "spin-reverse 3s linear infinite",
+                  "@keyframes spin-reverse": {
+                    "0%": { transform: "rotate(360deg)" },
+                    "100%": { transform: "rotate(0deg)" },
+                  },
+                }}
+              />
+
+              {/* Center dot */}
+              <Box
+                sx={{
+                  position: "absolute",
+                  width: 10,
+                  height: 10,
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg, #d4af37 0%, #2b7cee 100%)",
+                  boxShadow: "0 0 12px rgba(212, 175, 55, 0.4), 0 0 8px rgba(43, 124, 238, 0.4)",
+                }}
+              />
+            </Box>
+
+            <Box sx={{ textAlign: "center" }}>
+              <Typography
+                sx={{
+                  fontSize: 16,
+                  fontWeight: 800,
+                  color: "#ffffff",
+                  letterSpacing: 0.5,
+                  mb: 0.8,
+                  textShadow: "0 2px 8px rgba(11, 31, 94, 0.3)",
                 }}
               >
-                <CircularProgress sx={{ color: "#8ac7ff" }} />
-                <Typography sx={{ fontSize: 13, color: "#f8fbff", fontWeight: 700 }}>
-                  Loading marketplace...
-                </Typography>
-              </Box>
-            )}
-
-            <Box
-              component="iframe"
-              src={marketplaceUrl}
-              title="Market Place"
-              onLoad={() => setFrameLoaded(true)}
-              sx={{
-                width: "100%",
-                minHeight: 640,
-                border: 0,
-                display: "block",
-                backgroundColor: "#fff",
-              }}
-            />
+                Loading Marketplace
+              </Typography>
+              <Typography
+                sx={{
+                  fontSize: 12,
+                  color: "rgba(255, 255, 255, 0.85)",
+                  fontWeight: 500,
+                  letterSpacing: 0.2,
+                  textShadow: "0 1px 4px rgba(11, 31, 94, 0.2)",
+                }}
+              >
+                Preparing stores and products...
+              </Typography>
+            </Box>
           </Box>
+        )}
+
+        <Box
+          sx={{
+            display: shopPageLoaded ? "block" : "none",
+            px: 0,
+          }}
+        >
+          <ShopPage
+            isEmbedded={true}
+            onLoaded={handleShopPageLoaded}
+          />
         </Box>
+
+        <ShopLocationDialog
+          open={locationDialogOpen}
+          onClose={handleLocationDialogClose}
+          savedAddresses={[]}
+          onSelectAddress={handleSelectAddress}
+        />
       </Box>
 
       <MemberBottomNav />

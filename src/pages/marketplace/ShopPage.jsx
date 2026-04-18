@@ -37,7 +37,7 @@ const extractCoords = (payload) => {
   return null;
 };
 
-export default function ShopPage() {
+export default function ShopPage({ isEmbedded = false, onLoaded = null }) {
   const [userId, setUserId] = useState("");
   const [products, setProducts] = useState([]);
   const [merchants, setMerchants] = useState({});
@@ -73,6 +73,11 @@ export default function ShopPage() {
   const mapCenter = riderCoords || customerCoords || null;
   const routePath = riderCoords && customerCoords ? [riderCoords, customerCoords] : [];
 
+  // Skip splashscreen when navigating in marketplace
+  useEffect(() => {
+    sessionStorage.setItem('skipAppSplash', 'true');
+  }, []);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => setUserId(user?.uid || ""));
     return () => unsubscribe();
@@ -86,6 +91,18 @@ export default function ShopPage() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Notify parent when ShopPage is loaded (for loading screen)
+  useEffect(() => {
+    if (isEmbedded && onLoaded && products.length > 0) {
+      const timer = setTimeout(() => {
+        onLoaded();
+      }, 300);
+      return () => clearTimeout(timer);
+    } else if (!isEmbedded && onLoaded) {
+      onLoaded();
+    }
+  }, [products.length, isEmbedded, onLoaded]);
 
   useEffect(() => {
     const merchantIds = [...new Set(products.map((item) => item.merchantId).filter(Boolean))];
@@ -208,23 +225,27 @@ export default function ShopPage() {
     setToast({ message: "Added to cart", type: "success" });
   };
 
+  const styles = getStyles(isEmbedded);
+
   return (
     <main style={styles.page}>
-      <header style={styles.hero}>
-        <div>
-          <p style={styles.eyebrow}>Food Market</p>
-          <h1 style={styles.heading}>Order From Nearby Stores</h1>
-          <p style={styles.subheading}>One place for merchant discovery, cart, and checkout.</p>
-        </div>
-        <div style={styles.heroActions}>
-          <Link to="/marketplace/add-address" style={styles.addressBtn}>
-            {currentLocationCityProvince || currentLocation ? "Change Address" : "Set Address"}
-          </Link>
-          <Link to="/dashboard" style={styles.backLink}>
-            Dashboard
-          </Link>
-        </div>
-      </header>
+      {!isEmbedded && (
+        <header style={styles.hero}>
+          <div>
+            <p style={styles.eyebrow}>Food Market</p>
+            <h1 style={styles.heading}>Order From Nearby Stores</h1>
+            <p style={styles.subheading}>One place for merchant discovery, cart, and checkout.</p>
+          </div>
+          <div style={styles.heroActions}>
+            <Link to="/marketplace/add-address" style={styles.addressBtn}>
+              {currentLocationCityProvince || currentLocation ? "Change Address" : "Set Address"}
+            </Link>
+            <Link to="/dashboard" style={styles.backLink}>
+              Dashboard
+            </Link>
+          </div>
+        </header>
+      )}
 
       <section style={styles.promo}>
         <div style={styles.promoBadge}>50%</div>
@@ -374,14 +395,14 @@ export default function ShopPage() {
   );
 }
 
-const styles = {
+const getStyles = (isEmbedded = false) => ({
   page: {
     maxWidth: 1060,
     margin: "0 auto",
-    padding: "16px 16px 120px",
+    padding: isEmbedded ? "0 16px 16px" : "16px 16px 120px",
     fontFamily: "Segoe UI, sans-serif",
-    background: "linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%)",
-    minHeight: "100vh",
+    background: isEmbedded ? "transparent" : "linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%)",
+    minHeight: isEmbedded ? "auto" : "100vh",
   },
   hero: {
     display: "flex",
@@ -697,4 +718,4 @@ const styles = {
   toastError: {
     background: "#b42318",
   },
-};
+});

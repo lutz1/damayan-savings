@@ -1,52 +1,36 @@
-# Multi-App Setup (Single Firebase Project)
+# Apps Directory
 
-This repository now includes 3 separate frontend apps that share the same Firebase project and Firestore database:
+This directory is now largely deprecated. The separate frontend applications have been consolidated into the main application:
 
-- `apps/user-app` (port 3001)
-- `apps/merchant-app` (port 3002)
-- `apps/rider-app` (port 3003)
+- **User App** (`apps/user-app`) → Integrated into `src/pages/marketplace/` and `src/pages/member/`
+- **Merchant App** (`apps/merchant-app`) → Integrated into `src/pages/merchant/`
+- **Rider App** (`apps/rider-app`) → Integrated into `src/pages/rider/`
 
-All apps import Firebase setup from:
+## Current Structure
 
-- `shared/firebase/firebaseClient.js`
+All user interfaces are now accessible from the main `src/` directory with role-based routing:
 
-## Environment Variables
+- **Marketplace** (User Shop): `/marketplace/*` routes in `src/pages/marketplace/`
+- **Merchant Portal**: `/merchant/*` routes in `src/pages/merchant/`
+- **Rider Dashboard**: `/rider/*` routes in `src/pages/rider/`
+- **Member Dashboard**: `/member/*` routes in `src/pages/member/`
+- **Admin Dashboard**: `/admin/*` routes in `src/pages/admin/`
 
-Use the same Firebase values for all apps. In each app folder, create a `.env` file with:
+## Running the Application
 
-```env
-VITE_FIREBASE_API_KEY=...
-VITE_FIREBASE_AUTH_DOMAIN=...
-VITE_FIREBASE_PROJECT_ID=...
-VITE_FIREBASE_STORAGE_BUCKET=...
-VITE_FIREBASE_MESSAGING_SENDER_ID=...
-VITE_FIREBASE_APP_ID=...
-VITE_FIREBASE_SECONDARY_API_KEY=... # optional
-```
-
-`REACT_APP_*` names are also supported by the shared module for backward compatibility.
-
-## Install
-
-Run once per app:
+From the repository root, run the consolidated application:
 
 ```bash
-npm install --prefix apps/user-app
-npm install --prefix apps/merchant-app
-npm install --prefix apps/rider-app
+npm install
+npm start      # or npm run dev
+npm run build
 ```
 
-## Run
+All features (user, merchant, rider, admin, member) are now part of a single Vite application with unified routing.
 
-From the repository root:
+## Historical Reference
 
-```bash
-npm run dev:user
-npm run dev:merchant
-npm run dev:rider
-```
-
-## Data Model (Shared)
+Previously, this repository contained 3 separate Vite applications sharing Firebase resources. For historical information about the old app structure, see archived documentation or git history.
 
 All apps read/write the same Firestore collections, so role-based security must stay in Firestore rules.
 

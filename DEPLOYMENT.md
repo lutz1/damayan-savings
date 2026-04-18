@@ -138,14 +138,14 @@ VITE_USER_APP_URL=https://lutz1.github.io/damayan-savings/user
 All apps share the same Firebase project but use separate app instances via `createFirebaseClients()`:
 
 ```javascript
-// src/firebase.js (main app)
+// src/firebase.js (main app initialization)
 const { auth, db } = createFirebaseClients("MainApp");
 
-// apps/rider-app/src/App.jsx
-const { auth, db } = createFirebaseClients("RiderApp");
+// src/pages/merchant/merchantDashboard.jsx
+const { auth, db, storage } = createFirebaseClients("MerchantApp");
 
-// apps/merchant-app/src/App.jsx
-const { auth, db } = createFirebaseClients("MerchantApp");
+// src/pages/rider/riderDashboard.jsx
+const { auth, db, storage } = createFirebaseClients("RiderApp");
 ```
 
 This ensures:

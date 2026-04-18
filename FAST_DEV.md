@@ -90,47 +90,50 @@ Then test:
 
 ### 🚀 Fastest Setup
 ```powershell
-.\dev-start.ps1 all
-# All 4 apps start automatically in separate terminals
+# Install dependencies once (from root)
+npm install
+
+# Start unified dev server
+npm start  # or npm run dev
+
+# Access all features at http://localhost:5173
 ```
 
-### 📁 Quick Navigation
+### 📁 Project Structure
 ```powershell
-# From root, open terminal in any app:
-cd apps/rider-app
-cd apps/merchant-app
-cd apps/user-app
-
-# OR double-click the .bat files
+src/
+├── pages/
+│   ├── admin/          ← Admin dashboard
+│   ├── merchant/       ← Merchant portal (formerly apps/merchant-app)
+│   ├── rider/          ← Rider dashboard (formerly apps/rider-app)
+│   ├── member/         ← Member dashboard
+│   └── marketplace/    ← Shopping interface (formerly apps/user-app)
+├── components/         ← Shared components
+├── utils/              ← Shared utilities
+└── App.jsx             ← Main router and role-based routing
 ```
 
 ### 🔧 Install Dependencies
 ```powershell
-# For individual app:
-cd apps/rider-app
+# Install once from root (all features included)
 npm install
-
-# For all apps at once:
-cd apps/rider-app && npm install
-cd ../merchant-app && npm install
-cd ../user-app && npm install
 ```
 
 ### 🐛 Debugging
-- **Main app issues?** Terminal 1 shows logs for main + admin/member features
-- **Rider-app issues?** Terminal 2 shows logs for rider platform
-- **Merchant-app issues?** Terminal 3 shows logs for merchant platform
-- **User-app issues?** Terminal 4 shows logs for user shopping
+- All features (Admin, Merchant, Rider, Member, Marketplace) are in a single dev server
+- Check browser console and terminal for errors
+- Use role-based login to test different portals:
+  - Admin/CEO: `/login`
+  - Merchant: `/login/merchant`
+  - Rider: `/rider/login`
+  - Member/User: `/login` (various member roles)
 
 ### ⚙️ Build for Production
 ```powershell
-# Build main app
+# Build unified application (all features included)
 npm run build
 
-# Build all sub-apps
-cd apps/rider-app && npm run build
-cd ../merchant-app && npm run build
-cd ../user-app && npm run build
+# Output: dist/ folder ready for deployment
 ```
 
 ---
@@ -166,50 +169,42 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 ## Useful npm Scripts
 
-### Per App (run from app directory)
+### Main Commands (unified application)
 ```powershell
-npm run dev        # Start dev server
+npm start          # Start dev server (Vite)
+npm run dev        # Same as npm start
 npm run build      # Build for production
 npm run preview    # Preview production build locally
 npm test           # Run tests
-```
-
-### Root (main app only)
-```powershell
-npm start          # Same as npm run dev
-npm run test       # Run tests
+npm run test:run   # Run tests once
 ```
 
 ---
 
 ## Environment Variables
 
-All apps share `.env.production` for production settings:
-- `REACT_APP_API_BASE_URL` - Backend API URL
-- `VITE_RIDER_APP_URL` - Rider-app production URL
-- `VITE_MERCHANT_APP_URL` - Merchant-app production URL
-- `VITE_USER_APP_URL` - User-app production URL
+For production settings, use `.env.production`:
+- `VITE_API_BASE_URL` - Backend API URL
+- `VITE_GOOGLE_MAPS_API_KEY` - Google Maps for merchant store settings
+- `VITE_GOOGLE_MAPS_MAP_ID` - Google Maps Map ID
 
-For local dev, these are auto-detected based on `http://localhost:xxxx` ports.
+For local dev, these are auto-detected based on `http://localhost` ports.
 
 ---
 
 ## Quick Reference
 
 | Need | Command |
-|------|---------|
-| Start all 4 apps | `.\dev-start.ps1 all` |
-| Start rider-app only | `.\dev-start.ps1 rider` |
-| Start merchant-app only | `.\dev-start.ps1 merchant` |
-| Start user-app only | `.\dev-start.ps1 user` |
-| Start main app only | `.\dev-start.ps1 main` |
-| Navigate to rider-app | Double-click `go-rider.bat` or `cd apps/rider-app` |
-| Navigate to merchant-app | Double-click `go-merchant.bat` or `cd apps/merchant-app` |
-| Navigate to user-app | Double-click `go-user.bat` or `cd apps/user-app` |
-| Check main app | `http://localhost:5173` |
-| Check rider-app | `http://localhost:3003` |
-| Check merchant-app | `http://localhost:3002` |
-| Check user-app | `http://localhost:3001` |
+|------|---------|  
+| Start dev server | `npm start` |
+| Build for production | `npm run build` |
+| Run tests | `npm test` |
+| Access application | `http://localhost:5173` |
+| Admin login | `/login` → username: admin |
+| Merchant login | `/login/merchant` → merchant account |
+| Rider login | `/rider/login` → rider account |
+| Member login | `/login` → member account |
+| Marketplace | `/marketplace/shop` |
 
 ---
 

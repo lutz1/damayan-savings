@@ -31,7 +31,7 @@ import {
   isMerchantOrderNew,
   isMerchantOrderPreparing,
   isMerchantOrderCompleted,
-} from "../merchantOrderFlow";
+} from "./lib/merchantOrderFlow";
 import MerchantBottomNav from "../components/MerchantBottomNav";
 
 // Material Symbols Icon Component
