@@ -1211,6 +1211,7 @@ app.post("/api/transfer-profit", async (req, res) => {
         // Update entry status
         transaction.update(entryRef, {
           profitStatus: "Claimed",
+          profit: 0,
           profitClaimedAmount: numAmount,
           profitClaimedAt: new Date(),
         });

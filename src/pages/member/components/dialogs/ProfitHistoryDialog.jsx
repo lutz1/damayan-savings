@@ -77,7 +77,7 @@ const ProfitHistoryDialog = ({
                   textShadow: "1px 1px 4px #000",
                 }}
               >
-                ₱{Number(t.profit || 0).toLocaleString()}
+                ₱{Number(t.profitStatus === "Claimed" ? (t.profitClaimedAmount || t.profit || 0) : (t.profit || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </Typography>
 
               <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 1 }}>
@@ -134,36 +134,46 @@ const ProfitHistoryDialog = ({
                   mt: 1.5,
                 }}
               >
-                <Typography
-                  variant="body2"
-                  sx={{ color: "rgba(217,233,255,0.74)", fontWeight: 600 }}
-                >
-                  Capital:{" "}
-                  <strong style={{ color: "#d9e9ff" }}>
-                    ₱{Number(t.amount || 0).toLocaleString()}
-                  </strong>
-                </Typography>
-                <Button
-                  variant="contained"
-                  size="small"
-                  disabled={
-                    transferLoading ||
-                    !t.profit ||
-                    t.profit <= 0 ||
-                    t.profitStatus === "Claimed"
-                  }
-                  sx={{
-                    fontWeight: 600,
-                    borderRadius: 1.5,
-                    textTransform: "none",
-                    fontSize: 12,
-                    background: "linear-gradient(135deg, #2f7de1, #0f4ea8)",
-                    "&:hover": { background: "linear-gradient(135deg, #3b8cf2, #1a5fc5)" },
-                  }}
-                  onClick={() => onTransferProfit(t)}
-                >
-                  Transfer
-                </Button>
+                <Box>
+                  <Typography
+                    variant="body2"
+                    sx={{ color: "rgba(217,233,255,0.74)", fontWeight: 600, mb: 0.5 }}
+                  >
+                    Entry Date: <strong style={{ color: "#d9e9ff" }}>{t.date instanceof Date ? t.date.toDateString() : t.date?.toDate?.().toDateString?.() || "N/A"}</strong>
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{ color: "rgba(217,233,255,0.74)", fontWeight: 600 }}
+                  >
+                    Capital:{" "}
+                    <strong style={{ color: "#d9e9ff" }}>
+                      ₱{Number(t.amount || 0).toLocaleString()}
+                    </strong>
+                  </Typography>
+                </Box>
+                {t.profitStatus !== "Claimed" && (
+                  <Button
+                    variant="contained"
+                    size="small"
+                    disabled={
+                      transferLoading ||
+                      !t.profit ||
+                      t.profit <= 0
+                    }
+                    sx={{
+                      fontWeight: 600,
+                      borderRadius: 1.5,
+                      textTransform: "none",
+                      fontSize: 12,
+                      background: "linear-gradient(135deg, #2f7de1, #0f4ea8)",
+                      "&:hover": { background: "linear-gradient(135deg, #3b8cf2, #1a5fc5)" },
+                      minWidth: 80,
+                    }}
+                    onClick={() => onTransferProfit(t)}
+                  >
+                    {transferLoading ? "⏳ Claiming..." : "Claim"}
+                  </Button>
+                )}
               </Box>
             </Box>
           ))

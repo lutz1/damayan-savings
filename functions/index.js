@@ -3061,6 +3061,7 @@ exports.transferProfit = functions.https.onRequest(async (req, res) => {
 
         transaction.update(entryRef, {
           profitStatus: "Claimed",
+          profit: 0,
           profitClaimedAmount: numAmount,
           profitClaimedAt: new Date(),
         });

@@ -35,6 +35,8 @@ import {
 import MemberBottomNav from "../../components/MemberBottomNav";
 import { auth, db } from "../../firebase";
 import ProfitHistoryDialog from "./components/dialogs/ProfitHistoryDialog";
+import DetailedProfitClaimsHistory from "./components/dialogs/DetailedProfitClaimsHistory";
+import CapitalShareProfitBreakdown from "./components/dialogs/CapitalShareProfitBreakdown";
 import AddCapitalShareDialog from "./components/dialogs/AddCapitalShareDialog";
 import EntryDetailsDialog from "./components/dialogs/EntryDetailsDialog";
 import CapitalShareVoucherDialog from "./components/dialogs/CapitalShareVoucherDialog";
@@ -78,6 +80,8 @@ const MemberCapitalShare = () => {
   const [capitalAmount, setCapitalAmount] = useState(0);
   const [monthlyProfit, setMonthlyProfit] = useState(0);
   const [profitHistoryOpen, setProfitHistoryOpen] = useState(false);
+  const [profitBreakdownOpen, setProfitBreakdownOpen] = useState(false);
+  const [detailedProfitHistoryOpen, setDetailedProfitHistoryOpen] = useState(false);
   const [profitConfirmOpen, setProfitConfirmOpen] = useState(false);
   const [selectedProfitEntry, setSelectedProfitEntry] = useState(null);
   const [profitTransferLoading, setProfitTransferLoading] = useState(false);
@@ -262,6 +266,9 @@ const MemberCapitalShare = () => {
         }
 
         if (monthsDue <= 0) return;
+
+        // 🔹 Skip if already claimed - don't re-accumulate profit
+        if (data.profitStatus === "Claimed") return;
 
         const totalProfitToAdd = profitBase * 0.05 * monthsDue;
         updates.push({
@@ -728,8 +735,29 @@ const MemberCapitalShare = () => {
   };
 
   const handleTransferProfitEntry = async (entry) => {
-    if (!entry?.profit || entry.profit <= 0) return alert("No profit available for this entry.");
-    if (entry.profitStatus === "Claimed") return alert("This profit was already claimed.");
+    // Validation
+    if (!entry || !entry.id) {
+      return alert("❌ Invalid entry. Please try again.");
+    }
+
+    if (entry.profitStatus === "Claimed") {
+      return alert("✅ This profit has already been claimed.");
+    }
+
+    if (!entry.profit || entry.profit <= 0) {
+      return alert("⏳ No profit available yet. Please wait for the next profit cycle.");
+    }
+
+    // Prevent duplicate submissions
+    if (profitTransferLoading) {
+      return alert("⏳ A claim is already in progress. Please wait...");
+    }
+
+    setProfitTransferLoading(true);
+    const timeoutId = setTimeout(() => {
+      setProfitTransferLoading(false);
+      alert("❌ Request timeout. Please try again.");
+    }, 30000); // 30 second timeout
 
     try {
       const idToken = await user.getIdToken();
@@ -742,22 +770,32 @@ const MemberCapitalShare = () => {
         body: JSON.stringify({
           entryId: entry.id,
           amount: entry.profit,
-          clientRequestId: `profit_${entry.id}`,
+          clientRequestId: `profit_${entry.id}_${Date.now()}`,
         }),
       });
 
+      clearTimeout(timeoutId);
       const result = await response.json();
 
       if (!response.ok) {
-        return alert(`❌ ${result.error || "Profit transfer failed."}`);
+        setProfitTransferLoading(false);
+        const errorMsg = result.error || result.message || "Profit transfer failed.";
+        return alert(`❌ ${errorMsg}`);
       }
 
-      alert(`✅ Transferred ₱${entry.profit.toLocaleString()} to wallet.`);
+      // Success
+      alert(`✅ ₱${Number(entry.profit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} has been credited to your e-wallet!`);
+      
+      // Refresh data
+      setProfitTransferLoading(false);
+      setProfitConfirmOpen(false);
       await fetchUserData(user);
       await fetchTransactionHistory();
     } catch (err) {
+      clearTimeout(timeoutId);
+      setProfitTransferLoading(false);
       console.error("Profit transfer error:", err);
-      alert("❌ Profit transfer failed.");
+      alert("❌ Network error. Please check your connection and try again.");
     }
   };
 
@@ -1001,17 +1039,21 @@ const MemberCapitalShare = () => {
                   <Box sx={{ fontSize: "2.5rem" }}>📈</Box>
                 </Box>
                 <Typography variant="body2" sx={{ opacity: 1, mb: 1, color: "#fff", fontSize: "0.85rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, textShadow: '1px 1px 4px #000' }}>
-                  Monthly Profit (5%)
+                  Unclaimed Profit (5%)
                 </Typography>
-                <Typography variant="h5" sx={{ fontWeight: 800, color: "#e8eefe", mb: 1, lineHeight: 1, textShadow: '1px 1px 4px #000' }}>
+                <Typography variant="body2" sx={{ opacity: 0.7, mb: 2, color: "#FFB74D", fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.3 }}>
+                  Total from all active entries
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: 800, color: "#e8eefe", mb: 2, lineHeight: 1, textShadow: '1px 1px 4px #000' }}>
                   ₱{Number(monthlyProfit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </Typography>
                 <Button
-                  variant="contained"
-                  sx={{ mt: 2, width: "100%", fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 2.5, py: 1, fontSize: 15, background: `linear-gradient(135deg, ${memberPalette.azure}, ${memberPalette.royal})` }}
-                  onClick={() => setProfitHistoryOpen(true)}
+                  variant="outlined"
+                  size="small"
+                  sx={{ width: "100%", fontWeight: 700, borderRadius: 1.5, textTransform: 'none', px: 2, py: 0.8, fontSize: 13, borderColor: "#90CAF9", color: "#90CAF9" }}
+                  onClick={() => setDetailedProfitHistoryOpen(true)}
                 >
-                  View Monthly Profit History
+                  View Detailed History
                 </Button>
               </Box>
             </Card>
@@ -1262,6 +1304,22 @@ const MemberCapitalShare = () => {
             setSelectedProfitEntry(entry);
             setProfitConfirmOpen(true);
           }}
+        />
+
+        {/* Capital Share Profit Breakdown Dialog */}
+        <CapitalShareProfitBreakdown
+          open={profitBreakdownOpen}
+          onClose={() => setProfitBreakdownOpen(false)}
+          transactionHistory={transactionHistory}
+        />
+
+        {/* Detailed Profit Claims History Dialog */}
+        <DetailedProfitClaimsHistory
+          open={detailedProfitHistoryOpen}
+          onClose={() => setDetailedProfitHistoryOpen(false)}
+          transactionHistory={transactionHistory}
+          onTransferProfit={handleTransferProfitEntry}
+          transferLoading={profitTransferLoading}
         />
 
         {/* Confirm Profit Transfer Dialog */}
