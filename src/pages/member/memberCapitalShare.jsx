@@ -85,7 +85,7 @@ const MemberCapitalShare = () => {
   const [profitConfirmOpen, setProfitConfirmOpen] = useState(false);
   const [selectedProfitEntry, setSelectedProfitEntry] = useState(null);
   const [profitTransferLoading, setProfitTransferLoading] = useState(false);
-  const [claimingEntryId, setClaimingEntryId] = useState(null);
+  const [claimingPeriodKey, setClaimingPeriodKey] = useState(null);
   const [entryDetailsOpen, setEntryDetailsOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [addingEntry, setAddingEntry] = useState(false);
@@ -307,7 +307,45 @@ const MemberCapitalShare = () => {
       collection(db, "capitalShareEntries"),
       where("userId", "==", user.uid)
     );
-    const snap = await getDocs(q);
+    const depositsQuery = query(
+      collection(db, "deposits"),
+      where("userId", "==", user.uid)
+    );
+
+    const [snap, depositsSnap] = await Promise.all([getDocs(q), getDocs(depositsQuery)]);
+
+    const monthlyTransfersByEntry = {};
+    depositsSnap.docs.forEach((depositDoc) => {
+      const depositData = depositDoc.data();
+      if (depositData.type !== "Monthly Profit Transfer") return;
+      if (!depositData.sourceEntryId) return;
+
+      const rawClaimedAt = depositData.createdAt;
+      const claimedAt =
+        rawClaimedAt && typeof rawClaimedAt.toDate === "function"
+          ? rawClaimedAt.toDate()
+          : rawClaimedAt instanceof Date
+            ? rawClaimedAt
+            : rawClaimedAt
+              ? new Date(rawClaimedAt)
+              : null;
+
+      if (!claimedAt || Number.isNaN(claimedAt.getTime())) return;
+
+      if (!monthlyTransfersByEntry[depositData.sourceEntryId]) {
+        monthlyTransfersByEntry[depositData.sourceEntryId] = [];
+      }
+
+      monthlyTransfersByEntry[depositData.sourceEntryId].push({
+        amount: Number(depositData.amount || 0),
+        claimedAt,
+        periodKey: depositData.periodKey || null,
+      });
+    });
+
+    Object.keys(monthlyTransfersByEntry).forEach((entryId) => {
+      monthlyTransfersByEntry[entryId].sort((a, b) => a.claimedAt.getTime() - b.claimedAt.getTime());
+    });
     
     // 🔹 Sort entries by createdAt in JavaScript (ascending)
     const sortedDocs = snap.docs.sort((a, b) => {
@@ -388,6 +426,29 @@ const MemberCapitalShare = () => {
         entry.transferableAfterDate = entry.transferableAfterDate.toDate();
       } else if (entry.transferableAfterDate && typeof entry.transferableAfterDate === "number") {
         entry.transferableAfterDate = new Date(entry.transferableAfterDate);
+      }
+
+      // Merge claim history from deposits to preserve legacy monthly claims without periodKey.
+      const depositClaimHistory = monthlyTransfersByEntry[entry.id] || [];
+      const existingClaimHistory = Array.isArray(entry.profitClaimHistory)
+        ? entry.profitClaimHistory.map((claim) => ({
+            periodKey: claim?.periodKey || null,
+            amount: Number(claim?.amount || 0),
+            claimedAt:
+              claim?.claimedAt && typeof claim.claimedAt.toDate === "function"
+                ? claim.claimedAt.toDate()
+                : claim?.claimedAt instanceof Date
+                  ? claim.claimedAt
+                  : claim?.claimedAt
+                    ? new Date(claim.claimedAt)
+                    : null,
+          })).filter((claim) => claim.claimedAt && !Number.isNaN(claim.claimedAt.getTime()))
+        : [];
+
+      if (depositClaimHistory.length > 0 || existingClaimHistory.length > 0) {
+        const merged = [...existingClaimHistory, ...depositClaimHistory];
+        merged.sort((a, b) => a.claimedAt.getTime() - b.claimedAt.getTime());
+        entry.profitClaimHistory = merged;
       }
 
       entry.profitStatus = entry.profitStatus || "Pending";
@@ -759,15 +820,16 @@ const MemberCapitalShare = () => {
     }
 
     // Prevent duplicate submissions
-    if (claimingEntryId) {
-      console.warn("Claim already in progress for:", claimingEntryId);
+    if (claimingPeriodKey) {
+      console.warn("Claim already in progress for period:", claimingPeriodKey);
       return alert("⏳ A claim is already in progress. Please wait...");
     }
 
-    setClaimingEntryId(entry.id);
+    const periodKey = entry.periodKey || `${entry.id}_legacy`;
+    setClaimingPeriodKey(periodKey);
     setProfitTransferLoading(true);
     const timeoutId = setTimeout(() => {
-      setClaimingEntryId(null);
+      setClaimingPeriodKey(null);
       setProfitTransferLoading(false);
       alert("❌ Request timeout. Please try again.");
     }, 30000); // 30 second timeout
@@ -786,6 +848,7 @@ const MemberCapitalShare = () => {
       const requestPayload = {
         entryId: entry.id,
         amount: profitAmount,
+        periodKey,
         clientRequestId: `profit_${entry.id}_${Date.now()}`,
       };
 
@@ -800,6 +863,7 @@ const MemberCapitalShare = () => {
         body: JSON.stringify({
           entryId: entry.id,
           amount: profitAmount,
+          periodKey,
           clientRequestId: `profit_${entry.id}_${Date.now()}`,
         }),
       });
@@ -811,7 +875,7 @@ const MemberCapitalShare = () => {
       console.log("📥 Cloud Function response body:", result);
 
       if (!response.ok) {
-        setClaimingEntryId(null);
+        setClaimingPeriodKey(null);
         setProfitTransferLoading(false);
         const errorMsg = result.error || result.message || "Profit transfer failed.";
         console.error("❌ Cloud Function error response:", { status: response.status, error: result });
@@ -824,7 +888,7 @@ const MemberCapitalShare = () => {
       
       // Refresh data
       console.log("🔄 Refreshing user data...");
-      setClaimingEntryId(null);
+      setClaimingPeriodKey(null);
       setProfitTransferLoading(false);
       setDetailedProfitHistoryOpen(false);
       await fetchUserData(user);
@@ -832,7 +896,7 @@ const MemberCapitalShare = () => {
       console.log("✅ Data refreshed");
     } catch (err) {
       clearTimeout(timeoutId);
-      setClaimingEntryId(null);
+      setClaimingPeriodKey(null);
       setProfitTransferLoading(false);
       console.error("❌ Profit transfer error:", err.message, err);
       alert("❌ Network error. Please check your connection and try again.");
@@ -1360,7 +1424,7 @@ const MemberCapitalShare = () => {
           transactionHistory={transactionHistory}
           onTransferProfit={handleTransferProfitEntry}
           transferLoading={profitTransferLoading}
-          claimingEntryId={claimingEntryId}
+          claimingPeriodKey={claimingPeriodKey}
         />
 
         {/* Confirm Profit Transfer Dialog */}

@@ -34,8 +34,9 @@ const DetailedProfitClaimsHistory = ({
   transactionHistory = [],
   onTransferProfit,
   transferLoading = false,
-  claimingEntryId = null,
+  claimingPeriodKey = null,
 }) => {
+  console.log("🔔 DetailedProfitClaimsHistory rendered with claimingPeriodKey:", claimingPeriodKey);
   const [expandedEntry, setExpandedEntry] = useState(null);
 
   // Group claims by source entry
@@ -521,9 +522,32 @@ const DetailedProfitClaimsHistory = ({
                                 return new Date(date);
                               };
 
+                              const toPeriodKey = (date) => {
+                                const d = toDateSafe(date);
+                                if (!d || Number.isNaN(d.getTime())) return null;
+                                const y = d.getFullYear();
+                                const m = String(d.getMonth() + 1).padStart(2, "0");
+                                const day = String(d.getDate()).padStart(2, "0");
+                                return `${y}-${m}-${day}`;
+                              };
+
                               const now = new Date();
                               const monthlyRate = entry.monthlyProfitRate;
                               const profitTimeline = [];
+
+                              const claimedPeriods = Array.isArray(entry.claimedProfitPeriods)
+                                ? entry.claimedProfitPeriods
+                                : [];
+                              const claimedPeriodSet = new Set(claimedPeriods);
+                              const claimedDateMap = {};
+
+                              if (Array.isArray(entry.profitClaimHistory)) {
+                                entry.profitClaimHistory.forEach((claim) => {
+                                  if (claim?.periodKey) {
+                                    claimedDateMap[claim.periodKey] = claim.claimedAt || null;
+                                  }
+                                });
+                              }
 
                               // First pass: identify which period was claimed (if any)
                               let claimedPeriodIndex = -1;
@@ -576,6 +600,7 @@ const DetailedProfitClaimsHistory = ({
                                 profitTimeline.push({
                                   periodStartDate: new Date(periodStartDate),
                                   periodEndDate: new Date(periodEndDate),
+                                  periodKey: toPeriodKey(periodStartDate),
                                   amount: monthlyRate,
                                   isClaimed: isClaimed,
                                   claimDate: claimDateForPeriod,
@@ -585,18 +610,58 @@ const DetailedProfitClaimsHistory = ({
                                 periodNumber += 1;
                               }
 
+                              // Reconstruct legacy claims (without periodKey) by claim date ordering.
+                              const legacyClaims = Array.isArray(entry.profitClaimHistory)
+                                ? entry.profitClaimHistory
+                                    .filter((claim) => !claim?.periodKey && claim?.claimedAt)
+                                    .map((claim) => ({
+                                      claimedAt: toDateSafe(claim.claimedAt),
+                                      amount: Number(claim.amount || 0),
+                                    }))
+                                    .filter((claim) => claim.claimedAt && !Number.isNaN(claim.claimedAt.getTime()))
+                                    .sort((a, b) => a.claimedAt.getTime() - b.claimedAt.getTime())
+                                : [];
+
+                              legacyClaims.forEach((claim) => {
+                                let bestIndex = -1;
+                                for (let i = 0; i < profitTimeline.length; i += 1) {
+                                  const row = profitTimeline[i];
+                                  const rowAlreadyClaimed = claimedPeriodSet.has(row.periodKey);
+                                  if (rowAlreadyClaimed) continue;
+                                  if (row.periodEndDate <= claim.claimedAt) {
+                                    bestIndex = i;
+                                  }
+                                }
+
+                                if (bestIndex >= 0) {
+                                  const key = profitTimeline[bestIndex].periodKey;
+                                  claimedPeriodSet.add(key);
+                                  claimedDateMap[key] = claim.claimedAt;
+                                }
+                              });
+
                               return profitTimeline.map((timeline, idx) => (
+                                (() => {
+                                  const periodKey = timeline.periodKey;
+                                  const claimedFromArray = periodKey ? claimedPeriodSet.has(periodKey) : false;
+                                  const isClaimed = claimedFromArray || timeline.isClaimed;
+                                  const rowClaimDate = claimedFromArray
+                                    ? (claimedDateMap[periodKey] || entry.profitClaimedAt)
+                                    : timeline.claimDate;
+                                  const isRowLoading = claimingPeriodKey === periodKey;
+
+                                  return (
                                 <TableRow
                                   key={idx}
                                   sx={{
                                     bgcolor:
-                                      timeline.isClaimed
+                                      isClaimed
                                         ? "rgba(76, 175, 80, 0.1)"
                                         : "rgba(255, 152, 0, 0.05)",
                                     borderBottom:
                                       "1px solid rgba(144, 202, 249, 0.1)",
                                     "&:hover": {
-                                      bgcolor: timeline.isClaimed
+                                      bgcolor: isClaimed
                                         ? "rgba(76, 175, 80, 0.15)"
                                         : "rgba(255, 152, 0, 0.1)",
                                     },
@@ -623,7 +688,7 @@ const DetailedProfitClaimsHistory = ({
                                     )}
                                   </TableCell>
                                   <TableCell sx={{ fontSize: 12 }}>
-                                    {timeline.isClaimed ? (
+                                    {isClaimed ? (
                                       <Chip
                                         label="✅ Claimed"
                                         size="small"
@@ -648,15 +713,15 @@ const DetailedProfitClaimsHistory = ({
                                     )}
                                   </TableCell>
                                   <TableCell sx={{ color: "#fff", fontSize: 12 }}>
-                                    {timeline.isClaimed ? (
+                                    {isClaimed ? (
                                       <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#81C784" }}>
-                                        {formatDate(timeline.claimDate)}
+                                        {formatDate(rowClaimDate)}
                                       </Typography>
                                     ) : (
                                       <Button
                                         size="small"
                                         variant="contained"
-                                        disabled={timeline.periodEndDate > now || claimingEntryId === entry.id}
+                                        disabled={timeline.periodEndDate > now || isRowLoading}
                                         sx={{
                                           fontWeight: 700,
                                           borderRadius: 1,
@@ -667,11 +732,11 @@ const DetailedProfitClaimsHistory = ({
                                           px: 1.5,
                                           transition: "all 0.3s ease",
                                           opacity: timeline.periodEndDate > now ? 0.5 : 1,
-                                          background: claimingEntryId === entry.id ? "linear-gradient(135deg, #FFB74D, #FF9800)" : (timeline.periodEndDate > now ? "rgba(255, 152, 0, 0.2)" : "linear-gradient(135deg, #2f7de1, #0f4ea8)"),
-                                          color: claimingEntryId === entry.id ? "#000" : (timeline.periodEndDate > now ? "#FFB74D" : "#fff"),
+                                          background: isRowLoading ? "linear-gradient(135deg, #FFB74D, #FF9800)" : (timeline.periodEndDate > now ? "rgba(255, 152, 0, 0.2)" : "linear-gradient(135deg, #2f7de1, #0f4ea8)"),
+                                          color: isRowLoading ? "#000" : (timeline.periodEndDate > now ? "#FFB74D" : "#fff"),
                                           "&:hover": {
-                                            background: claimingEntryId === entry.id ? "linear-gradient(135deg, #FFB74D, #FF9800)" : (timeline.periodEndDate > now ? "rgba(255, 152, 0, 0.3)" : "linear-gradient(135deg, #3b8cf2, #1a5fc5)"),
-                                            transform: claimingEntryId === entry.id ? "scale(1)" : "scale(1.02)",
+                                            background: isRowLoading ? "linear-gradient(135deg, #FFB74D, #FF9800)" : (timeline.periodEndDate > now ? "rgba(255, 152, 0, 0.3)" : "linear-gradient(135deg, #3b8cf2, #1a5fc5)"),
+                                            transform: isRowLoading ? "scale(1)" : "scale(1.02)",
                                           },
                                           "&:disabled": {
                                             opacity: 0.5,
@@ -685,6 +750,7 @@ const DetailedProfitClaimsHistory = ({
                                             profitStatus: "Pending",
                                             amount: entry.amount,
                                             date: entry.createdAt,
+                                            periodKey,
                                           };
                                           console.log("🔵 Timeline Claim button clicked with data:", claimData);
                                           console.log("Entry data:", entry);
@@ -692,11 +758,13 @@ const DetailedProfitClaimsHistory = ({
                                           onTransferProfit(claimData);
                                         }}
                                       >
-                                        {claimingEntryId === entry.id ? "⏳ Claiming..." : "Claim"}
+                                        {isRowLoading ? "⏳ Claiming..." : "Claim"}
                                       </Button>
                                     )}
                                   </TableCell>
                                 </TableRow>
+                                  );
+                                })()
                               ));
                             })()}
                           </TableBody>

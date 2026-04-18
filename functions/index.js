@@ -3005,9 +3005,9 @@ exports.transferProfit = functions.https.onRequest(async (req, res) => {
       }
 
       const idToken = authHeader.substring("Bearer ".length);
-      const { entryId, amount, clientRequestId } = req.body || {};
+      const { entryId, amount, clientRequestId, periodKey } = req.body || {};
 
-      if (!entryId || !amount) {
+      if (!entryId || !amount || !periodKey) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
@@ -3044,10 +3044,26 @@ exports.transferProfit = functions.https.onRequest(async (req, res) => {
         if (!entryDoc.exists) throw new Error("Entry not found");
 
         const entryData = entryDoc.data();
+        console.log("[transfer-profit] 📋 Entry data:", {
+          userId: entryData.userId,
+          profitStatus: entryData.profitStatus,
+          status: entryData.status,
+          profit: entryData.profit,
+          periodKey,
+          claimedProfitPeriods: entryData.claimedProfitPeriods,
+          requestedAmount: numAmount,
+        });
+
         if (entryData.userId !== userId) throw new Error("Not your entry");
         
-        // Validate profit status - allow claim only if not already claimed
-        if (entryData.profitStatus === "Claimed") throw new Error("Profit unavailable");
+        // Check duplicate claim by period key (supports monthly claims per entry)
+        const claimedPeriods = Array.isArray(entryData.claimedProfitPeriods)
+          ? entryData.claimedProfitPeriods
+          : [];
+        if (claimedPeriods.includes(periodKey)) {
+          console.warn("[transfer-profit] ⚠️ Period already claimed:", { entryId, periodKey });
+          throw new Error("Profit unavailable");
+        }
         
         // Use the amount passed from frontend (already calculated monthly profit)
         if (!amount || numAmount <= 0) throw new Error("Invalid profit amount");
@@ -3065,10 +3081,16 @@ exports.transferProfit = functions.https.onRequest(async (req, res) => {
         });
 
         transaction.update(entryRef, {
-          profitStatus: "Claimed",
+          profitStatus: "Pending",
           profit: 0,
           profitClaimedAmount: numAmount,
           profitClaimedAt: new Date(),
+          claimedProfitPeriods: admin.firestore.FieldValue.arrayUnion(periodKey),
+          profitClaimHistory: admin.firestore.FieldValue.arrayUnion({
+            periodKey,
+            amount: numAmount,
+            claimedAt: new Date(),
+          }),
         });
 
         transaction.set(depositRef, {
@@ -3077,6 +3099,7 @@ exports.transferProfit = functions.https.onRequest(async (req, res) => {
           status: "Approved",
           type: "Monthly Profit Transfer",
           sourceEntryId: entryId,
+          periodKey,
           createdAt: new Date(),
         });
 
