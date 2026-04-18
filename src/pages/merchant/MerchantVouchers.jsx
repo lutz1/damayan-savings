@@ -36,7 +36,7 @@ import {
 import QrScanner from "qr-scanner";
 import { useNavigate } from "react-router-dom";
 import { createFirebaseClients } from "../../../shared/firebase/firebaseClient";
-import MerchantBottomNav from "../components/MerchantBottomNav";
+import MerchantBottomNav from "./components/MerchantBottomNav";
 
 const { auth, db } = createFirebaseClients("MerchantApp");
 

@@ -22,7 +22,7 @@ import { createFirebaseClients } from "../../../shared/firebase/firebaseClient";
 const { auth, db, storage } = createFirebaseClients("MerchantApp");
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import MerchantBottomNav from "../components/MerchantBottomNav";
+import MerchantBottomNav from "./components/MerchantBottomNav";
 
 const MaterialIcon = ({ name, size = 24, filled = false }) => (
   <span

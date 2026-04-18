@@ -30,7 +30,7 @@ import {
   isMerchantOrderInDelivery,
   isMerchantOrderCompleted,
 } from "./lib/merchantOrderFlow";
-import MerchantBottomNav from "../components/MerchantBottomNav";
+import MerchantBottomNav from "./components/MerchantBottomNav";
 
 // Material Symbols Icon Component
 const MaterialIcon = ({ name, filled = false, weight = 400, size = 24, sx = {} }) => (

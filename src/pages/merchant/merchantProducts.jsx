@@ -35,7 +35,7 @@ import {
 } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import { createFirebaseClients } from "../../../shared/firebase/firebaseClient";
-import MerchantBottomNav from "../components/MerchantBottomNav";
+import MerchantBottomNav from "./components/MerchantBottomNav";
 const { auth, db, storage } = createFirebaseClients("MerchantApp");
 
 // Material Symbols Icon Component
