@@ -34,6 +34,7 @@ const DetailedProfitClaimsHistory = ({
   transactionHistory = [],
   onTransferProfit,
   transferLoading = false,
+  claimingEntryId = null,
 }) => {
   const [expandedEntry, setExpandedEntry] = useState(null);
 
@@ -655,7 +656,7 @@ const DetailedProfitClaimsHistory = ({
                                       <Button
                                         size="small"
                                         variant="contained"
-                                        disabled={timeline.periodEndDate > now || transferLoading}
+                                        disabled={timeline.periodEndDate > now || claimingEntryId === entry.id}
                                         sx={{
                                           fontWeight: 700,
                                           borderRadius: 1,
@@ -666,11 +667,11 @@ const DetailedProfitClaimsHistory = ({
                                           px: 1.5,
                                           transition: "all 0.3s ease",
                                           opacity: timeline.periodEndDate > now ? 0.5 : 1,
-                                          background: transferLoading ? "linear-gradient(135deg, #FFB74D, #FF9800)" : (timeline.periodEndDate > now ? "rgba(255, 152, 0, 0.2)" : "linear-gradient(135deg, #2f7de1, #0f4ea8)"),
-                                          color: transferLoading ? "#000" : (timeline.periodEndDate > now ? "#FFB74D" : "#fff"),
+                                          background: claimingEntryId === entry.id ? "linear-gradient(135deg, #FFB74D, #FF9800)" : (timeline.periodEndDate > now ? "rgba(255, 152, 0, 0.2)" : "linear-gradient(135deg, #2f7de1, #0f4ea8)"),
+                                          color: claimingEntryId === entry.id ? "#000" : (timeline.periodEndDate > now ? "#FFB74D" : "#fff"),
                                           "&:hover": {
-                                            background: transferLoading ? "linear-gradient(135deg, #FFB74D, #FF9800)" : (timeline.periodEndDate > now ? "rgba(255, 152, 0, 0.3)" : "linear-gradient(135deg, #3b8cf2, #1a5fc5)"),
-                                            transform: transferLoading ? "scale(1)" : "scale(1.02)",
+                                            background: claimingEntryId === entry.id ? "linear-gradient(135deg, #FFB74D, #FF9800)" : (timeline.periodEndDate > now ? "rgba(255, 152, 0, 0.3)" : "linear-gradient(135deg, #3b8cf2, #1a5fc5)"),
+                                            transform: claimingEntryId === entry.id ? "scale(1)" : "scale(1.02)",
                                           },
                                           "&:disabled": {
                                             opacity: 0.5,
@@ -683,10 +684,11 @@ const DetailedProfitClaimsHistory = ({
                                             profit: timeline.amount,
                                             profitStatus: "Pending",
                                             amount: entry.amount,
+                                            date: entry.createdAt,
                                           });
                                         }}
                                       >
-                                        {transferLoading ? "⏳ Claiming..." : "Claim"}
+                                        {claimingEntryId === entry.id ? "⏳ Claiming..." : "Claim"}
                                       </Button>
                                     )}
                                   </TableCell>

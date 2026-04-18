@@ -85,6 +85,7 @@ const MemberCapitalShare = () => {
   const [profitConfirmOpen, setProfitConfirmOpen] = useState(false);
   const [selectedProfitEntry, setSelectedProfitEntry] = useState(null);
   const [profitTransferLoading, setProfitTransferLoading] = useState(false);
+  const [claimingEntryId, setClaimingEntryId] = useState(null);
   const [entryDetailsOpen, setEntryDetailsOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [addingEntry, setAddingEntry] = useState(false);
@@ -749,18 +750,32 @@ const MemberCapitalShare = () => {
     }
 
     // Prevent duplicate submissions
-    if (profitTransferLoading) {
+    if (claimingEntryId) {
       return alert("⏳ A claim is already in progress. Please wait...");
     }
 
+    setClaimingEntryId(entry.id);
     setProfitTransferLoading(true);
     const timeoutId = setTimeout(() => {
+      setClaimingEntryId(null);
       setProfitTransferLoading(false);
       alert("❌ Request timeout. Please try again.");
     }, 30000); // 30 second timeout
 
     try {
       const idToken = await user.getIdToken();
+      const profitAmount = Number(entry.profit) || 0;
+
+      if (profitAmount <= 0) {
+        throw new Error("Profit amount is invalid");
+      }
+
+      console.log("Claiming profit:", {
+        entryId: entry.id,
+        amount: profitAmount,
+        clientRequestId: `profit_${entry.id}_${Date.now()}`,
+      });
+
       const response = await fetch("https://us-central1-amayan-savings.cloudfunctions.net/transferProfit", {
         method: "POST",
         headers: {
@@ -769,7 +784,7 @@ const MemberCapitalShare = () => {
         },
         body: JSON.stringify({
           entryId: entry.id,
-          amount: entry.profit,
+          amount: profitAmount,
           clientRequestId: `profit_${entry.id}_${Date.now()}`,
         }),
       });
@@ -778,21 +793,25 @@ const MemberCapitalShare = () => {
       const result = await response.json();
 
       if (!response.ok) {
+        setClaimingEntryId(null);
         setProfitTransferLoading(false);
         const errorMsg = result.error || result.message || "Profit transfer failed.";
+        console.error("Cloud Function error:", result);
         return alert(`❌ ${errorMsg}`);
       }
 
       // Success
-      alert(`✅ ₱${Number(entry.profit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} has been credited to your e-wallet!`);
+      alert(`✅ ₱${profitAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} has been credited to your e-wallet!`);
       
       // Refresh data
+      setClaimingEntryId(null);
       setProfitTransferLoading(false);
-      setProfitConfirmOpen(false);
+      setDetailedProfitHistoryOpen(false);
       await fetchUserData(user);
       await fetchTransactionHistory();
     } catch (err) {
       clearTimeout(timeoutId);
+      setClaimingEntryId(null);
       setProfitTransferLoading(false);
       console.error("Profit transfer error:", err);
       alert("❌ Network error. Please check your connection and try again.");
@@ -1320,6 +1339,7 @@ const MemberCapitalShare = () => {
           transactionHistory={transactionHistory}
           onTransferProfit={handleTransferProfitEntry}
           transferLoading={profitTransferLoading}
+          claimingEntryId={claimingEntryId}
         />
 
         {/* Confirm Profit Transfer Dialog */}
