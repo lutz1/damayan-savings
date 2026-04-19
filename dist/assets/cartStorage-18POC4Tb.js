@@ -1,1 +1,0 @@
-function e(){try{const r=JSON.parse(localStorage.getItem("cart")||"[]");return Array.isArray(r)?r:[]}catch{return[]}}function c(r){localStorage.setItem("cart",JSON.stringify(r))}function n(r){return r.reduce((a,t)=>a+Number(t.price||0)*Number(t.qty||0),0)}function u(r){return r.reduce((a,t)=>a+Number(t.qty||0),0)}export{n as a,u as c,e as r,c as s};
