@@ -48,6 +48,45 @@ const mapContainerStyle = {
   borderRadius: "12px",
 };
 
+// Skeleton Loader Component
+const SkeletonProductCard = () => (
+  <div className="product-card" style={{ pointerEvents: 'none' }}>
+    <div className="product-image-wrapper" style={{ 
+      backgroundColor: "#e5e7eb", 
+      borderRadius: "8px",
+      animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite"
+    }}>
+      <div style={{ width: "100%", height: "180px", backgroundColor: "#d1d5db" }} />
+    </div>
+    <div className="product-info">
+      <p className="product-category" style={{ 
+        backgroundColor: "#e5e7eb", 
+        height: "12px", 
+        borderRadius: "4px",
+        animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        marginBottom: "8px"
+      }} />
+      <h4 className="product-name" style={{ 
+        backgroundColor: "#e5e7eb", 
+        height: "16px", 
+        borderRadius: "4px",
+        animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        marginBottom: "8px"
+      }} />
+      <div className="product-footer-info">
+        <span style={{ 
+          backgroundColor: "#e5e7eb", 
+          height: "16px", 
+          width: "60px",
+          borderRadius: "4px",
+          display: "inline-block",
+          animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite"
+        }} />
+      </div>
+    </div>
+  </div>
+);
+
 const toNumber = (value) => {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
@@ -95,6 +134,7 @@ export default function ShopPage({
   const [storeDeliveryFees, setStoreDeliveryFees] = useState({}); // Store ID -> delivery fee
   const [storeDistances, setStoreDistances] = useState({}); // Store ID -> distance in km
   const [userDeliveryCoords, setUserDeliveryCoords] = useState(null);
+  const [distancesLoading, setDistancesLoading] = useState(true); // Loading state for distance calculations
 
   const googleMapsApiKey =
     import.meta.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY || "";
@@ -441,6 +481,7 @@ export default function ShopPage({
     if (!allStores.length) {
       setStoreDeliveryFees({});
       setStoreDistances({});
+      setDistancesLoading(false);
       return;
     }
 
@@ -454,8 +495,12 @@ export default function ShopPage({
       });
       setStoreDeliveryFees(defaultFees);
       setStoreDistances(defaultDistances);
+      setDistancesLoading(false);
       return;
     }
+
+    // Start loading distances
+    setDistancesLoading(true);
 
     const calculateFeesAndDistances = async () => {
       const fees = {};
@@ -497,15 +542,33 @@ export default function ShopPage({
 
       setStoreDeliveryFees(fees);
       setStoreDistances(distances);
+      setDistancesLoading(false); // Done loading
     };
 
     calculateFeesAndDistances();
   }, [userDeliveryCoords, visibleProducts, merchants]);
 
   const frequentlyBoughtProducts = useMemo(() => {
-    // Show promotional products regardless of category filter
-    return products.slice(0, 8);
-  }, [products]);
+    // Show promotional products from selected category, within 8km delivery range
+    return products
+      .filter(product => {
+        // Filter by selected category
+        const categoryMatch =
+          !category || category === "all" || normalizeCategory(product.category) === normalizeCategory(category);
+        return categoryMatch;
+      })
+      .slice(0, 8)
+      .filter(product => {
+        // Filter by delivery distance
+        const distanceKm = storeDistances[product.merchantId];
+        
+        // If distance not calculated yet, show the product (loading)
+        if (distanceKm === undefined || distanceKm === null) return true;
+        
+        // Once calculated, only show if store is <= 8 km away
+        return distanceKm <= 8;
+      });
+  }, [products, category, storeDistances]);
 
   const displayCategories = useMemo(() => {
     return categories;
@@ -639,7 +702,7 @@ export default function ShopPage({
       />
 
       {/* Promotions Carousel - Advertisements Display */}
-      {frequentlyBoughtProducts.length > 0 && (
+      {!distancesLoading && frequentlyBoughtProducts.length > 0 && (
         <section className="promo-carousel" style={{ position: "relative" }}>
           <div className="carousel-container">
             <div 
@@ -840,50 +903,58 @@ export default function ShopPage({
       )}
 
       {/* Most Bought Products Section */}
-      {visibleProducts.length > 0 && (
-        <section className="frequently-bought-products-section">
+      {(distancesLoading || frequentlyBoughtProducts.length > 0) && (
+        <section className="frequently-bought-products-section" style={{ paddingBottom: "100px" }}>
           <div className="section-header">
             <h2 className="section-title">Most Bought Products</h2>
             <a className="see-all-link" href="#">View all</a>
           </div>
           <div className="products-grid-2col">
-            {visibleProducts.slice(0, 6).map((product) => (
-              <div key={product.id} className="product-card">
-                <div className="product-image-wrapper">
-                  <img 
-                    src={product.image || "/icons/icon-192x192.png"} 
-                    alt={product.name || "Product"} 
-                    className="product-image"
-                    onError={(e) => {
-                      e.target.src = "/icons/icon-192x192.png";
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="favorite-btn-small"
-                    onClick={() => setToast({ message: "Added to favorites", type: "success" })}
-                    title="Add to favorites"
-                  >
-                    ❤️
-                  </button>
-                </div>
-                <div className="product-info">
-                  <p className="product-category">{product.category || "Product"}</p>
-                  <h4 className="product-name">{product.name || "Product"}</h4>
-                  <div className="product-footer-info">
-                    <span className="product-price">{currency(product.price || 0)}</span>
+            {distancesLoading ? (
+              // Show skeleton loaders while loading
+              Array.from({ length: 6 }).map((_, idx) => (
+                <SkeletonProductCard key={`skeleton-${idx}`} />
+              ))
+            ) : (
+              // Show actual products once loaded
+              frequentlyBoughtProducts.slice(0, 6).map((product) => (
+                <div key={product.id} className="product-card">
+                  <div className="product-image-wrapper">
+                    <img 
+                      src={product.image || "/icons/icon-192x192.png"} 
+                      alt={product.name || "Product"} 
+                      className="product-image"
+                      onError={(e) => {
+                        e.target.src = "/icons/icon-192x192.png";
+                      }}
+                    />
                     <button
                       type="button"
-                      className="add-to-cart-btn"
-                      onClick={() => addToCart(product)}
-                      title="Add to cart"
+                      className="favorite-btn-small"
+                      onClick={() => setToast({ message: "Added to favorites", type: "success" })}
+                      title="Add to favorites"
                     >
-                      +
+                      ❤️
                     </button>
                   </div>
+                  <div className="product-info">
+                    <p className="product-category">{product.category || "Product"}</p>
+                    <h4 className="product-name">{product.name || "Product"}</h4>
+                    <div className="product-footer-info">
+                      <span className="product-price">{currency(product.price || 0)}</span>
+                      <button
+                        type="button"
+                        className="add-to-cart-btn"
+                        onClick={() => addToCart(product)}
+                        title="Add to cart"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </section>
       )}

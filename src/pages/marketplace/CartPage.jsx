@@ -226,7 +226,7 @@ export default function CartPage() {
 
   const subtotal = useMemo(() => cartSubtotal(cart), [cart]);
   const itemCount = useMemo(() => cartCount(cart), [cart]);
-  const serviceFee = 10; // Fixed service fee
+  const serviceFee = 8; // Fixed service fee
   const total = subtotal + deliveryFee + serviceFee;
 
   // Group cart items by merchantId
@@ -279,145 +279,17 @@ export default function CartPage() {
       return;
     }
 
-    setPlacingOrder(true);
+    // Save checkout data to localStorage
+    const checkoutData = {
+      deliveryFee,
+      currentLocation,
+      currentCityProvince,
+      deliveryCoordinates,
+    };
+    localStorage.setItem("checkoutData", JSON.stringify(checkoutData));
 
-    try {
-      const userSnap = await getDoc(doc(db, "users", user.uid));
-      const userData = userSnap.exists() ? userSnap.data() : {};
-      const customerName = userData.username || userData.name || user.displayName || "Customer";
-      const customerEmail = userData.email || user.email || "";
-
-      const productMerchantMap = {};
-      for (const item of cart) {
-        const productId = String(item.id || "");
-        if (!productId || productMerchantMap[productId]) continue;
-
-        if (item.merchantId) {
-          productMerchantMap[productId] = item.merchantId;
-          continue;
-        }
-
-        const productSnap = await getDoc(doc(db, "products", productId));
-        productMerchantMap[productId] = productSnap.exists() ? productSnap.data()?.merchantId || null : null;
-      }
-
-      const groupedByMerchant = cart.reduce((acc, item) => {
-        const merchantId = productMerchantMap[String(item.id || "")];
-        if (!merchantId) return acc;
-        if (!acc[merchantId]) acc[merchantId] = [];
-        acc[merchantId].push(item);
-        return acc;
-      }, {});
-
-      const merchantIds = Object.keys(groupedByMerchant);
-      if (!merchantIds.length) {
-        setToast({ message: "Merchant mapping missing for cart items", type: "error" });
-        setPlacingOrder(false);
-        return;
-      }
-
-      for (const merchantId of merchantIds) {
-        const merchantUserSnap = await getDoc(doc(db, "users", merchantId));
-        const merchantUser = merchantUserSnap.exists() ? merchantUserSnap.data() || {} : {};
-        const merchantApproved = String(merchantUser.merchantStatus || "PENDING_APPROVAL").toUpperCase() === "APPROVED";
-        const merchantOpen = Boolean(merchantUser.open === true);
-
-        if (!merchantApproved || !merchantOpen) {
-          setToast({
-            message: `Store unavailable: ${merchantUser.storeName || merchantUser.name || merchantId.slice(0, 6)}`,
-            type: "error",
-          });
-          setPlacingOrder(false);
-          return;
-        }
-      }
-
-      for (const merchantId of merchantIds) {
-        const merchantItems = groupedByMerchant[merchantId] || [];
-        const merchantSubtotal = merchantItems.reduce(
-          (sum, current) => sum + Number(current.price || 0) * Number(current.qty || 0),
-          0
-        );
-        
-        // Calculate merchant-specific delivery fee based on store location
-        let merchantDeliveryFee = deliveryFee;
-        try {
-          if (deliveryCoordinates) {
-            const merchantSnap = await getDoc(doc(db, "users", merchantId));
-            const merchantData = merchantSnap.exists() ? merchantSnap.data() : null;
-            const storeCoords = extractCoordinates(merchantData);
-
-            if (storeCoords) {
-              const distance = calculateDistance(
-                deliveryCoordinates.lat,
-                deliveryCoordinates.lng,
-                storeCoords.lat,
-                storeCoords.lng
-              );
-              merchantDeliveryFee = calculateCustomerDeliveryFee(distance);
-            }
-          }
-        } catch (error) {
-          console.error("Error calculating merchant delivery fee:", error);
-          // Use the pre-calculated average delivery fee
-        }
-
-        const merchantTotal = merchantSubtotal + merchantDeliveryFee;
-
-        const orderDoc = await addDoc(collection(db, "orders"), {
-          merchantId,
-          customerId: user.uid,
-          riderId: null,
-          customerName,
-          customerEmail,
-          subtotal: merchantSubtotal,
-          deliveryFee: merchantDeliveryFee,
-          total: merchantTotal,
-          status: "NEW",
-          paymentMethod: "COD",
-          paymentStatus: "UNPAID",
-          pickupLocation: { merchantId },
-          dropoffLocation: {
-            address: currentLocation,
-            cityProvince: currentCityProvince || "",
-          },
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-
-        await Promise.all(
-          merchantItems.map((entry) => {
-            const payload = {
-              orderId: orderDoc.id,
-              merchantId,
-              customerId: user.uid,
-              productId: entry.id,
-              name: entry.name || "Product",
-              image: entry.image || "",
-              price: Number(entry.price || 0),
-              quantity: Number(entry.qty || 1),
-              total: Number(entry.price || 0) * Number(entry.qty || 1),
-              createdAt: serverTimestamp(),
-            };
-
-            return Promise.all([
-              addDoc(collection(db, "orders", orderDoc.id, "items"), payload),
-              addDoc(collection(db, "orderItems"), payload),
-            ]);
-          })
-        );
-      }
-
-      setCart([]);
-      saveCart([]);
-      setToast({ message: "Order placed successfully", type: "success" });
-      window.setTimeout(() => navigate("/orders"), 500);
-    } catch (error) {
-      console.error("Checkout failed:", error);
-      setToast({ message: "Checkout failed", type: "error" });
-    } finally {
-      setPlacingOrder(false);
-    }
+    // Navigate to checkout page
+    navigate("/marketplace/checkout");
   };
 
   return (

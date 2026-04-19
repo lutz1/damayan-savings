@@ -50,6 +50,7 @@ const MarketplaceViewAllStores = lazy(() => import("./pages/marketplace/ShopView
 const MarketplaceStore = lazy(() => import("./pages/marketplace/StoreDetailsPage"));
 const MarketplaceAllCart = lazy(() => import("./pages/marketplace/AllCartPage"));
 const MarketplaceCart = lazy(() => import("./pages/marketplace/CartPage"));
+const MarketplaceCheckout = lazy(() => import("./pages/marketplace/ShopCheckoutPage"));
 const MarketplaceAddAddress = lazy(() => import("./pages/marketplace/AddAddressPage"));
 const MerchantLoginPage = lazy(() => import("./pages/merchant/MerchantLoginPage"));
 const MerchantDashboard = lazy(() => import("./pages/merchant/merchantDashboard"));
@@ -424,6 +425,7 @@ function App() {
             <Route path="/marketplace/store/:id" element={<MarketplaceStore />} />
             <Route path="/marketplace/all-carts" element={<MarketplaceAllCart />} />
             <Route path="/marketplace/cart/:merchantId?" element={<MarketplaceCart />} />
+            <Route path="/marketplace/checkout" element={<MarketplaceCheckout />} />
             <Route path="/marketplace/add-address" element={<MarketplaceAddAddress />} />
 
             <Route
