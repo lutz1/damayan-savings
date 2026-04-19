@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Box,
   Container,
@@ -10,7 +11,6 @@ import {
   Tooltip,
   Badge,
   Dialog,
-  Drawer,
 } from "@mui/material";
 import {
   Search as SearchIcon,
@@ -56,11 +56,10 @@ export default function ShopTopNav({
   cartCount = 0,
   onCartClick,
   favoriteStores = [],
-  visibleStores = [],
 }) {
+  const navigate = useNavigate();
   const [listening, setListening] = useState(false);
   const [locationDialogOpen, setLocationDialogOpen] = useState(false);
-  const [favoritesOpen, setFavoritesOpen] = useState(false);
   const recognitionRef = useRef(null);
   const retryCountRef = useRef(0);
   const maxRetries = 2;
@@ -240,10 +239,26 @@ export default function ShopTopNav({
                   "&:hover": {
                     color: "#c0392b",
                     transform: "scale(1.15)"
+                  },
+                  "&:active": {
+                    animation: "pulse 0.6s ease-out"
+                  },
+                  "@keyframes pulse": {
+                    "0%": {
+                      transform: "scale(1)"
+                    },
+                    "50%": {
+                      transform: "scale(1.3)"
+                    },
+                    "100%": {
+                      transform: "scale(1)"
+                    }
                   }
                 }} 
                 aria-label="favorites"
-                onClick={() => setFavoritesOpen(true)}
+                onClick={() => {
+                  navigate('/marketplace/favorites');
+                }}
               >
                 <FavoriteIcon sx={{ fontSize: 20 }} />
               </IconButton>
@@ -342,57 +357,7 @@ export default function ShopTopNav({
         onSelectAddress={handleSelectAddress}
       />
 
-      <Drawer
-        anchor="bottom"
-        open={favoritesOpen}
-        onClose={() => setFavoritesOpen(false)}
-        PaperProps={{
-          sx: {
-            borderRadius: "16px 16px 0 0",
-            maxHeight: "80vh",
-            backgroundColor: "#ffffff",
-          },
-        }}
-      >
-        <Box sx={{ padding: 2, width: "100%" }}>
-          <Typography variant="h6" sx={{ fontWeight: 700, marginBottom: 2, color: "#1e293b" }}>
-            My Favorite Stores
-          </Typography>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-            {favoriteStores.length === 0 ? (
-              <Typography sx={{ color: "#64748b", fontSize: "14px", textAlign: "center", padding: 2 }}>
-                No favorite stores yet
-              </Typography>
-            ) : (
-              visibleStores
-                .filter(store => favoriteStores.includes(store.id))
-                .map(store => (
-                  <Box
-                    key={store.id}
-                    sx={{
-                      padding: "12px",
-                      borderRadius: "8px",
-                      border: "1px solid #e2e8f0",
-                      cursor: "pointer",
-                      transition: "all 0.2s ease",
-                      "&:hover": {
-                        backgroundColor: "#f8fafc",
-                        borderColor: "#1e67da",
-                      },
-                    }}
-                  >
-                    <Typography sx={{ fontWeight: 600, fontSize: "14px", color: "#1e293b", marginBottom: "4px" }}>
-                      {store.storeName || store.businessName || "Store"}
-                    </Typography>
-                    <Typography sx={{ fontSize: "12px", color: "#64748b" }}>
-                      ⭐ {store.rating || 4.8} • {store.deliveryTime || "20-30 min"}
-                    </Typography>
-                  </Box>
-                ))
-            )}
-          </Box>
-        </Box>
-      </Drawer>
+
     </Box>
   );
 }

@@ -148,7 +148,8 @@ service cloud.firestore {
             "deliveryAddress",
             "deliveryAddressCityProvince",
             "deliveryAddressLocation",
-            "deliveryAddressUpdatedAt"
+            "deliveryAddressUpdatedAt",
+            "favoriteStores"
           ])
         ) ||
         // Admin/CEO

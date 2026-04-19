@@ -45,6 +45,7 @@ const RiderMemberOrders = lazy(() => import("./pages/rider/memberOrders"));
 const RiderLocationAccess = lazy(() => import("./pages/rider/LocationAccess"));
 const RiderApplicationPage = lazy(() => import("./pages/rider/RiderApplicationPage"));
 const MarketplaceShop = lazy(() => import("./pages/marketplace/ShopPage"));
+const MarketplaceMyFavoriteStores = lazy(() => import("./pages/marketplace/ShopMyFavoriteStores"));
 const MarketplaceStore = lazy(() => import("./pages/marketplace/StoreDetailsPage"));
 const MarketplaceCart = lazy(() => import("./pages/marketplace/CartPage"));
 const MarketplaceAddAddress = lazy(() => import("./pages/marketplace/AddAddressPage"));
@@ -408,7 +409,8 @@ function App() {
               }
             />
 
-            <Route path="/marketplace/shop" element={<MarketplaceShop />} />
+            <Route path="/marketplace/shop" element={<MarketplaceShop isEmbedded={true} />} />
+            <Route path="/marketplace/favorites" element={<MarketplaceMyFavoriteStores />} />
             <Route path="/marketplace/store/:id" element={<MarketplaceStore />} />
             <Route path="/marketplace/cart" element={<MarketplaceCart />} />
             <Route path="/marketplace/add-address" element={<MarketplaceAddAddress />} />

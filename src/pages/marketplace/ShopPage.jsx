@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { GoogleMap, MarkerF, PolylineF, useJsApiLoader } from "@react-google-maps/api";
-import { collection, doc, getDoc, onSnapshot, query, where } from "firebase/firestore";
+import { collection, doc, getDoc, onSnapshot, query, where, updateDoc } from "firebase/firestore";
 import { getDownloadURL, ref as storageRef } from "firebase/storage";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db, storage } from "../../firebase";
@@ -91,10 +91,7 @@ export default function ShopPage({
   const [deliveryAddressCityProvince, setDeliveryAddressCityProvince] = useState("");
   const [shopCategories, setShopCategories] = useState([]);
   const [categoryImages, setCategoryImages] = useState({});
-  const [favoriteStores, setFavoriteStores] = useState(() => {
-    const saved = localStorage.getItem("favoriteStores");
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [favoriteStores, setFavoriteStores] = useState([]);
   const [storeDeliveryFees, setStoreDeliveryFees] = useState({}); // Store ID -> delivery fee
   const [userDeliveryCoords, setUserDeliveryCoords] = useState(null);
 
@@ -214,11 +211,7 @@ export default function ShopPage({
       return undefined;
     }
 
-    if (isEmbedded && products.length > 0) {
-      hasNotifiedLoadedRef.current = true;
-      onLoaded();
-      return undefined;
-    } else if (!isEmbedded) {
+    if (products.length > 0) {
       hasNotifiedLoadedRef.current = true;
       onLoaded();
     }
@@ -328,6 +321,25 @@ export default function ShopPage({
     const timeout = window.setTimeout(() => setToast({ message: "", type: "info" }), 2200);
     return () => window.clearTimeout(timeout);
   }, [toast]);
+
+  // Load favorite stores from Firestore
+  useEffect(() => {
+    if (!userId) {
+      setFavoriteStores([]);
+      return () => {};
+    }
+
+    const unsubscribe = onSnapshot(doc(db, "users", userId), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data() || {};
+        setFavoriteStores(data.favoriteStores || []);
+      } else {
+        setFavoriteStores([]);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [userId]);
 
   // Load user delivery coordinates
   useEffect(() => {
@@ -504,17 +516,29 @@ export default function ShopPage({
     navigate("/");
   };
 
-  const handleToggleFavoriteStore = (storeId) => {
-    const isFavorite = favoriteStores.includes(storeId);
-    const updatedFavorites = isFavorite
-      ? favoriteStores.filter(id => id !== storeId)
-      : [...favoriteStores, storeId];
-    setFavoriteStores(updatedFavorites);
-    localStorage.setItem("favoriteStores", JSON.stringify(updatedFavorites));
-    setToast({
-      message: isFavorite ? "Removed from My Favorite" : "Added to My Favorite",
-      type: "success"
-    });
+  const handleToggleFavoriteStore = async (storeId) => {
+    if (!userId) return;
+    
+    try {
+      const isFavorite = favoriteStores.includes(storeId);
+      const updatedFavorites = isFavorite
+        ? favoriteStores.filter(id => id !== storeId)
+        : [...favoriteStores, storeId];
+      
+      const userRef = doc(db, "users", userId);
+      await updateDoc(userRef, { favoriteStores: updatedFavorites });
+      
+      setToast({
+        message: isFavorite ? "Removed from My Favorite" : "Added to My Favorite",
+        type: "success"
+      });
+    } catch (error) {
+      console.error("Error updating favorites:", error);
+      setToast({
+        message: "Error updating favorites",
+        type: "error"
+      });
+    }
   };
 
   // Auto-scroll carousel
@@ -531,45 +555,24 @@ export default function ShopPage({
   }, [isEmbedded, frequentlyBoughtProducts.length]);
 
   return (
-    <main className={`shop-page ${!isEmbedded ? 'shop-page-full' : ''}`} style={isEmbedded ? { paddingTop: "140px" } : {}}>
+    <main className="shop-page" style={{ paddingTop: "140px" }}>
       {/* ShopTopNav Component - Unified Header with Location & Search */}
-      {isEmbedded && (
-        <ShopTopNav
-          search={search}
-          onSearchChange={(event) => setSearch(event.target.value)}
-          headerHidden={false}
-          locationText="Deliver to"
-          locationSubtext={deliveryAddressCityProvince || deliveryAddress || "Set address"}
-          adHidden={false}
-          onLocationClick={handleLocationClick}
-          onBackClick={handleBackClick}
-          cartCount={itemCount}
-          onCartClick={() => navigate("/marketplace/cart")}
-          favoriteStores={favoriteStores}
-          visibleStores={visibleStores}
-        />
-      )}
-
-      {!isEmbedded && (
-        <header className="hero-section">
-          <div>
-            <p className="eyebrow">Food Market</p>
-            <h1 className="heading">Order From Nearby Stores</h1>
-            <p className="subheading">One place for merchant discovery, cart, and checkout.</p>
-          </div>
-          <div className="hero-actions">
-            <Link to="/marketplace/add-address" className="address-btn">
-              {deliveryAddressCityProvince || deliveryAddress ? "Change Address" : "Set Address"}
-            </Link>
-            <Link to="/dashboard" className="back-link">
-              Dashboard
-            </Link>
-          </div>
-        </header>
-      )}
+      <ShopTopNav
+        search={search}
+        onSearchChange={(event) => setSearch(event.target.value)}
+        headerHidden={false}
+        locationText="Deliver to"
+        locationSubtext={deliveryAddressCityProvince || deliveryAddress || "Set address"}
+        adHidden={false}
+        onLocationClick={handleLocationClick}
+        onBackClick={handleBackClick}
+        cartCount={itemCount}
+        onCartClick={() => navigate("/marketplace/cart")}
+        favoriteStores={favoriteStores}
+      />
 
       {/* Promotions Carousel - Advertisements Display */}
-      {isEmbedded && frequentlyBoughtProducts.length > 0 && (
+      {frequentlyBoughtProducts.length > 0 && (
         <section className="promo-carousel" style={{ position: "relative" }}>
           <div className="carousel-container">
             <div 
@@ -611,7 +614,7 @@ export default function ShopPage({
       )}
 
       {/* Categories Grid - Scrollable */}
-      {isEmbedded && (
+      {displayCategories && displayCategories.length > 0 ? (
         <section className="categories-section">
           <div className="categories-grid-scroll">
             {displayCategories.map((entry) => (
@@ -655,10 +658,10 @@ export default function ShopPage({
             ))}
           </div>
         </section>
-      )}
+      ) : null}
 
       {/* Frequently Bought - Show Stores instead of Products */}
-      {isEmbedded && (
+      {visibleStores.length > 0 && (
         <section className="frequently-bought-section">
           <div className="section-header">
             <h2 className="section-title">Popular Stores</h2>
@@ -758,7 +761,7 @@ export default function ShopPage({
       )}
 
       {/* Most Bought Products Section */}
-      {isEmbedded && visibleProducts.length > 0 && (
+      {visibleProducts.length > 0 && (
         <section className="frequently-bought-products-section">
           <div className="section-header">
             <h2 className="section-title">Most Bought Products</h2>
@@ -807,7 +810,7 @@ export default function ShopPage({
       )}
 
       {/* Cart Summary Bar */}
-      {isEmbedded && itemCount > 0 && (
+      {itemCount > 0 && (
         <footer className="cart-bar">
           <p className="cart-text">Cart {itemCount} items - {currency(subtotal)}</p>
           <Link to="/marketplace/cart" className="cart-checkout">
@@ -817,21 +820,7 @@ export default function ShopPage({
       )}
 
       {/* Bottom Navigation */}
-      {isEmbedded ? (
-        <ShopBottomNav value={activeShopTab} onChange={handleShopTabChange} cartCount={itemCount} />
-      ) : (
-        <nav className="bottom-nav">
-          <Link to="/marketplace/shop" className="nav-item-active">
-            Shop
-          </Link>
-          <Link to="/orders" className="nav-item">
-            Orders
-          </Link>
-          <Link to="/dashboard" className="nav-item">
-            Account
-          </Link>
-        </nav>
-      )}
+      <ShopBottomNav value={activeShopTab} onChange={handleShopTabChange} cartCount={itemCount} />
 
       {/* Toast Notification */}
       {toast.message ? (

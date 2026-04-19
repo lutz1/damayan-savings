@@ -424,6 +424,25 @@
   object-fit: cover;
 }
 
+.favoriteBtn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.2);
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 15;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(4px);
+}
+
 .store-card-content-outside {
   padding: 8px 0;
 }
@@ -781,4 +800,49 @@
 .add-to-cart-btn:hover {
   background: #0fb80f;
   transform: scale(1.1);
+}
+
+/* Favorites Drawer Animations */
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOutToRight {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.favorites-drawer {
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.15);
+}
+
+.favorites-overlay {
+  backdrop-filter: blur(2px);
 }
