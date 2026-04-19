@@ -47,40 +47,52 @@ export default function ShopMyFavoriteStores() {
   useEffect(() => {
     if (!favoriteStoreIds.length) {
       setMerchants({});
-      return;
+      return () => {};
     }
 
     const unsubscribes = [];
 
+    // Keep only currently favorited merchants in state to avoid stale entries.
+    setMerchants((prev) => {
+      const next = {};
+      favoriteStoreIds.forEach((id) => {
+        if (prev[id]) next[id] = prev[id];
+      });
+      return next;
+    });
+
     favoriteStoreIds.forEach((merchantId) => {
-      if (merchants[merchantId]) return;
+      let merchantFallbackUnsub = null;
 
-      const unsubscribe = onSnapshot(
-        doc(db, "users", merchantId),
-        (snap) => {
-          if (snap.exists()) {
-            setMerchants((prev) => ({ ...prev, [merchantId]: { id: merchantId, ...snap.data() } }));
-            return;
+      const unsubscribeUser = onSnapshot(doc(db, "users", merchantId), (snap) => {
+        if (snap.exists()) {
+          setMerchants((prev) => ({ ...prev, [merchantId]: { id: merchantId, ...snap.data() } }));
+          if (merchantFallbackUnsub) {
+            merchantFallbackUnsub();
+            merchantFallbackUnsub = null;
           }
-
-          const unsubscribeMerchant = onSnapshot(
-            doc(db, "merchants", merchantId),
-            (merchantSnap) => {
-              if (merchantSnap.exists()) {
-                setMerchants((prev) => ({ ...prev, [merchantId]: { id: merchantId, ...merchantSnap.data() } }));
-              }
-            }
-          );
-          unsubscribes.push(unsubscribeMerchant);
+          return;
         }
-      );
-      unsubscribes.push(unsubscribe);
+
+        if (!merchantFallbackUnsub) {
+          merchantFallbackUnsub = onSnapshot(doc(db, "merchants", merchantId), (merchantSnap) => {
+            if (merchantSnap.exists()) {
+              setMerchants((prev) => ({ ...prev, [merchantId]: { id: merchantId, ...merchantSnap.data() } }));
+            }
+          });
+        }
+      });
+
+      unsubscribes.push(() => {
+        unsubscribeUser();
+        if (merchantFallbackUnsub) merchantFallbackUnsub();
+      });
     });
 
     return () => {
       unsubscribes.forEach((unsub) => unsub());
     };
-  }, [favoriteStoreIds, merchants]);
+  }, [favoriteStoreIds]);
 
   // Load user delivery coordinates
   useEffect(() => {

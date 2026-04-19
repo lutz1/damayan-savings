@@ -5,6 +5,22 @@ export default function AddAddressPage() {
   const navigate = useNavigate();
   const [address, setAddress] = useState(localStorage.getItem("selectedDeliveryAddress") || "");
   const [cityProvince, setCityProvince] = useState(localStorage.getItem("selectedDeliveryAddressCityProvince") || "");
+  const [lat, setLat] = useState(() => {
+    try {
+      const coords = JSON.parse(localStorage.getItem("selectedDeliveryCoordinates") || "null");
+      return coords?.lat || "";
+    } catch {
+      return "";
+    }
+  });
+  const [lng, setLng] = useState(() => {
+    try {
+      const coords = JSON.parse(localStorage.getItem("selectedDeliveryCoordinates") || "null");
+      return coords?.lng || "";
+    } catch {
+      return "";
+    }
+  });
 
   const handleSave = () => {
     const value = address.trim();
@@ -12,6 +28,12 @@ export default function AddAddressPage() {
 
     localStorage.setItem("selectedDeliveryAddress", value);
     localStorage.setItem("selectedDeliveryAddressCityProvince", cityProvince.trim());
+
+    // Save coordinates if provided
+    if (lat && lng) {
+      const coords = { lat: Number(lat), lng: Number(lng) };
+      localStorage.setItem("selectedDeliveryCoordinates", JSON.stringify(coords));
+    }
 
     const savedRaw = localStorage.getItem("savedAddresses") || "[]";
     let saved = [];
@@ -58,6 +80,30 @@ export default function AddAddressPage() {
           onChange={(event) => setCityProvince(event.target.value)}
           style={styles.input}
           placeholder="Optional"
+        />
+
+        <label style={styles.label} htmlFor="lat">
+          📍 Latitude (for accurate delivery fee)
+        </label>
+        <input
+          id="lat"
+          type="text"
+          value={lat}
+          onChange={(event) => setLat(event.target.value)}
+          style={styles.input}
+          placeholder="e.g., 14.5994"
+        />
+
+        <label style={styles.label} htmlFor="lng">
+          📍 Longitude (for accurate delivery fee)
+        </label>
+        <input
+          id="lng"
+          type="text"
+          value={lng}
+          onChange={(event) => setLng(event.target.value)}
+          style={styles.input}
+          placeholder="e.g., 121.0437"
         />
 
         <div style={styles.actions}>

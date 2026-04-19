@@ -6,7 +6,7 @@ import { collection, doc, getDoc, onSnapshot, query, where, updateDoc } from "fi
 import { getDownloadURL, ref as storageRef } from "firebase/storage";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db, storage } from "../../firebase";
-import { cartCount, cartSubtotal, readCart, saveCart } from "./lib/cartStorage";
+import { cartCount, cartSubtotal, readCart, saveCart, merchantCount } from "./lib/cartStorage";
 import { calculateCustomerDeliveryFee, calculateDistance, extractCoordinates } from "../../lib/deliveryPricing";
 import ShopTopNav from "./components/ShopTopNav";
 import ShopBottomNav from "./components/ShopBottomNav";
@@ -458,6 +458,7 @@ export default function ShopPage({
   }, [categories]);
 
   const itemCount = useMemo(() => cartCount(cart), [cart]);
+  const storeCount = useMemo(() => merchantCount(cart), [cart]);
   const subtotal = useMemo(() => cartSubtotal(cart), [cart]);
 
   const handleShopTabChange = (tab) => {
@@ -665,7 +666,7 @@ export default function ShopPage({
         <section className="frequently-bought-section">
           <div className="section-header">
             <h2 className="section-title">Popular Stores</h2>
-            <a className="see-all-link" href="#">View all</a>
+            <Link className="see-all-link" to="/marketplace/stores">View all</Link>
           </div>
           <div className="products-grid-vertical">
             {visibleStores.length === 0 ? (
@@ -809,18 +810,8 @@ export default function ShopPage({
         </section>
       )}
 
-      {/* Cart Summary Bar */}
-      {itemCount > 0 && (
-        <footer className="cart-bar">
-          <p className="cart-text">Cart {itemCount} items - {currency(subtotal)}</p>
-          <Link to="/marketplace/cart" className="cart-checkout">
-            Checkout
-          </Link>
-        </footer>
-      )}
-
       {/* Bottom Navigation */}
-      <ShopBottomNav value={activeShopTab} onChange={handleShopTabChange} cartCount={itemCount} />
+      <ShopBottomNav value={activeShopTab} onChange={handleShopTabChange} cartCount={storeCount} />
 
       {/* Toast Notification */}
       {toast.message ? (

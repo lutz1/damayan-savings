@@ -846,3 +846,132 @@
 .favorites-overlay {
   backdrop-filter: blur(2px);
 }
+
+.view-all-stores-page {
+  max-width: 460px;
+  margin: 0 auto;
+  font-family: "'Plus Jakarta Sans', Segoe UI, sans-serif";
+  min-height: 100vh;
+  background: #f8fafc;
+  padding-bottom: 20px;
+}
+
+.view-all-stores-header {
+  background: linear-gradient(180deg, #1e67da 0%, #1357c4 100%);
+  color: #ffffff;
+  padding: 14px 16px 12px;
+  border-bottom-left-radius: 16px;
+  border-bottom-right-radius: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 4px 12px rgba(19, 87, 196, 0.2);
+}
+
+.view-all-header-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.view-all-back {
+  border: none;
+  background: transparent;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 6px 4px;
+}
+
+.view-all-title {
+  margin: 0;
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.view-all-search-wrap {
+  margin-bottom: 2px;
+}
+
+.view-all-search {
+  width: 100%;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 13px;
+  outline: none;
+}
+
+.view-all-filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  overflow-x: auto;
+  padding: 0 16px 4px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.view-all-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.view-all-chip {
+  border: 1px solid #dbe4ef;
+  background: #ffffff;
+  color: #1e67da;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 7px 10px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.view-all-chip.active {
+  background: #1e67da;
+  border-color: #1e67da;
+  color: #ffffff;
+}
+
+.view-all-store-list {
+  display: grid;
+  gap: 12px;
+  padding: 0 16px;
+}
+
+.view-all-store-wrapper {
+  margin-bottom: 6px;
+}
+
+.view-all-content {
+  margin-top: 0;
+}
+
+.view-all-description {
+  font-size: 12px;
+  color: #64748b;
+  margin: 0 0 8px;
+  line-height: 1.4;
+}
+
+.view-all-meta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 600;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.view-all-empty {
+  margin: 24px 0;
+  text-align: center;
+  color: #64748b;
+  font-weight: 600;
+}

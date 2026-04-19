@@ -28,7 +28,7 @@ const ShopBottomNav = ({ value, onChange, cartCount = 0, activeTab = "food" }) =
   const navItems = [
     { label: "Food", value: "food", icon: "restaurant", action: "change" },
     { label: "Grocery", value: "grocery", icon: "shopping_basket", action: "change" },
-    { label: "Market", value: "cart", icon: "storefront", action: "change" },
+    { label: "Carts", value: "carts", icon: "shopping_cart", action: "navigate", path: "/marketplace/all-carts" },
     { label: "Account", value: "account", icon: "account_circle", action: "change" },
   ];
 
@@ -74,7 +74,7 @@ const ShopBottomNav = ({ value, onChange, cartCount = 0, activeTab = "food" }) =
                 cursor: "pointer",
               }}
             >
-              {item.value === "cart" ? (
+              {item.value === "carts" && cartCount > 0 ? (
                 <Badge color="error" badgeContent={cartCount} max={99}>
                   <MaterialIcon name={item.icon} filled={isActive} />
                 </Badge>

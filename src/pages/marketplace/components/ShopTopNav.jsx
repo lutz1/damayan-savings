@@ -263,16 +263,6 @@ export default function ShopTopNav({
                 <FavoriteIcon sx={{ fontSize: 20 }} />
               </IconButton>
             </Tooltip>
-            <IconButton
-              size="small"
-              sx={{ color: "#ffffff" }}
-              aria-label="cart"
-              onClick={onCartClick}
-            >
-              <Badge color="error" badgeContent={cartCount} max={99}>
-                <ShoppingCart />
-              </Badge>
-            </IconButton>
           </Stack>
 
           <TextField

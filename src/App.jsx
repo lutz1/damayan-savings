@@ -46,7 +46,9 @@ const RiderLocationAccess = lazy(() => import("./pages/rider/LocationAccess"));
 const RiderApplicationPage = lazy(() => import("./pages/rider/RiderApplicationPage"));
 const MarketplaceShop = lazy(() => import("./pages/marketplace/ShopPage"));
 const MarketplaceMyFavoriteStores = lazy(() => import("./pages/marketplace/ShopMyFavoriteStores"));
+const MarketplaceViewAllStores = lazy(() => import("./pages/marketplace/ShopViewAllStores"));
 const MarketplaceStore = lazy(() => import("./pages/marketplace/StoreDetailsPage"));
+const MarketplaceAllCart = lazy(() => import("./pages/marketplace/AllCartPage"));
 const MarketplaceCart = lazy(() => import("./pages/marketplace/CartPage"));
 const MarketplaceAddAddress = lazy(() => import("./pages/marketplace/AddAddressPage"));
 const MerchantLoginPage = lazy(() => import("./pages/merchant/MerchantLoginPage"));
@@ -63,7 +65,14 @@ function App() {
   const splashAlreadyShown = sessionStorage.getItem("appSplashShown") === "true";
   const [initialized, setInitialized] = useState(false);
   const [role, setRole] = useState(() => localStorage.getItem("userRole"));
-  const appBase = window.location.pathname.startsWith("/damayan-savings") ? "/damayan-savings" : "";
+  const envBase = String(import.meta.env.BASE_URL || "/").replace(/\/$/, "");
+  const appBase = envBase && envBase !== "/"
+    ? envBase
+    : window.location.pathname.startsWith("/damayan-savings")
+      ? "/damayan-savings"
+      : window.location.pathname.startsWith("/amayan-savings")
+        ? "/amayan-savings"
+        : "";
   const [showSplash, setShowSplash] = useState(() => !skipSplashAfterLogin && !splashAlreadyShown);
 
   useEffect(() => {
@@ -411,8 +420,10 @@ function App() {
 
             <Route path="/marketplace/shop" element={<MarketplaceShop isEmbedded={true} />} />
             <Route path="/marketplace/favorites" element={<MarketplaceMyFavoriteStores />} />
+            <Route path="/marketplace/stores" element={<MarketplaceViewAllStores />} />
             <Route path="/marketplace/store/:id" element={<MarketplaceStore />} />
-            <Route path="/marketplace/cart" element={<MarketplaceCart />} />
+            <Route path="/marketplace/all-carts" element={<MarketplaceAllCart />} />
+            <Route path="/marketplace/cart/:merchantId?" element={<MarketplaceCart />} />
             <Route path="/marketplace/add-address" element={<MarketplaceAddAddress />} />
 
             <Route
