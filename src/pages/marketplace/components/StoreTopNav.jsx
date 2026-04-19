@@ -1,8 +1,25 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AppBar, Box, CardMedia, IconButton, Stack, Toolbar, Typography } from "@mui/material";
-import { ArrowBack as ArrowBackIcon, FavoriteBorder as FavoriteBorderIcon, Star as StarIcon } from "@mui/icons-material";
+import { ArrowBack as ArrowBackIcon, FavoriteBorder as FavoriteBorderIcon, Star as StarIcon, LocationOn as LocationOnIcon } from "@mui/icons-material";
 
 const FALLBACK_IMAGE = "/icons/icon-192x192.png";
+
+// Extract City and Province from full address
+// Format: "Barangay, City, Province" -> "City, Province"
+// or "Macopa, Visayan Village, Tagum, Davao del Norte" -> "Tagum, Davao del Norte"
+const extractCityProvince = (fullAddress) => {
+  if (!fullAddress || typeof fullAddress !== "string") return fullAddress;
+  
+  const parts = fullAddress.split(",").map(p => p.trim());
+  
+  // If we have at least 3 parts, take the last 2 (City and Province)
+  if (parts.length >= 3) {
+    return parts.slice(-2).join(", ");
+  }
+  
+  // Otherwise return the full address
+  return fullAddress;
+};
 
 export default function StoreTopNav({ store, loading, onBack, onFavorite, fadeEnd = 160 }) {
   const [infoOpacity, setInfoOpacity] = useState(1);
@@ -125,53 +142,56 @@ export default function StoreTopNav({ store, loading, onBack, onFavorite, fadeEn
         </AppBar>
       </Box>
 
-      <Box
-        sx={{
-          bgcolor: "#f5f5f5",
-          pt: 6,
-          pb: 2,
-          borderBottom: "1px solid #e0e0e0",
-          opacity: infoOpacity,
-          transform: `translateY(-${(1 - infoOpacity) * 1}px)`,
-          transition: "opacity 1ms ease-out, transform 1ms ease-out",
-          willChange: "opacity, transform",
-        }}
-      >
-        <Stack spacing={0.75} alignItems="center" sx={{ textAlign: "center", px: 2 }}>
-          <Typography variant="h5" fontWeight={700}>
-            {store.storeName || "Store"}
-          </Typography>
-          <Stack direction="row" spacing={0.75} alignItems="center">
-            <StarIcon sx={{ fontSize: 18, color: "#ffb300" }} />
-            <Typography variant="body2" color="#607d8b">
-              {ratingLabel}
+        <Stack
+          sx={{
+            bgcolor: "#f5f5f5",
+            pt: 6,
+            pb: 2,
+            borderBottom: "1px solid #e0e0e0",
+            opacity: infoOpacity,
+            transform: `translateY(-${(1 - infoOpacity) * 1}px)`,
+            transition: "opacity 1ms ease-out, transform 1ms ease-out",
+            willChange: "opacity, transform",
+          }}
+        >
+          <Stack spacing={0.75} alignItems="center" sx={{ textAlign: "center", px: 2 }}>
+            <Typography variant="h5" fontWeight={700}>
+              {store.storeName || "Store"}
             </Typography>
-          </Stack>
-          <Stack spacing={0.5} alignItems="center">
-            {store.location && (
-              <Typography variant="body2" color="#455a64">
-                {store.location}
+            <Stack direction="row" spacing={0.75} alignItems="center">
+              <StarIcon sx={{ fontSize: 18, color: "#ffb300" }} />
+              <Typography variant="body2" color="#607d8b">
+                {ratingLabel}
               </Typography>
-            )}
-            {store.hours && (
-              <Typography variant="body2" color="#455a64">
-                Hours: {store.hours}
-              </Typography>
-            )}
-            {store.deliveryTime && (
-              <Typography variant="body2" color="#455a64">
-                Delivery time: {store.deliveryTime}
-              </Typography>
-            )}
-            {(store.deliveryRadiusKm || store.deliveryRatePerKm) && (
-              <Typography variant="body2" color="#455a64">
-                Delivery fee: {store.deliveryRatePerKm ? `₱${store.deliveryRatePerKm}/km` : "-"}
-                {store.deliveryRadiusKm ? ` within ${store.deliveryRadiusKm} km` : ""}
-              </Typography>
-            )}
+            </Stack>
+            <Stack spacing={0.5} alignItems="center">
+              {store.location && (
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <LocationOnIcon sx={{ fontSize: 16, color: "#e74c3c" }} />
+                  <Typography variant="body2" color="#455a64">
+                    {extractCityProvince(store.location)}
+                  </Typography>
+                </Stack>
+              )}
+              {store.hours && (
+                <Typography variant="body2" color="#455a64">
+                  Hours: {store.hours}
+                </Typography>
+              )}
+              {store.deliveryTime && (
+                <Typography variant="body2" color="#455a64">
+                  Delivery time: {store.deliveryTime}
+                </Typography>
+              )}
+              {(store.deliveryRadiusKm || store.deliveryRatePerKm) && (
+                <Typography variant="body2" color="#455a64">
+                  Delivery fee: {store.deliveryRatePerKm ? `₱${store.deliveryRatePerKm}/km` : "-"}
+                  {store.deliveryRadiusKm ? ` within ${store.deliveryRadiusKm} km` : ""}
+                </Typography>
+              )}
+            </Stack>
           </Stack>
         </Stack>
-      </Box>
     </Box>
   );
 }

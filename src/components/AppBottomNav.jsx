@@ -107,7 +107,6 @@ const AppBottomNav = ({ open, onToggleSidebar, layout = "bottom" }) => {
       { label: "Users", value: "/admin/user-management", icon: <PieChartIcon /> },
       { label: "Rider Apps", value: "/admin/rider-applications", icon: <RiderApplicationsIcon /> },
       { label: "Merchants", value: "merchants-menu", icon: <MerchantIcon />, isMenu: true },
-      { label: "Product Management", value: "/admin/products", icon: <ProductApprovalIcon /> },
       { label: "Voucher Records", value: "/admin/voucher-records", icon: <VoucherIcon /> },
       { label: "Password Reset", value: "/admin/password-reset-management", icon: <LockResetIcon /> },
       { label: "Transactions", value: "transactions-menu", icon: <TransactionIcon />, isMenu: true },
@@ -398,33 +397,49 @@ const AppBottomNav = ({ open, onToggleSidebar, layout = "bottom" }) => {
           <CategoryIcon fontSize="small" sx={{ color: "#1976d2" }} />
           <span>Categories</span>
         </MenuItem>
-      </Menu>
+        <MenuItem
+          onClick={() => handleMerchantMenuItemClick("/admin/products")}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            py: 1.5,
+            px: 2,
+            "&:hover": {
+              backgroundColor: "rgba(25, 118, 210, 0.1)",
+            },
+          }}
+        >
+          <ProductApprovalIcon fontSize="small" sx={{ color: "#1976d2" }} />
+          <span>Product Management</span>
+    </MenuItem>
+  </Menu>
 
-      {/* Transactions Submenu */}
-      <Menu
-        anchorEl={transactionMenuAnchor}
-        open={Boolean(transactionMenuAnchor)}
-        onClose={() => setTransactionMenuAnchor(null)}
-        disableScrollLock={true}
-        anchorOrigin={{
-          vertical: "top",
-          horizontal: "center",
-        }}
-        transformOrigin={{
-          vertical: "bottom",
-          horizontal: "center",
-        }}
-        PaperProps={{
-          sx: {
-            background: "rgba(255, 255, 255, 0.95)",
-            backdropFilter: "blur(20px)",
-            borderRadius: 2,
-            border: "1px solid rgba(255, 255, 255, 0.2)",
-            boxShadow: "0 8px 32px rgba(31, 38, 135, 0.25)",
-            mt: 1,
-          },
-        }}
-      >
+  {/* Transactions Submenu */}
+  <Menu
+    anchorEl={transactionMenuAnchor}
+    open={Boolean(transactionMenuAnchor)}
+    onClose={() => setTransactionMenuAnchor(null)}
+    disableScrollLock={true}
+    anchorOrigin={{
+      vertical: "top",
+      horizontal: "center",
+    }}
+    transformOrigin={{
+      vertical: "bottom",
+      horizontal: "center",
+    }}
+    PaperProps={{
+      sx: {
+        background: "rgba(255, 255, 255, 0.95)",
+        backdropFilter: "blur(20px)",
+        borderRadius: 2,
+        border: "1px solid rgba(255, 255, 255, 0.2)",
+        boxShadow: "0 8px 32px rgba(31, 38, 135, 0.25)",
+        mt: 1,
+      },
+    }}
+  >
         <MenuItem
           onClick={() => handleTransactionMenuItemClick("/admin/deposits")}
           sx={{

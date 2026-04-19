@@ -9,18 +9,39 @@ import {
   InputAdornment,
   Tooltip,
   Badge,
+  Dialog,
+  Drawer,
 } from "@mui/material";
 import {
   Search as SearchIcon,
   LocationOn,
-  Notifications,
+  Notifications as NotificationsIcon,
   ArrowBack,
   KeyboardVoice as VoiceIcon,
   ShoppingCart,
+  Favorite as FavoriteIcon,
 } from "@mui/icons-material";
 import AdvertisementBanner from "../../../components/AdvertisementBanner";
+import ShopLocationDialog from "./ShopLocationDialog";
 
-const TOP_NAV_COLOR = "#13ec13"; // Green theme
+const TOP_NAV_COLOR = "#1e67da"; // Blue theme (matches ShopLocationDialog)
+
+// Extract City and Province from full address
+// Format: "Barangay, City, Province" -> "City, Province"
+// or "Macopa, Visayan Village, Tagum, Davao del Norte" -> "Tagum, Davao del Norte"
+const extractCityProvince = (fullAddress) => {
+  if (!fullAddress || typeof fullAddress !== "string") return fullAddress;
+  
+  const parts = fullAddress.split(",").map(p => p.trim());
+  
+  // If we have at least 3 parts, take the last 2 (City and Province)
+  if (parts.length >= 3) {
+    return parts.slice(-2).join(", ");
+  }
+  
+  // Otherwise return the full address
+  return fullAddress;
+};
 
 export default function ShopTopNav({
   search,
@@ -34,8 +55,12 @@ export default function ShopTopNav({
   onVoiceError,
   cartCount = 0,
   onCartClick,
+  favoriteStores = [],
+  visibleStores = [],
 }) {
   const [listening, setListening] = useState(false);
+  const [locationDialogOpen, setLocationDialogOpen] = useState(false);
+  const [favoritesOpen, setFavoritesOpen] = useState(false);
   const recognitionRef = useRef(null);
   const retryCountRef = useRef(0);
   const maxRetries = 2;
@@ -136,6 +161,21 @@ export default function ShopTopNav({
     startListening();
   };
 
+  const handleLocationDialogClose = () => {
+    setLocationDialogOpen(false);
+  };
+
+  const handleSelectAddress = (address) => {
+    setLocationDialogOpen(false);
+    if (onLocationClick) {
+      onLocationClick(address);
+    }
+  };
+
+  const handleLocationClick = () => {
+    setLocationDialogOpen(true);
+  };
+
   return (
     <Box
       sx={{
@@ -144,8 +184,10 @@ export default function ShopTopNav({
         left: 0,
         right: 0,
         zIndex: 120,
-        bgcolor: "#fff",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+        background: "linear-gradient(180deg, #1e67da 0%, #1357c4 100%)",
+        boxShadow: "0 4px 12px rgba(19, 87, 196, 0.2)",
+        borderBottomLeftRadius: 16,
+        borderBottomRightRadius: 16,
       }}
     >
       <Container maxWidth="sm" sx={{ pt: 1.5, pb: 1 }}>
@@ -165,10 +207,10 @@ export default function ShopTopNav({
               pointerEvents: headerHidden ? "none" : "auto",
             }}
           >
-            <IconButton size="small" sx={{ color: "#13ec13" }} onClick={onBackClick} aria-label="back">
+            <IconButton size="small" sx={{ color: "#ffffff" }} onClick={onBackClick} aria-label="back">
               <ArrowBack />
             </IconButton>
-            <LocationOn sx={{ opacity: 0.9, color: "#13ec13" }} />
+            <LocationOn sx={{ opacity: 0.9, color: "#ffffff" }} />
             <Box
               sx={{
                 lineHeight: 1,
@@ -178,29 +220,43 @@ export default function ShopTopNav({
                 "&:hover": { opacity: 0.8 },
                 minWidth: 0,
               }}
-              onClick={onLocationClick}
+              onClick={handleLocationClick}
             >
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, whiteSpace: "nowrap", color: "#1e293b" }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, whiteSpace: "nowrap", color: "#ffffff" }}>
                 Deliver to
               </Typography>
-              <Typography variant="caption" sx={{ display: "block", whiteSpace: "nowrap", opacity: 0.8, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {locationSubtext}
+              <Typography variant="caption" sx={{ display: "block", whiteSpace: "nowrap", opacity: 0.9, color: "#ffffff", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {extractCityProvince(locationSubtext)}
               </Typography>
             </Box>
 
             <Box sx={{ flex: 1 }} />
+            <Tooltip title="My Favorites">
+              <IconButton 
+                size="small" 
+                sx={{ 
+                  color: "#ffff",
+                  transition: "transform 0.2s ease, color 0.2s ease",
+                  "&:hover": {
+                    color: "#c0392b",
+                    transform: "scale(1.15)"
+                  }
+                }} 
+                aria-label="favorites"
+                onClick={() => setFavoritesOpen(true)}
+              >
+                <FavoriteIcon sx={{ fontSize: 20 }} />
+              </IconButton>
+            </Tooltip>
             <IconButton
               size="small"
-              sx={{ color: "#1e293b" }}
+              sx={{ color: "#ffffff" }}
               aria-label="cart"
               onClick={onCartClick}
             >
               <Badge color="error" badgeContent={cartCount} max={99}>
                 <ShoppingCart />
               </Badge>
-            </IconButton>
-            <IconButton size="small" sx={{ color: "#1e293b" }} aria-label="notifications">
-              <Notifications />
             </IconButton>
           </Stack>
 
@@ -240,27 +296,27 @@ export default function ShopTopNav({
               ),
             }}
             sx={{
-              bgcolor: "#f1f5f9",
+              bgcolor: "#ffffff",
               borderRadius: 2.5,
-              boxShadow: "none",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
               "& .MuiOutlinedInput-root": {
                 borderRadius: 2.5,
                 fontSize: "15px",
                 fontWeight: 400,
                 color: "#000000",
-                bgcolor: "#f1f5f9",
+                bgcolor: "#ffffff",
                 transition: "all 0.2s ease",
                 "& fieldset": {
                   border: "none",
                 },
                 "&:hover": {
-                  bgcolor: "#e8f5e9",
+                  bgcolor: "#f8fafb",
                 },
                 "&.Mui-focused": {
                   bgcolor: "#ffffff",
-                  boxShadow: "0 0 0 2px rgba(19, 236, 19, 0.1)",
+                  boxShadow: "0 0 0 2px rgba(30, 103, 218, 0.15)",
                   "& .MuiInputAdornment-root .MuiSvgIcon-root": {
-                    color: "#13ec13",
+                    color: "#1e67da",
                   },
                 },
               },
@@ -275,9 +331,68 @@ export default function ShopTopNav({
             }}
           />
 
-          <AdvertisementBanner hidden={adHidden} />
+          <AdvertisementBanner hidden={true} />
         </Stack>
       </Container>
+
+      <ShopLocationDialog
+        open={locationDialogOpen}
+        onClose={handleLocationDialogClose}
+        savedAddresses={[]}
+        onSelectAddress={handleSelectAddress}
+      />
+
+      <Drawer
+        anchor="bottom"
+        open={favoritesOpen}
+        onClose={() => setFavoritesOpen(false)}
+        PaperProps={{
+          sx: {
+            borderRadius: "16px 16px 0 0",
+            maxHeight: "80vh",
+            backgroundColor: "#ffffff",
+          },
+        }}
+      >
+        <Box sx={{ padding: 2, width: "100%" }}>
+          <Typography variant="h6" sx={{ fontWeight: 700, marginBottom: 2, color: "#1e293b" }}>
+            My Favorite Stores
+          </Typography>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            {favoriteStores.length === 0 ? (
+              <Typography sx={{ color: "#64748b", fontSize: "14px", textAlign: "center", padding: 2 }}>
+                No favorite stores yet
+              </Typography>
+            ) : (
+              visibleStores
+                .filter(store => favoriteStores.includes(store.id))
+                .map(store => (
+                  <Box
+                    key={store.id}
+                    sx={{
+                      padding: "12px",
+                      borderRadius: "8px",
+                      border: "1px solid #e2e8f0",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      "&:hover": {
+                        backgroundColor: "#f8fafc",
+                        borderColor: "#1e67da",
+                      },
+                    }}
+                  >
+                    <Typography sx={{ fontWeight: 600, fontSize: "14px", color: "#1e293b", marginBottom: "4px" }}>
+                      {store.storeName || store.businessName || "Store"}
+                    </Typography>
+                    <Typography sx={{ fontSize: "12px", color: "#64748b" }}>
+                      ⭐ {store.rating || 4.8} • {store.deliveryTime || "20-30 min"}
+                    </Typography>
+                  </Box>
+                ))
+            )}
+          </Box>
+        </Box>
+      </Drawer>
     </Box>
   );
 }

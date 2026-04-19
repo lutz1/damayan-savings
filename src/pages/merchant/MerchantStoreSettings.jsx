@@ -19,7 +19,6 @@ import { GoogleMap, LoadScript, MarkerF } from "@react-google-maps/api";
 import { auth, db, storage } from "../../firebase";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import OperationHoursEditor from "./components/OperationHoursEditor";
-import ShopLocationDialog from "../marketplace/components/ShopLocationDialog";
 
 const MaterialIcon = ({ name, size = 24, sx = {} }) => (
   <span
@@ -66,6 +65,8 @@ const MerchantStoreSettings = () => {
     storeLogo: "",
     latitude: 14.5994,
     longitude: 120.9842,
+    preparationTime: "",
+    category: "",
     operationHours: {
       monday: { open: "09:00", close: "18:00", closed: false },
       tuesday: { open: "09:00", close: "18:00", closed: false },
@@ -80,7 +81,6 @@ const MerchantStoreSettings = () => {
   const [snack, setSnack] = useState({ open: false, severity: "success", message: "" });
   const [geocodingError, setGeocodingError] = useState("");
   const [mapLoaded, setMapLoaded] = useState(false);
-  const [locationDialogOpen, setLocationDialogOpen] = useState(false);
   const [savedAddresses, setSavedAddresses] = useState([]);
 
   useEffect(() => {
@@ -97,7 +97,7 @@ const MerchantStoreSettings = () => {
           userRef,
           (userSnap) => {
             if (!userSnap.exists()) {
-              console.error("User not found");
+              console.warn("User document does not exist. Creating with defaults...");
               setLoading(false);
               return;
             }
@@ -119,6 +119,8 @@ const MerchantStoreSettings = () => {
               storeLogo: userData.storeLogo || "",
               latitude,
               longitude,
+              preparationTime: userData.preparationTime || "",
+              category: userData.category || "",
               operationHours: userData.operationHours || {
                 monday: { open: "09:00", close: "18:00", closed: false },
                 tuesday: { open: "09:00", close: "18:00", closed: false },
@@ -133,8 +135,13 @@ const MerchantStoreSettings = () => {
             setLoading(false);
           },
           (err) => {
-            console.error("Failed to load store settings:", err);
-            setSnack({ open: true, severity: "error", message: "Failed to load store settings" });
+            console.error("Failed to load store settings:", err?.message || err, err?.code || "");
+            console.warn("User UID:", user.uid);
+            setSnack({ 
+              open: true, 
+              severity: "error", 
+              message: `Failed to load store settings: ${err?.code === "permission-denied" ? "Permission denied - check Firestore rules" : err?.message || "Unknown error"}` 
+            });
             setLoading(false);
           }
         );
@@ -224,10 +231,9 @@ const MerchantStoreSettings = () => {
     const value = field === "open" ? e.target.checked : e.target.value;
     setStoreData((prev) => ({ ...prev, [field]: value }));
 
-    // Auto-geocode when address or city changes
-    if ((field === "address" || field === "city") && value) {
-      const fullAddress = field === "address" ? `${value}, ${storeData.city}` : `${storeData.address}, ${value}`;
-      geocodeAddress(fullAddress);
+    // Auto-geocode when address changes
+    if (field === "address" && value) {
+      geocodeAddress(value);
     }
   };
 
@@ -259,7 +265,6 @@ const MerchantStoreSettings = () => {
 
   const handleLocationSelect = (selectedLocation) => {
     if (selectedLocation) {
-      // selectedLocation should have: address, latitude, longitude
       setStoreData((prev) => ({
         ...prev,
         address: selectedLocation.address || prev.address,
@@ -270,7 +275,6 @@ const MerchantStoreSettings = () => {
         lat: selectedLocation.latitude || storeData.latitude, 
         lng: selectedLocation.longitude || storeData.longitude 
       });
-      setLocationDialogOpen(false);
     }
   };
 
@@ -278,7 +282,6 @@ const MerchantStoreSettings = () => {
     const requestId = ++geocodeRequestRef.current;
     try {
       setGeocodingError("");
-      const cityHint = String(storeData.city || "").trim().toLowerCase();
       const normalizedAddress = `${String(addressString || "").trim()}, Philippines`;
       const response = await fetch(
         `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(normalizedAddress)}&components=country:PH&region=ph&key=${import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY}`
@@ -289,14 +292,7 @@ const MerchantStoreSettings = () => {
       if (requestId !== geocodeRequestRef.current) return;
 
       if (data.status === "OK" && data.results && data.results.length > 0) {
-        const preferredResult =
-          cityHint.length > 0
-            ? data.results.find((result) =>
-                String(result.formatted_address || "").toLowerCase().includes(cityHint)
-              ) || data.results[0]
-            : data.results[0];
-
-        const location = preferredResult.geometry.location;
+        const location = data.results[0].geometry.location;
         setStoreData((prev) => ({
           ...prev,
           latitude: location.lat,
@@ -366,6 +362,8 @@ const MerchantStoreSettings = () => {
         storeLogo: storeData.storeLogo,
         latitude: storeData.latitude,
         longitude: storeData.longitude,
+        preparationTime: storeData.preparationTime,
+        category: storeData.category,
         operationHours: storeData.operationHours,
         updatedAt: new Date().toISOString(),
       });
@@ -373,8 +371,8 @@ const MerchantStoreSettings = () => {
       setSnack({ open: true, severity: "success", message: "Store settings updated successfully" });
       setTimeout(() => navigate("/merchant/profile"), 1500);
     } catch (err) {
-      console.error("Failed to save store settings:", err);
-      setSnack({ open: true, severity: "error", message: "Failed to save store settings" });
+      console.error("Failed to save store settings:", err?.message || err);
+      setSnack({ open: true, severity: "error", message: `Failed to save store settings: ${err?.message || "Unknown error"}` });
     } finally {
       setSaving(false);
     }
@@ -698,6 +696,51 @@ const MerchantStoreSettings = () => {
                 />
               </Box>
 
+              {/* Store Details */}
+              <Box>
+                <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", mb: 0.75 }}>
+                  Preparation Time
+                </Typography>
+                <TextField
+                  fullWidth
+                  placeholder="e.g., 15-20 min"
+                  value={storeData.preparationTime}
+                  onChange={handleChange("preparationTime")}
+                  size="small"
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      bgcolor: "#fff",
+                      borderRadius: "12px",
+                      "& fieldset": { borderColor: "#cbd5e1" },
+                      "&:hover fieldset": { borderColor: "#94a3b8" },
+                      "&.Mui-focused fieldset": { borderColor: "#2b7cee", borderWidth: 2 },
+                    },
+                  }}
+                />
+              </Box>
+
+              <Box>
+                <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", mb: 0.75 }}>
+                  Category
+                </Typography>
+                <TextField
+                  fullWidth
+                  placeholder="e.g., Restaurant, Food"
+                  value={storeData.category}
+                  onChange={handleChange("category")}
+                  size="small"
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      bgcolor: "#fff",
+                      borderRadius: "12px",
+                      "& fieldset": { borderColor: "#cbd5e1" },
+                      "&:hover fieldset": { borderColor: "#94a3b8" },
+                      "&.Mui-focused fieldset": { borderColor: "#2b7cee", borderWidth: 2 },
+                    },
+                  }}
+                />
+              </Box>
+
               <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
                 <Box>
                   <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", mb: 0.75 }}>
@@ -750,25 +793,9 @@ const MerchantStoreSettings = () => {
 
           {/* Store Location */}
           <Box>
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
-              <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#2b7cee" }}>
-                Store Location
-              </Typography>
-              <Button
-                size="small"
-                onClick={() => setLocationDialogOpen(true)}
-                sx={{
-                  textTransform: "none",
-                  fontSize: "0.75rem",
-                  fontWeight: 700,
-                  color: "#2b7cee",
-                  gap: 0.5,
-                }}
-                startIcon={<MaterialIcon name="my_location" size={16} />}
-              >
-                Adjust Pin
-              </Button>
-            </Box>
+            <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#2b7cee", mb: 2 }}>
+              Store Location
+            </Typography>
 
             <Stack spacing={2}>
               <Box>
@@ -780,28 +807,6 @@ const MerchantStoreSettings = () => {
                   placeholder="Street address"
                   value={storeData.address}
                   onChange={handleChange("address")}
-                  size="small"
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      bgcolor: "#fff",
-                      borderRadius: "12px",
-                      "& fieldset": { borderColor: "#cbd5e1" },
-                      "&:hover fieldset": { borderColor: "#94a3b8" },
-                      "&.Mui-focused fieldset": { borderColor: "#2b7cee", borderWidth: 2 },
-                    },
-                  }}
-                />
-              </Box>
-
-              <Box>
-                <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", mb: 0.75 }}>
-                  City
-                </Typography>
-                <TextField
-                  fullWidth
-                  placeholder="City"
-                  value={storeData.city}
-                  onChange={handleChange("city")}
                   size="small"
                   sx={{
                     "& .MuiOutlinedInput-root": {
@@ -937,14 +942,6 @@ const MerchantStoreSettings = () => {
           {snack.message}
         </Alert>
       </Snackbar>
-
-      {/* Location Dialog */}
-      <ShopLocationDialog
-        open={locationDialogOpen}
-        onClose={() => setLocationDialogOpen(false)}
-        savedAddresses={savedAddresses}
-        onSelectAddress={handleLocationSelect}
-      />
     </Box>
   );
 };

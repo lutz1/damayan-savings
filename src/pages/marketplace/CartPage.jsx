@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { addDoc, collection, doc, getDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../../firebase";
 import { cartCount, cartSubtotal, readCart, saveCart } from "./lib/cartStorage";
+import { calculateCustomerDeliveryFee, calculateDistance, extractCoordinates } from "../../lib/deliveryPricing";
 
 const currency = (value) =>
   `P${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -12,15 +13,73 @@ export default function CartPage() {
   const [cart, setCart] = useState(readCart);
   const [placingOrder, setPlacingOrder] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "info" });
+  const [deliveryFee, setDeliveryFee] = useState(50); // Default fallback
 
   const currentLocation = localStorage.getItem("selectedDeliveryAddress") || "";
   const currentCityProvince = localStorage.getItem("selectedDeliveryAddressCityProvince") || "";
+  const deliveryCoordinates = localStorage.getItem("selectedDeliveryCoordinates")
+    ? JSON.parse(localStorage.getItem("selectedDeliveryCoordinates"))
+    : null;
 
   useEffect(() => {
     const onFocus = () => setCart(readCart());
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, []);
+
+  // Calculate delivery fee based on store locations
+  useEffect(() => {
+    const calculateDeliveryFeeForCart = async () => {
+      if (!cart.length || !deliveryCoordinates) {
+        // Fallback to estimated fee (3.5 km default)
+        setDeliveryFee(calculateCustomerDeliveryFee(3.5));
+        return;
+      }
+
+      try {
+        // Get unique merchants in cart
+        const merchantIds = new Set(
+          cart.map(item => item.merchantId).filter(Boolean)
+        );
+
+        if (merchantIds.size === 0) {
+          setDeliveryFee(calculateCustomerDeliveryFee(3.5));
+          return;
+        }
+
+        // Calculate distance for each merchant
+        const distances = [];
+        for (const merchantId of merchantIds) {
+          const merchantSnap = await getDoc(doc(db, "users", merchantId));
+          const merchantData = merchantSnap.exists() ? merchantSnap.data() : null;
+          const storeCoords = extractCoordinates(merchantData);
+
+          if (storeCoords && deliveryCoordinates) {
+            const dist = calculateDistance(
+              deliveryCoordinates.lat,
+              deliveryCoordinates.lng,
+              storeCoords.lat,
+              storeCoords.lng
+            );
+            distances.push(dist);
+          }
+        }
+
+        // Use average distance or fallback
+        const avgDistance = distances.length > 0
+          ? distances.reduce((a, b) => a + b, 0) / distances.length
+          : 3.5;
+
+        setDeliveryFee(calculateCustomerDeliveryFee(avgDistance));
+      } catch (error) {
+        console.error("Error calculating delivery fee:", error);
+        // Fallback to estimated fee
+        setDeliveryFee(calculateCustomerDeliveryFee(3.5));
+      }
+    };
+
+    calculateDeliveryFeeForCart();
+  }, [cart, deliveryCoordinates]);
 
   useEffect(() => {
     if (!toast.message) return undefined;
@@ -30,7 +89,6 @@ export default function CartPage() {
 
   const subtotal = useMemo(() => cartSubtotal(cart), [cart]);
   const itemCount = useMemo(() => cartCount(cart), [cart]);
-  const deliveryFee = cart.length ? 39 : 0;
   const total = subtotal + deliveryFee;
 
   const updateQty = (id, qty) => {
@@ -123,7 +181,30 @@ export default function CartPage() {
           (sum, current) => sum + Number(current.price || 0) * Number(current.qty || 0),
           0
         );
-        const merchantDeliveryFee = 39;
+        
+        // Calculate merchant-specific delivery fee based on store location
+        let merchantDeliveryFee = deliveryFee;
+        try {
+          if (deliveryCoordinates) {
+            const merchantSnap = await getDoc(doc(db, "users", merchantId));
+            const merchantData = merchantSnap.exists() ? merchantSnap.data() : null;
+            const storeCoords = extractCoordinates(merchantData);
+
+            if (storeCoords) {
+              const distance = calculateDistance(
+                deliveryCoordinates.lat,
+                deliveryCoordinates.lng,
+                storeCoords.lat,
+                storeCoords.lng
+              );
+              merchantDeliveryFee = calculateCustomerDeliveryFee(distance);
+            }
+          }
+        } catch (error) {
+          console.error("Error calculating merchant delivery fee:", error);
+          // Use the pre-calculated average delivery fee
+        }
+
         const merchantTotal = merchantSubtotal + merchantDeliveryFee;
 
         const orderDoc = await addDoc(collection(db, "orders"), {

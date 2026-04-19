@@ -591,6 +591,24 @@ const ShopLocationDialog = ({
       fullScreen={isMobile}
       fullWidth
       maxWidth="sm"
+      TransitionProps={{
+        timeout: { enter: 300, exit: 200 },
+      }}
+      sx={{
+        "& .MuiDialog-paper": {
+          animation: isMobile ? "slideInUp 0.3s ease-out" : undefined,
+        },
+        "@keyframes slideInUp": {
+          from: {
+            transform: "translateY(100%)",
+            opacity: 0,
+          },
+          to: {
+            transform: "translateY(0)",
+            opacity: 1,
+          },
+        },
+      }}
       PaperProps={{
         sx: {
           m: 0,

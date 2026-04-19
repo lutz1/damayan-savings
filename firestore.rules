@@ -72,7 +72,7 @@ service cloud.firestore {
     match /users/{userId} {
 
       // Allow reading user profiles (safe fields only)
-      // Any authenticated user can read (merchants can read their own or any user)
+      // Any authenticated user can read any user profile
       allow read: if request.auth != null;
 
       // List users:
@@ -132,6 +132,8 @@ service cloud.firestore {
             "storeBannerImage",
             "storeLogo",
             "operationHours",
+            "preparationTime",
+            "category",
             "capitalShareVoucherType",
              "fcmToken",
              "fcmTokens",
