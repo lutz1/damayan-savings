@@ -1,0 +1,136 @@
+﻿
+[1m[37m===[39m Deploying to 'amayan-savings'...[22m
+
+[36m[1mi [22m[39m deploying [1mfunctions[22m
+[36m[1mi  functions:[22m[39m preparing codebase [1mdefault[22m for deployment
+[36m[1mi  functions:[22m[39m ensuring required API [1mcloudfunctions.googleapis.com[22m is enabled...
+[36m[1mi  functions:[22m[39m ensuring required API [1mcloudbuild.googleapis.com[22m is enabled...
+[36m[1mi  artifactregistry:[22m[39m ensuring required API [1martifactregistry.googleapis.com[22m is enabled...
+[33m[1m!  functions:[22m[39m Runtime Node.js 20 will be deprecated on 2026-04-30 and will be decommissioned on 2026-10-30, after which you will not be able to deploy without upgrading. Consider upgrading now to avoid disruption. See https://cloud.google.com/functions/docs/runtime-support for full details on the lifecycle policy
+[33m[1m! [22m[39m [1m[33mfunctions: [39m[22mpackage.json indicates an outdated version of firebase-functions. Please upgrade using [1mnpm install --save firebase-functions@latest[22m in your functions directory.
+[33m[1m! [22m[39m [1m[33mfunctions: [39m[22mPlease note that there will be breaking changes when you upgrade.
+[36m[1mi  functions:[22m[39m Loading and analyzing source code for codebase default to determine what to deploy
+Serving at port 8257
+
+[36m[1mi  extensions:[22m[39m ensuring required API [1mfirebaseextensions.googleapis.com[22m is enabled...
+[36m[1mi [22m[39m [36m[1mfunctions: [22m[39mLoaded environment variables from .env.
+[36m[1mi  functions:[22m[39m preparing [1mfunctions[22m directory for uploading...
+node.exe : [33m[1m! [22mDEPRECATION NOTICE: Action required before 
+March 2027
+At C:\Users\acer0\AppData\Roaming\npm\firebase.ps1:24 char:5
++     & "node$exe"  
+"$basedir/node_modules/firebase-tools/lib/bin/fireb ...
++     
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([33m[1m! [22...fore M 
+   arch 2027:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+The functions.config() API and the Cloud Runtime Config service are 
+deprecated. Deploys that rely on functions.config() will fail once 
+Runtime Config shuts down in March 2027.
+
+The legacy functions:config:* CLI commands are deprecated and will be 
+removed before March 2027.
+
+Learn how to migrate from functions.config() to the params package:
+
+https://firebase.google.com/docs/functions/config-env#migrate-config
+
+To convert existing functions.config() values to params, try the 
+interactive migration command:
+
+  firebase functions:config:export
+[39m
+[36m[1mi [22m[39m [36m[1mfunctions:[22m[39m packaged [1mD:\amayan-savings\functions[22m (65.96 KB) for uploading
+[32m[1m+  functions:[22m[39m [1mfunctions[22m source uploaded successfully
+[36m[1mi  functions:[22m[39m Skipping the deploy of unchanged functions.
+[32m[1m+ [22m[39m [1m[35mfunctions[onSaleCreatedDispatchRider(us-central1)][39m[22m Skipped (No changes detected)
+[32m[1m+ [22m[39m [1m[35mfunctions[submitCashInRequest(us-central1)][39m[22m Skipped (No changes detected)
+[32m[1m+ [22m[39m [1m[35mfunctions[getRoadDistance(us-central1)][39m[22m Skipped (No changes detected)
+[32m[1m+ [22m[39m [1m[35mfunctions[createInviteAndRewards(us-central1)][39m[22m Skipped (No changes detected)
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1monOrderCreatedDispatchRider(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1mrespondToDeliveryRequest(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1mreassignExpiredDeliveries(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1mcheckMemberEmail(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1msubmitRiderApplication(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1mreviewRiderApplication(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1mprocessDepositApproval(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1mprocessWithdrawalApproval(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1mnotifyMerchantOnNewOrder(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1mnotifyMerchantOnNewOrderV2(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1mnotifyOrderCancelled(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1mnotifyOrderCancelledV2(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1mnotifyDeliveryLifecycle(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1mresetUserPasswordDefault(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1msetMpin(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1mmpinLogin(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1mrecoveryRequest(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1madminRecoveryRequestsList(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1madminRecoveryRequestsProcess(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1mtransferReferralReward(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1mtransferOverrideReward(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1maddCapitalShare(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1maddPaybackEntry(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1mtransferFunds(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1mtransferProfit(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1mtransferCapitalShare(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1mtransferPassiveIncome(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1mpurchaseActivationCode(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1mgetPurchaseCodePricing(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1mcreateWithdrawal(us-central1)[22m...
+[36m[1mi  functions:[22m[39m updating Node.js 20 (1st Gen) function [1mcreateCapitalShareVoucher(us-central1)[22m...
+[32m[1m+ [22m[39m [1m[32mfunctions[onOrderCreatedDispatchRider(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[notifyDeliveryLifecycle(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[transferOverrideReward(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[checkMemberEmail(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[mpinLogin(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[reviewRiderApplication(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[createCapitalShareVoucher(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[transferProfit(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[getPurchaseCodePricing(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[transferFunds(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[transferCapitalShare(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[notifyMerchantOnNewOrderV2(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[createWithdrawal(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[notifyOrderCancelled(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[transferReferralReward(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[submitRiderApplication(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[transferPassiveIncome(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[resetUserPasswordDefault(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[processDepositApproval(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[notifyOrderCancelledV2(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[processWithdrawalApproval(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[setMpin(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[notifyMerchantOnNewOrder(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[respondToDeliveryRequest(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[adminRecoveryRequestsProcess(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[addPaybackEntry(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[recoveryRequest(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[adminRecoveryRequestsList(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[purchaseActivationCode(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[reassignExpiredDeliveries(us-central1)][39m[22m Successful update operation.
+[32m[1m+ [22m[39m [1m[32mfunctions[addCapitalShare(us-central1)][39m[22m Successful update operation.
+[1mFunction URL[22m (resetUserPasswordDefault(us-central1)): https://us-central1-amayan-savings.cloudfunctions.net/resetUserPasswordDefault
+[1mFunction URL[22m (setMpin(us-central1)): https://us-central1-amayan-savings.cloudfunctions.net/setMpin
+[1mFunction URL[22m (mpinLogin(us-central1)): https://us-central1-amayan-savings.cloudfunctions.net/mpinLogin
+[1mFunction URL[22m (recoveryRequest(us-central1)): https://us-central1-amayan-savings.cloudfunctions.net/recoveryRequest
+[1mFunction URL[22m (adminRecoveryRequestsList(us-central1)): https://us-central1-amayan-savings.cloudfunctions.net/adminRecoveryRequestsList
+[1mFunction URL[22m (adminRecoveryRequestsProcess(us-central1)): https://us-central1-amayan-savings.cloudfunctions.net/adminRecoveryRequestsProcess
+[1mFunction URL[22m (transferReferralReward(us-central1)): https://us-central1-amayan-savings.cloudfunctions.net/transferReferralReward
+[1mFunction URL[22m (transferOverrideReward(us-central1)): https://us-central1-amayan-savings.cloudfunctions.net/transferOverrideReward
+[1mFunction URL[22m (addCapitalShare(us-central1)): https://us-central1-amayan-savings.cloudfunctions.net/addCapitalShare
+[1mFunction URL[22m (addPaybackEntry(us-central1)): https://us-central1-amayan-savings.cloudfunctions.net/addPaybackEntry
+[1mFunction URL[22m (transferFunds(us-central1)): https://us-central1-amayan-savings.cloudfunctions.net/transferFunds
+[1mFunction URL[22m (transferProfit(us-central1)): https://us-central1-amayan-savings.cloudfunctions.net/transferProfit
+[1mFunction URL[22m (transferCapitalShare(us-central1)): https://us-central1-amayan-savings.cloudfunctions.net/transferCapitalShare
+[1mFunction URL[22m (transferPassiveIncome(us-central1)): https://us-central1-amayan-savings.cloudfunctions.net/transferPassiveIncome
+[1mFunction URL[22m (purchaseActivationCode(us-central1)): https://us-central1-amayan-savings.cloudfunctions.net/purchaseActivationCode
+[1mFunction URL[22m (getPurchaseCodePricing(us-central1)): https://us-central1-amayan-savings.cloudfunctions.net/getPurchaseCodePricing
+[1mFunction URL[22m (createWithdrawal(us-central1)): https://us-central1-amayan-savings.cloudfunctions.net/createWithdrawal
+[1mFunction URL[22m (createCapitalShareVoucher(us-central1)): https://us-central1-amayan-savings.cloudfunctions.net/createCapitalShareVoucher
+
+[32m[1m+ [22m[39m [1m[4mDeploy complete![24m[22m
+
+[1mProject Console:[22m https://console.firebase.google.com/project/amayan-savings/overview

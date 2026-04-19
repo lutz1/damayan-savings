@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { Dialog, useMediaQuery, useTheme, Box, Button, Typography, TextField, IconButton, CircularProgress } from "@mui/material";
+import { Dialog, useMediaQuery, useTheme, Box, Button, Typography, TextField, IconButton, CircularProgress, Chip } from "@mui/material";
+import { getRoadDistance, extractCoordinates, calculateCustomerDeliveryFee } from "../../../lib/deliveryPricing";
 import SearchIcon from "@mui/icons-material/Search";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import MyLocationIcon from "@mui/icons-material/MyLocation";
@@ -33,6 +34,7 @@ const ShopLocationDialog = ({
   onClose,
   savedAddresses = [],
   onSelectAddress,
+  merchants = {},
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -56,8 +58,57 @@ const ShopLocationDialog = ({
   const searchDebounceRef = useRef(null);
   const searchRequestRef = useRef(0);
   const [zoomLevel, setZoomLevel] = useState(15);
+  const [nearbyStores, setNearbyStores] = useState([]);
+  const [calculatingStores, setCalculatingStores] = useState(false);
   const googleMapsApiKey =
     import.meta.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY || "";
+
+  // Calculate nearby stores within 8km
+  const calculateNearbyStores = useCallback(async (lat, lng) => {
+    if (!merchants || Object.keys(merchants).length === 0) {
+      setNearbyStores([]);
+      return;
+    }
+
+    setCalculatingStores(true);
+    const storesData = [];
+
+    try {
+      for (const [storeId, storeData] of Object.entries(merchants)) {
+        try {
+          const storeCoords = extractCoordinates(storeData);
+          if (!storeCoords) continue;
+
+          // Calculate actual road distance
+          const distance = await getRoadDistance(
+            lat,
+            lng,
+            storeCoords.lat,
+            storeCoords.lng
+          );
+
+          if (distance && distance <= 8) {
+            const fee = calculateCustomerDeliveryFee(distance);
+            storesData.push({
+              id: storeId,
+              name: storeData.storeName || storeData.businessName || "Store",
+              distance: Math.round((distance + Number.EPSILON) * 10) / 10,
+              fee,
+              logo: storeData.storeLogo || storeData.businessLogo,
+            });
+          }
+        } catch (error) {
+          console.error(`Error calculating distance for store ${storeId}:`, error);
+        }
+      }
+
+      // Sort by distance
+      storesData.sort((a, b) => a.distance - b.distance);
+      setNearbyStores(storesData);
+    } finally {
+      setCalculatingStores(false);
+    }
+  }, [merchants]);
 
   const reverseGeocode = useCallback(async (lat, lng, saveToRecent = true) => {
     try {
@@ -94,7 +145,7 @@ const ShopLocationDialog = ({
       setSelectedAddress(fallbackAddress);
       return fallbackAddress;
     }
-  }, [recentSearches]);
+  }, [recentSearches, calculateNearbyStores]);
 
   useEffect(() => {
     if (!open) return;
@@ -404,6 +455,7 @@ const ShopLocationDialog = ({
     setZoomLevel(17);
     setShowSuggestions(false);
     pushRecentSearch(suggestion.name);
+    calculateNearbyStores(suggestion.lat, suggestion.lng);
 
     if (mapRef.current) {
       mapRef.current.panTo({ lat: suggestion.lat, lng: suggestion.lng });
@@ -531,6 +583,7 @@ const ShopLocationDialog = ({
           setSelectedLocation({ lat: latitude, lng: longitude });
 
           await reverseGeocode(latitude, longitude);
+          await calculateNearbyStores(latitude, longitude);
           setLocationError("");
 
           // Zoom to location
@@ -545,6 +598,7 @@ const ShopLocationDialog = ({
           // Fallback: show location on map even if reverse geocoding fails
           setSelectedLocation({ lat: latitude, lng: longitude });
           setSelectedAddress(`Lat: ${latitude.toFixed(5)}, Lon: ${longitude.toFixed(5)}`);
+          await calculateNearbyStores(latitude, longitude);
 
           if (mapRef.current) {
             mapRef.current.panTo({ lat: latitude, lng: longitude });
@@ -1197,6 +1251,95 @@ const ShopLocationDialog = ({
             boxShadow: "0 -2px 8px rgba(0,0,0,0.05)",
           }}
         >
+          {/* Nearby Stores Section - Show when location is selected */}
+          {selectedLocation && nearbyStores.length > 0 && (
+            <Box sx={{ mb: 2, maxHeight: "220px", overflowY: "auto", borderRadius: "0.75rem", border: "1px solid rgba(30, 103, 218, 0.15)", backgroundColor: "#f5f9ff", p: 1.5 }}>
+              <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, color: "#1e67da", mb: 1, textTransform: "uppercase" }}>
+                🏪 Available Stores ({nearbyStores.length})
+              </Typography>
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+                {nearbyStores.map((store) => (
+                  <Box
+                    key={store.id}
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      backgroundColor: "#ffffff",
+                      p: 1,
+                      borderRadius: "0.5rem",
+                      border: "1px solid rgba(30, 103, 218, 0.1)",
+                      transition: "all 0.2s",
+                      "&:hover": {
+                        borderColor: "rgba(30, 103, 218, 0.3)",
+                        backgroundColor: "#f9fbff",
+                      },
+                    }}
+                  >
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1, minWidth: 0 }}>
+                      {store.logo && (
+                        <Box
+                          component="img"
+                          src={store.logo}
+                          alt={store.name}
+                          sx={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: "50%",
+                            objectFit: "cover",
+                            flexShrink: 0,
+                          }}
+                          onError={(e) => {
+                            e.target.style.display = "none";
+                          }}
+                        />
+                      )}
+                      <Box sx={{ minWidth: 0, flex: 1 }}>
+                        <Typography sx={{ fontSize: "0.8rem", fontWeight: 600, color: "#1f2937", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {store.name}
+                        </Typography>
+                        <Typography sx={{ fontSize: "0.7rem", color: "#666" }}>
+                          📍 {store.distance} km
+                        </Typography>
+                      </Box>
+                    </Box>
+                    <Chip
+                      label={`₱${store.fee}`}
+                      size="small"
+                      sx={{
+                        backgroundColor: "#e8f1ff",
+                        color: "#1e67da",
+                        fontWeight: 600,
+                        fontSize: "0.7rem",
+                        flexShrink: 0,
+                      }}
+                    />
+                  </Box>
+                ))}
+              </Box>
+            </Box>
+          )}
+
+          {/* No Stores in Range Message */}
+          {selectedLocation && nearbyStores.length === 0 && !calculatingStores && (
+            <Box sx={{ mb: 2, p: 1.5, backgroundColor: "#fef3c7", border: "1px solid #fcd34d", borderRadius: "0.75rem", textAlign: "center" }}>
+              <Typography sx={{ fontSize: "0.8rem", fontWeight: 600, color: "#92400e" }}>
+                ⚠️ No stores available in your delivery range
+              </Typography>
+              <Typography sx={{ fontSize: "0.7rem", color: "#b45309", mt: 0.5 }}>
+                Available stores are within 8 km maximum
+              </Typography>
+            </Box>
+          )}
+
+          {/* Loading Stores */}
+          {calculatingStores && (
+            <Box sx={{ mb: 2, p: 1.5, display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+              <CircularProgress size={16} sx={{ color: "#1e67da" }} />
+              <Typography sx={{ fontSize: "0.8rem", color: "#666" }}>Checking nearby stores...</Typography>
+            </Box>
+          )}
+
           <Button
             onClick={handleConfirmAddress}
             disabled={!selectedAddress}

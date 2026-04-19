@@ -1,26 +1,49 @@
 /**
  * Delivery Pricing Calculation Utility
- * Implements sustainable business model for Amayan Savings
+ * Implements optimized tiered pricing model for Amayan Savings
  * 
- * Customer: ₱50 base + ₱14/km
- * Rider: ₱30 base + ₱9/km
- * Platform margin: 24%
+ * Customer Tiered:
+ *   - BASE: ₱39
+ *   - 0–3 km: ₱10/km
+ *   - 3–5 km: ₱8/km
+ *   - 5–8 km: flat +₱15
+ *   - MAX: ₱120
+ * 
+ * Rider Tiered:
+ *   - BASE: ₱25
+ *   - 0–3 km: ₱7/km
+ *   - 3–6 km: ₱6/km
+ *   - 6–8 km: ₱5/km
  */
 
-// Pricing constants
+// Pricing constants - Tiered pricing model
 export const DELIVERY_PRICING = {
   CUSTOMER: {
-    BASE_FEE: 50,
-    RATE_PER_KM: 14,
+    BASE_FEE: 39,
+    MAX_FEE: 120,
+    TIERS: [
+      { upTo: 3, ratePerKm: 10 },   // 0-3 km: ₱10/km
+      { upTo: 5, ratePerKm: 8 },    // 3-5 km: ₱8/km
+      { upTo: 8, flatAdd: 15 },     // 5-8 km: flat +₱15
+    ],
     RAIN_BOOST: 15,
+    PRIORITY_DELIVERY_FEE: 20,
   },
   RIDER: {
-    BASE_FEE: 30,
-    RATE_PER_KM: 9,
+    BASE_FEE: 25,
+    TIERS: [
+      { upTo: 3, ratePerKm: 7 },    // 0-3 km: ₱7/km
+      { upTo: 6, ratePerKm: 6 },    // 3-6 km: ₱6/km
+      { upTo: 8, ratePerKm: 5 },    // 6-8 km: ₱5/km
+    ],
     RAIN_BOOST: 15,
   },
   PLATFORM: {
-    MARGIN_PERCENT: 24,
+    MARGIN_PERCENT: 20,
+  },
+  DISTANCE_LIMITS: {
+    MAX_DELIVERY_DISTANCE: 8,
+    SUGGEST_NEAREST_ABOVE: 6,
   },
 };
 
@@ -56,23 +79,53 @@ export const calculateDistance = (lat1, lng1, lat2, lng2) => {
 };
 
 /**
- * Calculate customer delivery fee
+ * Calculate customer delivery fee using tiered pricing
  * @param {number} distanceKm - Distance in kilometers
  * @param {boolean} includeRainBoost - Whether to include rain boost
- * @returns {number} Delivery fee in pesos
+ * @param {boolean} priorityDelivery - Whether customer paid for priority delivery
+ * @returns {number} Delivery fee in pesos (capped at MAX_FEE)
  */
-export const calculateCustomerDeliveryFee = (distanceKm, includeRainBoost = false) => {
+export const calculateCustomerDeliveryFee = (
+  distanceKm,
+  includeRainBoost = false,
+  priorityDelivery = false
+) => {
   if (!distanceKm || distanceKm < 0) return 0;
 
-  const { BASE_FEE, RATE_PER_KM, RAIN_BOOST } = DELIVERY_PRICING.CUSTOMER;
-  const distanceCharge = Math.round((distanceKm * RATE_PER_KM + Number.EPSILON) * 100) / 100;
-  const rainBoost = includeRainBoost ? RAIN_BOOST : 0;
-  
-  return BASE_FEE + distanceCharge + rainBoost;
+  const { BASE_FEE, MAX_FEE, TIERS, RAIN_BOOST, PRIORITY_DELIVERY_FEE } = DELIVERY_PRICING.CUSTOMER;
+
+  let distanceCharge = 0;
+  let remaining = distanceKm;
+
+  // Apply tiered pricing
+  for (const tier of TIERS) {
+    if (remaining <= 0) break;
+
+    if (tier.flatAdd) {
+      // Flat add tier (5-8 km range)
+      distanceCharge += tier.flatAdd;
+      remaining = 0;
+    } else {
+      // Per-km tier
+      const distance = Math.min(remaining, tier.upTo);
+      distanceCharge += distance * tier.ratePerKm;
+      remaining -= distance;
+    }
+  }
+
+  // Calculate final fee
+  let totalFee = BASE_FEE + distanceCharge;
+  totalFee += includeRainBoost ? RAIN_BOOST : 0;
+  totalFee += priorityDelivery ? PRIORITY_DELIVERY_FEE : 0;
+
+  // Cap at maximum fee
+  totalFee = Math.min(totalFee, MAX_FEE);
+
+  return Math.round((totalFee + Number.EPSILON) * 100) / 100;
 };
 
 /**
- * Calculate rider earnings
+ * Calculate rider earnings using tiered pricing
  * @param {number} totalDistanceKm - Total distance traveled (rider → store → customer)
  * @param {number} bonusAmount - Bonus/incentive amount
  * @param {boolean} isPeakHours - Whether it's peak hours
@@ -87,12 +140,33 @@ export const calculateRiderEarnings = (
 ) => {
   if (!totalDistanceKm || totalDistanceKm < 0) return 0;
 
-  const { BASE_FEE, RATE_PER_KM, RAIN_BOOST } = DELIVERY_PRICING.RIDER;
-  const distanceCharge = Math.round((totalDistanceKm * RATE_PER_KM + Number.EPSILON) * 100) / 100;
-  const peakBonus = isPeakHours ? Math.round((BASE_FEE * 0.15 + Number.EPSILON) * 100) / 100 : 0;
-  const rainBoost = includeRainBoost ? RAIN_BOOST : 0;
+  const { BASE_FEE, TIERS, RAIN_BOOST } = DELIVERY_PRICING.RIDER;
+
+  let distanceCharge = 0;
+  let remaining = totalDistanceKm;
+
+  // Apply tiered pricing
+  for (const tier of TIERS) {
+    if (remaining <= 0) break;
+    const distance = Math.min(remaining, tier.upTo);
+    distanceCharge += distance * tier.ratePerKm;
+    remaining -= distance;
+  }
+
+  // Calculate rider earnings
+  let earnings = BASE_FEE + distanceCharge + bonusAmount;
   
-  return BASE_FEE + distanceCharge + bonusAmount + peakBonus + rainBoost;
+  if (isPeakHours) {
+    // Peak hours: 15% bonus on base fee
+    const peakBonus = Math.round((BASE_FEE * 0.15 + Number.EPSILON) * 100) / 100;
+    earnings += peakBonus;
+  }
+
+  if (includeRainBoost) {
+    earnings += RAIN_BOOST;
+  }
+
+  return Math.round((earnings + Number.EPSILON) * 100) / 100;
 };
 
 /**
@@ -115,22 +189,199 @@ export const getEstimatedDeliveryFee = (distanceKm) => {
 };
 
 /**
- * Format delivery fee breakdown for display
+ * Format delivery fee breakdown for display with tiered pricing details
  * @param {number} distanceKm - Distance in kilometers
- * @returns {object} Breakdown with base fee and distance charge
+ * @returns {object} Breakdown with base fee, tiered distance charges, and total
  */
 export const getDeliveryFeeBreakdown = (distanceKm) => {
-  const { BASE_FEE, RATE_PER_KM } = DELIVERY_PRICING.CUSTOMER;
-  const distanceCharge = Math.round((distanceKm * RATE_PER_KM + Number.EPSILON) * 100) / 100;
+  const { BASE_FEE, TIERS, RAIN_BOOST } = DELIVERY_PRICING.CUSTOMER;
+  
+  let distanceCharge = 0;
+  let tierBreakdown = [];
+  let remaining = distanceKm;
+
+  // Calculate tiered charges and breakdown
+  for (const tier of TIERS) {
+    if (remaining <= 0) break;
+
+    if (tier.flatAdd) {
+      tierBreakdown.push({
+        range: `${TIERS[TIERS.indexOf(tier) - 1]?.upTo || 0}–${tier.upTo} km`,
+        charge: tier.flatAdd,
+        type: 'flat',
+      });
+      distanceCharge += tier.flatAdd;
+      remaining = 0;
+    } else {
+      const distance = Math.min(remaining, tier.upTo);
+      const charge = distance * tier.ratePerKm;
+      tierBreakdown.push({
+        range: `${distance > 0 ? TIERS[TIERS.indexOf(tier) - 1]?.upTo || 0 : 0}–${tier.upTo} km`,
+        distance,
+        ratePerKm: tier.ratePerKm,
+        charge,
+        type: 'per-km',
+      });
+      distanceCharge += charge;
+      remaining -= distance;
+    }
+  }
+
   const totalFee = BASE_FEE + distanceCharge;
 
   return {
     baseFee: BASE_FEE,
     distance: distanceKm,
-    distanceCharge,
+    distanceCharge: Math.round((distanceCharge + Number.EPSILON) * 100) / 100,
+    tierBreakdown,
     rainBoost: 0,
-    totalFee,
+    totalFee: Math.round((totalFee + Number.EPSILON) * 100) / 100,
   };
+};
+
+import { httpsCallable } from "firebase/functions";
+import { functions } from "../firebase";
+
+/**
+ * Get actual road distance using Google Directions API via Firebase Cloud Function
+ * Returns real driving distance, not straight-line distance
+ * @param {number} fromLat - Starting latitude
+ * @param {number} fromLng - Starting longitude
+ * @param {number} toLat - Destination latitude
+ * @param {number} toLng - Destination longitude
+ * @returns {Promise<number|null>} Road distance in kilometers or null if error
+ */
+export const getRoadDistance = async (fromLat, fromLng, toLat, toLng) => {
+  try {
+    // Validate inputs
+    if (![fromLat, fromLng, toLat, toLng].every(Number.isFinite)) {
+      console.warn("⚠️ Invalid coordinates for distance calculation");
+      return null;
+    }
+
+    // Call Firebase Cloud Function (no CORS issues, no backend needed)
+    const getRoadDistanceFunction = httpsCallable(functions, "getRoadDistance");
+    
+    console.log(`📍 Calling Cloud Function: (${fromLat},${fromLng}) → (${toLat},${toLng})`);
+
+    const result = await getRoadDistanceFunction({
+      fromLat: Number(fromLat),
+      fromLng: Number(fromLng),
+      toLat: Number(toLat),
+      toLng: Number(toLng),
+    });
+
+    const { distanceKm, distanceText, durationText } = result.data;
+    console.log(`✅ Road distance from Cloud Function: ${distanceKm} km (${distanceText}, ${durationText})`);
+    return distanceKm;
+  } catch (error) {
+    console.error("❌ Road distance calculation error:", error.message);
+    return null;
+  }
+};
+
+/**
+ * Check if distance exceeds delivery limits
+ * @param {number} distanceKm - Distance in kilometers
+ * @returns {object} Status with canDeliver flag and message
+ */
+export const checkDeliveryDistance = (distanceKm) => {
+  const { MAX_DELIVERY_DISTANCE, SUGGEST_NEAREST_ABOVE } = DELIVERY_PRICING.DISTANCE_LIMITS;
+
+  if (distanceKm > MAX_DELIVERY_DISTANCE) {
+    return {
+      canDeliver: false,
+      tooFar: true,
+      suggestNearest: distanceKm > SUGGEST_NEAREST_ABOVE,
+      message: `This store is too far (${distanceKm} km). We deliver up to ${MAX_DELIVERY_DISTANCE} km.`,
+    };
+  }
+
+  if (distanceKm > SUGGEST_NEAREST_ABOVE) {
+    return {
+      canDeliver: true,
+      tooFar: false,
+      suggestNearest: true,
+      message: `This is a long delivery (${distanceKm} km). Would you like to see nearer branches?`,
+    };
+  }
+
+  return {
+    canDeliver: true,
+    tooFar: false,
+    suggestNearest: false,
+    message: null,
+  };
+};
+
+/**
+ * Find nearest stores of same brand within suggested range
+ * @param {object} userCoords - User {lat, lng}
+ * @param {array} stores - All stores array
+ * @param {string} targetBrand - Brand name to match (e.g., "Azcer Brew")
+ * @param {number} maxDistance - Max distance to suggest (default: 3-4 km)
+ * @param {function} distanceCalcFn - Function to calculate distance: (lat1, lng1, lat2, lng2) => km
+ * @returns {array} Array of nearby stores sorted by distance
+ */
+export const findNearestStores = (
+  userCoords,
+  stores,
+  targetBrand,
+  maxDistance = 4,
+  distanceCalcFn = calculateDistance
+) => {
+  if (!userCoords || !stores || !Array.isArray(stores)) return [];
+
+  const { lat: userLat, lng: userLng } = userCoords;
+  if (!Number.isFinite(userLat) || !Number.isFinite(userLng)) return [];
+
+  return stores
+    .filter((store) => {
+      // Match store brand
+      const storeName = store.storeName || store.name || "";
+      if (!targetBrand || !storeName.includes(targetBrand)) return false;
+
+      // Calculate distance
+      const storeCoords = extractCoordinates(store);
+      if (!storeCoords) return false;
+
+      const dist = distanceCalcFn(userLat, userLng, storeCoords.lat, storeCoords.lng);
+      return dist > 0 && dist <= maxDistance;
+    })
+    .map((store) => {
+      const storeCoords = extractCoordinates(store);
+      const dist = distanceCalcFn(userLat, userLng, storeCoords.lat, storeCoords.lng);
+      return {
+        ...store,
+        distance: Math.round((dist + Number.EPSILON) * 10) / 10,
+      };
+    })
+    .sort((a, b) => a.distance - b.distance);
+};
+
+/**
+ * Extract store brand name from store document
+ * Useful for finding same-brand alternatives
+ * @param {object} store - Store document
+ * @returns {string|null} Brand name or null
+ */
+export const extractStoreBrand = (store) => {
+  if (!store || typeof store !== "object") return null;
+
+  // Try to extract brand from store name
+  const storeName = store.storeName || store.name || "";
+  
+  // Common brand patterns
+  const brandPatterns = [
+    /^([A-Z][a-z]+(?:\s[A-Z][a-z]+)*)/,  // Capitalized words at start
+  ];
+
+  for (const pattern of brandPatterns) {
+    const match = storeName.match(pattern);
+    if (match) return match[1];
+  }
+
+  return null;
 };
 
 /**
@@ -181,4 +432,48 @@ export const extractCoordinates = (userData) => {
   }
 
   return null;
+};
+
+/**
+ * Geocode an address string to get latitude/longitude coordinates
+ * Uses Google Maps Geocoding API
+ * @param {string} addressString - Full address to geocode
+ * @returns {Promise<{lat: number, lng: number} | null>} Coordinates or null if not found
+ */
+export const geocodeAddress = async (addressString) => {
+  if (!addressString || typeof addressString !== "string") return null;
+
+  try {
+    const apiKey = import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      console.warn("⚠️  Google Maps API key not configured");
+      return null;
+    }
+
+    const response = await fetch(
+      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addressString)}&components=country:PH&region=ph&key=${apiKey}`
+    );
+
+    if (!response.ok) {
+      console.error(`Geocoding API error: ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+
+    if (data.status === "OK" && data.results.length > 0) {
+      const location = data.results[0].geometry.location;
+      console.log(`✅ Geocoded address "${addressString}":`, { lat: location.lat, lng: location.lng });
+      return {
+        lat: location.lat,
+        lng: location.lng,
+      };
+    } else {
+      console.warn(`❌ Geocoding failed for "${addressString}": ${data.status}`);
+      return null;
+    }
+  } catch (error) {
+    console.error("❌ Geocoding error:", error);
+    return null;
+  }
 };

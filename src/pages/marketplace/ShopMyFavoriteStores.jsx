@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { collection, doc, onSnapshot, query, where, updateDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "../../firebase";
-import { calculateCustomerDeliveryFee, calculateDistance, extractCoordinates } from "../../lib/deliveryPricing";
+import { calculateCustomerDeliveryFee, getRoadDistance, extractCoordinates } from "../../lib/deliveryPricing";
 import "./ShopPage.css";
 
 const normalizeCategory = (value) => String(value || "").trim().toLowerCase();
@@ -139,13 +139,14 @@ export default function ShopMyFavoriteStores() {
           const storeCoords = extractCoordinates(store);
 
           if (storeCoords) {
-            const distance = calculateDistance(
+            // Use getRoadDistance instead of calculateDistance (Haversine)
+            const distance = await getRoadDistance(
               userDeliveryCoords.lat,
               userDeliveryCoords.lng,
               storeCoords.lat,
               storeCoords.lng
             );
-            fees[store.id] = calculateCustomerDeliveryFee(distance);
+            fees[store.id] = calculateCustomerDeliveryFee(distance || 0);
           } else {
             fees[store.id] = calculateCustomerDeliveryFee(3.5);
           }

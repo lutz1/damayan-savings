@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../firebase";
 import { readCart, saveCart } from "./lib/cartStorage";
-import { calculateCustomerDeliveryFee, calculateDistance, extractCoordinates } from "../../lib/deliveryPricing";
+import { calculateCustomerDeliveryFee, getRoadDistance, extractCoordinates } from "../../lib/deliveryPricing";
 
 const currency = (value) =>
   `P${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

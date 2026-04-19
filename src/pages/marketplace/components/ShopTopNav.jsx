@@ -56,6 +56,7 @@ export default function ShopTopNav({
   cartCount = 0,
   onCartClick,
   favoriteStores = [],
+  merchants = {},
 }) {
   const navigate = useNavigate();
   const [listening, setListening] = useState(false);
@@ -345,6 +346,7 @@ export default function ShopTopNav({
         onClose={handleLocationDialogClose}
         savedAddresses={[]}
         onSelectAddress={handleSelectAddress}
+        merchants={merchants}
       />
 
 

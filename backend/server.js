@@ -2678,6 +2678,67 @@ app.post("/api/log-event", (req, res) => {
   }
 });
 
+// Calculate road distance using Google Directions API
+app.post("/api/get-road-distance", async (req, res) => {
+  try {
+    const { fromLat, fromLng, toLat, toLng } = req.body;
+
+    // Validate input
+    if (
+      typeof fromLat !== "number" ||
+      typeof fromLng !== "number" ||
+      typeof toLat !== "number" ||
+      typeof toLng !== "number"
+    ) {
+      return res.status(400).json({ error: "Invalid coordinates" });
+    }
+
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      console.error("❌ GOOGLE_MAPS_API_KEY not configured");
+      return res.status(500).json({ error: "API key not configured" });
+    }
+
+    // Call Google Directions API from backend (avoids CORS issues)
+    const directionsUrl =
+      `https://maps.googleapis.com/maps/api/directions/json?` +
+      `origin=${fromLat},${fromLng}&` +
+      `destination=${toLat},${toLng}&` +
+      `mode=driving&` +
+      `key=${apiKey}`;
+
+    console.log(`📍 Calculating road distance: (${fromLat},${fromLng}) → (${toLat},${toLng})`);
+
+    const response = await axios.get(directionsUrl, { timeout: 10000 });
+
+    if (response.data.status === "OK" && response.data.routes.length > 0) {
+      const distanceMeters = response.data.routes[0].legs[0].distance.value;
+      const distanceKm = Math.round((distanceMeters / 1000 + Number.EPSILON) * 10) / 10;
+      const distanceText = response.data.routes[0].legs[0].distance.text;
+      const durationText = response.data.routes[0].legs[0].duration.text;
+
+      console.log(`✅ Road distance: ${distanceKm} km (${distanceText}, ${durationText})`);
+
+      return res.json({
+        distanceKm,
+        distanceText,
+        durationText,
+        durationSeconds: response.data.routes[0].legs[0].duration.value,
+      });
+    } else {
+      console.warn(`⚠️ Directions API returned status: ${response.data.status}`);
+      return res.status(400).json({
+        error: `Directions API failed: ${response.data.status}`,
+      });
+    }
+  } catch (error) {
+    console.error("❌ Road distance calculation error:", error.message);
+    return res.status(500).json({
+      error: error.message || "Failed to calculate road distance",
+    });
+  }
+});
+
 process.on("unhandledRejection", (reason) => {
   logEvent("error", "unhandled_rejection", {
     message: reason?.message || String(reason),

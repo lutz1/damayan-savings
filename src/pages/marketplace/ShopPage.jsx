@@ -7,7 +7,7 @@ import { getDownloadURL, ref as storageRef } from "firebase/storage";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db, storage } from "../../firebase";
 import { cartCount, cartSubtotal, readCart, saveCart, merchantCount } from "./lib/cartStorage";
-import { calculateCustomerDeliveryFee, calculateDistance, extractCoordinates } from "../../lib/deliveryPricing";
+import { calculateCustomerDeliveryFee, getRoadDistance, extractCoordinates, checkDeliveryDistance } from "../../lib/deliveryPricing";
 import ShopTopNav from "./components/ShopTopNav";
 import ShopBottomNav from "./components/ShopBottomNav";
 import "./ShopPage.css";
@@ -93,6 +93,7 @@ export default function ShopPage({
   const [categoryImages, setCategoryImages] = useState({});
   const [favoriteStores, setFavoriteStores] = useState([]);
   const [storeDeliveryFees, setStoreDeliveryFees] = useState({}); // Store ID -> delivery fee
+  const [storeDistances, setStoreDistances] = useState({}); // Store ID -> distance in km
   const [userDeliveryCoords, setUserDeliveryCoords] = useState(null);
 
   const googleMapsApiKey =
@@ -341,17 +342,36 @@ export default function ShopPage({
     return () => unsubscribe();
   }, [userId]);
 
-  // Load user delivery coordinates
+  // Load user delivery coordinates - with listener for changes
   useEffect(() => {
-    const coordsStr = localStorage.getItem("selectedDeliveryCoordinates");
-    if (coordsStr) {
-      try {
-        setUserDeliveryCoords(JSON.parse(coordsStr));
-      } catch (error) {
-        console.error("Error parsing delivery coordinates:", error);
-        setUserDeliveryCoords(null);
+    const loadCoordinates = () => {
+      const coordsStr = localStorage.getItem("selectedDeliveryCoordinates");
+      if (coordsStr) {
+        try {
+          const coords = JSON.parse(coordsStr);
+          setUserDeliveryCoords(coords);
+        } catch (error) {
+          console.error("Error parsing delivery coordinates:", error);
+          setUserDeliveryCoords(null);
+        }
       }
-    }
+    };
+
+    // Load on mount
+    loadCoordinates();
+
+    // Listen for storage changes (when location is updated in ShopLocationDialog)
+    const handleStorageChange = (event) => {
+      if (event.key === "selectedDeliveryCoordinates") {
+        loadCoordinates();
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+    };
   }, []);
 
   const categories = useMemo(() => {
@@ -397,56 +417,90 @@ export default function ShopPage({
 
   const visibleStores = useMemo(() => {
     const ids = [...new Set(visibleProducts.map((item) => item.merchantId).filter(Boolean))];
-    return ids.map((id) => merchants[id]).filter(Boolean).slice(0, 8);
-  }, [visibleProducts, merchants]);
+    let stores = ids.map((id) => merchants[id]).filter(Boolean);
+    
+    // Filter out stores beyond 8 km delivery distance
+    stores = stores.filter((store) => {
+      const distanceKm = storeDistances[store.id];
+      
+      // If distance not yet calculated, show the store (waiting for calculation)
+      if (distanceKm === undefined || distanceKm === null) return true;
+      
+      // Once calculated, only show if <= 8 km
+      return distanceKm <= 8;
+    });
+    
+    return stores.slice(0, 8);
+  }, [visibleProducts, merchants, storeDistances]);
 
-  // Calculate delivery fees for each visible store
+  // Calculate delivery fees and distances for each visible store
   useEffect(() => {
-    if (!visibleStores.length) {
+    const storeIds = [...new Set(visibleProducts.map((item) => item.merchantId).filter(Boolean))];
+    const allStores = storeIds.map((id) => merchants[id]).filter(Boolean);
+    
+    if (!allStores.length) {
       setStoreDeliveryFees({});
+      setStoreDistances({});
       return;
     }
 
     if (!userDeliveryCoords) {
-      // Use default delivery fees if no coordinates
+      // Use default fees and distances if no coordinates
       const defaultFees = {};
-      visibleStores.forEach(store => {
-        defaultFees[store.id] = calculateCustomerDeliveryFee(3.5); // Default 3.5 km
+      const defaultDistances = {};
+      allStores.forEach(store => {
+        defaultFees[store.id] = calculateCustomerDeliveryFee(3.5);
+        defaultDistances[store.id] = 3.5;
       });
       setStoreDeliveryFees(defaultFees);
+      setStoreDistances(defaultDistances);
       return;
     }
 
-    const calculateFees = async () => {
+    const calculateFeesAndDistances = async () => {
       const fees = {};
+      const distances = {};
 
-      for (const store of visibleStores) {
+      for (const store of allStores) {
         try {
           const storeCoords = extractCoordinates(store);
           
           if (storeCoords) {
-            const distance = calculateDistance(
+            // Use getRoadDistance to get actual road distance
+            const distance = await getRoadDistance(
               userDeliveryCoords.lat,
               userDeliveryCoords.lng,
               storeCoords.lat,
               storeCoords.lng
             );
-            fees[store.id] = calculateCustomerDeliveryFee(distance);
+            const distanceKm = distance || 0;
+            distances[store.id] = distanceKm;
+            
+            // Calculate fee based on distance
+            fees[store.id] = calculateCustomerDeliveryFee(distanceKm);
+            
+            // Log if distance exceeds limit
+            if (distanceKm > 8) {
+              // Store is beyond delivery range, will be filtered out
+            }
           } else {
-            // Fallback to default
+            // Fallback to default if no coordinates
+            distances[store.id] = 3.5;
             fees[store.id] = calculateCustomerDeliveryFee(3.5);
           }
         } catch (error) {
           console.error(`Error calculating fee for store ${store.id}:`, error);
+          distances[store.id] = 3.5;
           fees[store.id] = calculateCustomerDeliveryFee(3.5);
         }
       }
 
       setStoreDeliveryFees(fees);
+      setStoreDistances(distances);
     };
 
-    calculateFees();
-  }, [userDeliveryCoords, visibleStores]);
+    calculateFeesAndDistances();
+  }, [userDeliveryCoords, visibleProducts, merchants]);
 
   const frequentlyBoughtProducts = useMemo(() => {
     // Show promotional products regardless of category filter
@@ -511,6 +565,17 @@ export default function ShopPage({
         setDeliveryAddressCityProvince(addressData.cityProvince);
       }
     }
+
+    // Update coordinates if provided
+    if (addressData?.location?.lat && addressData?.location?.lng) {
+      const coords = {
+        lat: addressData.location.lat,
+        lng: addressData.location.lng,
+      };
+      setUserDeliveryCoords(coords);
+      // Save to localStorage for persistence
+      localStorage.setItem("selectedDeliveryCoordinates", JSON.stringify(coords));
+    }
   };
 
   const handleBackClick = () => {
@@ -570,6 +635,7 @@ export default function ShopPage({
         cartCount={itemCount}
         onCartClick={() => navigate("/marketplace/cart")}
         favoriteStores={favoriteStores}
+        merchants={merchants}
       />
 
       {/* Promotions Carousel - Advertisements Display */}
@@ -744,7 +810,7 @@ export default function ShopPage({
                     <div className="store-info-row" style={{ display: "block", marginBottom: "4px" }}>
                       <span className="delivery-time" style={{ display: "block" }}>⏱️ {store.preparationTime || "20-30 min"}</span>
                       <span className="delivery-fee" style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#1e67da", marginTop: "2px" }}>
-                        🚚 Delivery: ₱50+
+                        🚚 Delivery: ₱{storeDeliveryFees[store.id] || "0"} {storeDistances[store.id] ? `(${storeDistances[store.id]} km)` : ""}
                       </span>
                     </div>
                     {/* Categories */}
@@ -758,6 +824,18 @@ export default function ShopPage({
               );
             })}
           </div>
+        </section>
+      )}
+
+      {/* No Stores in Range Message */}
+      {visibleProducts.length > 0 && visibleStores.length === 0 && (
+        <section className="no-stores-section" style={{ padding: "20px", textAlign: "center", backgroundColor: "#f8f9fa", borderRadius: "8px", margin: "16px 0" }}>
+          <p style={{ color: "#666", fontSize: "14px" }}>
+            📍 <strong>No stores available in your delivery range</strong>
+          </p>
+          <p style={{ color: "#999", fontSize: "12px", marginTop: "8px" }}>
+            Change your delivery location or check back later
+          </p>
         </section>
       )}
 

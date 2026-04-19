@@ -1437,6 +1437,90 @@ const docExists = (snap) => {
 };
 
 // Initialize CORS middleware
+/**
+ * Calculate road distance using Google Directions API
+ * Used for accurate delivery fee calculation
+ * Callable from frontend to get real road distance
+ */
+exports.getRoadDistance = functions.https.onCall(async (data, context) => {
+  try {
+    const { fromLat, fromLng, toLat, toLng } = data;
+
+    // Validate input
+    if (
+      typeof fromLat !== "number" ||
+      typeof fromLng !== "number" ||
+      typeof toLat !== "number" ||
+      typeof toLng !== "number"
+    ) {
+      console.error("[getRoadDistance] ❌ Invalid coordinates:", data);
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Invalid coordinates. Expected numbers for fromLat, fromLng, toLat, toLng"
+      );
+    }
+
+    const apiKey = functions.config().maps?.key;
+    if (!apiKey) {
+      console.error("[getRoadDistance] ❌ maps.key not configured");
+      throw new functions.https.HttpsError(
+        "internal",
+        "API key not configured"
+      );
+    }
+
+    // Call Google Directions API
+    const directionsUrl =
+      `https://maps.googleapis.com/maps/api/directions/json?` +
+      `origin=${fromLat},${fromLng}&` +
+      `destination=${toLat},${toLng}&` +
+      `mode=driving&` +
+      `key=${apiKey}`;
+
+    console.log(`[getRoadDistance] 📍 Calculating: (${fromLat},${fromLng}) → (${toLat},${toLng})`);
+
+    const response = await fetch(directionsUrl, { timeout: 10000 });
+
+    if (!response.ok) {
+      throw new Error(`Google API returned ${response.status}`);
+    }
+
+    const directionsData = await response.json();
+
+    if (directionsData.status === "OK" && directionsData.routes.length > 0) {
+      const distanceMeters = directionsData.routes[0].legs[0].distance.value;
+      const distanceKm = Math.round((distanceMeters / 1000 + Number.EPSILON) * 10) / 10;
+      const distanceText = directionsData.routes[0].legs[0].distance.text;
+      const durationText = directionsData.routes[0].legs[0].duration.text;
+      const durationSeconds = directionsData.routes[0].legs[0].duration.value;
+
+      console.log(`[getRoadDistance] ✅ Found: ${distanceKm} km (${distanceText}, ${durationText})`);
+
+      return {
+        distanceKm,
+        distanceText,
+        durationText,
+        durationSeconds,
+      };
+    } else {
+      console.warn(`[getRoadDistance] ⚠️ Google API status: ${directionsData.status}`);
+      throw new functions.https.HttpsError(
+        "unavailable",
+        `Directions API failed: ${directionsData.status}`
+      );
+    }
+  } catch (error) {
+    console.error("[getRoadDistance] ❌ Error:", error.message);
+    if (error.code && error.message) {
+      throw error; // Re-throw HttpsError
+    }
+    throw new functions.https.HttpsError(
+      "internal",
+      error.message || "Failed to calculate road distance"
+    );
+  }
+});
+
 const corsHandler = cors({ origin: true });
 const setCorsHeaders = (res) => {
   res.set("Access-Control-Allow-Origin", "*");

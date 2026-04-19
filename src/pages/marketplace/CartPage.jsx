@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { addDoc, collection, doc, getDoc, serverTimestamp } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "../../firebase";
 import { cartCount, cartSubtotal, readCart, saveCart } from "./lib/cartStorage";
-import { calculateCustomerDeliveryFee, calculateDistance, extractCoordinates } from "../../lib/deliveryPricing";
+import { calculateCustomerDeliveryFee, getRoadDistance, extractCoordinates, geocodeAddress } from "../../lib/deliveryPricing";
 
 const currency = (value) =>
   `P${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -23,14 +24,15 @@ export default function CartPage() {
 
   // Fetch user's delivery address from Firestore
   useEffect(() => {
-    const fetchUserDeliveryData = async () => {
-      try {
-        const user = auth.currentUser;
-        if (!user) {
-          console.log("❌ No current user");
-          return;
-        }
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        console.log("❌ No authenticated user");
+        return;
+      }
 
+      console.log("✅ User authenticated:", user.uid);
+
+      try {
         const userSnap = await getDoc(doc(db, "users", user.uid));
         if (!userSnap.exists()) {
           console.log("❌ User document not found in Firestore");
@@ -40,19 +42,35 @@ export default function CartPage() {
         const userData = userSnap.data();
         console.log("👤 User Firestore data:", userData);
 
-        // Extract delivery coordinates from user's Firestore document
-        const coords = extractCoordinates(userData);
+        // Try to extract coordinates directly from user document
+        let coords = extractCoordinates(userData);
+        
         if (coords) {
           setDeliveryCoordinates(coords);
-          console.log("✅ Delivery coordinates from Firestore:", coords);
+          console.log("✅ Delivery coordinates from Firestore (direct):", coords);
+        } else if (userData.deliveryAddress || userData.address) {
+          // If no coordinates but address exists, geocode the address
+          const addressToGeocode = userData.deliveryAddress || userData.address;
+          console.log("🔍 Geocoding address:", addressToGeocode);
+          coords = await geocodeAddress(addressToGeocode);
+          
+          if (coords) {
+            setDeliveryCoordinates(coords);
+            console.log("✅ Delivery coordinates from geocoding:", coords);
+          } else {
+            console.log("❌ Could not geocode address");
+          }
         } else {
-          console.log("⚠️  No delivery coordinates found in Firestore");
+          console.log("⚠️  No delivery coordinates or address found in Firestore");
         }
 
-        // Also get address info if available
+        // Set address info
         if (userData.deliveryAddress) {
           setCurrentLocation(userData.deliveryAddress);
           console.log("✅ Delivery address from Firestore:", userData.deliveryAddress);
+        } else if (userData.address) {
+          setCurrentLocation(userData.address);
+          console.log("✅ Delivery address from Firestore:", userData.address);
         }
 
         if (userData.city || userData.province) {
@@ -61,9 +79,9 @@ export default function CartPage() {
       } catch (error) {
         console.error("❌ Error fetching user delivery data:", error);
       }
-    };
+    });
 
-    fetchUserDeliveryData();
+    return unsubscribe;
   }, []);
 
   // Refresh cart on window focus
@@ -111,12 +129,16 @@ export default function CartPage() {
             exists: merchantSnap.exists(),
             storeName: merchantData?.storeName || merchantData?.name,
             allKeys: Object.keys(merchantData || {}),
+            shopLocation: merchantData?.shopLocation,
             location: merchantData?.location,
             coordinates: merchantData?.coordinates,
             lat: merchantData?.lat,
             latitude: merchantData?.latitude,
             lng: merchantData?.lng,
             longitude: merchantData?.longitude,
+            shopAddress: merchantData?.shopAddress,
+            geoPoint: merchantData?._latitude ? {lat: merchantData._latitude, lng: merchantData._longitude} : 'N/A',
+            fullData: merchantData
           });
           
           const storeCoords = extractCoordinates(merchantData);
@@ -124,14 +146,22 @@ export default function CartPage() {
           console.log(`  → User delivery coordinates:`, deliveryCoordinates);
 
           if (storeCoords && deliveryCoordinates) {
-            const dist = calculateDistance(
+            // Use getRoadDistance instead of calculateDistance (Haversine)
+            // getRoadDistance returns actual road distance via Google Directions API
+            const dist = await getRoadDistance(
               deliveryCoordinates.lat,
               deliveryCoordinates.lng,
               storeCoords.lat,
               storeCoords.lng
             );
-            console.log(`  → Distance calculated: ${dist} km`);
-            distances.push(dist);
+            
+            if (dist !== null) {
+              console.log(`  → Road distance from Google API: ${dist} km`);
+              distances.push(dist);
+            } else {
+              console.log(`  ⚠️  FALLBACK: Google Directions API failed, using 0 km`);
+              distances.push(0);
+            }
           } else {
             console.log(`  ⚠️  SKIPPED: storeCoords=${storeCoords ? 'found' : 'NOT FOUND'}, deliveryCoordinates=${deliveryCoordinates ? 'found' : 'NOT FOUND'}`);
           }

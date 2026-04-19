@@ -3,6 +3,7 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { initializeFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
+import { getFunctions } from "firebase/functions";
 
 const envValue = (key) => import.meta.env[`VITE_${key}`] || import.meta.env[`REACT_APP_${key}`] || "";
 
@@ -39,4 +40,7 @@ const secondaryApp =
   getApps().find(a => a.name === "Secondary") || initializeApp(secondaryConfig, "Secondary");
 const secondaryAuth = getAuth(secondaryApp);
 
-export { app, auth, db, storage, secondaryAuth };
+// Initialize Cloud Functions
+const functions = getFunctions(app);
+
+export { app, auth, db, storage, secondaryAuth, functions };
