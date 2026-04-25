@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Box, Typography, Dialog, DialogContent, DialogActions, Button } from "@mui/material";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 import { auth, db } from "../../firebase";
 import ShopPage from "../marketplace/ShopPage";
 import ShopLocationDialog from "../marketplace/components/ShopLocationDialog";
@@ -11,44 +11,14 @@ import {
 const MemberMarketplace = () => {
   const [shopPageLoaded, setShopPageLoaded] = useState(false);
   const [locationDialogOpen, setLocationDialogOpen] = useState(false);
-  const [userHasAddress, setUserHasAddress] = useState(false);
-  const [addressCheckDone, setAddressCheckDone] = useState(false);
   const [showAddressConfirmedDialog, setShowAddressConfirmedDialog] = useState(false);
-
-  // Check if user has a delivery address saved in Firebase
-  useEffect(() => {
-    const checkSavedAddress = async () => {
-      try {
-        const user = auth.currentUser;
-        if (!user) {
-          setAddressCheckDone(true);
-          return;
-        }
-
-        const userRef = doc(db, "users", user.uid);
-        const userData = await getDoc(userRef);
-        
-        if (userData.exists()) {
-          const deliveryAddress = userData.data()?.deliveryAddress;
-          setUserHasAddress(!!deliveryAddress);
-        }
-      } catch (error) {
-        console.error("Error checking saved address:", error);
-      } finally {
-        setAddressCheckDone(true);
-      }
-    };
-
-    if (shopPageLoaded) {
-      checkSavedAddress();
-    }
-  }, [shopPageLoaded]);
+  const [deliveryLocation, setDeliveryLocation] = useState(null);
 
   const handleLocationDialogClose = () => {
     setLocationDialogOpen(false);
   };
 
-  const handleSelectAddress = async ({ address, cityProvince, location }) => {
+  const handleSelectAddress = async ({ address, cityProvince, location, coordinates }) => {
     try {
       const user = auth.currentUser;
       if (!user) {
@@ -56,20 +26,19 @@ const MemberMarketplace = () => {
         return false;
       }
 
-      console.log("Saving address for user:", user.uid);
-
       // Save to Firebase Firestore
       const userRef = doc(db, "users", user.uid);
+      const selectedLocation = location || coordinates || null;
+
       const locationPayload = {
         deliveryAddress: address,
         deliveryAddressCityProvince: cityProvince,
-        deliveryAddressLocation: location || null,
+        deliveryAddressLocation: selectedLocation,
         deliveryAddressUpdatedAt: new Date().toISOString(),
       };
 
       const userShopLocationRef = doc(db, "usershoplocation", user.uid);
 
-      console.log("Writing to both users and usershoplocation collections...");
       await Promise.all([
         setDoc(userRef, locationPayload, { merge: true }),
         setDoc(userShopLocationRef, {
@@ -79,8 +48,31 @@ const MemberMarketplace = () => {
         }, { merge: true }),
       ]);
 
-      console.log("✓ Address saved successfully!");
-      setUserHasAddress(true);
+      const normalizedCoordinates =
+        selectedLocation &&
+        Number.isFinite(Number(selectedLocation.lat)) &&
+        Number.isFinite(Number(selectedLocation.lng))
+          ? {
+              lat: Number(selectedLocation.lat),
+              lng: Number(selectedLocation.lng),
+            }
+          : null;
+
+      localStorage.setItem("selectedDeliveryAddress", address);
+      localStorage.setItem("selectedDeliveryAddressCityProvince", cityProvince || "");
+
+      if (normalizedCoordinates) {
+        localStorage.setItem("selectedDeliveryCoordinates", JSON.stringify(normalizedCoordinates));
+      } else {
+        localStorage.removeItem("selectedDeliveryCoordinates");
+      }
+
+      setDeliveryLocation({
+        address,
+        cityProvince: cityProvince || "",
+        coordinates: normalizedCoordinates,
+      });
+
       setLocationDialogOpen(false);
       setShowAddressConfirmedDialog(true);
       return true;
@@ -96,16 +88,12 @@ const MemberMarketplace = () => {
     setShopPageLoaded((prev) => (prev ? prev : true));
   }, []);
 
+  // Always open location dialog when marketplace loads
+  // Dialog displays EVERY TIME user navigates to MarketPlace, regardless of saved address
   useEffect(() => {
-    if (!shopPageLoaded || !addressCheckDone) return;
-
-    if (!userHasAddress) {
-      setLocationDialogOpen(true);
-      return;
-    }
-
-    setLocationDialogOpen(false);
-  }, [shopPageLoaded, addressCheckDone, userHasAddress]);
+    if (!shopPageLoaded) return;
+    setLocationDialogOpen(true);
+  }, [shopPageLoaded]);
 
   return (
     <Box
@@ -124,6 +112,7 @@ const MemberMarketplace = () => {
             isEmbedded={true}
             onLoaded={handleShopPageLoaded}
             onRequestLocationPicker={() => setLocationDialogOpen(true)}
+            deliveryLocation={deliveryLocation}
           />
         </Box>
 

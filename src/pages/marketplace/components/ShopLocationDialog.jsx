@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { Dialog, useMediaQuery, useTheme, Box, Button, Typography, TextField, IconButton, CircularProgress, Chip } from "@mui/material";
+import { Dialog, useMediaQuery, useTheme, Box, Button, Typography, TextField, IconButton, CircularProgress } from "@mui/material";
+import { GoogleMap, useJsApiLoader } from "@react-google-maps/api";
 import { getRoadDistance, extractCoordinates, calculateCustomerDeliveryFee } from "../../../lib/deliveryPricing";
 import SearchIcon from "@mui/icons-material/Search";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
@@ -13,7 +14,6 @@ import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
 
 const RECENT_SEARCHES_KEY = "shopRecentLocationSearches";
-const PIN_PATH = "M 0,0 C -2,-20 -10,-22 -10,-30 A 10,10 0 1,1 10,-30 C 10,-22 2,-20 0,0 z";
 
 const getCityProvinceFromAddress = (address) => {
   if (!address) return "";
@@ -50,138 +50,118 @@ const ShopLocationDialog = ({
   const [recentSearches, setRecentSearches] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [selectedAddress, setSelectedAddress] = useState(null);
-  const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
-  const markerRef = useRef(null);
-  const glowMarkerRef = useRef(null);
   const pulseTimerRef = useRef(null);
   const searchDebounceRef = useRef(null);
   const searchRequestRef = useRef(0);
   const [zoomLevel, setZoomLevel] = useState(15);
   const [nearbyStores, setNearbyStores] = useState([]);
   const [calculatingStores, setCalculatingStores] = useState(false);
+
   const googleMapsApiKey =
     import.meta.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY || "";
 
-  // Load Google Maps script dynamically
-  useEffect(() => {
-    if (!googleMapsApiKey || window.google?.maps) {
-      return;
-    }
+  const { isLoaded: isGoogleMapsLoaded } = useJsApiLoader({
+    id: "user-app-shop-map",
+    googleMapsApiKey,
+  });
 
-    const scriptId = "google-maps-script-location-dialog";
-    
-    // Check if script is already being loaded
-    if (document.getElementById(scriptId)) {
-      return;
-    }
+  const pushRecentSearch = useCallback(
+    (address) => {
+      if (!address) return;
 
-    try {
-      const script = document.createElement("script");
-      script.id = scriptId;
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(googleMapsApiKey)}&loading=async`;
-      script.type = "text/javascript";
-      script.async = true;
-      
-      script.onload = () => {
-        console.log("✅ Google Maps script loaded successfully");
-      };
-      
-      script.onerror = () => {
-        console.error("❌ Failed to load Google Maps script");
-        setMapLoadError("Failed to load Google Maps. Check API key or network.");
-      };
-      
-      document.head.appendChild(script);
-    } catch (error) {
-      console.error("Error loading Google Maps script:", error);
-      setMapLoadError("Error loading Google Maps library");
-    }
-  }, [googleMapsApiKey]);
+      const deduped = [
+        address,
+        ...recentSearches.filter((entry) => entry.toLowerCase() !== address.toLowerCase()),
+      ].slice(0, 8);
 
-  // Calculate nearby stores within 8km
-  const calculateNearbyStores = useCallback(async (lat, lng) => {
-    if (!merchants || Object.keys(merchants).length === 0) {
-      setNearbyStores([]);
-      return;
-    }
+      setRecentSearches(deduped);
+      localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(deduped));
+    },
+    [recentSearches]
+  );
 
-    setCalculatingStores(true);
-    const storesData = [];
+  const calculateNearbyStores = useCallback(
+    async (lat, lng) => {
+      if (!merchants || Object.keys(merchants).length === 0) {
+        setNearbyStores([]);
+        return;
+      }
 
-    try {
-      for (const [storeId, storeData] of Object.entries(merchants)) {
-        try {
-          const storeCoords = extractCoordinates(storeData);
-          if (!storeCoords) continue;
+      setCalculatingStores(true);
+      const storesData = [];
 
-          // Calculate actual road distance
-          const distance = await getRoadDistance(
-            lat,
-            lng,
-            storeCoords.lat,
-            storeCoords.lng
-          );
+      try {
+        for (const [storeId, storeData] of Object.entries(merchants)) {
+          try {
+            const storeCoords = extractCoordinates(storeData);
+            if (!storeCoords) continue;
 
-          if (distance && distance <= 8) {
-            const fee = calculateCustomerDeliveryFee(distance);
-            storesData.push({
-              id: storeId,
-              name: storeData.storeName || storeData.businessName || "Store",
-              distance: Math.round((distance + Number.EPSILON) * 10) / 10,
-              fee,
-              logo: storeData.storeLogo || storeData.businessLogo,
-            });
+            const distance = await getRoadDistance(lat, lng, storeCoords.lat, storeCoords.lng);
+
+            if (distance && distance <= 8) {
+              const fee = calculateCustomerDeliveryFee(distance);
+              storesData.push({
+                id: storeId,
+                name: storeData.storeName || storeData.businessName || "Store",
+                distance: Math.round((distance + Number.EPSILON) * 10) / 10,
+                fee,
+                logo: storeData.storeLogo || storeData.businessLogo,
+              });
+            }
+          } catch (error) {
+            console.error(`Error calculating distance for store ${storeId}:`, error);
           }
-        } catch (error) {
-          console.error(`Error calculating distance for store ${storeId}:`, error);
         }
+
+        storesData.sort((a, b) => a.distance - b.distance);
+        setNearbyStores(storesData);
+      } finally {
+        setCalculatingStores(false);
       }
+    },
+    [merchants]
+  );
 
-      // Sort by distance
-      storesData.sort((a, b) => a.distance - b.distance);
-      setNearbyStores(storesData);
-    } finally {
-      setCalculatingStores(false);
-    }
-  }, [merchants]);
+  const reverseGeocode = useCallback(
+    async (lat, lng, saveToRecent = true) => {
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
+        );
 
-  const reverseGeocode = useCallback(async (lat, lng, saveToRecent = true) => {
-    try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
-      );
+        if (!response.ok) {
+          throw new Error("Failed reverse geocoding");
+        }
 
-      if (!response.ok) {
-        throw new Error("Failed reverse geocoding");
+        const data = await response.json();
+        const city =
+          data.address?.city ||
+          data.address?.town ||
+          data.address?.municipality ||
+          data.address?.county ||
+          "Location";
+        const province = data.address?.state || data.address?.province || "";
+        const cityProvince = province ? `${city}, ${province}` : city;
+
+        const fullAddress =
+          data.display_name ||
+          [data.address?.road, data.address?.suburb, cityProvince].filter(Boolean).join(", ");
+
+        setSelectedAddress(fullAddress);
+        if (saveToRecent) {
+          pushRecentSearch(fullAddress);
+        }
+        return fullAddress;
+      } catch (error) {
+        console.error("Reverse geocoding error:", error);
+        const fallbackAddress = `Lat: ${lat.toFixed(5)}, Lon: ${lng.toFixed(5)}`;
+        setSelectedAddress(fallbackAddress);
+        return fallbackAddress;
       }
-
-      const data = await response.json();
-      const city =
-        data.address?.city ||
-        data.address?.town ||
-        data.address?.municipality ||
-        data.address?.county ||
-        "Location";
-      const province = data.address?.state || data.address?.province || "";
-      const cityProvince = province ? `${city}, ${province}` : city;
-
-      const fullAddress =
-        data.display_name ||
-        [data.address?.road, data.address?.suburb, cityProvince].filter(Boolean).join(", ");
-
-      setSelectedAddress(fullAddress);
-      if (saveToRecent) {
-        pushRecentSearch(fullAddress);
-      }
-      return fullAddress;
-    } catch (error) {
-      console.error("Reverse geocoding error:", error);
-      const fallbackAddress = `Lat: ${lat.toFixed(5)}, Lon: ${lng.toFixed(5)}`;
-      setSelectedAddress(fallbackAddress);
-      return fallbackAddress;
-    }
-  }, [recentSearches, calculateNearbyStores]);
+    },
+    [pushRecentSearch]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -201,13 +181,8 @@ const ShopLocationDialog = ({
         pulseTimerRef.current = null;
       }
 
-      // Reset references on close, but avoid imperative map DOM teardown here
-      // to prevent races with React unmounting the Dialog portal.
-      markerRef.current = null;
-      glowMarkerRef.current = null;
       mapRef.current = null;
     } else {
-      // Reset map errors when dialog opens (to allow retry)
       setMapLoadError("");
     }
   }, [open]);
@@ -242,7 +217,6 @@ const ShopLocationDialog = ({
     if (!selectedLocation || !googleMapsApiKey || mapLoadError) return;
     if (window.google?.maps) return;
 
-    // Wait longer for Google Maps to load (up to 8 seconds)
     const timeoutId = window.setTimeout(() => {
       if (!window.google?.maps) {
         console.error("❌ Google Maps API failed to load within 8 seconds");
@@ -257,165 +231,49 @@ const ShopLocationDialog = ({
 
   const handleRetryMapLoad = () => {
     setMapLoadError("");
-
-    if (markerRef.current) {
-      markerRef.current.setMap(null);
-      markerRef.current = null;
-    }
-
-    if (glowMarkerRef.current) {
-      glowMarkerRef.current.setMap(null);
-      glowMarkerRef.current = null;
-    }
-
+    setMapRetryNonce((prev) => prev + 1);
     if (mapRef.current && window.google?.maps?.event) {
       window.google.maps.event.clearInstanceListeners(mapRef.current);
     }
     mapRef.current = null;
-
-    // Reset the map retry counter to trigger map reinitialization
-    setMapRetryNonce((prev) => prev + 1);
-    
-    // If Google Maps script failed to load, try reloading it
-    if (!window.google?.maps && googleMapsApiKey) {
-      const scriptId = "google-maps-script-location-dialog";
-      const existingScript = document.getElementById(scriptId);
-      if (existingScript) {
-        existingScript.remove();
-      }
-      // Script will be reloaded on next effect run when googleMapsApiKey is available
-    }
   };
 
-  // Initialize Google Map and marker when location is available.
   useEffect(() => {
-    if (!selectedLocation || !mapContainerRef.current) return;
-
-    if (!googleMapsApiKey || mapLoadError) {
-      return;
-    }
-
-    // Check if Google Maps API is loaded
-    if (!window.google || !window.google.maps) {
-      console.warn("Google Maps API not yet loaded");
-      return;
-    }
-
-    try {
-      if (!mapRef.current) {
-        mapRef.current = new window.google.maps.Map(mapContainerRef.current, {
-          center: selectedLocation,
-          zoom: zoomLevel,
-          disableDefaultUI: false,
-          zoomControl: false,
-          fullscreenControl: false,
-          streetViewControl: false,
-          mapTypeControl: false,
-          scaleControl: true,
-          gestureHandling: "greedy",
-        });
-      }
-
-      if (!markerRef.current) {
-        markerRef.current = new window.google.maps.Marker({
-          position: selectedLocation,
-          map: mapRef.current,
-          draggable: true,
-          title: "Drag to adjust location",
-          icon: {
-            path: PIN_PATH,
-            anchor: new window.google.maps.Point(0, 0),
-            scale: 1.25,
-            fillColor: "#1e67da",
-            fillOpacity: 1,
-            strokeColor: "#ffffff",
-            strokeWeight: 2,
-          },
-        });
-
-        glowMarkerRef.current = new window.google.maps.Marker({
-          position: selectedLocation,
-          map: mapRef.current,
-          clickable: false,
-          zIndex: 1,
-          icon: {
-            path: window.google.maps.SymbolPath.CIRCLE,
-            scale: 12,
-            fillColor: "#1e67da",
-            fillOpacity: 0.25,
-            strokeOpacity: 0,
-          },
-        });
-
-        if (!pulseTimerRef.current) {
-          let phase = 0;
-          pulseTimerRef.current = window.setInterval(() => {
-            if (!glowMarkerRef.current || !window.google?.maps) return;
-            phase += 0.22;
-            const wave = (Math.sin(phase) + 1) / 2;
-            glowMarkerRef.current.setIcon({
-              path: window.google.maps.SymbolPath.CIRCLE,
-              scale: 10 + wave * 7,
-              fillColor: "#1e67da",
-              fillOpacity: 0.14 + wave * 0.2,
-              strokeOpacity: 0,
-            });
-          }, 90);
-        }
-
-        markerRef.current.addListener("drag", () => {
-          const currentPos = markerRef.current.getPosition();
-          if (!currentPos) return;
-          setSelectedLocation({ lat: currentPos.lat(), lng: currentPos.lng() });
-        });
-
-        markerRef.current.addListener("dragend", async () => {
-          const newPos = markerRef.current.getPosition();
-          if (!newPos) return;
-          const lat = newPos.lat();
-          const lng = newPos.lng();
-          setSelectedLocation({ lat, lng });
-          await reverseGeocode(lat, lng);
-        });
-
-        mapRef.current.addListener("click", async (event) => {
-          if (!event.latLng || !markerRef.current) return;
-          markerRef.current.setPosition(event.latLng);
-          const lat = event.latLng.lat();
-          const lng = event.latLng.lng();
-          setSelectedLocation({ lat, lng });
-          await reverseGeocode(lat, lng);
-        });
-      }
-
-      markerRef.current.setPosition(selectedLocation);
-      if (glowMarkerRef.current) {
-        glowMarkerRef.current.setPosition(selectedLocation);
-      }
+    if (mapRef.current && selectedLocation) {
       mapRef.current.panTo(selectedLocation);
-    } catch (error) {
-      console.error("Map initialization error:", error);
-      setMapLoadError("Unable to initialize Google Maps. Check console and API key restrictions.");
     }
-  }, [selectedLocation, zoomLevel, reverseGeocode, googleMapsApiKey, mapLoadError, mapRetryNonce]);
+  }, [selectedLocation]);
+
+  const handleMapClick = useCallback(
+    async (event) => {
+      if (!event?.latLng) return;
+      const lat = event.latLng.lat();
+      const lng = event.latLng.lng();
+      setSelectedLocation({ lat, lng });
+      await reverseGeocode(lat, lng);
+    },
+    [reverseGeocode]
+  );
+
+  const handleMapDragEnd = useCallback(
+    async () => {
+      const center = mapRef.current?.getCenter?.();
+      if (!center) return;
+
+      const lat = center.lat();
+      const lng = center.lng();
+    
+      setSelectedLocation({ lat, lng });
+      await reverseGeocode(lat, lng);
+    },
+    [reverseGeocode]
+  );
 
   useEffect(() => {
     if (mapRef.current) {
       mapRef.current.setZoom(zoomLevel);
     }
   }, [zoomLevel]);
-
-  const pushRecentSearch = (address) => {
-    if (!address) return;
-
-    const deduped = [
-      address,
-      ...recentSearches.filter((entry) => entry.toLowerCase() !== address.toLowerCase()),
-    ].slice(0, 8);
-
-    setRecentSearches(deduped);
-    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(deduped));
-  };
 
   const filteredSavedAddresses = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -435,13 +293,12 @@ const ShopLocationDialog = ({
     const cityProvince = getCityProvinceFromAddress(address);
     pushRecentSearch(address);
     setSelectedAddress(address);
-    
-    // Geocode the address to get coordinates
+
     try {
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(address)}`
       );
-      
+
       if (response.ok) {
         const results = await response.json();
         if (results.length > 0) {
@@ -579,7 +436,6 @@ const ShopLocationDialog = ({
         setSearchSuggestions(normalized);
         setShowSuggestions(normalized.length > 0);
 
-        // Live preview: while typing, move pin to top suggestion.
         if (normalized.length > 0) {
           const top = normalized[0];
           setSelectedLocation({ lat: top.lat, lng: top.lng });
@@ -645,20 +501,16 @@ const ShopLocationDialog = ({
       return;
     }
 
-    // PWA Geolocation - Works on Android/iOS
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         try {
           const { latitude, longitude } = position.coords;
-
-          // Store location coordinates
           setSelectedLocation({ lat: latitude, lng: longitude });
 
           await reverseGeocode(latitude, longitude);
           await calculateNearbyStores(latitude, longitude);
           setLocationError("");
 
-          // Zoom to location
           if (mapRef.current) {
             mapRef.current.panTo({ lat: latitude, lng: longitude });
             mapRef.current.setZoom(16);
@@ -666,8 +518,6 @@ const ShopLocationDialog = ({
           }
         } catch (error) {
           const { latitude, longitude } = position.coords;
-
-          // Fallback: show location on map even if reverse geocoding fails
           setSelectedLocation({ lat: latitude, lng: longitude });
           setSelectedAddress(`Lat: ${latitude.toFixed(5)}, Lon: ${longitude.toFixed(5)}`);
           await calculateNearbyStores(latitude, longitude);
@@ -704,7 +554,7 @@ const ShopLocationDialog = ({
       },
       {
         enableHighAccuracy: true,
-        timeout: 30000, // 30 seconds - longer for mobile PWA
+        timeout: 30000,
         maximumAge: 0,
       }
     );
@@ -755,7 +605,6 @@ const ShopLocationDialog = ({
           backgroundColor: "#ffffff",
         }}
       >
-        {/* Header with Rider Blue Theme */}
         <Box
           sx={{
             background: "linear-gradient(180deg, #1e67da 0%, #1357c4 100%)",
@@ -784,7 +633,6 @@ const ShopLocationDialog = ({
             </Typography>
           </Box>
 
-          {/* Search Bar */}
           <Box
             sx={{
               position: "relative",
@@ -897,7 +745,6 @@ const ShopLocationDialog = ({
           </Box>
         </Box>
 
-        {/* Use Current Location Button */}
         <Box sx={{ px: 2, pt: 1.5, pb: 1 }}>
           <Button
             onClick={handleGetCurrentLocation}
@@ -949,7 +796,6 @@ const ShopLocationDialog = ({
           </Button>
         </Box>
 
-        {/* Error Message */}
         {locationError && (
           <Box
             sx={{
@@ -966,7 +812,6 @@ const ShopLocationDialog = ({
           </Box>
         )}
 
-        {/* Google Map View */}
         {selectedLocation && !googleMapsApiKey && (
           <Box
             sx={{
@@ -986,18 +831,106 @@ const ShopLocationDialog = ({
         )}
 
         {selectedLocation && googleMapsApiKey && (
-          <Box sx={{ position: "relative", mx: 2, my: 1.5, borderRadius: "0.75rem", overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
+          <Box
+            sx={{
+              position: "relative",
+              mx: 2,
+              my: 1.5,
+              borderRadius: "0.75rem",
+              overflow: "hidden",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+              touchAction: "manipulation",
+              pointerEvents: "auto",
+            }}
+          >
             <Box
-              ref={mapContainerRef}
               sx={{
                 width: "100%",
                 height: isMobile ? "42dvh" : "360px",
                 minHeight: isMobile ? "340px" : "320px",
                 borderRadius: "0.75rem",
+                pointerEvents: "auto",
+                touchAction: "manipulation",
+                position: "relative",
+                backgroundColor: "#eef5ff",
+                cursor: "grab",
               }}
-            />
+            >
+              {isGoogleMapsLoaded ? (
+                <>
+                  <GoogleMap
+                    mapContainerStyle={{ width: "100%", height: "100%" }}
+                    center={selectedLocation}
+                    zoom={zoomLevel}
+                    onLoad={(map) => {
+                      mapRef.current = map;
+                    }}
+                    onUnmount={() => {
+                      mapRef.current = null;
+                    }}
+                    onClick={handleMapClick}
+                    onDragEnd={handleMapDragEnd}
+                    options={{
+                      disableDefaultUI: false,
+                      zoomControl: false,
+                      fullscreenControl: false,
+                      streetViewControl: false,
+                      mapTypeControl: false,
+                      scaleControl: true,
+                      gestureHandling: "greedy",
+                      draggableCursor: "grab",
+                      draggingCursor: "grabbing",
+                    }}
+                  />
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      top: "50%",
+                      left: "50%",
+                      transform: "translate(-50%, -100%)",
+                      zIndex: 6,
+                      pointerEvents: "none",
+                      filter: "drop-shadow(0 4px 10px rgba(0,0,0,0.3))",
+                    }}
+                  >
+                    <LocationOnIcon sx={{ fontSize: 58, color: "#1e67da" }} />
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        top: 22,
+                        left: "50%",
+                        transform: "translateX(-50%)",
+                        width: 14,
+                        height: 14,
+                        borderRadius: "50%",
+                        backgroundColor: "#ffffff",
+                        border: "3px solid #1e67da",
+                      }}
+                    />
+                  </Box>
+                </>
+              ) : (
+                <Box
+                  sx={{
+                    width: "100%",
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 1,
+                    color: "#1e67da",
+                    background: "linear-gradient(180deg, rgba(30, 103, 218, 0.08) 0%, rgba(30, 103, 218, 0.03) 100%)",
+                  }}
+                >
+                  <CircularProgress size={28} sx={{ color: "#1e67da" }} />
+                  <Typography sx={{ fontSize: "0.85rem", fontWeight: 600 }}>
+                    Loading Google Map...
+                  </Typography>
+                </Box>
+              )}
+            </Box>
 
-            {/* Map Controls */}
             <Box
               sx={{
                 position: "absolute",
@@ -1007,6 +940,7 @@ const ShopLocationDialog = ({
                 flexDirection: "column",
                 gap: 1,
                 zIndex: 5,
+                pointerEvents: "auto",
               }}
             >
               <Button
@@ -1059,7 +993,6 @@ const ShopLocationDialog = ({
               </Button>
             </Box>
 
-            {/* Drag Hint */}
             <Box
               sx={{
                 position: "absolute",
@@ -1074,9 +1007,10 @@ const ShopLocationDialog = ({
                 fontSize: "0.75rem",
                 textAlign: "center",
                 zIndex: 4,
+                pointerEvents: "none",
               }}
             >
-              Drag the pin to adjust location
+              Drag the map to adjust location
             </Box>
 
             {mapLoadError && (
@@ -1092,6 +1026,7 @@ const ShopLocationDialog = ({
                   alignItems: "center",
                   px: 2,
                   zIndex: 9,
+                  pointerEvents: "auto",
                 }}
               >
                 <Typography sx={{ fontSize: "0.85rem", color: "#9f1239", lineHeight: 1.45, textAlign: "center", mb: 1.2 }}>
@@ -1134,14 +1069,14 @@ const ShopLocationDialog = ({
                 lineHeight: 1.2,
                 boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
                 zIndex: 4,
+                pointerEvents: "none",
               }}
             >
-              Pin: {selectedLocation.lat.toFixed(5)}, {selectedLocation.lng.toFixed(5)}
+              Center: {selectedLocation.lat.toFixed(5)}, {selectedLocation.lng.toFixed(5)}
             </Box>
           </Box>
         )}
 
-        {/* Saved Addresses & Recent Searches */}
         <Box
           sx={{
             flex: selectedLocation ? "0 0 auto" : 1,
@@ -1162,7 +1097,7 @@ const ShopLocationDialog = ({
               }}
             >
               <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, color: "#1e67da", mb: 0.4 }}>
-                Selected Pin Address
+                Selected Center Address
               </Typography>
               <Typography sx={{ fontSize: "0.85rem", color: "#2b2b2b" }}>
                 {selectedAddress}
@@ -1267,7 +1202,6 @@ const ShopLocationDialog = ({
             )}
           </Box>
 
-          {/* Recent Searches */}
           {filteredRecentSearches.length > 0 && !selectedLocation && (
             <Box sx={{ mt: 2 }}>
               <Typography
@@ -1312,7 +1246,6 @@ const ShopLocationDialog = ({
           )}
         </Box>
 
-        {/* Confirm Address Button - Sticky at Bottom */}
         <Box
           sx={{
             px: 2,

@@ -16,6 +16,7 @@ import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { auth, db } from "../../firebase";
+import { DELIVERY_STATUS, getDeliveryStatusColor, getDeliveryStatusLabel, normalizeDeliveryStatus } from "./utils/deliveryStatus";
 import Topbar from "./components/Topbar";
 import AppBottomNav from "./components/AppBottomNav";
 import bgImage from "../../assets/bg.jpg";
@@ -36,12 +37,14 @@ const formatDateTime = (value) => {
 };
 
 const getStatusColor = (status) => {
-  const normalized = (status || "").toUpperCase();
-  if (["PENDING", "NEW"].includes(normalized)) return { bg: "#fef3c7", fg: "#92400e" };
-  if (["ACCEPTED", "CONFIRMED", "PREPARING"].includes(normalized)) return { bg: "#dbeafe", fg: "#1d4ed8" };
-  if (["OUT_FOR_DELIVERY", "RIDER_ASSIGNED", "PICKED_UP"].includes(normalized)) return { bg: "#e0f2fe", fg: "#0369a1" };
-  if (["DELIVERED", "COMPLETED"].includes(normalized)) return { bg: "#dcfce7", fg: "#166534" };
-  if (["CANCELLED", "REJECTED"].includes(normalized)) return { bg: "#fee2e2", fg: "#b91c1c" };
+  const normalized = normalizeDeliveryStatus(status);
+  const muiColor = getDeliveryStatusColor(normalized);
+
+  if (muiColor === "success") return { bg: "#dcfce7", fg: "#166534" };
+  if (muiColor === "error") return { bg: "#fee2e2", fg: "#b91c1c" };
+  if (muiColor === "info") return { bg: "#e0f2fe", fg: "#0369a1" };
+  if (muiColor === "warning") return { bg: "#fef3c7", fg: "#92400e" };
+  if (muiColor === "secondary") return { bg: "#ede9fe", fg: "#6d28d9" };
   return { bg: "#e2e8f0", fg: "#334155" };
 };
 
@@ -217,7 +220,7 @@ export default function MemberOrders() {
                         </Box>
                         <Chip
                           size="small"
-                          label={status}
+                          label={getDeliveryStatusLabel(status) || DELIVERY_STATUS.NEW}
                           sx={{
                             bgcolor: statusColor.bg,
                             color: statusColor.fg,

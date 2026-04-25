@@ -11,7 +11,7 @@ import { Box, Button, Card, CardContent, Chip, CircularProgress, Container, Pape
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "../../firebase";
-import { DELIVERY_STATUS, normalizeDeliveryStatus } from "./utils/deliveryStatus";
+import { DELIVERY_STATUS, getDeliveryStatusColor, getDeliveryStatusLabel, normalizeDeliveryStatus } from "./utils/deliveryStatus";
 
 export default function RiderOrders() {
   const navigate = useNavigate();
@@ -59,13 +59,7 @@ export default function RiderOrders() {
     return { total, active, completed };
   }, [deliveries]);
 
-  const statusColor = (status) => {
-    const normalized = normalizeDeliveryStatus(status);
-    if (normalized === DELIVERY_STATUS.DELIVERED) return "success";
-    if (normalized === DELIVERY_STATUS.CANCELLED) return "error";
-    if (normalized === DELIVERY_STATUS.IN_DELIVERY || normalized === DELIVERY_STATUS.ORDER_PICKED_UP) return "info";
-    return "warning";
-  };
+  const statusColor = (status) => getDeliveryStatusColor(status);
 
   return (
     <Box sx={{ minHeight: "100dvh", bgcolor: "#f8fafc", pb: 12 }}>
@@ -99,7 +93,7 @@ export default function RiderOrders() {
                     <Typography sx={{ fontWeight: 800, fontSize: 14 }}>
                       Order #{delivery.orderId || delivery.id.slice(0, 8)}
                     </Typography>
-                    <Chip size="small" color={statusColor(delivery.status)} label={normalizeDeliveryStatus(delivery.status) || DELIVERY_STATUS.NEW} sx={{ fontWeight: 700 }} />
+                    <Chip size="small" color={statusColor(delivery.status)} label={getDeliveryStatusLabel(delivery.status) || DELIVERY_STATUS.NEW} sx={{ fontWeight: 700 }} />
                   </Box>
                   <Typography sx={{ fontSize: 12, color: "#64748b" }}>Pickup: {delivery.pickupLocation?.address || "N/A"}</Typography>
                   <Typography sx={{ fontSize: 12, color: "#64748b" }}>Dropoff: {delivery.dropoffLocation?.address || "N/A"}</Typography>

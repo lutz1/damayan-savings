@@ -2510,6 +2510,55 @@ app.patch("/api/v1/merchant/orders/:orderId/:action", async (req, res) => {
     }
 
     const now = new Date();
+    const deliveryId = String(order.deliveryId || "").trim();
+    const hasLinkedDelivery = Boolean(deliveryId);
+    let createdDeliveryId = deliveryId;
+    const hasAssignedRider = Boolean(order.riderId);
+    const initialDeliveryStatus = hasAssignedRider ? "ASSIGNED" : "NEW";
+    const initialDispatchStatus = hasAssignedRider ? "ASSIGNED" : "NO_RIDER_AVAILABLE";
+
+    if (actionKey === "ACCEPT" && !hasLinkedDelivery) {
+      const deliveryRef = db.collection("deliveries").doc();
+      const orderPickupLocation = order.pickupLocation || order.storeLocation || order.merchantLocation || null;
+      const orderDropoffLocation = order.dropoffLocation || order.deliveryAddress || null;
+
+      const deliveryPayload = {
+        orderId,
+        saleId: order.saleId || null,
+        merchantId: order.merchantId || null,
+        customerId: order.customerId || null,
+        pickupLocation: orderPickupLocation,
+        dropoffLocation: orderDropoffLocation,
+        deliveryAddress: orderDropoffLocation?.address || order.deliveryAddress || null,
+        cityProvince: order.cityProvince || orderDropoffLocation?.cityProvince || "",
+        paymentMethod: order.paymentMethod || "COD",
+        amount: Number(order.total || 0),
+        deliveryFee: Number(order.deliveryFee || 0),
+        riderId: order.riderId || null,
+        candidateRiderIds: Array.isArray(order.candidateRiderIds) ? order.candidateRiderIds.filter(Boolean) : [],
+        currentRiderIndex: typeof order.currentRiderIndex === "number" ? order.currentRiderIndex : -1,
+        assignmentExpiresAt: order.assignmentExpiresAt || null,
+        dispatchAttempts: Number(order.dispatchAttempts || 0),
+        status: initialDeliveryStatus,
+        dispatchStatus: initialDispatchStatus,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      await deliveryRef.set(deliveryPayload, { merge: true });
+      createdDeliveryId = deliveryRef.id;
+
+      await orderRef.set(
+        {
+          deliveryId: deliveryRef.id,
+          riderId: deliveryPayload.riderId || null,
+          dispatchStatus: initialDispatchStatus,
+          updatedAt: now,
+        },
+        { merge: true }
+      );
+    }
+
     const orderPatch = {
       status: nextStatus,
       updatedAt: now,
@@ -2518,8 +2567,7 @@ app.patch("/api/v1/merchant/orders/:orderId/:action", async (req, res) => {
     };
     await orderRef.set(orderPatch, { merge: true });
 
-    const deliveryId = order.deliveryId || null;
-    const linkedDeliveryId = String(deliveryId || "").trim();
+    const linkedDeliveryId = String(createdDeliveryId || "").trim();
     if (linkedDeliveryId) {
       const deliveryRef = db.collection("deliveries").doc(linkedDeliveryId);
       const deliveryPatch = {
@@ -2527,9 +2575,14 @@ app.patch("/api/v1/merchant/orders/:orderId/:action", async (req, res) => {
         updatedAt: now,
       };
 
-      if (nextStatus === "CANCELLED") deliveryPatch.status = "CANCELLED";
-      if (nextStatus === "ACCEPTED" || nextStatus === "PREPARING") deliveryPatch.status = "ACCEPTED";
-      if (nextStatus === "READY_FOR_PICKUP") deliveryPatch.status = "RIDER_PICKUP";
+      if (nextStatus === "CANCELLED") {
+        deliveryPatch.status = "CANCELLED";
+      } else if (nextStatus === "ACCEPTED" || nextStatus === "PREPARING") {
+        deliveryPatch.status = order.riderId ? "ASSIGNED" : "NEW";
+        deliveryPatch.dispatchStatus = order.riderId ? "ASSIGNED" : "NO_RIDER_AVAILABLE";
+      } else if (nextStatus === "READY_FOR_PICKUP") {
+        deliveryPatch.status = "RIDER_PICKUP";
+      }
 
       await deliveryRef.set(deliveryPatch, { merge: true });
     }
@@ -2538,6 +2591,7 @@ app.patch("/api/v1/merchant/orders/:orderId/:action", async (req, res) => {
       success: true,
       orderId,
       status: nextStatus,
+      deliveryId: linkedDeliveryId || null,
       message: `Order moved to ${nextStatus}`,
     });
   } catch (error) {

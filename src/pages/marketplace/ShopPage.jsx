@@ -113,6 +113,7 @@ export default function ShopPage({
   isEmbedded = false,
   onLoaded = null,
   onRequestLocationPicker = null,
+  deliveryLocation = null,
 }) {
   const hasNotifiedLoadedRef = useRef(false);
   const navigate = useNavigate();
@@ -143,6 +144,35 @@ export default function ShopPage({
     id: "user-app-shop-map",
     googleMapsApiKey,
   });
+
+  useEffect(() => {
+    if (!deliveryLocation) return;
+
+    const address = String(deliveryLocation.address || "").trim();
+    const cityProvince = String(deliveryLocation.cityProvince || "").trim();
+    const coordinates = deliveryLocation.coordinates || deliveryLocation.location || null;
+    const lat = Number(coordinates?.lat);
+    const lng = Number(coordinates?.lng);
+
+    if (address) {
+      setDeliveryAddress(address);
+      localStorage.setItem("selectedDeliveryAddress", address);
+    }
+
+    if (cityProvince) {
+      setDeliveryAddressCityProvince(cityProvince);
+      localStorage.setItem("selectedDeliveryAddressCityProvince", cityProvince);
+    }
+
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      const coords = { lat, lng };
+      setUserDeliveryCoords(coords);
+      localStorage.setItem("selectedDeliveryCoordinates", JSON.stringify(coords));
+    } else {
+      setUserDeliveryCoords(null);
+      localStorage.removeItem("selectedDeliveryCoordinates");
+    }
+  }, [deliveryLocation]);
 
   const riderCoords = useMemo(
     () => extractCoords(trackingRider) || extractCoords(activeDelivery),
@@ -622,21 +652,30 @@ export default function ShopPage({
   };
 
   const handleLocationClick = (addressData) => {
-    if (addressData?.address) {
-      setDeliveryAddress(addressData.address);
-      if (addressData.cityProvince) {
-        setDeliveryAddressCityProvince(addressData.cityProvince);
-      }
+    const address =
+      typeof addressData === "string" ? addressData : String(addressData?.address || "").trim();
+    const cityProvince = typeof addressData === "object" ? String(addressData?.cityProvince || "").trim() : "";
+    const coordinates =
+      typeof addressData === "object"
+        ? addressData?.coordinates || addressData?.location || null
+        : null;
+
+    if (address) {
+      setDeliveryAddress(address);
+      localStorage.setItem("selectedDeliveryAddress", address);
     }
 
-    // Update coordinates if provided
-    if (addressData?.location?.lat && addressData?.location?.lng) {
-      const coords = {
-        lat: addressData.location.lat,
-        lng: addressData.location.lng,
-      };
+    if (cityProvince) {
+      setDeliveryAddressCityProvince(cityProvince);
+      localStorage.setItem("selectedDeliveryAddressCityProvince", cityProvince);
+    }
+
+    const lat = Number(coordinates?.lat);
+    const lng = Number(coordinates?.lng);
+
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      const coords = { lat, lng };
       setUserDeliveryCoords(coords);
-      // Save to localStorage for persistence
       localStorage.setItem("selectedDeliveryCoordinates", JSON.stringify(coords));
     }
   };
@@ -985,4 +1024,3 @@ const getCategoryColor = (category) => {
   };
   return colors[String(category || "").toLowerCase()] || "#f1f5f9";
 };
-

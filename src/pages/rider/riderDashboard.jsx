@@ -30,7 +30,7 @@ import {
   RadioButtonChecked,
 } from "@mui/icons-material";
 import { auth, db } from "../../firebase";
-import { DELIVERY_STATUS, normalizeDeliveryStatus } from "./utils/deliveryStatus";
+import { DELIVERY_STATUS, getDeliveryStatusColor, getDeliveryStatusLabel, normalizeDeliveryStatus } from "./utils/deliveryStatus";
 import plezzIcon from "../../assets/plezzicon.png";
 const MAP_LIBRARIES = ["marker"];
 
@@ -438,26 +438,7 @@ const RiderDashboard = () => {
     }
   };
 
-  const getStatusColor = (status) => {
-    const normalizedStatus = normalizeDeliveryStatus(status);
-
-    switch (normalizedStatus) {
-      case DELIVERY_STATUS.DELIVERED:
-        return "success";
-      case DELIVERY_STATUS.IN_DELIVERY:
-      case DELIVERY_STATUS.ORDER_PICKED_UP:
-        return "info";
-      case DELIVERY_STATUS.ASSIGNED:
-      case DELIVERY_STATUS.ACCEPTED:
-      case DELIVERY_STATUS.RIDER_PICKUP:
-      case DELIVERY_STATUS.ARRIVED_MERCHANT:
-        return "warning";
-      case DELIVERY_STATUS.NEW:
-        return "secondary";
-      default:
-        return "default";
-    }
-  };
+  const getStatusColor = (status) => getDeliveryStatusColor(status);
 
   const formatCurrency = (value) => `P${Number(value || 0).toFixed(2)}`;
 
@@ -634,7 +615,7 @@ const RiderDashboard = () => {
                           </Typography>
                         </Box>
                         <Box sx={{ textAlign: "right", flexShrink: 0 }}>
-                          <Chip label={normalizeDeliveryStatus(delivery.status) || DELIVERY_STATUS.NEW} color={getStatusColor(delivery.status)} size="small" sx={{ mb: 0.8 }} />
+                          <Chip label={getDeliveryStatusLabel(delivery.status) || DELIVERY_STATUS.NEW} color={getStatusColor(delivery.status)} size="small" sx={{ mb: 0.8 }} />
                           <Typography variant="body2" sx={{ fontWeight: 700 }}>
                             {formatCurrency(delivery.deliveryFee)}
                           </Typography>
@@ -690,7 +671,7 @@ const RiderDashboard = () => {
           {selectedDelivery && (
             <>
               <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                Status: <Chip label={normalizeDeliveryStatus(selectedDelivery.status) || DELIVERY_STATUS.NEW} size="small" />
+                Status: <Chip label={getDeliveryStatusLabel(selectedDelivery.status) || DELIVERY_STATUS.NEW} size="small" />
               </Typography>
               <Typography variant="body2" sx={{ mb: 2 }}>
                 <strong>Pickup:</strong> {selectedDelivery.pickupLocation?.address || "N/A"}
