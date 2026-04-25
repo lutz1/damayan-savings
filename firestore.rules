@@ -585,54 +585,9 @@ service cloud.firestore {
 
     // 🧾 ORDERS (canonical)
     match /orders/{orderId} {
-      allow read: if request.auth != null && (
-        resource.data.customerId == request.auth.uid ||
-        resource.data.merchantId == request.auth.uid ||
-        resource.data.riderId == request.auth.uid ||
-        userRole() in ["admin", "ceo", "superadmin"]
-      );
-
-      allow create: if request.auth != null && (
-        userRole() in ["admin", "ceo", "superadmin"] ||
-        (
-          request.resource.data.customerId == request.auth.uid &&
-          request.resource.data.merchantId is string &&
-          merchantCanReceiveOrders(request.resource.data.merchantId) &&
-          request.resource.data.status == "NEW" &&
-          request.resource.data.keys().hasAll([
-            "customerId",
-            "merchantId",
-            "total",
-            "deliveryFee",
-            "paymentMethod",
-            "paymentStatus",
-            "status",
-            "createdAt",
-            "pickupLocation",
-            "dropoffLocation"
-          ])
-        )
-      );
-
-      allow update: if request.auth != null && (
-        userRole() in ["admin", "ceo", "superadmin"] ||
-        (resource.data.customerId == request.auth.uid &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            "dropoffLocation", "updatedAt"
-          ])
-        ) ||
-        (resource.data.merchantId == request.auth.uid &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            "status", "updatedAt", "riderId", "paymentStatus"
-          ])
-        ) ||
-        (resource.data.riderId == request.auth.uid &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            "status", "updatedAt", "riderId"
-          ])
-        )
-      );
-
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
       allow delete: if request.auth != null && userRole() in ["admin", "ceo", "superadmin"];
 
       match /items/{itemId} {

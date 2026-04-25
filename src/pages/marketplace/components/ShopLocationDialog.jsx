@@ -63,6 +63,42 @@ const ShopLocationDialog = ({
   const googleMapsApiKey =
     import.meta.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY || "";
 
+  // Load Google Maps script dynamically
+  useEffect(() => {
+    if (!googleMapsApiKey || window.google?.maps) {
+      return;
+    }
+
+    const scriptId = "google-maps-script-location-dialog";
+    
+    // Check if script is already being loaded
+    if (document.getElementById(scriptId)) {
+      return;
+    }
+
+    try {
+      const script = document.createElement("script");
+      script.id = scriptId;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(googleMapsApiKey)}&loading=async`;
+      script.type = "text/javascript";
+      script.async = true;
+      
+      script.onload = () => {
+        console.log("✅ Google Maps script loaded successfully");
+      };
+      
+      script.onerror = () => {
+        console.error("❌ Failed to load Google Maps script");
+        setMapLoadError("Failed to load Google Maps. Check API key or network.");
+      };
+      
+      document.head.appendChild(script);
+    } catch (error) {
+      console.error("Error loading Google Maps script:", error);
+      setMapLoadError("Error loading Google Maps library");
+    }
+  }, [googleMapsApiKey]);
+
   // Calculate nearby stores within 8km
   const calculateNearbyStores = useCallback(async (lat, lng) => {
     if (!merchants || Object.keys(merchants).length === 0) {
@@ -170,6 +206,9 @@ const ShopLocationDialog = ({
       markerRef.current = null;
       glowMarkerRef.current = null;
       mapRef.current = null;
+    } else {
+      // Reset map errors when dialog opens (to allow retry)
+      setMapLoadError("");
     }
   }, [open]);
 
@@ -203,11 +242,13 @@ const ShopLocationDialog = ({
     if (!selectedLocation || !googleMapsApiKey || mapLoadError) return;
     if (window.google?.maps) return;
 
+    // Wait longer for Google Maps to load (up to 8 seconds)
     const timeoutId = window.setTimeout(() => {
       if (!window.google?.maps) {
+        console.error("❌ Google Maps API failed to load within 8 seconds");
         setMapLoadError("Map failed to load (possible network issue). Tap to retry.");
       }
-    }, 3500);
+    }, 8000);
 
     return () => {
       window.clearTimeout(timeoutId);
@@ -232,7 +273,18 @@ const ShopLocationDialog = ({
     }
     mapRef.current = null;
 
+    // Reset the map retry counter to trigger map reinitialization
     setMapRetryNonce((prev) => prev + 1);
+    
+    // If Google Maps script failed to load, try reloading it
+    if (!window.google?.maps && googleMapsApiKey) {
+      const scriptId = "google-maps-script-location-dialog";
+      const existingScript = document.getElementById(scriptId);
+      if (existingScript) {
+        existingScript.remove();
+      }
+      // Script will be reloaded on next effect run when googleMapsApiKey is available
+    }
   };
 
   // Initialize Google Map and marker when location is available.
@@ -379,11 +431,31 @@ const ShopLocationDialog = ({
     return recentSearches.filter((entry) => (entry || "").toLowerCase().includes(term));
   }, [recentSearches, searchTerm]);
 
-  const handleSelectAddressLocal = (address) => {
+  const handleSelectAddressLocal = async (address) => {
     const cityProvince = getCityProvinceFromAddress(address);
     pushRecentSearch(address);
     setSelectedAddress(address);
-    // Location will be confirmed via the confirm button
+    
+    // Geocode the address to get coordinates
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(address)}`
+      );
+      
+      if (response.ok) {
+        const results = await response.json();
+        if (results.length > 0) {
+          const firstResult = results[0];
+          const lat = Number(firstResult.lat);
+          const lng = Number(firstResult.lon);
+          if (Number.isFinite(lat) && Number.isFinite(lng)) {
+            setSelectedLocation({ lat, lng });
+          }
+        }
+      }
+    } catch (error) {
+      console.warn("Error geocoding recent search address:", error);
+    }
   };
 
   const handleSearchAddress = async () => {
@@ -528,7 +600,7 @@ const ShopLocationDialog = ({
       const result = await onSelectAddress({
         address: selectedAddress,
         cityProvince,
-        location: selectedLocation || null,
+        coordinates: selectedLocation || null,
       });
 
       if (result !== false) {
@@ -1251,95 +1323,6 @@ const ShopLocationDialog = ({
             boxShadow: "0 -2px 8px rgba(0,0,0,0.05)",
           }}
         >
-          {/* Nearby Stores Section - Show when location is selected */}
-          {selectedLocation && nearbyStores.length > 0 && (
-            <Box sx={{ mb: 2, maxHeight: "220px", overflowY: "auto", borderRadius: "0.75rem", border: "1px solid rgba(30, 103, 218, 0.15)", backgroundColor: "#f5f9ff", p: 1.5 }}>
-              <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, color: "#1e67da", mb: 1, textTransform: "uppercase" }}>
-                🏪 Available Stores ({nearbyStores.length})
-              </Typography>
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
-                {nearbyStores.map((store) => (
-                  <Box
-                    key={store.id}
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      backgroundColor: "#ffffff",
-                      p: 1,
-                      borderRadius: "0.5rem",
-                      border: "1px solid rgba(30, 103, 218, 0.1)",
-                      transition: "all 0.2s",
-                      "&:hover": {
-                        borderColor: "rgba(30, 103, 218, 0.3)",
-                        backgroundColor: "#f9fbff",
-                      },
-                    }}
-                  >
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1, minWidth: 0 }}>
-                      {store.logo && (
-                        <Box
-                          component="img"
-                          src={store.logo}
-                          alt={store.name}
-                          sx={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: "50%",
-                            objectFit: "cover",
-                            flexShrink: 0,
-                          }}
-                          onError={(e) => {
-                            e.target.style.display = "none";
-                          }}
-                        />
-                      )}
-                      <Box sx={{ minWidth: 0, flex: 1 }}>
-                        <Typography sx={{ fontSize: "0.8rem", fontWeight: 600, color: "#1f2937", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {store.name}
-                        </Typography>
-                        <Typography sx={{ fontSize: "0.7rem", color: "#666" }}>
-                          📍 {store.distance} km
-                        </Typography>
-                      </Box>
-                    </Box>
-                    <Chip
-                      label={`₱${store.fee}`}
-                      size="small"
-                      sx={{
-                        backgroundColor: "#e8f1ff",
-                        color: "#1e67da",
-                        fontWeight: 600,
-                        fontSize: "0.7rem",
-                        flexShrink: 0,
-                      }}
-                    />
-                  </Box>
-                ))}
-              </Box>
-            </Box>
-          )}
-
-          {/* No Stores in Range Message */}
-          {selectedLocation && nearbyStores.length === 0 && !calculatingStores && (
-            <Box sx={{ mb: 2, p: 1.5, backgroundColor: "#fef3c7", border: "1px solid #fcd34d", borderRadius: "0.75rem", textAlign: "center" }}>
-              <Typography sx={{ fontSize: "0.8rem", fontWeight: 600, color: "#92400e" }}>
-                ⚠️ No stores available in your delivery range
-              </Typography>
-              <Typography sx={{ fontSize: "0.7rem", color: "#b45309", mt: 0.5 }}>
-                Available stores are within 8 km maximum
-              </Typography>
-            </Box>
-          )}
-
-          {/* Loading Stores */}
-          {calculatingStores && (
-            <Box sx={{ mb: 2, p: 1.5, display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
-              <CircularProgress size={16} sx={{ color: "#1e67da" }} />
-              <Typography sx={{ fontSize: "0.8rem", color: "#666" }}>Checking nearby stores...</Typography>
-            </Box>
-          )}
-
           <Button
             onClick={handleConfirmAddress}
             disabled={!selectedAddress}
