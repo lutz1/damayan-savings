@@ -18,8 +18,9 @@ import {
   Alert,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore";
-import { auth, db, storage } from "../../firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { auth, db, storage, functions } from "../../firebase";
 import {
   MERCHANT_ORDER_STATUS,
   normalizeMerchantOrderStatus,
@@ -47,11 +48,19 @@ const MaterialIcon = ({ name, filled = false, weight = 400, size = 24, sx = {} }
 
 const MerchantOrders = () => {
   const navigate = useNavigate();
-  const merchantId = auth.currentUser?.uid || null;
+  const [merchantId, setMerchantId] = useState(null);
   const [sales, setSales] = useState([]);
   const [detailOrder, setDetailOrder] = useState(null);
   const [actionLoading, setActionLoading] = useState({});
   const [snack, setSnack] = useState({ open: false, severity: "error", message: "" });
+
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      setMerchantId(user?.uid || null);
+    });
+
+    return () => unsubscribeAuth();
+  }, []);
 
   useEffect(() => {
     if (!merchantId) return undefined;
@@ -59,10 +68,23 @@ const MerchantOrders = () => {
     const unsubSales = onSnapshot(
       query(
         collection(db, "orders"),
-        where("merchantId", "==", merchantId),
-        orderBy("createdAt", "desc")
+        where("merchantId", "==", merchantId)
       ),
-      (snap) => setSales(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      (snap) => {
+        const nextSales = snap.docs
+          .map((d) => ({
+            id: d.id,
+            ...d.data(),
+            status: normalizeMerchantOrderStatus(d.data()?.status) || d.data()?.status || MERCHANT_ORDER_STATUS.NEW,
+          }))
+          .sort((a, b) => {
+            const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
+            const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
+            return timeB - timeA;
+          });
+
+        setSales(nextSales);
+      },
       (err) => {
         console.error("Sales listener error:", err);
         setSnack({ open: true, severity: "error", message: "Unable to load orders." });
@@ -143,27 +165,20 @@ const MerchantOrders = () => {
     );
   };
 
+  // Use Firebase callable functions for merchant actions
   const callMerchantAction = async (orderId, action) => {
-    const user = auth.currentUser;
-    if (!user) throw new Error("You must be signed in to perform this action.");
-
-    const idToken = await user.getIdToken();
-    const API_BASE = import.meta.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
-    const response = await fetch(`${API_BASE}/api/v1/merchant/orders/${orderId}/${action}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idToken }),
-    });
-
-    let result = null;
-    try {
-      result = await response.json();
-    } catch (err) {
-      if (!response.ok) throw new Error("Server error: Invalid response");
+    if (!orderId) throw new Error("Order ID required");
+    let fn;
+    if (action === "accept") {
+      fn = (await import("firebase/functions")).httpsCallable(functions, "merchantAcceptOrder");
+    } else if (action === "reject") {
+      fn = (await import("firebase/functions")).httpsCallable(functions, "merchantRejectOrder");
+    } else {
+      throw new Error("Unsupported action");
     }
-
-    if (!response.ok) throw new Error(result?.error || "Request failed");
-    return result;
+    const result = await fn({ orderId });
+    if (!result?.data?.success) throw new Error(result?.data?.error || "Action failed");
+    return result.data;
   };
 
   const handleAcceptOrder = async (order) => {

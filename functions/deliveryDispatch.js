@@ -139,16 +139,8 @@ async function assignInitialRiderForSale(saleId, saleData) {
   const originCoords = await getDispatchOrigin(saleData);
   const candidates = await findCandidateRiders(originCoords);
 
-  const now = TIMESTAMP.now();
-  const assignmentExpiresAt = TIMESTAMP.fromMillis(
-    now.toMillis() + ASSIGNMENT_WINDOW_SECONDS * 1000
-  );
-
   const deliveryRef = db.collection("deliveries").doc();
   const saleRef = db.collection("sales").doc(saleId);
-
-  const hasCandidate = candidates.length > 0;
-  const assignedRiderId = hasCandidate ? candidates[0].riderId : null;
 
   const payload = {
     saleId,
@@ -159,13 +151,14 @@ async function assignInitialRiderForSale(saleId, saleData) {
     paymentMethod: saleData.paymentMethod || "COD",
     amount: Number(saleData.total || 0),
     deliveryFee: Number(saleData.deliveryFee || 0),
-    riderId: assignedRiderId,
+    // Do not assign rider yet
+    riderId: null,
     candidateRiderIds: candidates.map((c) => c.riderId),
-    currentRiderIndex: hasCandidate ? 0 : -1,
-    assignmentExpiresAt: hasCandidate ? assignmentExpiresAt : null,
-    dispatchAttempts: hasCandidate ? 1 : 0,
-    status: hasCandidate ? DELIVERY_STATUS.ASSIGNED : DELIVERY_STATUS.NEW,
-    dispatchStatus: hasCandidate ? "ASSIGNED" : "NO_RIDER_AVAILABLE",
+    currentRiderIndex: -1,
+    assignmentExpiresAt: null,
+    dispatchAttempts: 0,
+    status: DELIVERY_STATUS.NEW,
+    dispatchStatus: "WAITING_MERCHANT_ACTION",
     createdAt: FIELD_VALUE.serverTimestamp(),
     updatedAt: FIELD_VALUE.serverTimestamp(),
   };
@@ -175,9 +168,9 @@ async function assignInitialRiderForSale(saleId, saleData) {
 
     const salePatch = {
       deliveryId: deliveryRef.id,
-      status: hasCandidate ? ORDER_STATUS.ASSIGNED : ORDER_STATUS.NEW,
-      riderId: assignedRiderId,
-      dispatchStatus: hasCandidate ? "ASSIGNED" : "NO_RIDER_AVAILABLE",
+      status: ORDER_STATUS.NEW,
+      riderId: null,
+      dispatchStatus: "WAITING_MERCHANT_ACTION",
       updatedAt: FIELD_VALUE.serverTimestamp(),
     };
 
@@ -186,9 +179,8 @@ async function assignInitialRiderForSale(saleId, saleData) {
 
   return {
     deliveryId: deliveryRef.id,
-    assignedRiderId,
-    hasCandidate,
     candidateCount: candidates.length,
+    candidateRiderIds: candidates.map((c) => c.riderId),
   };
 }
 
@@ -196,16 +188,8 @@ async function assignInitialRiderForOrder(orderId, orderData) {
   const originCoords = await getDispatchOrigin(orderData);
   const candidates = await findCandidateRiders(originCoords);
 
-  const now = TIMESTAMP.now();
-  const assignmentExpiresAt = TIMESTAMP.fromMillis(
-    now.toMillis() + ASSIGNMENT_WINDOW_SECONDS * 1000
-  );
-
   const deliveryRef = db.collection("deliveries").doc();
   const orderRef = db.collection("orders").doc(orderId);
-
-  const hasCandidate = candidates.length > 0;
-  const assignedRiderId = hasCandidate ? candidates[0].riderId : null;
 
   const payload = {
     orderId,
@@ -219,13 +203,14 @@ async function assignInitialRiderForOrder(orderId, orderData) {
     paymentMethod: orderData.paymentMethod || "COD",
     amount: Number(orderData.total || 0),
     deliveryFee: Number(orderData.deliveryFee || 0),
-    riderId: assignedRiderId,
+    // Do not assign rider yet
+    riderId: null,
     candidateRiderIds: candidates.map((c) => c.riderId),
-    currentRiderIndex: hasCandidate ? 0 : -1,
-    assignmentExpiresAt: hasCandidate ? assignmentExpiresAt : null,
-    dispatchAttempts: hasCandidate ? 1 : 0,
-    status: hasCandidate ? DELIVERY_STATUS.ASSIGNED : DELIVERY_STATUS.NEW,
-    dispatchStatus: hasCandidate ? "ASSIGNED" : "NO_RIDER_AVAILABLE",
+    currentRiderIndex: -1,
+    assignmentExpiresAt: null,
+    dispatchAttempts: 0,
+    status: DELIVERY_STATUS.NEW,
+    dispatchStatus: "WAITING_MERCHANT_ACTION",
     createdAt: FIELD_VALUE.serverTimestamp(),
     updatedAt: FIELD_VALUE.serverTimestamp(),
   };
@@ -235,18 +220,17 @@ async function assignInitialRiderForOrder(orderId, orderData) {
 
     transaction.update(orderRef, {
       deliveryId: deliveryRef.id,
-      status: hasCandidate ? ORDER_STATUS.ASSIGNED : ORDER_STATUS.NEW,
-      riderId: assignedRiderId,
-      dispatchStatus: hasCandidate ? "ASSIGNED" : "NO_RIDER_AVAILABLE",
+      status: ORDER_STATUS.NEW,
+      riderId: null,
+      dispatchStatus: "WAITING_MERCHANT_ACTION",
       updatedAt: FIELD_VALUE.serverTimestamp(),
     });
   });
 
   return {
     deliveryId: deliveryRef.id,
-    assignedRiderId,
-    hasCandidate,
     candidateCount: candidates.length,
+    candidateRiderIds: candidates.map((c) => c.riderId),
   };
 }
 

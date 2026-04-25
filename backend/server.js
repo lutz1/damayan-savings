@@ -2056,6 +2056,94 @@ app.post("/api/transfer-referral-reward", async (req, res) => {
 
 const normalizeStatus = (value) => String(value || "").trim().toUpperCase();
 
+const ASSIGNMENT_WINDOW_SECONDS = 10;
+
+const toNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const extractCoordinates = (payload) => {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const directLat = toNumber(payload.lat);
+  const directLng = toNumber(payload.lng);
+  if (directLat != null && directLng != null) {
+    return { lat: directLat, lng: directLng };
+  }
+
+  const location =
+    payload.location ||
+    payload.currentLocation ||
+    payload.coordinates ||
+    payload.pickupLocation ||
+    payload.dropoffLocation ||
+    payload.storeLocation ||
+    payload.merchantLocation;
+
+  if (location && typeof location === "object") {
+    const nestedLat = toNumber(location.lat);
+    const nestedLng = toNumber(location.lng);
+    if (nestedLat != null && nestedLng != null) {
+      return { lat: nestedLat, lng: nestedLng };
+    }
+  }
+
+  return null;
+};
+
+const toRadians = (degrees) => (degrees * Math.PI) / 180;
+
+const distanceKm = (from, to) => {
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(to.lat - from.lat);
+  const dLng = toRadians(to.lng - from.lng);
+
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRadians(from.lat)) * Math.cos(toRadians(to.lat)) * Math.sin(dLng / 2) ** 2;
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
+};
+
+async function findAvailableRiders(orderData) {
+  const ridersSnap = await db.collection("users").where("onlineStatus", "==", true).limit(200).get();
+  const originCoords = extractCoordinates(orderData);
+
+  const candidates = [];
+
+  for (const riderSnap of ridersSnap.docs) {
+    const riderData = riderSnap.data() || {};
+    if (normalizeStatus(riderData.role) !== "RIDER") {
+      continue;
+    }
+
+    if (normalizeStatus(riderData.availability || "AVAILABLE") !== "AVAILABLE") {
+      continue;
+    }
+
+    const riderCoords = extractCoordinates(riderData);
+    const distance = originCoords && riderCoords ? distanceKm(originCoords, riderCoords) : null;
+
+    candidates.push({
+      riderId: riderSnap.id,
+      distanceKm: distance,
+    });
+  }
+
+  candidates.sort((a, b) => {
+    if (a.distanceKm == null && b.distanceKm == null) return 0;
+    if (a.distanceKm == null) return 1;
+    if (b.distanceKm == null) return -1;
+    return a.distanceKm - b.distanceKm;
+  });
+
+  return candidates;
+}
+
 app.post("/api/auth/check-member-email", async (req, res) => {
   try {
     const safeEmail = String(req.body?.email || "").trim().toLowerCase();
@@ -2513,9 +2601,19 @@ app.patch("/api/v1/merchant/orders/:orderId/:action", async (req, res) => {
     const deliveryId = String(order.deliveryId || "").trim();
     const hasLinkedDelivery = Boolean(deliveryId);
     let createdDeliveryId = deliveryId;
-    const hasAssignedRider = Boolean(order.riderId);
-    const initialDeliveryStatus = hasAssignedRider ? "ASSIGNED" : "NEW";
-    const initialDispatchStatus = hasAssignedRider ? "ASSIGNED" : "NO_RIDER_AVAILABLE";
+    const candidateRiders = order.riderId ? [] : await findAvailableRiders(order);
+    const assignedRiderId = String(order.riderId || candidateRiders[0]?.riderId || "").trim() || null;
+    const candidateRiderIds = Array.isArray(order.candidateRiderIds) && order.candidateRiderIds.length > 0
+      ? order.candidateRiderIds.filter(Boolean)
+      : candidateRiders.map((candidate) => candidate.riderId);
+    if (assignedRiderId && !candidateRiderIds.includes(assignedRiderId)) {
+      candidateRiderIds.unshift(assignedRiderId);
+    }
+    const currentRiderIndex = assignedRiderId ? Math.max(0, Number(order.currentRiderIndex || 0)) : -1;
+    const assignmentExpiresAt = assignedRiderId
+      ? order.assignmentExpiresAt || new Date(now.getTime() + ASSIGNMENT_WINDOW_SECONDS * 1000)
+      : null;
+    const dispatchStatus = assignedRiderId ? "ASSIGNED" : "NO_RIDER_AVAILABLE";
 
     if (actionKey === "ACCEPT" && !hasLinkedDelivery) {
       const deliveryRef = db.collection("deliveries").doc();
@@ -2534,13 +2632,13 @@ app.patch("/api/v1/merchant/orders/:orderId/:action", async (req, res) => {
         paymentMethod: order.paymentMethod || "COD",
         amount: Number(order.total || 0),
         deliveryFee: Number(order.deliveryFee || 0),
-        riderId: order.riderId || null,
-        candidateRiderIds: Array.isArray(order.candidateRiderIds) ? order.candidateRiderIds.filter(Boolean) : [],
-        currentRiderIndex: typeof order.currentRiderIndex === "number" ? order.currentRiderIndex : -1,
-        assignmentExpiresAt: order.assignmentExpiresAt || null,
-        dispatchAttempts: Number(order.dispatchAttempts || 0),
-        status: initialDeliveryStatus,
-        dispatchStatus: initialDispatchStatus,
+        riderId: assignedRiderId,
+        candidateRiderIds,
+        currentRiderIndex,
+        assignmentExpiresAt,
+        dispatchAttempts: assignedRiderId ? Math.max(1, Number(order.dispatchAttempts || 0) || 1) : 0,
+        status: assignedRiderId ? "ASSIGNED" : "NEW",
+        dispatchStatus,
         createdAt: now,
         updatedAt: now,
       };
@@ -2551,8 +2649,11 @@ app.patch("/api/v1/merchant/orders/:orderId/:action", async (req, res) => {
       await orderRef.set(
         {
           deliveryId: deliveryRef.id,
-          riderId: deliveryPayload.riderId || null,
-          dispatchStatus: initialDispatchStatus,
+          riderId: assignedRiderId,
+          candidateRiderIds,
+          currentRiderIndex,
+          assignmentExpiresAt,
+          dispatchStatus,
           updatedAt: now,
         },
         { merge: true }
@@ -2561,6 +2662,11 @@ app.patch("/api/v1/merchant/orders/:orderId/:action", async (req, res) => {
 
     const orderPatch = {
       status: nextStatus,
+      riderId: assignedRiderId,
+      candidateRiderIds,
+      currentRiderIndex,
+      assignmentExpiresAt,
+      dispatchStatus,
       updatedAt: now,
       merchantUpdatedBy: actor.uid,
       [`status_${String(nextStatus).toLowerCase()}_at`]: now.toISOString(),
@@ -2577,11 +2683,17 @@ app.patch("/api/v1/merchant/orders/:orderId/:action", async (req, res) => {
 
       if (nextStatus === "CANCELLED") {
         deliveryPatch.status = "CANCELLED";
-      } else if (nextStatus === "ACCEPTED" || nextStatus === "PREPARING") {
-        deliveryPatch.status = order.riderId ? "ASSIGNED" : "NEW";
-        deliveryPatch.dispatchStatus = order.riderId ? "ASSIGNED" : "NO_RIDER_AVAILABLE";
-      } else if (nextStatus === "READY_FOR_PICKUP") {
-        deliveryPatch.status = "RIDER_PICKUP";
+      } else if (nextStatus === "ACCEPTED" || nextStatus === "PREPARING" || nextStatus === "READY_FOR_PICKUP") {
+        if (assignedRiderId) {
+          deliveryPatch.riderId = assignedRiderId;
+          deliveryPatch.candidateRiderIds = candidateRiderIds;
+          deliveryPatch.currentRiderIndex = currentRiderIndex;
+          deliveryPatch.assignmentExpiresAt = assignmentExpiresAt;
+          deliveryPatch.dispatchAttempts = Math.max(1, Number(order.dispatchAttempts || 0) || 1);
+        }
+
+        deliveryPatch.status = nextStatus === "READY_FOR_PICKUP" ? "RIDER_PICKUP" : assignedRiderId ? "ASSIGNED" : "NEW";
+        deliveryPatch.dispatchStatus = dispatchStatus;
       }
 
       await deliveryRef.set(deliveryPatch, { merge: true });

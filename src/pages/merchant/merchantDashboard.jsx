@@ -617,6 +617,15 @@ useEffect(() => {
                 sales.slice(0, 4).map((sale) => (
                   <Box
                     key={sale.id}
+                    onClick={() => navigate('/merchant/orders')}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        navigate('/merchant/orders');
+                      }
+                    }}
                     sx={{
                       display: 'flex',
                       alignItems: 'center',

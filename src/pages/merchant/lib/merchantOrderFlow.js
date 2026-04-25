@@ -19,22 +19,38 @@ export const MERCHANT_ORDER_STATUS = {
 
 const ALIASES = {
   pending: MERCHANT_ORDER_STATUS.NEW,
+  pending_payment: MERCHANT_ORDER_STATUS.NEW,
+  scheduled: MERCHANT_ORDER_STATUS.NEW,
   confirmed: MERCHANT_ORDER_STATUS.ACCEPTED,
   processing: MERCHANT_ORDER_STATUS.PREPARING,
+  preparing: MERCHANT_ORDER_STATUS.PREPARING,
+  ready: MERCHANT_ORDER_STATUS.READY_FOR_PICKUP,
+  ready_for_pickup: MERCHANT_ORDER_STATUS.READY_FOR_PICKUP,
   picked_up: MERCHANT_ORDER_STATUS.ORDER_PICKED_UP,
   out_for_delivery: MERCHANT_ORDER_STATUS.IN_DELIVERY,
   completed: MERCHANT_ORDER_STATUS.DELIVERED,
 };
 
-export const normalizeMerchantOrderStatus = (value) => {
-  const deliveryNormalized = normalizeDeliveryStatus(value);
-  if (deliveryNormalized) return deliveryNormalized;
+const RECOGNIZED_DELIVERY_STATUSES = new Set([
+  MERCHANT_ORDER_STATUS.NEW,
+  MERCHANT_ORDER_STATUS.ACCEPTED,
+  MERCHANT_ORDER_STATUS.PREPARING,
+  MERCHANT_ORDER_STATUS.READY_FOR_PICKUP,
+  MERCHANT_ORDER_STATUS.ORDER_PICKED_UP,
+  MERCHANT_ORDER_STATUS.IN_DELIVERY,
+  MERCHANT_ORDER_STATUS.DELIVERED,
+  MERCHANT_ORDER_STATUS.CANCELLED,
+]);
 
+export const normalizeMerchantOrderStatus = (value) => {
   const raw = String(value || "").trim();
   if (!raw) return "";
 
   const alias = ALIASES[raw.toLowerCase()];
   if (alias) return alias;
+
+  const deliveryNormalized = normalizeDeliveryStatus(value);
+  if (RECOGNIZED_DELIVERY_STATUSES.has(deliveryNormalized)) return deliveryNormalized;
 
   return raw.toUpperCase();
 };
