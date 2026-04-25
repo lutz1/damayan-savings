@@ -1,3 +1,6 @@
+const merchantOrderActions = require("./merchantOrderActions");
+exports.merchantAcceptOrder = merchantOrderActions.merchantAcceptOrder;
+exports.merchantRejectOrder = merchantOrderActions.merchantRejectOrder;
 const functions = require("firebase-functions");
 const cors = require("cors");
 const admin = require("firebase-admin");

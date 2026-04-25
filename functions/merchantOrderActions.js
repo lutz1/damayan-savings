@@ -32,41 +32,49 @@ const ORDER_STATUS = {
 // Accept order by merchant, assign rider and update status
 exports.merchantAcceptOrder = functions.https.onCall(async (data, context) => {
   if (!context.auth?.uid) {
+    console.error("[merchantAcceptOrder] No auth context", { context });
     throw new functions.https.HttpsError("unauthenticated", "Authentication required");
   }
 
   const merchantId = context.auth.uid;
   const orderId = String(data?.orderId || "").trim();
   if (!orderId) {
+    console.error("[merchantAcceptOrder] Missing orderId", { data });
     throw new functions.https.HttpsError("invalid-argument", "orderId is required");
   }
 
   const orderRef = db.collection("orders").doc(orderId);
   const orderSnap = await orderRef.get();
   if (!orderSnap.exists) {
+    console.error("[merchantAcceptOrder] Order not found", { orderId });
     throw new functions.https.HttpsError("not-found", "Order not found");
   }
   const orderData = orderSnap.data();
   if (orderData.merchantId !== merchantId) {
+    console.error("[merchantAcceptOrder] Not your order", { merchantId, orderData });
     throw new functions.https.HttpsError("permission-denied", "Not your order");
   }
   if (orderData.status !== ORDER_STATUS.NEW) {
+    console.error("[merchantAcceptOrder] Order is not NEW", { status: orderData.status });
     throw new functions.https.HttpsError("failed-precondition", "Order is not NEW");
   }
 
   // Find delivery doc
   const deliveryId = orderData.deliveryId;
   if (!deliveryId) {
+    console.error("[merchantAcceptOrder] DeliveryId missing", { orderId, orderData });
     throw new functions.https.HttpsError("not-found", "Delivery not found");
   }
   const deliveryRef = db.collection("deliveries").doc(deliveryId);
   const deliverySnap = await deliveryRef.get();
   if (!deliverySnap.exists) {
+    console.error("[merchantAcceptOrder] Delivery not found", { deliveryId });
     throw new functions.https.HttpsError("not-found", "Delivery not found");
   }
   const deliveryData = deliverySnap.data();
   const candidateRiderIds = Array.isArray(deliveryData.candidateRiderIds) ? deliveryData.candidateRiderIds.filter(Boolean) : [];
   if (candidateRiderIds.length === 0) {
+    console.error("[merchantAcceptOrder] No available riders", { deliveryId, candidateRiderIds });
     throw new functions.https.HttpsError("failed-precondition", "No available riders");
   }
   const assignmentExpiresAt = TIMESTAMP.fromMillis(Date.now() + 10000); // 10 seconds

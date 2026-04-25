@@ -167,6 +167,7 @@ const MerchantOrders = () => {
 
   // Use Firebase callable functions for merchant actions
   const callMerchantAction = async (orderId, action) => {
+    console.log("callMerchantAction invoked", { orderId, action });
     if (!orderId) throw new Error("Order ID required");
     let fn;
     if (action === "accept") {
@@ -176,18 +177,30 @@ const MerchantOrders = () => {
     } else {
       throw new Error("Unsupported action");
     }
-    const result = await fn({ orderId });
-    if (!result?.data?.success) throw new Error(result?.data?.error || "Action failed");
+    let result;
+    try {
+      result = await fn({ orderId });
+      console.log("merchantAcceptOrder result", result);
+    } catch (err) {
+      console.error("merchantAcceptOrder error", err);
+      throw err;
+    }
+    if (!result?.data?.success) {
+      console.error("merchantAcceptOrder failed", result);
+      throw new Error(result?.data?.error || "Action failed");
+    }
     return result.data;
   };
 
   const handleAcceptOrder = async (order) => {
     if (!order?.id) return;
+    console.log("handleAcceptOrder called", order);
     setActionLoading((prev) => ({ ...prev, [order.id]: "accept" }));
     try {
       await callMerchantAction(order.id, "accept");
       updateOrderStatusLocal(order.id, MERCHANT_ORDER_STATUS.ACCEPTED);
     } catch (err) {
+      console.error("handleAcceptOrder error", err);
       setSnack({ open: true, severity: "error", message: err.message || "Failed to accept order" });
     } finally {
       setActionLoading((prev) => {
