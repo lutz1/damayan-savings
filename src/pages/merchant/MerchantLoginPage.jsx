@@ -46,6 +46,7 @@ export default function MerchantLoginPage() {
 
       if (!userSnap.exists()) {
         setError("Merchant profile not found. Please contact admin.");
+        localStorage.removeItem("uid");
         await signOut(auth);
         setLoading(false);
         return;
@@ -55,11 +56,13 @@ export default function MerchantLoginPage() {
       const role = String(userData.role || "").toUpperCase();
       if (role !== "MERCHANT") {
         setError("This account is not a Merchant account.");
+        localStorage.removeItem("uid");
         await signOut(auth);
         setLoading(false);
         return;
       }
 
+      localStorage.setItem("uid", credential.user.uid);
       localStorage.setItem("userRole", "MERCHANT");
       sessionStorage.setItem("skipAppSplash", "true");
       

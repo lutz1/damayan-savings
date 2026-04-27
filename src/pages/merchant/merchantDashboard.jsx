@@ -1,31 +1,16 @@
 // src/pages/merchant/merchantDashboard.jsx
 import React, { useEffect, useMemo, useState, useRef } from "react";
-import {
-  Box,
-  Typography,
-  Card,
-  CardContent,
-  Avatar,
-  IconButton,
-  LinearProgress,
-  Chip,
-  Divider,
-  Stack,
-  Paper,
-  Container,
-  Snackbar,
-  Alert,
-} from "@mui/material";
 import { useNavigate } from "react-router-dom";
+import { onAuthStateChanged } from "firebase/auth";
 import {
   collection,
   query,
   where,
   onSnapshot,
   orderBy,
-  doc, 
+  doc,
 } from "firebase/firestore";
-import { auth, db, storage } from "../../firebase";
+import { auth, db } from "../../firebase";
 import {
   isMerchantOrderNew,
   isMerchantOrderPreparing,
@@ -34,13 +19,17 @@ import {
 import MerchantBottomNav from "./components/MerchantBottomNav";
 
 // Material Symbols Icon Component
-const MaterialIcon = ({ name, filled = false, weight = 400, size = 24, sx = {} }) => (
+const MaterialIcon = ({ name, filled = false, weight = 400, size = 24, className = "" }) => (
   <span
-    className="material-symbols-outlined"
+    className={`material-symbols-outlined ${className}`}
     style={{
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
       fontSize: size,
       fontVariationSettings: `'FILL' ${filled ? 1 : 0}, 'wght' ${weight}`,
-      ...sx
+      lineHeight: 1,
+      fontFamily: "Material Symbols Outlined",
     }}
   >
     {name}
@@ -50,661 +39,374 @@ const MaterialIcon = ({ name, filled = false, weight = 400, size = 24, sx = {} }
 const MerchantDashboard = () => {
   const navigate = useNavigate();
   const isMountedRef = useRef(true);
-  const merchantId = auth.currentUser?.uid || null;
+  const [merchantId, setMerchantId] = useState(() => {
+    try {
+      return auth.currentUser?.uid || localStorage.getItem("uid") || null;
+    } catch (err) {
+      return auth.currentUser?.uid || null;
+    }
+  });
 
-  const [merchantName, setMerchantName] = useState("");
+  const [merchantName, setMerchantName] = useState("Merchant");
+  const [merchantLogo, setMerchantLogo] = useState("");
   const [products, setProducts] = useState([]);
-  const [sales, setSales] = useState([]);
-  const [feedbacks, setFeedbacks] = useState([]);
-  const [period, setPeriod] = useState("monthly");
-  const [snack, setSnack] = useState({ open: false, severity: "error", message: "" });
+  const [orders, setOrders] = useState([]);
+  const [wallet, setWallet] = useState(0);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
     };
   }, []);
 
-  // Safe snack setter
-  const showSnack = (severity, message) => {
-    if (isMountedRef.current) {
-      setSnack({ open: true, severity, message });
-    }
-  };
-
- /* ======================
-   LOAD MERCHANT NAME
-====================== */
-useEffect(() => {
-  if (!merchantId) return;
-
-  const unsub = onSnapshot(
-    doc(db, "users", merchantId),
-    (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        console.log("User doc:", data);
-
-        setMerchantName(
-          data.storeName || data.name || data.merchantProfile?.merchantName || "Merchant"
-        );
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      const uid = user?.uid || null;
+      setMerchantId(uid);
+      if (uid) {
+        localStorage.setItem("uid", uid);
       } else {
-        console.warn("User doc not found:", merchantId);
+        localStorage.removeItem("uid");
       }
-    },
-    (err) => {
-      console.error("User snapshot error:", err);
-      showSnack("error", "Failed to load merchant profile.");
-    }
-  );
+    });
+    return () => unsub();
+  }, []);
 
-  return () => unsub();
-}, [merchantId]);
-
-  /* ======================
-     FIRESTORE LISTENERS
-  ====================== */
+  // Load merchant info
   useEffect(() => {
     if (!merchantId) return;
-
-    const unsubProducts = onSnapshot(
-      query(collection(db, "products"), where("merchantId", "==", merchantId)),
-      (snap) =>
-        setProducts(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-      (err) => {
-        console.error("Products listener error:", err);
-        // Only show error if it's not an index building error
-        if (!err.message?.includes("currently building")) {
-          showSnack("error", "Unable to load products.");
+    const unsub = onSnapshot(
+      doc(db, "users", merchantId),
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          setMerchantName(
+            data.merchantProfile?.merchantName ||
+            data.storeName ||
+            data.name ||
+            "Merchant"
+          );
+          setMerchantLogo(
+            data.storeLogo ||
+            data.profileImage ||
+            data.profilePicture ||
+            data.logo ||
+            data.merchantProfile?.logo ||
+            data.photoURL ||
+            ""
+          );
+          setWallet(Number(data.wallet || 0));
         }
-      }
+      },
+      (err) => console.error("User snapshot error:", err)
     );
+    return () => unsub();
+  }, [merchantId]);
 
-    const unsubSales = onSnapshot(
+  // Load products
+  useEffect(() => {
+    if (!merchantId) return;
+    const unsub = onSnapshot(
+      query(collection(db, "products"), where("merchantId", "==", merchantId)),
+      (snap) => setProducts(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      (err) => console.error("Products listener error:", err)
+    );
+    return () => unsub();
+  }, [merchantId]);
+
+  // Load orders
+  useEffect(() => {
+    if (!merchantId) return;
+    const unsub = onSnapshot(
       query(
         collection(db, "orders"),
         where("merchantId", "==", merchantId),
         orderBy("createdAt", "desc")
       ),
-      (snap) =>
-        setSales(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-      (err) => {
-        console.error("Sales listener error:", err);
-        // Only show error if it's not an index building error
-        if (!err.message?.includes("currently building")) {
-          showSnack("error", "Unable to load orders/sales.");
-        }
-      }
+      (snap) => setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      (err) => console.error("Orders listener error:", err)
     );
-
-    const unsubFeedback = onSnapshot(
-      query(
-        collection(db, "feedback"),
-        where("merchantId", "==", merchantId),
-        orderBy("createdAt", "desc")
-      ),
-      (snap) =>
-        setFeedbacks(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-      (err) => {
-        console.error("Feedback listener error:", err);
-        // Only show error if it's not an index building error
-        if (!err.message?.includes("currently building")) {
-          showSnack("error", "Unable to load feedback.");
-        }
-      }
-    );
-
-    return () => {
-      unsubProducts();
-      unsubSales();
-      unsubFeedback();
-    };
+    return () => unsub();
   }, [merchantId]);
 
-  /* ======================
-     ANALYTICS
-  ====================== */
-  const totalSales = useMemo(
-    () => sales.reduce((sum, s) => sum + Number(s.total || 0), 0),
-    [sales]
-  );
+  // Metrics
+  const metrics = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-  const productSalesData = useMemo(() => {
-    const map = {};
-    sales.forEach((s) => {
-      map[s.productName] =
-        (map[s.productName] || 0) + Number(s.total || 0);
+    const todayOrders = orders.filter((o) => {
+      const oDate = o.createdAt?.toDate ? o.createdAt.toDate() : new Date(o.createdAt);
+      return oDate >= today;
     });
-    return Object.keys(map).map((k) => ({
-      product: k,
-      sales: map[k],
-    }));
-  }, [sales]);
 
-  const topProducts = [...productSalesData]
-    .sort((a, b) => b.sales - a.sales)
-    .slice(0, 5);
+    const todaySales = todayOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+    const avgOrderValue = todayOrders.length > 0 ? todaySales / todayOrders.length : 0;
 
-  // Revenue Insights
-  const revenueInsights = useMemo(() => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
-
-    const todaySales = sales.filter(s => {
-      const saleDate = s.createdAt?.toDate ? s.createdAt.toDate() : new Date(s.createdAt);
-      return saleDate >= today;
-    }).reduce((sum, s) => sum + Number(s.total || 0), 0);
-
-    const weekSales = sales.filter(s => {
-      const saleDate = s.createdAt?.toDate ? s.createdAt.toDate() : new Date(s.createdAt);
-      return saleDate >= weekAgo;
-    }).reduce((sum, s) => sum + Number(s.total || 0), 0);
-
-    const monthSales = sales.filter(s => {
-      const saleDate = s.createdAt?.toDate ? s.createdAt.toDate() : new Date(s.createdAt);
-      return saleDate >= monthAgo;
-    }).reduce((sum, s) => sum + Number(s.total || 0), 0);
-
-    const avgOrderValue = sales.length > 0 ? totalSales / sales.length : 0;
-    
     return {
-      today: todaySales,
-      week: weekSales,
-      month: monthSales,
-      avgOrder: avgOrderValue,
-      totalOrders: sales.length,
+      todaySales,
+      todayOrders: todayOrders.length,
+      avgOrderValue: avgOrderValue.toFixed(2),
+      newOrders: orders.filter((o) => isMerchantOrderNew(o.status)).length,
+      preparingOrders: orders.filter((o) => isMerchantOrderPreparing(o.status)).length,
+      completedOrders: orders.filter((o) => isMerchantOrderCompleted(o.status)).length,
     };
-  }, [sales, totalSales]);
+  }, [orders]);
 
-  const orderFlowMetrics = useMemo(() => {
-    const newOrders = sales.filter((s) => isMerchantOrderNew(s.status)).length;
-    const preparingOrders = sales.filter((s) => isMerchantOrderPreparing(s.status)).length;
-    const completedOrders = sales.filter((s) => isMerchantOrderCompleted(s.status)).length;
-    return {
-      newOrders,
-      preparingOrders,
-      completedOrders,
-    };
-  }, [sales]);
+  const recentOrders = useMemo(() => orders.slice(0, 4), [orders]);
 
-  // Customer Insights
-  const customerInsights = useMemo(() => {
-    const uniqueCustomers = new Set(sales.map(s => s.customerId)).size;
-    const repeatCustomers = sales.reduce((acc, sale) => {
-      acc[sale.customerId] = (acc[sale.customerId] || 0) + 1;
-      return acc;
-    }, {});
-    const repeatCount = Object.values(repeatCustomers).filter(count => count > 1).length;
-    
-    return {
-      total: uniqueCustomers,
-      repeat: repeatCount,
-      repeatRate: uniqueCustomers > 0 ? (repeatCount / uniqueCustomers * 100).toFixed(1) : 0,
-    };
-  }, [sales]);
-
-  // Product Performance
-  const productPerformance = useMemo(() => {
-    const activeProducts = products.filter(p => p.status === 'active' || !p.status).length;
-    const lowStock = products.filter(p => Number(p.stock || 0) < 10).length;
-    
-    return {
-      active: activeProducts,
-      lowStock,
-    };
-  }, [products]);
-
-  /* ======================
-     TIME-BASED GREETING
-  ====================== */
-  const getTimeBasedGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return "Good Morning";
-    if (hour < 18) return "Good Afternoon";
-    return "Good Evening";
+  const getStatusColor = (status) => {
+    if (isMerchantOrderNew(status)) return { bg: "bg-blue-100", text: "text-blue-800", label: "New" };
+    if (isMerchantOrderPreparing(status)) return { bg: "bg-amber-100", text: "text-amber-800", label: "Preparing" };
+    if (isMerchantOrderCompleted(status)) return { bg: "bg-emerald-100", text: "text-emerald-800", label: "Completed" };
+    return { bg: "bg-slate-100", text: "text-slate-800", label: "Pending" };
   };
 
-  // Helper to get initials from name
-  const getInitials = (name) => {
-    if (!name) return "?";
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-    return parts[0].slice(0, 2).toUpperCase();
-  };
-
-  // Format time ago
-  const getTimeAgo = (timestamp) => {
-    if (!timestamp) return "Just now";
-    const date = timestamp?.toDate ? timestamp.toDate() : new Date(timestamp);
-    const seconds = Math.floor((new Date() - date) / 1000);
-    
-    if (seconds < 60) return "Just now";
-    if (seconds < 120) return "1 min ago";
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} mins ago`;
-    if (seconds < 7200) return "1 hour ago";
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
-    return `${Math.floor(seconds / 86400)} days ago`;
-  };
-
-  // Calculate daily goal (you can adjust this)
-  const dailyGoal = 1650;
-  const todayProgress = Math.min((revenueInsights.today / dailyGoal) * 100, 100);
-
-  /* ======================
-     UI
-  ====================== */
   return (
-    <Box sx={{ 
-      minHeight: "100dvh", 
-      bgcolor: "#f6f7f8",
-      display: 'flex',
-      justifyContent: 'center',
-      pb: 12,
-      paddingTop: 'env(safe-area-inset-top, 0)',
-      paddingLeft: 'env(safe-area-inset-left, 0)',
-      paddingRight: 'env(safe-area-inset-right, 0)',
-    }}>
-      <Container 
-        maxWidth="sm" 
-        disableGutters
-        sx={{ 
-          bgcolor: 'white',
-          minHeight: '100dvh',
-          boxShadow: { sm: '0 0 40px rgba(0,0,0,0.1)' }
-        }}
-      >
-        {/* Header */}
-        <Paper
-          elevation={0}
-          sx={{
-            position: 'sticky',
-            top: 0,
-            zIndex: 10,
-            bgcolor: 'rgba(255, 255, 255, 0.8)',
-            backdropFilter: 'blur(12px)',
-            borderBottom: '1px solid',
-            borderColor: 'divider',
-            px: 2,
-            py: 2
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <Box sx={{ position: 'relative' }}>
-                <Avatar 
-                  sx={{ 
-                    width: 40, 
-                    height: 40,
-                    border: '2px solid rgba(43, 124, 238, 0.1)'
-                  }}
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      {/* Desktop Header */}
+      <header className="hidden md:flex justify-between items-center w-full px-6 py-4 bg-white border-b border-slate-200 shadow-sm sticky top-0 z-40">
+        <div className="flex items-center gap-3">
+          {merchantLogo && (
+            <img alt="Logo" className="w-8 h-8 rounded-full object-cover" src={merchantLogo} />
+          )}
+          <div className="flex flex-col">
+            <p className="text-xs text-slate-500">Welcome back,</p>
+            <h1 className="text-lg font-semibold text-slate-900">{merchantName}</h1>
+          </div>
+        </div>
+        <button className="p-2 text-slate-500 hover:bg-slate-50 rounded-full transition-colors">
+          <MaterialIcon name="notifications" size={24} />
+        </button>
+      </header>
+
+      {/* Mobile Header */}
+      <header className="md:hidden flex justify-between items-center px-4 py-4 bg-white border-b border-slate-200 sticky top-0 z-40">
+        <div className="flex items-center gap-3">
+          {merchantLogo && (
+            <img alt="Logo" className="w-10 h-10 rounded-full object-cover shadow-sm" src={merchantLogo} />
+          )}
+          <div>
+            <p className="text-xs text-slate-500">Welcome back,</p>
+            <h1 className="text-lg font-semibold text-slate-900">{merchantName}</h1>
+          </div>
+        </div>
+        <button className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 transition-colors">
+          <MaterialIcon name="notifications" size={20} />
+        </button>
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8 mb-20 md:mb-0">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+          {/* Left Content - 8 cols */}
+          <div className="col-span-1 md:col-span-8 flex flex-col gap-6">
+            {/* Top Metrics */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {/* Today's Sales */}
+              <div className="bg-white rounded-lg p-6 shadow-sm border border-slate-200 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                  <MaterialIcon name="payments" size={80} />
+                </div>
+                <div className="flex flex-col gap-3 relative z-10">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-sm font-medium text-slate-600">Today's Sales</h2>
+                    <MaterialIcon name="trending_up" size={18} className="text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-3xl font-bold text-slate-900">₱{metrics.todaySales.toFixed(2)}</p>
+                    <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                      <MaterialIcon name="arrow_upward" size={14} />
+                      {metrics.todayOrders} orders today
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Orders Today */}
+              <div className="bg-white rounded-lg p-6 shadow-sm border border-slate-200 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                  <MaterialIcon name="shopping_bag" size={80} />
+                </div>
+                <div className="flex flex-col gap-3 relative z-10">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-sm font-medium text-slate-600">Orders Today</h2>
+                    <MaterialIcon name="bar_chart" size={18} className="text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-3xl font-bold text-slate-900">{metrics.todayOrders}</p>
+                    <p className="text-xs text-slate-600 mt-1">
+                      Avg order: ₱{metrics.avgOrderValue}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Order Status Overview */}
+            <div className="bg-white rounded-lg p-6 shadow-sm border border-slate-200">
+              <h2 className="text-lg font-semibold text-slate-900 mb-4">Order Status</h2>
+              <div className="grid grid-cols-3 gap-4">
+                {/* New Orders */}
+                <div className="flex flex-col items-center justify-center p-4 rounded-lg bg-slate-50 border border-slate-200">
+                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mb-2">
+                    <MaterialIcon name="fiber_new" size={20} className="text-blue-600" />
+                  </div>
+                  <p className="text-2xl font-bold text-slate-900">{metrics.newOrders}</p>
+                  <p className="text-xs text-slate-600 mt-1">New</p>
+                </div>
+
+                {/* Preparing */}
+                <div className="flex flex-col items-center justify-center p-4 rounded-lg bg-slate-50 border border-slate-200">
+                  <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center mb-2">
+                    <MaterialIcon name="soup_kitchen" size={20} className="text-amber-600" />
+                  </div>
+                  <p className="text-2xl font-bold text-slate-900">{metrics.preparingOrders}</p>
+                  <p className="text-xs text-slate-600 mt-1">Preparing</p>
+                </div>
+
+                {/* Completed */}
+                <div className="flex flex-col items-center justify-center p-4 rounded-lg bg-slate-50 border border-slate-200">
+                  <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center mb-2">
+                    <MaterialIcon name="check_circle" size={20} className="text-emerald-600" />
+                  </div>
+                  <p className="text-2xl font-bold text-slate-900">{metrics.completedOrders}</p>
+                  <p className="text-xs text-slate-600 mt-1">Completed</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Orders */}
+            <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full">
+              <div className="p-6 border-b border-slate-200 flex justify-between items-center">
+                <h2 className="text-lg font-semibold text-slate-900">Recent Orders</h2>
+                <button
+                  onClick={() => navigate("/merchant/orders")}
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
                 >
-                  {getInitials(merchantName)}
-                </Avatar>
-                <Box
-                  sx={{
-                    position: 'absolute',
-                    bottom: 0,
-                    right: 0,
-                    width: 10,
-                    height: 10,
-                    bgcolor: '#4ade80',
-                    borderRadius: '50%',
-                    border: '2px solid white'
-                  }}
-                />
-              </Box>
-              <Box>
-                <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem', fontWeight: 500 }}>
-                  Welcome back,
-                </Typography>
-                <Typography variant="body1" sx={{ fontWeight: 700, fontSize: '1.125rem', lineHeight: 1.2, color: '#0f172a' }}>
-                  {merchantName || "Merchant"}
-                </Typography>
-              </Box>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <IconButton
-                onClick={() => navigate('/merchant/vouchers')}
-                sx={{
-                  bgcolor: '#f8fafc',
-                  width: 40,
-                  height: 40,
-                  '&:hover': {
-                    bgcolor: 'rgba(43, 124, 238, 0.1)',
-                    color: '#2b7cee'
-                  }
-                }}
-              >
-                <MaterialIcon name="confirmation_number" size={22} sx={{ color: '#64748b' }} />
-              </IconButton>
-              <IconButton
-                sx={{
-                  bgcolor: '#f8fafc',
-                  width: 40,
-                  height: 40,
-                  '&:hover': {
-                    bgcolor: 'rgba(43, 124, 238, 0.1)',
-                    color: '#2b7cee'
-                  }
-                }}
-              >
-                <MaterialIcon name="notifications" size={22} sx={{ color: '#64748b' }} />
-              </IconButton>
-            </Box>
-          </Box>
-        </Paper>
+                  View All
+                </button>
+              </div>
+              <div className="overflow-x-auto flex-1">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200">
+                      <th className="py-3 px-6 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                        Order ID
+                      </th>
+                      <th className="py-3 px-6 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                        Customer
+                      </th>
+                      <th className="py-3 px-6 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="py-3 px-6 text-xs font-semibold text-slate-600 uppercase tracking-wider text-right">
+                        Amount
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {recentOrders.length > 0 ? (
+                      recentOrders.map((order) => {
+                        const statusInfo = getStatusColor(order.status);
+                        return (
+                          <tr key={order.id} className="hover:bg-slate-50 transition-colors cursor-pointer">
+                            <td className="py-4 px-6 text-sm font-mono text-slate-900">#{order.id?.slice(0, 6)}</td>
+                            <td className="py-4 px-6 text-sm text-slate-900">{order.customerName || "N/A"}</td>
+                            <td className="py-4 px-6">
+                              <span
+                                className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${statusInfo.bg} ${statusInfo.text}`}
+                              >
+                                {statusInfo.label}
+                              </span>
+                            </td>
+                            <td className="py-4 px-6 text-right text-sm font-mono text-slate-900">
+                              ₱{Number(order.total || 0).toFixed(2)}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan="4" className="py-8 px-6 text-center text-slate-500 text-sm">
+                          No orders yet
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
 
-        {/* Main Content */}
-        <Box sx={{ px: 2, pt: 3 }}>
-          {/* Summary Metrics Section */}
-          <Box sx={{ mb: 4 }}>
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1.5 }}>
-              {/* Large Primary Card - Today's Sales */}
-              <Card 
-                sx={{ 
-                  gridColumn: 'span 2',
-                  border: '1px solid rgba(43, 124, 238, 0.2)',
-                  bgcolor: 'rgba(43, 124, 238, 0.05)',
-                  boxShadow: 'none'
-                }}
-              >
-                <CardContent sx={{ p: 2.5 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-                    <Typography 
-                      variant="caption" 
-                      sx={{ 
-                        color: '#2b7cee', 
-                        fontWeight: 600,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                        fontSize: '0.875rem'
-                      }}
-                    >
-                      Today's Sales
-                    </Typography>
-                    <Chip
-                      icon={<MaterialIcon name="trending_up" size={14} sx={{ color: '#16a34a' }} />}
-                      label="+12%"
-                      size="small"
-                      sx={{
-                        height: 20,
-                        bgcolor: '#dcfce7',
-                        color: '#16a34a',
-                        fontWeight: 700,
-                        fontSize: '0.75rem',
-                        '& .MuiChip-icon': { ml: 0.5 }
-                      }}
-                    />
-                  </Box>
-                  <Typography 
-                    variant="h4" 
-                    sx={{ 
-                      fontWeight: 800, 
-                      mb: 1.5,
-                      color: '#0f172a',
-                      fontSize: '2rem'
-                    }}
-                  >
-                    ₱{revenueInsights.today.toFixed(2)}
-                  </Typography>
-                  <LinearProgress 
-                    variant="determinate" 
-                    value={todayProgress}
-                    sx={{
-                      height: 6,
-                      borderRadius: 999,
-                      bgcolor: '#e2e8f0',
-                      '& .MuiLinearProgress-bar': {
-                        bgcolor: '#2b7cee',
-                        borderRadius: 999
-                      }
-                    }}
-                  />
-                  <Typography 
-                    variant="caption" 
-                    sx={{ 
-                      color: '#64748b', 
-                      fontSize: '0.6875rem',
-                      mt: 1,
-                      display: 'block'
-                    }}
-                  >
-                    {todayProgress.toFixed(0)}% of daily goal reached
-                  </Typography>
-                </CardContent>
-              </Card>
+          {/* Right Sidebar - 4 cols */}
+          <div className="col-span-1 md:col-span-4 flex flex-col gap-6">
+            {/* Wallet Card */}
+            <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-lg p-6 shadow-lg text-white relative overflow-hidden">
+              <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
+              <div className="flex flex-col gap-4 relative z-10">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h2 className="text-xs text-white/80 uppercase tracking-wider mb-1">Available Balance</h2>
+                    <p className="text-3xl font-bold">₱{wallet.toFixed(2)}</p>
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                    <MaterialIcon name="account_balance_wallet" size={20} />
+                  </div>
+                </div>
+                <div className="flex gap-3 mt-2">
+                  <button className="flex-1 bg-white text-blue-600 font-semibold py-2.5 px-4 rounded-lg hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
+                    <MaterialIcon name="account_balance" size={18} />
+                    <span className="text-sm">Withdraw</span>
+                  </button>
+                  <button className="flex-1 border border-white/30 text-white font-semibold py-2.5 px-4 rounded-lg hover:bg-white/10 transition-colors flex items-center justify-center gap-2">
+                    <MaterialIcon name="history" size={18} />
+                    <span className="text-sm">Details</span>
+                  </button>
+                </div>
+              </div>
+            </div>
 
-              {/* Small Secondary Cards */}
-              <Card sx={{ border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-                <CardContent sx={{ p: 2 }}>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      width: 32,
-                      height: 32,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderRadius: '8px',
-                      bgcolor: '#eff6ff',
-                      mb: 1
-                    }}
-                  >
-                    <MaterialIcon name="shopping_cart" size={20} sx={{ color: '#3b82f6' }} />
-                  </Box>
-                  <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 500, fontSize: '0.75rem' }}>
-                    New Orders
-                  </Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mt: 0.5 }}>
-                    {orderFlowMetrics.newOrders}
-                  </Typography>
-                </CardContent>
-              </Card>
+            {/* Quick Actions */}
+            <div className="bg-white rounded-lg p-6 shadow-sm border border-slate-200">
+              <h2 className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-4">Quick Actions</h2>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => navigate("/merchant/add-product")}
+                  className="flex flex-col items-center justify-center gap-2 p-4 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors group"
+                >
+                  <MaterialIcon name="add_circle" size={24} className="text-blue-600 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs text-slate-700 font-medium">New Product</span>
+                </button>
+                <button
+                  onClick={() => navigate("/merchant/products")}
+                  className="flex flex-col items-center justify-center gap-2 p-4 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors group"
+                >
+                  <MaterialIcon name="inventory_2" size={24} className="text-blue-600 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs text-slate-700 font-medium">Items</span>
+                </button>
+                <button
+                  onClick={() => navigate("/merchant/vouchers")}
+                  className="flex flex-col items-center justify-center gap-2 p-4 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors group"
+                >
+                  <MaterialIcon name="card_giftcard" size={24} className="text-blue-600 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs text-slate-700 font-medium">Vouchers</span>
+                </button>
+                <button
+                  onClick={() => navigate("/merchant/store-profile")}
+                  className="flex flex-col items-center justify-center gap-2 p-4 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors group"
+                >
+                  <MaterialIcon name="settings" size={24} className="text-blue-600 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs text-slate-700 font-medium">Settings</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
 
-              <Card sx={{ border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-                <CardContent sx={{ p: 2 }}>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      width: 32,
-                      height: 32,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderRadius: '8px',
-                      bgcolor: '#fff7ed',
-                      mb: 1
-                    }}
-                  >
-                    <MaterialIcon name="local_shipping" size={20} sx={{ color: '#f97316' }} />
-                  </Box>
-                  <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 500, fontSize: '0.75rem' }}>
-                    Preparing
-                  </Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mt: 0.5 }}>
-                    {orderFlowMetrics.preparingOrders}
-                  </Typography>
-                </CardContent>
-              </Card>
-
-              <Card sx={{ border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-                <CardContent sx={{ p: 2 }}>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      width: 32,
-                      height: 32,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderRadius: '8px',
-                      bgcolor: '#dcfce7',
-                      mb: 1
-                    }}
-                  >
-                    <MaterialIcon name="done_all" size={20} sx={{ color: '#16a34a' }} />
-                  </Box>
-                  <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 500, fontSize: '0.75rem' }}>
-                    Completed
-                  </Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mt: 0.5 }}>
-                    {orderFlowMetrics.completedOrders}
-                  </Typography>
-                </CardContent>
-              </Card>
-
-              <Card sx={{ border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-                <CardContent sx={{ p: 2 }}>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      width: 32,
-                      height: 32,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderRadius: '8px',
-                      bgcolor: '#ecfeff',
-                      mb: 1
-                    }}
-                  >
-                    <MaterialIcon name="sell" size={20} sx={{ color: '#0891b2' }} />
-                  </Box>
-                  <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 500, fontSize: '0.75rem' }}>
-                    Orders Today
-                  </Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mt: 0.5 }}>
-                    {revenueInsights.totalOrders}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Box>
-          </Box>
-
-          {/* Recent Orders Section */}
-          <Box sx={{ mb: 4 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-              <Typography 
-                variant="h6" 
-                sx={{ 
-                  fontWeight: 700, 
-                  fontSize: '1.25rem',
-                  color: '#0f172a'
-                }}
-              >
-                Recent Orders
-              </Typography>
-              <Typography
-                onClick={() => navigate('/merchant/orders')}
-                sx={{
-                  color: '#2b7cee',
-                  fontWeight: 600,
-                  fontSize: '0.875rem',
-                  cursor: 'pointer',
-                  '&:hover': { textDecoration: 'underline' }
-                }}
-              >
-                View All
-              </Typography>
-            </Box>
-
-            <Stack divider={<Divider />} sx={{ bgcolor: 'white' }}>
-              {sales.slice(0, 4).length === 0 ? (
-                <Box sx={{ py: 6, textAlign: 'center' }}>
-                  <MaterialIcon name="receipt_long" size={48} sx={{ color: '#cbd5e1', mb: 2 }} />
-                  <Typography color="text.secondary">No orders yet</Typography>
-                </Box>
-              ) : (
-                sales.slice(0, 4).map((sale) => (
-                  <Box
-                    key={sale.id}
-                    onClick={() => navigate('/merchant/orders')}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        navigate('/merchant/orders');
-                      }
-                    }}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      py: 2,
-                      cursor: 'pointer',
-                      '&:hover': { bgcolor: '#f8fafc' }
-                    }}
-                  >
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                      <Avatar
-                        sx={{
-                          width: 48,
-                          height: 48,
-                          bgcolor: '#f1f5f9',
-                          color: '#64748b',
-                          fontWeight: 700
-                        }}
-                      >
-                        {getInitials(sale.customerName || "Customer")}
-                      </Avatar>
-                      <Box>
-                        <Typography variant="body1" sx={{ fontWeight: 600, color: '#0f172a', fontSize: '1rem' }}>
-                          {sale.customerName || "Customer"}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
-                          Order #{sale.id.slice(-4)} • {getTimeAgo(sale.createdAt)}
-                        </Typography>
-                      </Box>
-                    </Box>
-                    <Box sx={{ textAlign: 'right' }}>
-                      <Typography variant="body2" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
-                        ₱{Number(sale.total || 0).toFixed(2)}
-                      </Typography>
-                      <Chip
-                        label={sale.status === 'completed' ? 'Ready' : sale.status === 'pending' ? 'In Progress' : 'Scheduled'}
-                        size="small"
-                        sx={{
-                          height: 18,
-                          fontSize: '0.625rem',
-                          fontWeight: 700,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.05em',
-                          ...(sale.status === 'completed' && {
-                            bgcolor: '#dcfce7',
-                            color: '#16a34a'
-                          }),
-                          ...(sale.status === 'pending' && {
-                            bgcolor: '#fef3c7',
-                            color: '#d97706'
-                          }),
-                          ...(!sale.status && {
-                            bgcolor: '#f1f5f9',
-                            color: '#64748b'
-                          })
-                        }}
-                      />
-                    </Box>
-                  </Box>
-                ))
-              )}
-            </Stack>
-          </Box>
-        </Box>
-
-        <Snackbar
-          open={snack.open}
-          autoHideDuration={3500}
-          onClose={() => setSnack({ open: false })}
-          anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-        >
-          <Alert severity={snack.severity} variant="filled">
-            {snack.message}
-          </Alert>
-        </Snackbar>
-
-        <MerchantBottomNav activePath="/merchant/dashboard" />
-      </Container>
-    </Box>
+      {/* Mobile Bottom Nav */}
+      <MerchantBottomNav activePath="/merchant/dashboard" />
+    </div>
   );
 };
 

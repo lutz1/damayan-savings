@@ -20,6 +20,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
 import { auth, db, storage, functions } from "../../firebase";
 import {
   MERCHANT_ORDER_STATUS,
@@ -48,7 +49,13 @@ const MaterialIcon = ({ name, filled = false, weight = 400, size = 24, sx = {} }
 
 const MerchantOrders = () => {
   const navigate = useNavigate();
-  const [merchantId, setMerchantId] = useState(null);
+  const [merchantId, setMerchantId] = useState(() => {
+    try {
+      return auth.currentUser?.uid || localStorage.getItem("uid") || null;
+    } catch (err) {
+      return auth.currentUser?.uid || null;
+    }
+  });
   const [sales, setSales] = useState([]);
   const [detailOrder, setDetailOrder] = useState(null);
   const [actionLoading, setActionLoading] = useState({});
@@ -56,7 +63,24 @@ const MerchantOrders = () => {
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-      setMerchantId(user?.uid || null);
+      const uid = user?.uid || null;
+
+      setMerchantId((current) => {
+        if (uid) return uid;
+        try {
+          return current || localStorage.getItem("uid") || null;
+        } catch (err) {
+          return current || null;
+        }
+      });
+
+      try {
+        if (uid) {
+          localStorage.setItem("uid", uid);
+        }
+      } catch (err) {
+        // Ignore storage access issues and continue with auth state only.
+      }
     });
 
     return () => unsubscribeAuth();
@@ -169,36 +193,42 @@ const MerchantOrders = () => {
   const callMerchantAction = async (orderId, action) => {
     console.log("callMerchantAction invoked", { orderId, action });
     if (!orderId) throw new Error("Order ID required");
+    
     let fn;
     if (action === "accept") {
-      fn = (await import("firebase/functions")).httpsCallable(functions, "merchantAcceptOrder");
+      fn = httpsCallable(functions, "merchantAcceptOrder");
     } else if (action === "reject") {
-      fn = (await import("firebase/functions")).httpsCallable(functions, "merchantRejectOrder");
+      fn = httpsCallable(functions, "merchantRejectOrder");
     } else {
       throw new Error("Unsupported action");
     }
-    let result;
+    
     try {
-      result = await fn({ orderId });
-      console.log("merchantAcceptOrder result", result);
+      const result = await fn({ orderId });
+      console.log("Cloud function result", { action, result });
+      return result.data;
     } catch (err) {
-      console.error("merchantAcceptOrder error", err);
-      throw err;
+      console.error("Cloud function error", {
+        action,
+        code: err.code,
+        message: err.message,
+        details: err.details,
+      });
+      
+      // Extract the actual error message from Firebase error
+      const errorMessage = err.message || err.details || "Action failed";
+      throw new Error(errorMessage);
     }
-    if (!result?.data?.success) {
-      console.error("merchantAcceptOrder failed", result);
-      throw new Error(result?.data?.error || "Action failed");
-    }
-    return result.data;
   };
 
   const handleAcceptOrder = async (order) => {
     if (!order?.id) return;
-    console.log("handleAcceptOrder called", order);
+    console.log("handleAcceptOrder called", { orderId: order.id, status: order.status });
     setActionLoading((prev) => ({ ...prev, [order.id]: "accept" }));
     try {
       await callMerchantAction(order.id, "accept");
       updateOrderStatusLocal(order.id, MERCHANT_ORDER_STATUS.ACCEPTED);
+      setSnack({ open: true, severity: "success", message: "Order accepted!" });
     } catch (err) {
       console.error("handleAcceptOrder error", err);
       setSnack({ open: true, severity: "error", message: err.message || "Failed to accept order" });

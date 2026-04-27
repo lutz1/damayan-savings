@@ -6,8 +6,7 @@ const navItems = [
   { key: "dashboard", label: "Home", path: "/merchant/dashboard", icon: "home" },
   { key: "orders", label: "Orders", path: "/merchant/orders", icon: "receipt_long" },
   { key: "products", label: "Products", path: "/merchant/products", icon: "inventory_2" },
-  { key: "vouchers", label: "Vouchers", path: "/merchant/vouchers", icon: "card_giftcard" },
-  { key: "profile", label: "Profile", path: "/merchant/profile", icon: "person" },
+  { key: "profile", label: "Account", path: "/merchant/profile", icon: "person" },
 ];
 
 const MaterialIcon = ({ name, size = 22, filled = false }) => (
