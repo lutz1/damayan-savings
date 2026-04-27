@@ -1,45 +1,41 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
+  Avatar,
   Box,
-  Typography,
   Button,
   Chip,
-  Avatar,
-  Paper,
   Container,
-  IconButton,
-  Stack,
-  Divider,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
+  Paper,
   Snackbar,
-  Alert,
+  Stack,
+  Typography,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import { auth, db, storage, functions } from "../../firebase";
+import { auth, db, functions } from "../../firebase";
 import {
   MERCHANT_ORDER_STATUS,
-  normalizeMerchantOrderStatus,
+  isMerchantOrderCompleted,
+  isMerchantOrderInDelivery,
   isMerchantOrderNew,
   isMerchantOrderPreparing,
   isMerchantOrderReady,
-  isMerchantOrderInDelivery,
-  isMerchantOrderCompleted,
+  isMerchantOrderTerminal,
+  normalizeMerchantOrderStatus,
 } from "./lib/merchantOrderFlow";
 import MerchantBottomNav from "./components/MerchantBottomNav";
 
-// Material Symbols Icon Component
 const MaterialIcon = ({ name, filled = false, weight = 400, size = 24, sx = {} }) => (
   <span
     className="material-symbols-outlined"
     style={{
       fontSize: size,
       fontVariationSettings: `'FILL' ${filled ? 1 : 0}, 'wght' ${weight}`,
+      lineHeight: 1,
+      display: "inline-flex",
       ...sx,
     }}
   >
@@ -47,255 +43,248 @@ const MaterialIcon = ({ name, filled = false, weight = 400, size = 24, sx = {} }
   </span>
 );
 
+const formatCurrency = (value) => `₱${Number(value || 0).toFixed(2)}`;
+
+const getTimestampDate = (value) => {
+  if (!value) return null;
+  if (typeof value?.toDate === "function") return value.toDate();
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const getTimeAgo = (value) => {
+  const date = getTimestampDate(value);
+  if (!date) return "Just now";
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+
+  if (seconds < 60) return "Just now";
+  if (seconds < 120) return "1 min ago";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} mins ago`;
+  if (seconds < 7200) return "1 hour ago";
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
+  return `${Math.floor(seconds / 86400)} days ago`;
+};
+
+const getOrderCode = (order) => {
+  if (!order) return "ORD-000";
+  return (
+    order.orderNumber ||
+    order.referenceCode ||
+    order.code ||
+    order.orderId ||
+    `ORD-${String(order.id || "").slice(-3).padStart(3, "0")}`
+  );
+};
+
+const getCustomerName = (order) => order?.customerName || order?.customer?.name || "Customer";
+
+const getCustomerPhone = (order) =>
+  order?.customerPhone || order?.phone || order?.contactNumber || order?.customer?.phone || "Not provided";
+
+const getDeliveryAddress = (order) =>
+  order?.deliveryAddress ||
+  order?.address ||
+  order?.shippingAddress ||
+  order?.customerAddress ||
+  "No delivery address provided";
+
+const getPaymentMethod = (order) =>
+  order?.paymentMethod || order?.paymentType || order?.payment?.method || "Cash on delivery";
+
+const getItems = (order) => {
+  if (Array.isArray(order?.items) && order.items.length > 0) return order.items;
+  if (order?.productName) {
+    return [
+      {
+        name: order.productName,
+        quantity: order.quantity || 1,
+        price: order.price || order.unitPrice || order.amount || order.total || 0,
+      },
+    ];
+  }
+  return [];
+};
+
+const getItemsSummary = (order) => {
+  const items = getItems(order);
+  if (items.length === 0) return "No item details";
+  const first = items[0];
+  const firstName = first?.name || first?.productName || "Item";
+  const firstQty = first?.quantity || 1;
+  return `${firstQty}x ${firstName}${items.length > 1 ? `, +${items.length - 1} more` : ""}`;
+};
+
+const getStatusMeta = (status) => {
+  const normalized = normalizeMerchantOrderStatus(status);
+
+  switch (normalized) {
+    case MERCHANT_ORDER_STATUS.NEW:
+      return { label: "NEW", bg: "#fef3c7", color: "#b45309", icon: "fiber_new" };
+    case MERCHANT_ORDER_STATUS.ACCEPTED:
+      return { label: "ACCEPTED", bg: "#dbeafe", color: "#1d4ed8", icon: "task_alt" };
+    case MERCHANT_ORDER_STATUS.PREPARING:
+      return { label: "PREPARING", bg: "#ede9fe", color: "#6d28d9", icon: "kitchen" };
+    case MERCHANT_ORDER_STATUS.READY_FOR_PICKUP:
+      return { label: "READY FOR PICKUP", bg: "#dcfce7", color: "#15803d", icon: "local_shipping" };
+    case MERCHANT_ORDER_STATUS.ORDER_PICKED_UP:
+    case MERCHANT_ORDER_STATUS.IN_DELIVERY:
+      return { label: "IN DELIVERY", bg: "#dbeafe", color: "#1d4ed8", icon: "directions_car" };
+    case MERCHANT_ORDER_STATUS.DELIVERED:
+      return { label: "DELIVERED", bg: "#dcfce7", color: "#166534", icon: "verified" };
+    case MERCHANT_ORDER_STATUS.CANCELLED:
+      return { label: "CANCELLED", bg: "#fee2e2", color: "#b91c1c", icon: "cancel" };
+    default:
+      return { label: normalized || "ACTIVE", bg: "#f1f5f9", color: "#475569", icon: "receipt_long" };
+  }
+};
+
+const orderSteps = [
+  { key: MERCHANT_ORDER_STATUS.NEW, label: "Received" },
+  { key: MERCHANT_ORDER_STATUS.ACCEPTED, label: "Accepted" },
+  { key: MERCHANT_ORDER_STATUS.PREPARING, label: "Preparing" },
+  { key: MERCHANT_ORDER_STATUS.READY_FOR_PICKUP, label: "Ready" },
+  { key: MERCHANT_ORDER_STATUS.ORDER_PICKED_UP, label: "Picked up" },
+  { key: MERCHANT_ORDER_STATUS.IN_DELIVERY, label: "In delivery" },
+  { key: MERCHANT_ORDER_STATUS.DELIVERED, label: "Delivered" },
+];
+
+const getCurrentStepIndex = (status) => {
+  const normalized = normalizeMerchantOrderStatus(status);
+  const index = orderSteps.findIndex((step) => step.key === normalized);
+  return index >= 0 ? index : 0;
+};
+
 const MerchantOrders = () => {
   const navigate = useNavigate();
   const [merchantId, setMerchantId] = useState(() => {
     try {
       return auth.currentUser?.uid || localStorage.getItem("uid") || null;
-    } catch (err) {
+    } catch (error) {
       return auth.currentUser?.uid || null;
     }
   });
-  const [sales, setSales] = useState([]);
-  const [detailOrder, setDetailOrder] = useState(null);
-  const [actionLoading, setActionLoading] = useState({});
-  const [snack, setSnack] = useState({ open: false, severity: "error", message: "" });
+  const [orders, setOrders] = useState([]);
+  const [selectedOrderId, setSelectedOrderId] = useState("");
+  const [loadingAction, setLoadingAction] = useState(false);
+  const [snack, setSnack] = useState({ open: false, severity: "success", message: "" });
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       const uid = user?.uid || null;
-
-      setMerchantId((current) => {
-        if (uid) return uid;
-        try {
-          return current || localStorage.getItem("uid") || null;
-        } catch (err) {
-          return current || null;
-        }
-      });
+      setMerchantId(uid || null);
 
       try {
-        if (uid) {
-          localStorage.setItem("uid", uid);
-        }
-      } catch (err) {
-        // Ignore storage access issues and continue with auth state only.
+        if (uid) localStorage.setItem("uid", uid);
+      } catch (error) {
+        // Ignore storage failures.
       }
     });
 
-    return () => unsubscribeAuth();
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
     if (!merchantId) return undefined;
 
-    const unsubSales = onSnapshot(
-      query(
-        collection(db, "orders"),
-        where("merchantId", "==", merchantId)
-      ),
-      (snap) => {
-        const nextSales = snap.docs
-          .map((d) => ({
-            id: d.id,
-            ...d.data(),
-            status: normalizeMerchantOrderStatus(d.data()?.status) || d.data()?.status || MERCHANT_ORDER_STATUS.NEW,
+    const unsubscribe = onSnapshot(
+      query(collection(db, "orders"), where("merchantId", "==", merchantId)),
+      (snapshot) => {
+        const nextOrders = snapshot.docs
+          .map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+            status: normalizeMerchantOrderStatus(doc.data()?.status),
           }))
           .sort((a, b) => {
-            const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
-            const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
+            const timeA = getTimestampDate(a.createdAt)?.getTime() || 0;
+            const timeB = getTimestampDate(b.createdAt)?.getTime() || 0;
             return timeB - timeA;
           });
 
-        setSales(nextSales);
+        setOrders(nextOrders);
       },
-      (err) => {
-        console.error("Sales listener error:", err);
-        setSnack({ open: true, severity: "error", message: "Unable to load orders." });
+      (error) => {
+        console.error("merchant orders listener failed", error);
+        setSnack({ open: true, severity: "error", message: "Unable to load merchant orders." });
       }
     );
 
-    return () => unsubSales();
+    return () => unsubscribe();
   }, [merchantId]);
 
-  const newOrders = useMemo(() => sales.filter((s) => isMerchantOrderNew(s.status)), [sales]);
-  const preparingOrders = useMemo(() => sales.filter((s) => isMerchantOrderPreparing(s.status)), [sales]);
-  const readyOrders = useMemo(() => sales.filter((s) => isMerchantOrderReady(s.status)), [sales]);
-  const deliveryOrders = useMemo(() => sales.filter((s) => isMerchantOrderInDelivery(s.status)), [sales]);
-  const completedOrders = useMemo(() => sales.filter((s) => isMerchantOrderCompleted(s.status)), [sales]);
+  const selectedOrder = useMemo(() => {
+    if (!selectedOrderId) return null;
+    return orders.find((order) => order.id === selectedOrderId) || null;
+  }, [orders, selectedOrderId]);
 
-  const getInitials = (name) => {
-    if (!name) return "?";
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-    return parts[0].slice(0, 2).toUpperCase();
-  };
 
-  const getTimeAgo = (timestamp) => {
-    if (!timestamp) return "Just now";
-    const date = timestamp?.toDate ? timestamp.toDate() : new Date(timestamp);
-    const seconds = Math.floor((new Date() - date) / 1000);
+  const counts = useMemo(
+    () => ({
+      new: orders.filter((order) => isMerchantOrderNew(order.status)).length,
+      active: orders.filter(
+        (order) =>
+          isMerchantOrderPreparing(order.status) ||
+          isMerchantOrderReady(order.status) ||
+          isMerchantOrderInDelivery(order.status)
+      ).length,
+      completed: orders.filter((order) => isMerchantOrderCompleted(order.status)).length,
+    }),
+    [orders]
+  );
 
-    if (seconds < 60) return "Just now";
-    if (seconds < 120) return "1 min ago";
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} mins ago`;
-    if (seconds < 7200) return "1 hour ago";
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
-    return `${Math.floor(seconds / 86400)} days ago`;
-  };
+  const callMerchantAction = async (orderId, action) => {
+    if (!orderId) throw new Error("Order ID is required");
 
-  const getCountdown = (timestamp, minutes = 10) => {
-    if (!timestamp) return "05:00";
-    const date = timestamp?.toDate ? timestamp.toDate() : new Date(timestamp);
-    const deadline = new Date(date.getTime() + minutes * 60000);
-    const diff = Math.max(0, Math.floor((deadline - new Date()) / 1000));
-    const mm = String(Math.floor(diff / 60)).padStart(2, "0");
-    const ss = String(diff % 60).padStart(2, "0");
-    return `${mm}:${ss}`;
-  };
+    const callableName = action === "accept" ? "merchantAcceptOrder" : "merchantRejectOrder";
+    const fn = httpsCallable(functions, callableName);
 
-  const getItemsPreview = (order) => {
-    if (Array.isArray(order.items) && order.items.length > 0) {
-      const first = order.items[0];
-      const firstName = first.name || first.productName || "Item";
-      const firstQty = first.quantity || 1;
-      const rest = order.items.length - 1;
-      return `${firstQty}x ${firstName}${rest > 0 ? `, +${rest} more` : ""}`;
-    }
-    const productName = order.productName || "Items";
-    const qty = order.quantity || 1;
-    return `${qty}x ${productName}`;
-  };
-
-  const renderStatusChip = (status) => {
-    const value = normalizeMerchantOrderStatus(status);
-    if (value === MERCHANT_ORDER_STATUS.NEW) return { label: "NEW", bgcolor: "#fef3c7", color: "#d97706" };
-    if (value === MERCHANT_ORDER_STATUS.ACCEPTED) return { label: "ACCEPTED", bgcolor: "#e0f2fe", color: "#0369a1" };
-    if (value === MERCHANT_ORDER_STATUS.PREPARING) return { label: "PREPARING", bgcolor: "#ede9fe", color: "#6d28d9" };
-    if (value === MERCHANT_ORDER_STATUS.READY_FOR_PICKUP) return { label: "READY FOR PICKUP", bgcolor: "#dcfce7", color: "#15803d" };
-    if (value === MERCHANT_ORDER_STATUS.ORDER_PICKED_UP || value === MERCHANT_ORDER_STATUS.IN_DELIVERY) {
-      return { label: "IN DELIVERY", bgcolor: "#dbeafe", color: "#1d4ed8" };
-    }
-    if (value === MERCHANT_ORDER_STATUS.DELIVERED) return { label: "DELIVERED", bgcolor: "#dcfce7", color: "#166534" };
-    if (value === MERCHANT_ORDER_STATUS.CANCELLED) return { label: "CANCELLED", bgcolor: "#fee2e2", color: "#b91c1c" };
-    return { label: value || "ACTIVE", bgcolor: "#f1f5f9", color: "#64748b" };
+    const result = await fn({ orderId });
+    return result?.data;
   };
 
   const updateOrderStatusLocal = (orderId, status) => {
-    setSales((prev) =>
-      prev.map((order) =>
-        order.id === orderId ? { ...order, status, updatedAt: new Date() } : order
-      )
+    setOrders((current) =>
+      current.map((order) => (order.id === orderId ? { ...order, status, updatedAt: new Date() } : order))
     );
   };
 
-  // Use Firebase callable functions for merchant actions
-  const callMerchantAction = async (orderId, action) => {
-    console.log("callMerchantAction invoked", { orderId, action });
-    if (!orderId) throw new Error("Order ID required");
-    
-    let fn;
-    if (action === "accept") {
-      fn = httpsCallable(functions, "merchantAcceptOrder");
-    } else if (action === "reject") {
-      fn = httpsCallable(functions, "merchantRejectOrder");
-    } else {
-      throw new Error("Unsupported action");
-    }
-    
-    try {
-      const result = await fn({ orderId });
-      console.log("Cloud function result", { action, result });
-      return result.data;
-    } catch (err) {
-      console.error("Cloud function error", {
-        action,
-        code: err.code,
-        message: err.message,
-        details: err.details,
-      });
-      
-      // Extract the actual error message from Firebase error
-      const errorMessage = err.message || err.details || "Action failed";
-      throw new Error(errorMessage);
-    }
+  const handleSelectOrder = (orderId) => {
+    setSelectedOrderId(orderId);
   };
 
-  const handleAcceptOrder = async (order) => {
-    if (!order?.id) return;
-    console.log("handleAcceptOrder called", { orderId: order.id, status: order.status });
-    setActionLoading((prev) => ({ ...prev, [order.id]: "accept" }));
+  const clearSelectedOrder = () => {
+    setSelectedOrderId("");
+  };
+
+  const handleAcceptOrder = async () => {
+    if (!selectedOrder?.id) return;
+
+    setLoadingAction(true);
     try {
-      await callMerchantAction(order.id, "accept");
-      updateOrderStatusLocal(order.id, MERCHANT_ORDER_STATUS.ACCEPTED);
-      setSnack({ open: true, severity: "success", message: "Order accepted!" });
-    } catch (err) {
-      console.error("handleAcceptOrder error", err);
-      setSnack({ open: true, severity: "error", message: err.message || "Failed to accept order" });
+      await callMerchantAction(selectedOrder.id, "accept");
+      updateOrderStatusLocal(selectedOrder.id, MERCHANT_ORDER_STATUS.ACCEPTED);
+      setSnack({ open: true, severity: "success", message: "Order accepted." });
+    } catch (error) {
+      console.error("accept order failed", error);
+      setSnack({ open: true, severity: "error", message: error?.message || "Failed to accept order." });
     } finally {
-      setActionLoading((prev) => {
-        const copy = { ...prev };
-        delete copy[order.id];
-        return copy;
-      });
+      setLoadingAction(false);
     }
   };
 
-  const handleViewDetails = (order) => {
-    setDetailOrder(order || null);
-  };
+  const handleRejectOrder = async () => {
+    if (!selectedOrder?.id) return;
 
-  const handleRejectOrder = async (order) => {
-    if (!order?.id) return;
-    setActionLoading((prev) => ({ ...prev, [order.id]: "reject" }));
+    setLoadingAction(true);
     try {
-      await callMerchantAction(order.id, "reject");
-      updateOrderStatusLocal(order.id, MERCHANT_ORDER_STATUS.CANCELLED);
-      setSnack({ open: true, severity: "success", message: "Order rejected" });
-    } catch (err) {
-      setSnack({ open: true, severity: "error", message: err.message || "Failed to reject order" });
+      await callMerchantAction(selectedOrder.id, "reject");
+      updateOrderStatusLocal(selectedOrder.id, MERCHANT_ORDER_STATUS.CANCELLED);
+      setSnack({ open: true, severity: "success", message: "Order rejected." });
+    } catch (error) {
+      console.error("reject order failed", error);
+      setSnack({ open: true, severity: "error", message: error?.message || "Failed to reject order." });
     } finally {
-      setActionLoading((prev) => {
-        const copy = { ...prev };
-        delete copy[order.id];
-        return copy;
-      });
-    }
-  };
-
-  const handleStartPreparing = async (order) => {
-    if (!order?.id) return;
-    setActionLoading((prev) => ({ ...prev, [order.id]: "preparing" }));
-    try {
-      await callMerchantAction(order.id, "prepare");
-      updateOrderStatusLocal(order.id, MERCHANT_ORDER_STATUS.PREPARING);
-      setSnack({ open: true, severity: "success", message: "Order moved to preparing" });
-    } catch (err) {
-      setSnack({ open: true, severity: "error", message: err.message || "Failed to start preparing" });
-    } finally {
-      setActionLoading((prev) => {
-        const copy = { ...prev };
-        delete copy[order.id];
-        return copy;
-      });
-    }
-  };
-
-  const handleReadyForPickup = async (order) => {
-    if (!order?.id) return;
-    setActionLoading((prev) => ({ ...prev, [order.id]: "ready" }));
-    try {
-      await callMerchantAction(order.id, "ready");
-      updateOrderStatusLocal(order.id, MERCHANT_ORDER_STATUS.READY_FOR_PICKUP);
-      setSnack({ open: true, severity: "success", message: "Marked as ready for pickup" });
-    } catch (err) {
-      setSnack({ open: true, severity: "error", message: err.message || "Failed to mark ready for pickup" });
-    } finally {
-      setActionLoading((prev) => {
-        const copy = { ...prev };
-        delete copy[order.id];
-        return copy;
-      });
+      setLoadingAction(false);
     }
   };
 
@@ -306,548 +295,494 @@ const MerchantOrders = () => {
         bgcolor: "#f6f7f8",
         display: "flex",
         justifyContent: "center",
-        pb: 12,
-        paddingTop: 'env(safe-area-inset-top, 0)',
-        paddingLeft: 'env(safe-area-inset-left, 0)',
-        paddingRight: 'env(safe-area-inset-right, 0)',
+        px: 1,
+        py: 1,
       }}
     >
       <Container
         maxWidth="sm"
         disableGutters
         sx={{
-          bgcolor: "white",
           minHeight: "100dvh",
-          boxShadow: { sm: "0 0 40px rgba(0,0,0,0.1)" },
+          bgcolor: "#fff",
+          boxShadow: { sm: "0 0 40px rgba(15, 23, 42, 0.12)" },
+          position: "relative",
+          pb: 12,
+          overflow: "hidden",
         }}
       >
-        {/* Header */}
-        <Paper
-          elevation={0}
+        <Box
           sx={{
-            position: "sticky",
-            top: 0,
-            zIndex: 10,
-            bgcolor: "rgba(255, 255, 255, 0.8)",
-            backdropFilter: "blur(12px)",
-            borderBottom: "1px solid",
-            borderColor: "divider",
             px: 2,
-            py: 2,
+            pt: 2,
+            pb: 2.5,
+            background: "linear-gradient(180deg, #eff6ff 0%, #ffffff 72%)",
+            borderBottom: "1px solid #e2e8f0",
           }}
         >
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-              <IconButton
+          <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
+            <Stack direction="row" alignItems="center" spacing={1.5}>
+              <Button
                 onClick={() => navigate(-1)}
                 sx={{
+                  minWidth: 40,
                   width: 40,
                   height: 40,
-                  bgcolor: "#f8fafc",
-                  color: "#64748b",
+                  p: 0,
+                  borderRadius: "12px",
+                  bgcolor: "#fff",
+                  border: "1px solid #e2e8f0",
+                  color: "#0f172a",
+                  boxShadow: "0 6px 18px rgba(15, 23, 42, 0.06)",
                 }}
               >
                 <MaterialIcon name="arrow_back_ios_new" size={18} />
-              </IconButton>
-              <Typography sx={{ fontSize: "1.25rem", fontWeight: 700, color: "#0f172a" }}>
-                Live Orders
-              </Typography>
-            </Box>
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 1,
-                px: 1.5,
-                py: 0.5,
-                bgcolor: "#dcfce7",
-                borderRadius: "9999px",
-              }}
-            >
-              <Box
-                sx={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  bgcolor: "#22c55e",
-                  animation: "pulseSoft 2s ease-in-out infinite",
-                  "@keyframes pulseSoft": {
-                    "0%, 100%": { opacity: 1 },
-                    "50%": { opacity: 0.5 },
-                  },
-                }}
-              />
-              <Typography
-                sx={{
-                  fontSize: "0.75rem",
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  color: "#16a34a",
-                }}
-              >
-                Online
-              </Typography>
-            </Box>
-          </Box>
-        </Paper>
+              </Button>
+              <Box>
+                <Typography
+                  sx={{
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    color: "#64748b",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.12em",
+                  }}
+                >
+                  Merchant Hub
+                </Typography>
+                <Typography sx={{ fontSize: "1.2rem", fontWeight: 800, color: "#0f172a", lineHeight: 1.1 }}>
+                  Orders
+                </Typography>
+              </Box>
+            </Stack>
 
-        <Box sx={{ px: 2, pt: 3, pb: 2 }}>
-          {/* New Orders */}
-          <Box sx={{ mb: 3 }}>
-            <Typography
+            <Chip
+              icon={<MaterialIcon name="receipt_long" filled size={18} sx={{ color: "#2563eb" }} />}
+              label={`${orders.length} Orders`}
               sx={{
-                fontSize: "0.75rem",
-                fontWeight: 700,
-                color: "#64748b",
-                textTransform: "uppercase",
-                letterSpacing: "0.1em",
-                mb: 1.5,
+                fontWeight: 800,
+                bgcolor: "#dbeafe",
+                color: "#1d4ed8",
+                borderRadius: "999px",
+                border: "1px solid rgba(148, 163, 184, 0.22)",
+                "& .MuiChip-icon": { color: "#1d4ed8" },
               }}
-            >
-              New Orders ({newOrders.length})
-            </Typography>
+            />
+          </Stack>
 
-            {newOrders.length === 0 ? (
+          <Stack direction="row" spacing={1.25} sx={{ mt: 2 }}>
+            <Paper elevation={0} sx={{ flex: 1, p: 1.5, borderRadius: "16px", border: "1px solid #e2e8f0" }}>
+              <Typography sx={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>
+                New
+              </Typography>
+              <Typography sx={{ fontSize: "1rem", fontWeight: 800, color: "#0f172a" }}>{counts.new}</Typography>
+            </Paper>
+            <Paper elevation={0} sx={{ flex: 1, p: 1.5, borderRadius: "16px", border: "1px solid #e2e8f0" }}>
+              <Typography sx={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>
+                Active
+              </Typography>
+              <Typography sx={{ fontSize: "1rem", fontWeight: 800, color: "#0f172a" }}>{counts.active}</Typography>
+            </Paper>
+            <Paper elevation={0} sx={{ flex: 1, p: 1.5, borderRadius: "16px", border: "1px solid #e2e8f0" }}>
+              <Typography sx={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>
+                Done
+              </Typography>
+              <Typography sx={{ fontSize: "1rem", fontWeight: 800, color: "#0f172a" }}>{counts.completed}</Typography>
+            </Paper>
+          </Stack>
+        </Box>
+
+        <Box sx={{ px: 2, pt: 2.25 }}>
+          <Paper
+            elevation={0}
+            sx={{
+              p: 2,
+              borderRadius: "22px",
+              border: "1px solid #e2e8f0",
+              bgcolor: "#fff",
+            }}
+          >
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
+              <Box>
+                <Typography sx={{ fontSize: "1rem", fontWeight: 900, color: "#0f172a" }}>Order List</Typography>
+                <Typography sx={{ fontSize: "0.85rem", color: "#64748b", mt: 0.3 }}>
+                  Tap any order to open the order details view.
+                </Typography>
+              </Box>
+              <MaterialIcon name="list_alt" filled size={24} sx={{ color: "#2563eb" }} />
+            </Stack>
+
+            {orders.length === 0 ? (
               <Box
                 sx={{
                   p: 3,
-                  borderRadius: "16px",
+                  borderRadius: "18px",
                   border: "1px dashed #cbd5e1",
                   textAlign: "center",
-                  color: "#94a3b8",
+                  bgcolor: "#f8fafc",
                 }}
               >
-                <MaterialIcon name="receipt_long" size={32} sx={{ color: "#cbd5e1" }} />
-                <Typography sx={{ mt: 1 }}>No new orders</Typography>
+                <MaterialIcon name="receipt_long" size={34} sx={{ color: "#94a3b8" }} />
+                <Typography sx={{ mt: 1.5, fontWeight: 800, color: "#0f172a" }}>No orders yet</Typography>
+                <Typography sx={{ mt: 0.5, color: "#64748b", fontSize: "0.9rem" }}>
+                  Incoming merchant orders will appear here as soon as customers place them.
+                </Typography>
               </Box>
             ) : (
-              newOrders.slice(0, 2).map((order) => (
-                <Box
-                  key={order.id}
-                  sx={{
-                    borderRadius: "16px",
-                    border: "2px solid rgba(43, 124, 238, 0.6)",
-                    bgcolor: "rgba(43, 124, 238, 0.05)",
-                    p: 2,
-                  }}
-                >
-                  <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
-                    <Box>
-                      <Typography
-                        sx={{
-                          fontSize: "0.75rem",
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                          color: "#2b7cee",
-                        }}
-                      >
-                        New Order Received
-                      </Typography>
-                      <Typography sx={{ fontSize: "1.125rem", fontWeight: 700, color: "#0f172a" }}>
-                        #{order.id?.slice(-6) || "ORDER"}
-                      </Typography>
-                      <Typography sx={{ fontSize: "0.875rem", color: "#64748b" }}>
-                        {getItemsPreview(order)} • P{Number(order.total || 0).toFixed(2)}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ textAlign: "right" }}>
-                      <Typography sx={{ fontSize: "1.25rem", fontWeight: 800, color: "#2b7cee" }}>
-                        {getCountdown(order.createdAt)}
-                      </Typography>
-                      <Typography sx={{ fontSize: "0.625rem", color: "#64748b" }}>
-                        Mins left to accept
-                      </Typography>
-                    </Box>
-                  </Box>
+              <Stack spacing={1.25}>
+                {orders.map((order) => {
+                  const active = order.id === selectedOrder?.id;
+                  const meta = getStatusMeta(order.status);
 
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, py: 1.5, borderTop: "1px solid rgba(43, 124, 238, 0.1)", borderBottom: "1px solid rgba(43, 124, 238, 0.1)", mb: 2 }}>
-                    <MaterialIcon name="list_alt" size={16} sx={{ color: "#2b7cee" }} />
-                    <Typography sx={{ fontSize: "0.875rem", fontWeight: 500 }}>
-                      {getItemsPreview(order)}
+                  return (
+                    <Paper
+                      key={order.id}
+                      elevation={0}
+                      sx={{
+                        p: 1.5,
+                        borderRadius: "18px",
+                        border: active ? "1px solid #2563eb" : "1px solid #e2e8f0",
+                        bgcolor: active ? "#eff6ff" : "#fff",
+                      }}
+                    >
+                      <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1.5}>
+                        <Box sx={{ minWidth: 0, flex: 1 }}>
+                          <Stack direction="row" alignItems="center" spacing={1}>
+                            <Typography sx={{ fontWeight: 900, color: "#0f172a" }} noWrap>
+                              #{getOrderCode(order)}
+                            </Typography>
+                            <Chip
+                              size="small"
+                              label={meta.label}
+                              sx={{
+                                fontWeight: 800,
+                                bgcolor: meta.bg,
+                                color: meta.color,
+                                borderRadius: "999px",
+                                height: 24,
+                              }}
+                            />
+                          </Stack>
+
+                          <Typography sx={{ fontSize: "0.82rem", color: "#64748b", mt: 0.4 }} noWrap>
+                            {getCustomerName(order)} • {getItemsSummary(order)}
+                          </Typography>
+                          <Typography sx={{ fontSize: "0.82rem", color: "#64748b", mt: 0.2 }}>
+                            {getTimeAgo(order.createdAt)}
+                          </Typography>
+                        </Box>
+
+                        <Box sx={{ textAlign: "right", flexShrink: 0 }}>
+                          <Typography sx={{ fontWeight: 900, color: "#0f172a" }}>
+                            {formatCurrency(order.total || order.amount)}
+                          </Typography>
+                          <Button
+                            size="small"
+                            onClick={() => handleSelectOrder(order.id)}
+                            sx={{
+                              mt: 0.8,
+                              px: 1.5,
+                              py: 0.6,
+                              borderRadius: "999px",
+                              textTransform: "none",
+                              fontWeight: 800,
+                              color: "#2563eb",
+                              bgcolor: "#dbeafe",
+                              "&:hover": { bgcolor: "#bfdbfe" },
+                            }}
+                          >
+                            Order Details
+                          </Button>
+                        </Box>
+                      </Stack>
+                    </Paper>
+                  );
+                })}
+              </Stack>
+            )}
+          </Paper>
+
+          {!selectedOrder ? null : (
+            <>
+              <Paper
+                elevation={0}
+                sx={{
+                  mt: 2,
+                  p: 2,
+                  borderRadius: "22px",
+                  border: "1px solid #dbeafe",
+                  bgcolor: "#f8fbff",
+                  boxShadow: "0 10px 28px rgba(37, 99, 235, 0.08)",
+                }}
+              >
+                <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={2}>
+                  <Box>
+                    <Typography
+                      sx={{
+                        fontSize: "0.74rem",
+                        fontWeight: 800,
+                        color: "#2563eb",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.12em",
+                      }}
+                    >
+                      Order Details
+                    </Typography>
+                    <Typography sx={{ fontSize: "1.45rem", fontWeight: 900, color: "#0f172a", lineHeight: 1.1, mt: 0.4 }}>
+                      {getOrderCode(selectedOrder)}
+                    </Typography>
+                    <Typography sx={{ fontSize: "0.92rem", color: "#475569", mt: 0.8 }}>
+                      {getCustomerName(selectedOrder)} • {getTimeAgo(selectedOrder?.createdAt)}
                     </Typography>
                   </Box>
 
-                  <Stack direction="row" spacing={1}>
+                  <Stack alignItems="flex-end" spacing={1}>
+                    <Chip
+                      icon={<MaterialIcon name={getStatusMeta(selectedOrder?.status).icon} filled size={18} sx={{ color: getStatusMeta(selectedOrder?.status).color }} />}
+                      label={getStatusMeta(selectedOrder?.status).label}
+                      sx={{
+                        fontWeight: 800,
+                        bgcolor: getStatusMeta(selectedOrder?.status).bg,
+                        color: getStatusMeta(selectedOrder?.status).color,
+                        borderRadius: "999px",
+                        border: "1px solid rgba(148, 163, 184, 0.22)",
+                        "& .MuiChip-icon": { color: getStatusMeta(selectedOrder?.status).color },
+                      }}
+                    />
+                    <Button
+                      onClick={clearSelectedOrder}
+                      sx={{
+                        minWidth: "auto",
+                        px: 1.5,
+                        py: 0.7,
+                        borderRadius: "999px",
+                        textTransform: "none",
+                        fontWeight: 800,
+                        color: "#0f172a",
+                        bgcolor: "#fff",
+                        border: "1px solid #e2e8f0",
+                      }}
+                    >
+                      Back to list
+                    </Button>
+                  </Stack>
+                </Stack>
+
+                <Stack direction="row" spacing={1.25} sx={{ mt: 2, flexWrap: "wrap" }}>
+                  <Paper elevation={0} sx={{ flex: "1 1 140px", p: 1.5, borderRadius: "16px", border: "1px solid #e2e8f0" }}>
+                    <Typography sx={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>
+                      Total
+                    </Typography>
+                    <Typography sx={{ fontSize: "1.15rem", fontWeight: 900, color: "#0f172a" }}>
+                      {formatCurrency(selectedOrder?.total || selectedOrder?.amount)}
+                    </Typography>
+                  </Paper>
+                  <Paper elevation={0} sx={{ flex: "1 1 140px", p: 1.5, borderRadius: "16px", border: "1px solid #e2e8f0" }}>
+                    <Typography sx={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>
+                      Items
+                    </Typography>
+                    <Typography sx={{ fontSize: "1.15rem", fontWeight: 900, color: "#0f172a" }}>
+                      {getItems(selectedOrder).length || selectedOrder?.quantity || 0}
+                    </Typography>
+                  </Paper>
+                </Stack>
+              </Paper>
+
+              <Paper
+                elevation={0}
+                sx={{
+                  mt: 2,
+                  p: 2,
+                  borderRadius: "22px",
+                  border: "1px solid #e2e8f0",
+                  bgcolor: "#fff",
+                }}
+              >
+                <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
+                  <Typography sx={{ fontSize: "1rem", fontWeight: 900, color: "#0f172a" }}>
+                    Order Progress
+                  </Typography>
+                  <Typography sx={{ fontSize: "0.82rem", fontWeight: 700, color: getStatusMeta(selectedOrder?.status).color }}>
+                    {getStatusMeta(selectedOrder?.status).label}
+                  </Typography>
+                </Stack>
+
+                <Stack spacing={1.25}>
+                  {orderSteps.map((step, index) => {
+                    const active = index === getCurrentStepIndex(selectedOrder?.status || MERCHANT_ORDER_STATUS.NEW);
+                    const completed = index < getCurrentStepIndex(selectedOrder?.status || MERCHANT_ORDER_STATUS.NEW);
+                    const cancelled = normalizeMerchantOrderStatus(selectedOrder?.status) === MERCHANT_ORDER_STATUS.CANCELLED;
+
+                    return (
+                      <Stack key={step.key} direction="row" alignItems="center" spacing={1.5}>
+                        <Box
+                          sx={{
+                            width: 14,
+                            height: 14,
+                            borderRadius: "50%",
+                            bgcolor: cancelled ? "#fca5a5" : active ? "#2563eb" : completed ? "#22c55e" : "#e2e8f0",
+                            boxShadow: active ? "0 0 0 6px rgba(37, 99, 235, 0.12)" : "none",
+                            flexShrink: 0,
+                          }}
+                        />
+                        <Box sx={{ flex: 1 }}>
+                          <Typography sx={{ fontSize: "0.92rem", fontWeight: active || completed ? 800 : 600, color: "#0f172a" }}>
+                            {step.label}
+                          </Typography>
+                        </Box>
+                        <Typography sx={{ fontSize: "0.8rem", color: completed ? "#16a34a" : "#94a3b8", fontWeight: 700 }}>
+                          {completed ? "Done" : active ? "Now" : "Next"}
+                        </Typography>
+                      </Stack>
+                    );
+                  })}
+                </Stack>
+              </Paper>
+
+              <Paper
+                elevation={0}
+                sx={{
+                  mt: 2,
+                  p: 2,
+                  borderRadius: "22px",
+                  border: "1px solid #e2e8f0",
+                  bgcolor: "#fff",
+                }}
+              >
+                <Typography sx={{ fontSize: "1rem", fontWeight: 900, color: "#0f172a", mb: 1.5 }}>
+                  Customer Details
+                </Typography>
+
+                <Stack spacing={1.25}>
+                  <DetailRow icon="person" label="Name" value={getCustomerName(selectedOrder)} />
+                  <DetailRow icon="call" label="Phone" value={getCustomerPhone(selectedOrder)} />
+                  <DetailRow icon="location_on" label="Address" value={getDeliveryAddress(selectedOrder)} />
+                  <DetailRow icon="payments" label="Payment" value={getPaymentMethod(selectedOrder)} />
+                </Stack>
+              </Paper>
+
+              <Paper
+                elevation={0}
+                sx={{
+                  mt: 2,
+                  p: 2,
+                  borderRadius: "22px",
+                  border: "1px solid #e2e8f0",
+                  bgcolor: "#fff",
+                }}
+              >
+                <Typography sx={{ fontSize: "1rem", fontWeight: 900, color: "#0f172a", mb: 1.5 }}>
+                  Items
+                </Typography>
+
+                {getItems(selectedOrder).length === 0 ? (
+                  <Box sx={{ p: 2, bgcolor: "#f8fafc", borderRadius: "16px", textAlign: "center", color: "#64748b" }}>
+                    No item details available for this order.
+                  </Box>
+                ) : (
+                  <Stack spacing={1.25}>
+                    {getItems(selectedOrder).map((item, index) => {
+                      const name = item?.name || item?.productName || `Item ${index + 1}`;
+                      const quantity = item?.quantity || 1;
+                      const price = Number(item?.price || item?.subtotal || item?.unitPrice || 0);
+
+                      return (
+                        <Stack
+                          key={`${name}-${index}`}
+                          direction="row"
+                          alignItems="center"
+                          justifyContent="space-between"
+                          spacing={1.5}
+                          sx={{
+                            p: 1.5,
+                            borderRadius: "16px",
+                            bgcolor: "#f8fafc",
+                            border: "1px solid #e2e8f0",
+                          }}
+                        >
+                          <Box sx={{ minWidth: 0 }}>
+                            <Typography sx={{ fontWeight: 800, color: "#0f172a" }} noWrap>
+                              {name}
+                            </Typography>
+                            <Typography sx={{ fontSize: "0.82rem", color: "#64748b" }}>
+                              Qty {quantity}
+                            </Typography>
+                          </Box>
+                          <Typography sx={{ fontWeight: 900, color: "#0f172a", flexShrink: 0 }}>
+                            {formatCurrency(price)}
+                          </Typography>
+                        </Stack>
+                      );
+                    })}
+                  </Stack>
+                )}
+              </Paper>
+
+              <Box sx={{ mt: 2, pb: 1 }}>
+                {isMerchantOrderNew(selectedOrder.status) ? (
+                  <Stack direction="row" spacing={1.25}>
                     <Button
                       fullWidth
                       variant="outlined"
                       color="error"
-                      onClick={() => handleRejectOrder(order)}
-                      disabled={Boolean(actionLoading[order.id])}
+                      onClick={handleRejectOrder}
+                      disabled={loadingAction}
                       sx={{
-                        fontWeight: 700,
-                        fontSize: "0.9rem",
-                        py: 1.2,
-                        borderRadius: "12px",
+                        py: 1.35,
+                        borderRadius: "14px",
                         textTransform: "none",
+                        fontWeight: 800,
+                        borderWidth: 2,
                       }}
                     >
-                      Reject
+                      Reject Order
                     </Button>
                     <Button
                       fullWidth
                       variant="contained"
-                      onClick={() => handleAcceptOrder(order)}
-                      disabled={Boolean(actionLoading[order.id])}
+                      onClick={handleAcceptOrder}
+                      disabled={loadingAction}
                       sx={{
-                        bgcolor: "#2b7cee",
-                        fontWeight: 700,
-                        fontSize: "0.9rem",
-                        py: 1.2,
-                        borderRadius: "12px",
-                        boxShadow: "0 10px 24px rgba(43, 124, 238, 0.3)",
+                        py: 1.35,
+                        borderRadius: "14px",
                         textTransform: "none",
-                        "&:hover": { bgcolor: "#2566c8" },
-                        "&:active": { transform: "scale(0.98)" },
+                        fontWeight: 800,
+                        bgcolor: "#2563eb",
+                        boxShadow: "0 14px 30px rgba(37, 99, 235, 0.28)",
+                        "&:hover": { bgcolor: "#1d4ed8" },
                       }}
                     >
                       Accept Order
                     </Button>
                   </Stack>
-                </Box>
-              ))
-            )}
-          </Box>
-
-          {/* Preparing */}
-          <Box sx={{ mb: 3 }}>
-            <Typography
-              sx={{
-                fontSize: "0.75rem",
-                fontWeight: 700,
-                color: "#64748b",
-                textTransform: "uppercase",
-                letterSpacing: "0.1em",
-                mb: 1.5,
-              }}
-            >
-              Preparing ({preparingOrders.length})
-            </Typography>
-
-            <Stack spacing={2}>
-              {preparingOrders.length === 0 ? (
-                <Box
-                  sx={{
-                    p: 3,
-                    borderRadius: "12px",
-                    border: "1px dashed #e2e8f0",
-                    textAlign: "center",
-                    color: "#94a3b8",
-                  }}
-                >
-                  <Typography>No orders in preparation</Typography>
-                </Box>
-              ) : (
-                preparingOrders.slice(0, 2).map((order) => (
-                  <Box
-                    key={order.id}
+                ) : (
+                  <Paper
+                    elevation={0}
                     sx={{
-                      borderRadius: "12px",
+                      p: 1.75,
+                      borderRadius: "18px",
                       border: "1px solid #e2e8f0",
-                      bgcolor: "white",
-                      p: 2,
+                      bgcolor: "#f8fafc",
+                      textAlign: "center",
                     }}
                   >
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
-                      <Box>
-                        <Typography sx={{ fontSize: "0.875rem", fontWeight: 700 }}>
-                          #{order.id?.slice(-6) || "ORDER"}
-                        </Typography>
-                        <Typography sx={{ fontSize: "0.75rem", color: "#64748b" }}>{getItemsPreview(order)}</Typography>
-                      </Box>
-                      <Typography sx={{ fontSize: "0.875rem", fontWeight: 700, color: "#0f172a" }}>
-                        P{Number(order.total || 0).toFixed(2)}
-                      </Typography>
-                    </Box>
-
-                    <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                      <Button
-                        variant="outlined"
-                        fullWidth
-                        onClick={() => handleStartPreparing(order)}
-                        disabled={Boolean(actionLoading[order.id]) || normalizeMerchantOrderStatus(order.status) === MERCHANT_ORDER_STATUS.PREPARING}
-                        sx={{
-                          fontSize: "0.75rem",
-                          fontWeight: 700,
-                          borderRadius: "10px",
-                          textTransform: "none",
-                        }}
-                      >
-                        Start Preparing
-                      </Button>
-                      <Button
-                        variant="contained"
-                        fullWidth
-                        onClick={() => handleReadyForPickup(order)}
-                        disabled={Boolean(actionLoading[order.id])}
-                        sx={{
-                          fontSize: "0.75rem",
-                          fontWeight: 700,
-                          borderRadius: "10px",
-                          textTransform: "none",
-                          bgcolor: "#2b7cee",
-                          "&:hover": { bgcolor: "#2566c8" },
-                        }}
-                      >
-                        Ready for Pickup
-                      </Button>
-                    </Stack>
-                  </Box>
-                ))
-              )}
-            </Stack>
-          </Box>
-
-          {/* Ready For Pickup */}
-          <Box sx={{ mb: 3 }}>
-            <Typography
-              sx={{
-                fontSize: "0.75rem",
-                fontWeight: 700,
-                color: "#64748b",
-                textTransform: "uppercase",
-                letterSpacing: "0.1em",
-                mb: 1.5,
-              }}
-            >
-              Ready For Pickup ({readyOrders.length})
-            </Typography>
-
-            <Stack spacing={2}>
-              {readyOrders.length === 0 ? (
-                <Box
-                  sx={{
-                    p: 3,
-                    borderRadius: "12px",
-                    border: "1px dashed #e2e8f0",
-                    textAlign: "center",
-                    color: "#94a3b8",
-                  }}
-                >
-                  <Typography>No ready orders yet</Typography>
-                </Box>
-              ) : (
-                readyOrders.slice(0, 2).map((order) => {
-                  const timeAgo = getTimeAgo(order.createdAt);
-                  const overdue = timeAgo.includes("days") || timeAgo.includes("hours");
-                  return (
-                    <Box
-                      key={order.id}
-                      sx={{
-                        borderRadius: "12px",
-                        border: "1px solid #e2e8f0",
-                        bgcolor: "white",
-                        p: 2,
-                        opacity: overdue ? 0.8 : 1,
-                      }}
-                    >
-                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                          <Avatar
-                            sx={{
-                              width: 40,
-                              height: 40,
-                              bgcolor: "#f1f5f9",
-                              color: "#64748b",
-                              fontWeight: 700,
-                              fontSize: "0.75rem",
-                            }}
-                          >
-                            {getInitials(order.customerName || "Customer")}
-                          </Avatar>
-                          <Box>
-                            <Typography sx={{ fontSize: "0.875rem", fontWeight: 700 }}>
-                              {order.customerName || "Customer"}
-                            </Typography>
-                            <Typography sx={{ fontSize: "0.6875rem", color: "#64748b" }}>
-                              Order #{order.id?.slice(-6)} • {timeAgo}
-                            </Typography>
-                          </Box>
-                        </Box>
-                        <Box sx={{ textAlign: "right" }}>
-                          <Typography
-                            sx={{
-                              fontSize: "0.75rem",
-                              fontWeight: 700,
-                              color: overdue ? "#64748b" : "#f97316",
-                            }}
-                          >
-                            {overdue ? "Overdue" : getCountdown(order.createdAt, 15)}
-                          </Typography>
-                          <Typography sx={{ fontSize: "0.625rem", color: "#94a3b8" }}>
-                            {overdue ? "Time exceeded" : "Remaining"}
-                          </Typography>
-                        </Box>
-                      </Box>
-
-                      <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                        <Button
-                          variant="outlined"
-                          fullWidth
-                          onClick={() => handleViewDetails(order)}
-                          sx={{
-                            fontSize: "0.75rem",
-                            fontWeight: 700,
-                            borderRadius: "10px",
-                            textTransform: "none",
-                          }}
-                        >
-                          View Details
-                        </Button>
-                        <Chip
-                          label="Waiting for rider pickup"
-                          size="small"
-                          sx={{
-                            alignSelf: "center",
-                            mt: 0.5,
-                            fontWeight: 700,
-                            bgcolor: "#dcfce7",
-                            color: "#166534",
-                          }}
-                        />
-                      </Stack>
-                    </Box>
-                  );
-                })
-              )}
-            </Stack>
-          </Box>
-
-          {/* In Delivery */}
-          <Box sx={{ mb: 3 }}>
-            <Typography
-              sx={{
-                fontSize: "0.75rem",
-                fontWeight: 700,
-                color: "#64748b",
-                textTransform: "uppercase",
-                letterSpacing: "0.1em",
-                mb: 1.5,
-              }}
-            >
-              In Delivery ({deliveryOrders.length})
-            </Typography>
-            <Stack spacing={1.5}>
-              {deliveryOrders.length === 0 ? (
-                <Box sx={{ p: 3, borderRadius: "12px", border: "1px dashed #e2e8f0", textAlign: "center", color: "#94a3b8" }}>
-                  <Typography>No deliveries in progress</Typography>
-                </Box>
-              ) : (
-                deliveryOrders.slice(0, 2).map((order) => (
-                  <Box key={order.id} sx={{ borderRadius: "12px", border: "1px solid #e2e8f0", bgcolor: "white", p: 2 }}>
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <Typography sx={{ fontWeight: 700 }}>#{order.id?.slice(-6)}</Typography>
-                      <Chip size="small" label={renderStatusChip(order.status).label} sx={{ fontWeight: 700, bgcolor: renderStatusChip(order.status).bgcolor, color: renderStatusChip(order.status).color }} />
-                    </Box>
-                    <Typography sx={{ mt: 0.8, fontSize: "0.8rem", color: "#64748b" }}>{getItemsPreview(order)}</Typography>
-                  </Box>
-                ))
-              )}
-            </Stack>
-          </Box>
-
-          {/* Completed */}
-          <Box sx={{ mb: 3 }}>
-            <Typography
-              sx={{
-                fontSize: "0.75rem",
-                fontWeight: 700,
-                color: "#64748b",
-                textTransform: "uppercase",
-                letterSpacing: "0.1em",
-                mb: 1.5,
-              }}
-            >
-              Completed ({completedOrders.length})
-            </Typography>
-            <Stack spacing={1.5}>
-              {completedOrders.length === 0 ? (
-                <Box sx={{ p: 3, borderRadius: "12px", border: "1px dashed #e2e8f0", textAlign: "center", color: "#94a3b8" }}>
-                  <Typography>No completed deliveries yet</Typography>
-                </Box>
-              ) : (
-                completedOrders.slice(0, 3).map((order) => (
-                  <Box key={order.id} sx={{ borderRadius: "12px", border: "1px solid #e2e8f0", bgcolor: "white", p: 2 }}>
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <Typography sx={{ fontWeight: 700 }}>#{order.id?.slice(-6)}</Typography>
-                      <Typography sx={{ fontWeight: 700, color: "#166534" }}>P{Number(order.total || 0).toFixed(2)}</Typography>
-                    </Box>
-                  </Box>
-                ))
-              )}
-            </Stack>
-          </Box>
-
-          <Divider sx={{ mt: 2 }} />
+                    <Typography sx={{ fontSize: "0.92rem", color: "#475569", fontWeight: 700 }}>
+                      This order is already in progress. Status updates are handled automatically.
+                    </Typography>
+                  </Paper>
+                )}
+              </Box>
+            </>
+          )}
         </Box>
-
-        <Dialog
-          open={Boolean(detailOrder)}
-          onClose={() => setDetailOrder(null)}
-          fullWidth
-          maxWidth="sm"
-        >
-          <DialogTitle sx={{ fontWeight: 700 }}>
-            Order Details
-          </DialogTitle>
-          <DialogContent dividers>
-            {detailOrder ? (
-              <Stack spacing={1.5}>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Order ID
-                  </Typography>
-                  <Typography fontWeight={600}>#{detailOrder.id}</Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Customer
-                  </Typography>
-                  <Typography fontWeight={600}>
-                    {detailOrder.customerName || "Customer"}
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Status
-                  </Typography>
-                  <Chip
-                    label={normalizeMerchantOrderStatus(detailOrder.status) || "ACTIVE"}
-                    size="small"
-                    sx={{ fontWeight: 700 }}
-                  />
-                </Box>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Total
-                  </Typography>
-                  <Typography fontWeight={700}>
-                    P{Number(detailOrder.total || 0).toFixed(2)}
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Items
-                  </Typography>
-                  <Typography>
-                    {getItemsPreview(detailOrder)}
-                  </Typography>
-                </Box>
-              </Stack>
-            ) : null}
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setDetailOrder(null)}>Close</Button>
-          </DialogActions>
-        </Dialog>
 
         <Snackbar
           open={snack.open}
           autoHideDuration={3500}
-          onClose={() => setSnack({ ...snack, open: false })}
+          onClose={() => setSnack((current) => ({ ...current, open: false }))}
           anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
         >
-          <Alert severity={snack.severity} variant="filled">
+          <Alert severity={snack.severity} variant="filled" sx={{ width: "100%" }}>
             {snack.message}
           </Alert>
         </Snackbar>
@@ -857,5 +792,41 @@ const MerchantOrders = () => {
     </Box>
   );
 };
+
+const DetailRow = ({ icon, label, value }) => (
+  <Stack direction="row" alignItems="flex-start" spacing={1.25}>
+    <Box
+      sx={{
+        width: 34,
+        height: 34,
+        borderRadius: "12px",
+        bgcolor: "#eff6ff",
+        color: "#2563eb",
+        display: "grid",
+        placeItems: "center",
+        flexShrink: 0,
+        mt: 0.2,
+      }}
+    >
+      <MaterialIcon name={icon} size={18} filled />
+    </Box>
+    <Box sx={{ minWidth: 0, flex: 1 }}>
+      <Typography
+        sx={{
+          fontSize: "0.72rem",
+          fontWeight: 800,
+          color: "#64748b",
+          textTransform: "uppercase",
+          letterSpacing: "0.08em",
+        }}
+      >
+        {label}
+      </Typography>
+      <Typography sx={{ fontSize: "0.95rem", fontWeight: 700, color: "#0f172a", wordBreak: "break-word" }}>
+        {value}
+      </Typography>
+    </Box>
+  </Stack>
+);
 
 export default MerchantOrders;

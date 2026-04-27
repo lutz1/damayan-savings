@@ -1,0 +1,115 @@
+
+> amayan-savings@0.1.0 build
+> vite build
+
+[36mvite v7.3.1 [32mbuilding client environment for production...[36m[39m
+transforming...
+[32m✓[39m 13086 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/[22m[32massets/rcbclogo-DSi_VeDH.jpg                           [39m[1m[2m    4.17 kB[22m[1m[22m
+[2mdist/[22m[32massets/bpilogo-Bgh6Y-g_.png                            [39m[1m[2m    4.25 kB[22m[1m[22m
+[2mdist/[22m[32massets/metrobanklogo-DlRzMXcq.png                      [39m[1m[2m    4.71 kB[22m[1m[22m
+[2mdist/[22m[32massets/gcashlogo-Cgspyw7w.jpg                          [39m[1m[2m    5.42 kB[22m[1m[22m
+[2mdist/[22m[32mindex.html                                             [39m[1m[2m    5.70 kB[22m[1m[22m[2m │ gzip:   1.54 kB[22m
+[2mdist/[22m[32massets/gotymelogo-CNRASRtA.png                         [39m[1m[2m    5.75 kB[22m[1m[22m
+[2mdist/[22m[32massets/unionbanklogo-FWoJDE-x.jpg                      [39m[1m[2m    9.29 kB[22m[1m[22m
+[2mdist/[22m[32massets/coinsphlogo-D7zND20X.jpg                        [39m[1m[2m    9.39 kB[22m[1m[22m
+[2mdist/[22m[32massets/landbanklogo-dZFkp8R_.jpg                       [39m[1m[2m   13.92 kB[22m[1m[22m
+[2mdist/[22m[32massets/bg-CMa0zstm.jpg                                 [39m[1m[2m   23.33 kB[22m[1m[22m
+[2mdist/[22m[32massets/merchantlogo-D4oP4JZS.png                       [39m[1m[2m   58.16 kB[22m[1m[22m
+[2mdist/[22m[32massets/gotymeqr-yAY_-NO2.png                           [39m[1m[2m   64.48 kB[22m[1m[22m
+[2mdist/[22m[32massets/riderlogo-Dv2v9lqL.jpg                          [39m[1m[2m   74.21 kB[22m[1m[22m
+[2mdist/[22m[32massets/bpi-CB3KUR_o.jpg                                [39m[1m[2m  107.17 kB[22m[1m[22m
+[2mdist/[22m[32massets/merchanticon-JAyoIarS.png                       [39m[1m[2m  701.55 kB[22m[1m[22m
+[2mdist/[22m[32massets/bannermerchant-DzQHt-IW.png                     [39m[1m[2m  704.85 kB[22m[1m[22m
+[2mdist/[22m[32massets/bannerrider-Cl-qgBCT.png                        [39m[1m[2m  824.79 kB[22m[1m[22m
+[2mdist/[22m[32massets/newlogo-2crzk4dW.png                            [39m[1m[2m1,044.05 kB[22m[1m[22m
+[2mdist/[22m[32massets/plezzicon-Bc-awSwp.png                          [39m[1m[2m1,446.74 kB[22m[1m[22m
+[2mdist/[22m[32massets/bowners-VpBr6flD.mp4                            [39m[1m[2m1,511.42 kB[22m[1m[22m
+[2mdist/[22m[32massets/bownersbg-BCPoi1f3.png                          [39m[1m[2m1,973.42 kB[22m[1m[22m
+[2mdist/[22m[35massets/vendor-mui-x-BU3nLhQd.css                       [39m[1m[2m    0.03 kB[22m[1m[22m[2m │ gzip:   0.05 kB[22m
+[2mdist/[22m[35massets/RiderLoginPage-Bwbd6LbA.css                     [39m[1m[2m    7.75 kB[22m[1m[22m[2m │ gzip:   2.16 kB[22m
+[2mdist/[22m[35massets/MerchantLoginPage-c1PiOM6e.css                  [39m[1m[2m    7.93 kB[22m[1m[22m[2m │ gzip:   2.17 kB[22m
+[2mdist/[22m[35massets/ShopPage-NDNpGKQd.css                           [39m[1m[2m   12.60 kB[22m[1m[22m[2m │ gzip:   3.07 kB[22m
+[2mdist/[22m[35massets/login-DoiPtptQ.css                              [39m[1m[2m   14.37 kB[22m[1m[22m[2m │ gzip:   3.71 kB[22m
+[2mdist/[22m[35massets/RiderApplicationPage-IEhKCU0K.css               [39m[1m[2m   17.05 kB[22m[1m[22m[2m │ gzip:   3.25 kB[22m
+[2mdist/[22m[35massets/index-fv_Q-MgI.css                              [39m[1m[2m   32.57 kB[22m[1m[22m[2m │ gzip:   6.50 kB[22m
+[2mdist/[22m[36massets/newlogo-wT6hYG_S.js                             [39m[1m[2m    0.07 kB[22m[1m[22m[2m │ gzip:   0.09 kB[22m
+[2mdist/[22m[36massets/plezzicon-B1S2uxBh.js                           [39m[1m[2m    0.07 kB[22m[1m[22m[2m │ gzip:   0.09 kB[22m
+[2mdist/[22m[36massets/merchantlogo-BfgNHB4D.js                        [39m[1m[2m    0.08 kB[22m[1m[22m[2m │ gzip:   0.10 kB[22m
+[2mdist/[22m[36massets/merchanticon-ntmpOUt7.js                        [39m[1m[2m    0.08 kB[22m[1m[22m[2m │ gzip:   0.10 kB[22m
+[2mdist/[22m[36massets/cartStorage-BESoqo9b.js                         [39m[1m[2m    0.43 kB[22m[1m[22m[2m │ gzip:   0.27 kB[22m
+[2mdist/[22m[36massets/AdminSidebarToggle-CwBfs8NE.js                  [39m[1m[2m    0.65 kB[22m[1m[22m[2m │ gzip:   0.45 kB[22m
+[2mdist/[22m[36massets/memberLayout-BRmN68il.js                        [39m[1m[2m    0.73 kB[22m[1m[22m[2m │ gzip:   0.38 kB[22m
+[2mdist/[22m[36massets/merchantOrderFlow-Jgm0o-XG.js                   [39m[1m[2m    1.33 kB[22m[1m[22m[2m │ gzip:   0.54 kB[22m
+[2mdist/[22m[36massets/MerchantBottomNav-MzC1GJ4r.js                   [39m[1m[2m    1.39 kB[22m[1m[22m[2m │ gzip:   0.79 kB[22m
+[2mdist/[22m[36massets/deliveryStatus-Dbto9hzI.js                      [39m[1m[2m    1.44 kB[22m[1m[22m[2m │ gzip:   0.60 kB[22m
+[2mdist/[22m[36massets/MemberBottomNav-BSQrqQG3.js                     [39m[1m[2m    2.76 kB[22m[1m[22m[2m │ gzip:   0.98 kB[22m
+[2mdist/[22m[36massets/deliveryPricing-C_suARN_.js                     [39m[1m[2m    2.89 kB[22m[1m[22m[2m │ gzip:   1.40 kB[22m
+[2mdist/[22m[36massets/AddAddressPage-BBixWERi.js                      [39m[1m[2m    3.50 kB[22m[1m[22m[2m │ gzip:   1.41 kB[22m
+[2mdist/[22m[36massets/memberMarketplace-UJQmoGhw.js                   [39m[1m[2m    4.41 kB[22m[1m[22m[2m │ gzip:   1.89 kB[22m
+[2mdist/[22m[36massets/riderOrders-DJ8hCQJn.js                         [39m[1m[2m    4.65 kB[22m[1m[22m[2m │ gzip:   1.64 kB[22m
+[2mdist/[22m[36massets/adminTransferTransaction-ZQWF3VCo.js            [39m[1m[2m    4.74 kB[22m[1m[22m[2m │ gzip:   1.88 kB[22m
+[2mdist/[22m[36massets/adminMerchantManagement-D_gcjDKy.js             [39m[1m[2m    4.92 kB[22m[1m[22m[2m │ gzip:   1.86 kB[22m
+[2mdist/[22m[36massets/memberOrders-DVwfwHdP.js                        [39m[1m[2m    5.18 kB[22m[1m[22m[2m │ gzip:   2.11 kB[22m
+[2mdist/[22m[36massets/riderWallet-DnS14I2D.js                         [39m[1m[2m    5.23 kB[22m[1m[22m[2m │ gzip:   1.88 kB[22m
+[2mdist/[22m[36massets/ShopViewAllStores-35_m8iBj.js                   [39m[1m[2m    5.59 kB[22m[1m[22m[2m │ gzip:   2.22 kB[22m
+[2mdist/[22m[36massets/ShopMyFavoriteStores-BtShBuVl.js                [39m[1m[2m    5.60 kB[22m[1m[22m[2m │ gzip:   2.29 kB[22m
+[2mdist/[22m[36massets/AddProduct-BJraAL3y.js                          [39m[1m[2m    6.52 kB[22m[1m[22m[2m │ gzip:   2.59 kB[22m
+[2mdist/[22m[36massets/RiderLoginPage-W2RTrsHi.js                      [39m[1m[2m    6.65 kB[22m[1m[22m[2m │ gzip:   2.12 kB[22m
+[2mdist/[22m[36massets/MerchantLoginPage-CcLGD1Q7.js                   [39m[1m[2m    6.82 kB[22m[1m[22m[2m │ gzip:   2.08 kB[22m
+[2mdist/[22m[36massets/adminPasswordResetManagement-COBy4dkj.js        [39m[1m[2m    7.69 kB[22m[1m[22m[2m │ gzip:   3.14 kB[22m
+[2mdist/[22m[36massets/merchantProfile-CCtrBUt4.js                     [39m[1m[2m    7.71 kB[22m[1m[22m[2m │ gzip:   3.19 kB[22m
+[2mdist/[22m[36massets/adminProductManagement-fnSdrUQC.js              [39m[1m[2m    7.71 kB[22m[1m[22m[2m │ gzip:   2.96 kB[22m
+[2mdist/[22m[36massets/AllCartPage-jXs4ef6L.js                         [39m[1m[2m    7.84 kB[22m[1m[22m[2m │ gzip:   2.75 kB[22m
+[2mdist/[22m[36massets/adminProfile-ClzhhER6.js                        [39m[1m[2m    7.94 kB[22m[1m[22m[2m │ gzip:   2.86 kB[22m
+[2mdist/[22m[36massets/adminPaybackEntries-DKFbVqwe.js                 [39m[1m[2m    8.18 kB[22m[1m[22m[2m │ gzip:   3.04 kB[22m
+[2mdist/[22m[36massets/adminCategoryManagement-BndYRVPN.js             [39m[1m[2m    8.73 kB[22m[1m[22m[2m │ gzip:   3.42 kB[22m
+[2mdist/[22m[36massets/ShopCheckoutConfirm-C6FoSufE.js                 [39m[1m[2m    8.95 kB[22m[1m[22m[2m │ gzip:   2.95 kB[22m
+[2mdist/[22m[36massets/riderProfile-Bi-fyGq4.js                        [39m[1m[2m    9.22 kB[22m[1m[22m[2m │ gzip:   2.57 kB[22m
+[2mdist/[22m[36massets/LocationAccess-D3hS5dDr.js                      [39m[1m[2m    9.99 kB[22m[1m[22m[2m │ gzip:   3.46 kB[22m
+[2mdist/[22m[36massets/firebase-CVdOUjjK.js                            [39m[1m[2m   10.57 kB[22m[1m[22m[2m │ gzip:   4.20 kB[22m
+[2mdist/[22m[36massets/adminRiderApplications-B09ojlqy.js              [39m[1m[2m   10.77 kB[22m[1m[22m[2m │ gzip:   3.69 kB[22m
+[2mdist/[22m[36massets/StoreDetailsPage-BVdgo-Tj.js                    [39m[1m[2m   11.01 kB[22m[1m[22m[2m │ gzip:   3.68 kB[22m
+[2mdist/[22m[36massets/adminCapitalShareEntriesManagement-Bm8lYEXI.js  [39m[1m[2m   11.14 kB[22m[1m[22m[2m │ gzip:   4.01 kB[22m
+[2mdist/[22m[36massets/adminWithdrawals-MB-GshRw.js                    [39m[1m[2m   11.35 kB[22m[1m[22m[2m │ gzip:   3.97 kB[22m
+[2mdist/[22m[36massets/memberVouchers-C49kPUH4.js                      [39m[1m[2m   11.40 kB[22m[1m[22m[2m │ gzip:   3.84 kB[22m
+[2mdist/[22m[36massets/adminDeposits-CubJk5Uk.js                       [39m[1m[2m   12.02 kB[22m[1m[22m[2m │ gzip:   4.18 kB[22m
+[2mdist/[22m[36massets/merchantProducts-B_P8YP1U.js                    [39m[1m[2m   12.08 kB[22m[1m[22m[2m │ gzip:   4.31 kB[22m
+[2mdist/[22m[36massets/merchantDashboard-DTcg0K8l.js                   [39m[1m[2m   13.12 kB[22m[1m[22m[2m │ gzip:   3.08 kB[22m
+[2mdist/[22m[36massets/memberProfile-On8qFZmB.js                       [39m[1m[2m   15.14 kB[22m[1m[22m[2m │ gzip:   4.75 kB[22m
+[2mdist/[22m[36massets/riderDashboard-B7itIBgb.js                      [39m[1m[2m   15.49 kB[22m[1m[22m[2m │ gzip:   5.13 kB[22m
+[2mdist/[22m[36massets/adminGenerateCode-iPsuu1Fn.js                   [39m[1m[2m   15.55 kB[22m[1m[22m[2m │ gzip:   4.09 kB[22m
+[2mdist/[22m[36massets/merchantOrders-j2264TNM.js                      [39m[1m[2m   16.11 kB[22m[1m[22m[2m │ gzip:   4.86 kB[22m
+[2mdist/[22m[36massets/adminUserManagement-Pas2qpXK.js                 [39m[1m[2m   17.15 kB[22m[1m[22m[2m │ gzip:   5.26 kB[22m
+[2mdist/[22m[36massets/AreaChart-PXBI0JlN.js                           [39m[1m[2m   17.29 kB[22m[1m[22m[2m │ gzip:   5.38 kB[22m
+[2mdist/[22m[36massets/adminDashboard-OezVjZB0.js                      [39m[1m[2m   18.07 kB[22m[1m[22m[2m │ gzip:   5.92 kB[22m
+[2mdist/[22m[36massets/ShopLocationDialog-3tc_F2Sq.js                  [39m[1m[2m   18.85 kB[22m[1m[22m[2m │ gzip:   6.09 kB[22m
+[2mdist/[22m[36massets/MerchantStoreSettings-UY0a4qDZ.js               [39m[1m[2m   20.93 kB[22m[1m[22m[2m │ gzip:   6.08 kB[22m
+[2mdist/[22m[36massets/CartPage-BD33gcv4.js                            [39m[1m[2m   21.22 kB[22m[1m[22m[2m │ gzip:   6.66 kB[22m
+[2mdist/[22m[36massets/adminVoucherRecords-60Pn7eJP.js                 [39m[1m[2m   21.50 kB[22m[1m[22m[2m │ gzip:   5.65 kB[22m
+[2mdist/[22m[36massets/ShopPage-BV83vWvM.js                            [39m[1m[2m   25.74 kB[22m[1m[22m[2m │ gzip:   9.14 kB[22m
+[2mdist/[22m[36massets/AppBottomNav-BVhjoIIM.js                        [39m[1m[2m   31.07 kB[22m[1m[22m[2m │ gzip:   9.68 kB[22m
+[2mdist/[22m[36massets/vendor-mui-icons-CbWhM6-J.js                    [39m[1m[2m   33.59 kB[22m[1m[22m[2m │ gzip:  11.45 kB[22m
+[2mdist/[22m[36massets/vendor-emotion-CzXs6gIp.js                      [39m[1m[2m   33.83 kB[22m[1m[22m[2m │ gzip:  13.61 kB[22m
+[2mdist/[22m[36massets/memberPayback-DkUl_LXh.js                       [39m[1m[2m   36.97 kB[22m[1m[22m[2m │ gzip:  10.11 kB[22m
+[2mdist/[22m[36massets/MerchantVouchers-DdJtTiy1.js                    [39m[1m[2m   37.76 kB[22m[1m[22m[2m │ gzip:  12.05 kB[22m
+[2mdist/[22m[36massets/login-D7rWJdE_.js                               [39m[1m[2m   38.60 kB[22m[1m[22m[2m │ gzip:  11.69 kB[22m
+[2mdist/[22m[36massets/qr-scanner-worker.min-D85Z9gVD.js               [39m[1m[2m   43.95 kB[22m[1m[22m[2m │ gzip:  10.46 kB[22m
+[2mdist/[22m[36massets/memberCashIn-BwXSN-8V.js                        [39m[1m[2m   46.21 kB[22m[1m[22m[2m │ gzip:  12.75 kB[22m
+[2mdist/[22m[36massets/RiderApplicationPage-B_bUR9kH.js                [39m[1m[2m   47.66 kB[22m[1m[22m[2m │ gzip:  11.65 kB[22m
+[2mdist/[22m[36massets/memberDashboard-CVnKPspQ.js                     [39m[1m[2m   52.00 kB[22m[1m[22m[2m │ gzip:  13.34 kB[22m
+[2mdist/[22m[36massets/adminWallettoWallet-USsCq0IE.js                 [39m[1m[2m   60.05 kB[22m[1m[22m[2m │ gzip:  16.56 kB[22m
+[2mdist/[22m[36massets/vendor-mui-core-CIyCFTWt.js                     [39m[1m[2m   97.73 kB[22m[1m[22m[2m │ gzip:  26.24 kB[22m
+[2mdist/[22m[36massets/memberCapitalShare-DF0A90rT.js                  [39m[1m[2m  106.85 kB[22m[1m[22m[2m │ gzip:  25.60 kB[22m
+[2mdist/[22m[36massets/index-B0wOEQIg.js                               [39m[1m[2m  107.01 kB[22m[1m[22m[2m │ gzip:  35.28 kB[22m
+[2mdist/[22m[36massets/proxy-DO9DabF4.js                               [39m[1m[2m  112.08 kB[22m[1m[22m[2m │ gzip:  36.88 kB[22m
+[2mdist/[22m[36massets/jsQR-DlBeBlE0.js                                [39m[1m[2m  130.40 kB[22m[1m[22m[2m │ gzip:  47.34 kB[22m
+[2mdist/[22m[36massets/esm-DFp539CZ.js                                 [39m[1m[2m  151.98 kB[22m[1m[22m[2m │ gzip:  33.50 kB[22m
+[2mdist/[22m[36massets/EwalletHistoryDialog-nelKEQOj.js                [39m[1m[2m  164.47 kB[22m[1m[22m[2m │ gzip:  42.45 kB[22m
+[2mdist/[22m[36massets/CartesianChart-oPfGzpi4.js                      [39m[1m[2m  248.81 kB[22m[1m[22m[2m │ gzip:  74.64 kB[22m
+[2mdist/[22m[36massets/FileSaver.min-BsXHQIXT.js                       [39m[1m[2m  285.14 kB[22m[1m[22m[2m │ gzip:  95.91 kB[22m
+[2mdist/[22m[36massets/vendor-mui-x-wU1PPF5r.js                        [39m[1m[2m  462.24 kB[22m[1m[22m[2m │ gzip: 144.42 kB[22m
+[2mdist/[22m[36massets/vendor-firebase-BlCcENo7.js                     [39m[1m[2m  493.71 kB[22m[1m[22m[2m │ gzip: 150.69 kB[22m
+[32m✓ built in 1m 43s[39m
