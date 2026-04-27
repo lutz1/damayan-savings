@@ -42,8 +42,13 @@ const MaterialIcon = ({ name, filled = false, weight = 400, size = 24, sx = {} }
   <span
     className="material-symbols-outlined"
     style={{
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
       fontSize: size,
       fontVariationSettings: `'FILL' ${filled ? 1 : 0}, 'wght' ${weight}`,
+      lineHeight: 1,
+      fontFamily: "Material Symbols Outlined",
       ...sx,
     }}
   >
@@ -317,7 +322,7 @@ const MerchantProducts = () => {
               </Typography>
             </Box>
             <Button
-              onClick={() => navigate("/add-product")}
+              onClick={() => navigate("/merchant/add-product")}
               sx={{
                 width: 40,
                 height: 40,

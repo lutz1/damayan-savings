@@ -56,6 +56,7 @@ const MerchantLoginPage = lazy(() => import("./pages/merchant/MerchantLoginPage"
 const MerchantDashboard = lazy(() => import("./pages/merchant/merchantDashboard"));
 const MerchantOrders = lazy(() => import("./pages/merchant/merchantOrders"));
 const MerchantProducts = lazy(() => import("./pages/merchant/merchantProducts"));
+const AddProduct = lazy(() => import("./pages/merchant/AddProduct"));
 const MerchantProfile = lazy(() => import("./pages/merchant/merchantProfile"));
 const MerchantStoreSettings = lazy(() => import("./pages/merchant/MerchantStoreSettings"));
 const MerchantVouchers = lazy(() => import("./pages/merchant/MerchantVouchers"));
@@ -453,6 +454,14 @@ function App() {
               element={
                 <MerchantRoute>
                   <MerchantProducts />
+                </MerchantRoute>
+              }
+            />
+            <Route
+              path="/merchant/add-product"
+              element={
+                <MerchantRoute>
+                  <AddProduct />
                 </MerchantRoute>
               }
             />
