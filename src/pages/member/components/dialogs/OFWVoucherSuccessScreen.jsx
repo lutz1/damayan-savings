@@ -78,58 +78,60 @@ const OFWVoucherSuccessScreen = ({
         <h2 className="text-slate-800 text-lg font-bold leading-tight tracking-tight flex-1 text-center pr-10">Confirmation</h2>
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center px-6 text-center relative z-10">
-        <div className="mb-6 relative">
-          <div className="absolute inset-0 bg-[#34d399]/30 blur-3xl rounded-full" />
-          <div className="relative flex h-24 w-24 items-center justify-center rounded-full bg-white/75 border-2 border-[#a7f3d0] shadow-[0_12px_35px_rgba(17,24,39,0.12)] backdrop-blur-md">
-            <span className="material-symbols-outlined text-[#22c55e] text-5xl font-bold">check_circle</span>
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        <div className="flex flex-col items-center px-6 text-center relative z-10 py-6">
+          <div className="mb-6 relative">
+            <div className="absolute inset-0 bg-[#34d399]/30 blur-3xl rounded-full" />
+            <div className="relative flex h-24 w-24 items-center justify-center rounded-full bg-white/75 border-2 border-[#a7f3d0] shadow-[0_12px_35px_rgba(17,24,39,0.12)] backdrop-blur-md">
+              <span className="material-symbols-outlined text-[#22c55e] text-5xl font-bold">check_circle</span>
+            </div>
           </div>
-        </div>
 
-        <h1 className="text-slate-900 text-4xl font-extrabold tracking-tight mb-2">Success!</h1>
-        <div className="space-y-2">
-          <p className="text-slate-600 text-base leading-relaxed font-medium">Your OFW membership has been activated.</p>
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/70 border border-slate-300 shadow-sm">
-            <span className="text-slate-700 text-xs font-extrabold uppercase tracking-widest">STATUS: {statusLabel}</span>
-          </div>
-        </div>
-
-        <div className="w-full mt-8 space-y-3">
-          <p className="text-slate-700 font-bold text-sm">Your OFW Perks</p>
+          <h1 className="text-slate-900 text-4xl font-extrabold tracking-tight mb-2">Success!</h1>
           <div className="space-y-2">
-            {OFW_PERKS.map((perk) => (
-              <div
-                key={perk.id}
-                className={`p-3 rounded-xl border-2 ${perk.color} ${perk.borderColor} backdrop-blur-sm`}
-              >
-                <div className="flex items-start gap-3">
-                  <div className={`flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-lg ${perk.color} border ${perk.borderColor}`}>
-                    <span className={`material-symbols-outlined text-lg ${perk.textColor}`}>{perk.icon}</span>
-                  </div>
-                  <div className="flex-1 text-left">
-                    <p className={`font-bold text-xs text-slate-900`}>{perk.title}</p>
-                    <p className="text-slate-600 text-[11px] mt-0.5">{perk.description}</p>
+            <p className="text-slate-600 text-base leading-relaxed font-medium">Your OFW membership has been activated.</p>
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/70 border border-slate-300 shadow-sm">
+              <span className="text-slate-700 text-xs font-extrabold uppercase tracking-widest">STATUS: {statusLabel}</span>
+            </div>
+          </div>
+
+          <div className="w-full mt-8 space-y-3">
+            <p className="text-slate-700 font-bold text-sm">Your OFW Perks</p>
+            <div className="space-y-2">
+              {OFW_PERKS.map((perk) => (
+                <div
+                  key={perk.id}
+                  className={`p-3 rounded-xl border-2 ${perk.color} ${perk.borderColor} backdrop-blur-sm`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-lg ${perk.color} border ${perk.borderColor}`}>
+                      <span className={`material-symbols-outlined text-lg ${perk.textColor}`}>{perk.icon}</span>
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className={`font-bold text-xs text-slate-900`}>{perk.title}</p>
+                      <p className="text-slate-600 text-[11px] mt-0.5">{perk.description}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="w-full mt-6 p-4 rounded-2xl bg-white/70 border border-white/70 backdrop-blur-xl shadow-[0_10px_30px_rgba(15,23,42,0.12)]">
-          <div className="text-center">
-            <p className="text-slate-500 text-xs font-medium mb-2">Voucher ID</p>
-            <p className="text-slate-700 font-mono text-sm tracking-[0.12em] font-semibold uppercase break-all">{voucherCode}</p>
+              ))}
+            </div>
           </div>
 
-          <div className="mt-4 pt-4 border-t border-slate-300/70 text-xs uppercase tracking-wider text-center">
-            <span className="text-slate-500">Issued: </span>
-            <span className="text-slate-700 font-semibold">{formatDate(issuedAt)}</span>
+          <div className="w-full mt-6 p-4 rounded-2xl bg-white/70 border border-white/70 backdrop-blur-xl shadow-[0_10px_30px_rgba(15,23,42,0.12)] mb-4">
+            <div className="text-center">
+              <p className="text-slate-500 text-xs font-medium mb-2">Voucher ID</p>
+              <p className="text-slate-700 font-mono text-sm tracking-[0.12em] font-semibold uppercase break-all">{voucherCode}</p>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-slate-300/70 text-xs uppercase tracking-wider text-center">
+              <span className="text-slate-500">Issued: </span>
+              <span className="text-slate-700 font-semibold">{formatDate(issuedAt)}</span>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="px-6 pb-12 space-y-3 relative z-10">
+      <div className="px-6 py-4 space-y-3 relative z-10 border-t border-white/20 bg-gradient-to-t from-white/40 to-transparent backdrop-blur-sm">
         <button
           type="button"
           onClick={onDone || onClose}
