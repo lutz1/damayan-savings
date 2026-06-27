@@ -7,6 +7,9 @@ const CapitalShareTransactions = ({
   onTransferCapital,
   totalLockIn,
 }) => {
+
+  const isTransferableDisabled = true;
+
   return (
     <Card
       sx={{
@@ -222,6 +225,7 @@ const CapitalShareTransactions = ({
                           "&:hover": { bgcolor: "#45a049" },
                         }}
                         disabled={
+                          isTransferableDisabled ||
                           !canTransferByTime ||
                           (t.transferredAmount &&
                             t.transferredAmount >= t.transferablePortion) ||
