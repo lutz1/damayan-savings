@@ -158,6 +158,23 @@ const DetailedProfitClaimsHistory = ({
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
             {entriesWithClaims.map((entry, index) => {
               const isExpanded = expandedEntry === entry.id;
+                
+            // ✅ ADD THIS BLOCK HERE
+              const transferDate =
+                entry.transferredAt && typeof entry.transferredAt.toDate === "function"
+                  ? entry.transferredAt.toDate()
+                  : entry.transferredAt
+                  ? new Date(entry.transferredAt)
+                  : null;
+
+              const isAfterTransferNow =
+                transferDate && new Date() >= transferDate;
+
+              const currentBase = isAfterTransferNow
+                ? entry.lockInPortion || 0
+                : entry.amount || 0;
+
+              const currentMonthlyRate = currentBase * 0.05;
 
               return (
                 <Accordion
@@ -300,14 +317,12 @@ const DetailedProfitClaimsHistory = ({
                               mt: 0.5,
                             }}
                           >
-                            ₱
-                            {Number(entry.monthlyProfitRate).toLocaleString(
-                              undefined,
-                              {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2,
-                              }
-                            )}
+                            
+                            ₱{Number(currentMonthlyRate).toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+
                           </Typography>
                         </Grid>
                         <Grid item xs={6} sm={3}>
@@ -353,13 +368,12 @@ const DetailedProfitClaimsHistory = ({
                               mt: 0.5,
                             }}
                           >
-                            ₱
-                            {Number(
-                              entry.monthlyProfitRate * entry.monthsElapsed
-                            ).toLocaleString(undefined, {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })}
+                            
+                              ₱{Number(currentMonthlyRate).toLocaleString(undefined, {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+
                           </Typography>
                         </Grid>
                         <Grid item xs={6} sm={3}>
@@ -424,32 +438,28 @@ const DetailedProfitClaimsHistory = ({
                           Profit Base: ₱{Number(entry.profitBase).toLocaleString()} × 5% (monthly
                           rate)
                           <br />
-                          = ₱
-                          {Number(entry.monthlyProfitRate).toLocaleString(
-                            undefined,
-                            {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            }
-                          )}{" "}
+                          
+                          ₱{Number(currentMonthlyRate).toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                          {" "}
                           per month
                           <br />
                           <br />
-                          {entry.monthsElapsed} months × ₱
-                          {Number(entry.monthlyProfitRate).toLocaleString(
-                            undefined,
-                            {
+                          {entry.monthsElapsed} months × 
+                            ₱{Number(currentMonthlyRate).toLocaleString(undefined, {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2,
-                            }
-                          )}{" "}
-                          = ₱
-                          {Number(
-                            entry.monthlyProfitRate * entry.monthsElapsed
-                          ).toLocaleString(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}{" "}
+                            })}
+
+                          {" "}
+                          
+                            ₱{Number(currentMonthlyRate).toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                            {" "}
                           expected
                         </Typography>
                       </Card>
@@ -551,7 +561,14 @@ const DetailedProfitClaimsHistory = ({
 
                               const now = new Date();
                               const monthlyRate = entry.monthlyProfitRate;
-                              const profitTimeline = [];
+                              const profitTimeline = [];                          
+                              const getTransferDate = (date) => {
+                                if (!date) return null;
+                                if (typeof date.toDate === "function") return date.toDate();
+                                return new Date(date);
+                              };
+
+                              const transferDate = getTransferDate(entry.transferredAt);
 
                               const claimedPeriods = Array.isArray(entry.claimedProfitPeriods)
                                 ? entry.claimedProfitPeriods
@@ -614,12 +631,20 @@ const DetailedProfitClaimsHistory = ({
                                 // This period is claimed if it matches the claimed period index
                                 const isClaimed = periodNumber === claimedPeriodIndex;
                                 const claimDateForPeriod = isClaimed && entry.profitClaimedAt ? toDateSafe(entry.profitClaimedAt) : null;
+                                
+                                const isAfterTransfer =
+                                    transferDate && periodStartDate >= transferDate;
 
+                                  const dynamicBase = isAfterTransfer
+                                    ? entry.lockInPortion || 0
+                                    : entry.amount || 0;
+
+                                  const dynamicMonthlyRate = dynamicBase * 0.05;
                                 profitTimeline.push({
                                   periodStartDate: new Date(periodStartDate),
                                   periodEndDate: new Date(periodEndDate),
                                   periodKey: toPeriodKey(periodStartDate),
-                                  amount: monthlyRate,
+                                  amount: dynamicMonthlyRate,
                                   isClaimed: isClaimed,
                                   claimDate: claimDateForPeriod,
                                 });
