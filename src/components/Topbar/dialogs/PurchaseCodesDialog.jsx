@@ -77,7 +77,7 @@ const PurchaseCodesDialog = ({
     activatedAt && oneYearAfterActivation && new Date() >= oneYearAfterActivation
   );
 
-  const capitalPrice = isCapitalRenewalEligible ? 500 : 6000;
+  const capitalPrice = isCapitalRenewalEligible ? 500 : 2000;
   const capitalLabel = isCapitalRenewalEligible
     ? "Capital Share Renewal Code"
     : "Capital Share Activation Code";
