@@ -23,9 +23,9 @@ const DEFAULT_RESET_PASSWORD = "password123";
 const DEFAULT_RESET_MPIN = "1234";
 
 const PURCHASE_CODE_PRICES = Object.freeze({
-  capitalActivation: 2000,
+  capitalActivation: 2400,
   capitalRenewal: 500,
-  downline: 1000,
+  downline: 600,
 });
 
 const getDateValue = (value) => {

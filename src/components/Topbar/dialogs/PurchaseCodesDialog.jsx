@@ -77,14 +77,14 @@ const PurchaseCodesDialog = ({
     activatedAt && oneYearAfterActivation && new Date() >= oneYearAfterActivation
   );
 
-  const capitalPrice = isCapitalRenewalEligible ? 500 : 2000;
+  const capitalPrice = isCapitalRenewalEligible ? 500 : 2400;
   const capitalLabel = isCapitalRenewalEligible
     ? "Capital Share Renewal Code"
     : "Capital Share Activation Code";
 
   const codePrices = {
     capital: Number(serverPricing?.capitalPrice ?? capitalPrice),
-    downline: Number(serverPricing?.downlinePrice ?? 1000),
+    downline: Number(serverPricing?.downlinePrice ?? 600),
   };
 
   const resolvedCapitalLabel = serverPricing?.capitalLabel || capitalLabel;
