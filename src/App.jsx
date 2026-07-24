@@ -11,6 +11,7 @@ import {
 import { LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterMoment } from "@mui/x-date-pickers/AdapterMoment";
 import Splashscreen from "./components/splashscreen";
+import MaintenancePage from "./pages/maintenance/MaintenancePage";
 
 const Login = lazy(() => import("./pages/login"));
 const AdminDashboard = lazy(() => import("./pages/admin/adminDashboard"));
@@ -63,7 +64,14 @@ const MerchantVouchers = lazy(() => import("./pages/merchant/MerchantVouchers"))
 
 
 function App() {
+  const MAINTENANCE_MODE = true;
+
+  if (MAINTENANCE_MODE) {
+    return <MaintenancePage />;
+  }
+
   const skipSplashAfterLogin = sessionStorage.getItem("skipAppSplash") === "true";
+  
   const splashAlreadyShown = sessionStorage.getItem("appSplashShown") === "true";
   const [initialized, setInitialized] = useState(false);
   const [role, setRole] = useState(() => localStorage.getItem("userRole"));

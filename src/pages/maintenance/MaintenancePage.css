@@ -1,0 +1,94 @@
+.maintenance-page {
+  min-height: 100vh;
+  background: #ffffff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 32px 24px;
+  font-family: Roboto, Arial, sans-serif;
+}
+
+.maintenance-container {
+  width: 100%;
+  max-width: 1280px;
+  text-align: center;
+}
+
+.firebase-logo {
+  width: 130px;
+  height: auto;
+  margin-bottom: 50px;
+}
+
+.maintenance-container h1 {
+  font-size: 64px;
+  font-weight: 700;
+  color: #202124;
+  line-height: 1.1;
+  margin: 0 0 24px 0;
+  letter-spacing: -1px;
+}
+
+.maintenance-message,
+.maintenance-submessage {
+  font-size: 22px;
+  color: #5f6368;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.maintenance-message {
+  margin-bottom: 8px;
+}
+
+.maintenance-submessage {
+  margin-bottom: 56px;
+}
+
+.maintenance-card {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.maintenance-image {
+  width: 100%;
+  max-width: 520px;
+  height: auto;
+  display: block;
+}
+
+@media (max-width: 900px) {
+  .firebase-logo {
+    width: 100px;
+    margin-bottom: 32px;
+  }
+
+  .maintenance-container h1 {
+    font-size: 42px;
+  }
+
+  .maintenance-message,
+  .maintenance-submessage {
+    font-size: 18px;
+  }
+
+  .maintenance-image {
+    max-width: 340px;
+  }
+}
+
+@media (max-width: 600px) {
+  .maintenance-container h1 {
+    font-size: 32px;
+  }
+
+  .maintenance-message,
+  .maintenance-submessage {
+    font-size: 16px;
+  }
+
+  .maintenance-image {
+    max-width: 280px;
+  }
+}
